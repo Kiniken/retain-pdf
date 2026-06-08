@@ -34,9 +34,10 @@ export function readUpdateCache(now = Date.now()) {
     if (!cached) {
       return { info: null, fresh: false };
     }
+    const ageMs = now - cached.checkedAt;
     return {
       info: cached,
-      fresh: now - cached.checkedAt < CACHE_TTL_MS,
+      fresh: ageMs >= 0 && ageMs < CACHE_TTL_MS,
     };
   } catch {
     return { info: null, fresh: false };

@@ -6,29 +6,74 @@ function normalizeVersion(value = "") {
   return `${value || ""}`.trim().replace(/^v/i, "");
 }
 
-function versionParts(value = "") {
-  return normalizeVersion(value).split(/[.+-]/).map((part) => {
-    const match = `${part || ""}`.match(/\d+/);
-    const num = Number.parseInt(match?.[0] || "0", 10);
-    return Number.isFinite(num) ? num : 0;
-  });
+function numericPart(value = "") {
+  const match = `${value || ""}`.match(/\d+/);
+  const num = Number.parseInt(match?.[0] || "0", 10);
+  return Number.isFinite(num) ? num : 0;
 }
 
-export function isNewerVersion(latest = "", current = APP_VERSION) {
-  const latestParts = versionParts(latest);
-  const currentParts = versionParts(current);
+function betaNumber(value = "") {
+  const match = `${value || ""}`.trim().match(/^beta(?:[.+-]?(\d+))?$/i);
+  if (!match) {
+    return null;
+  }
+  return numericPart(match[1] || "0");
+}
+
+function versionParts(value = "") {
+  const [withoutBuild = ""] = normalizeVersion(value).split("+");
+  const prereleaseIndex = withoutBuild.indexOf("-");
+  const core = prereleaseIndex >= 0 ? withoutBuild.slice(0, prereleaseIndex) : withoutBuild;
+  const prerelease = prereleaseIndex >= 0 ? withoutBuild.slice(prereleaseIndex + 1) : "";
+  return {
+    core: core.split(".").map(numericPart),
+    beta: betaNumber(prerelease),
+    stable: !prerelease,
+  };
+}
+
+function compareCoreVersion(latestParts, currentParts) {
   const length = Math.max(latestParts.length, currentParts.length);
   for (let index = 0; index < length; index += 1) {
     const latestPart = latestParts[index] || 0;
     const currentPart = currentParts[index] || 0;
     if (latestPart > currentPart) {
-      return true;
+      return 1;
     }
     if (latestPart < currentPart) {
-      return false;
+      return -1;
     }
   }
-  return false;
+  return 0;
+}
+
+function compareBetaVersion(latestParts, currentParts) {
+  const latestIsBeta = latestParts.beta !== null;
+  const currentIsBeta = currentParts.beta !== null;
+  if (latestParts.stable && currentIsBeta) {
+    return 1;
+  }
+  if (latestIsBeta && currentParts.stable) {
+    return -1;
+  }
+  if (!latestIsBeta || !currentIsBeta) {
+    return 0;
+  }
+  return latestParts.beta - currentParts.beta;
+}
+
+function compareVersions(latest, current) {
+  const latestParts = versionParts(latest);
+  const currentParts = versionParts(current);
+  const coreResult = compareCoreVersion(latestParts.core, currentParts.core);
+  if (coreResult !== 0) {
+    return coreResult;
+  }
+  return compareBetaVersion(latestParts, currentParts);
+}
+
+export function isNewerVersion(latest = "", current = APP_VERSION) {
+  return compareVersions(latest, current) > 0;
 }
 
 export async function fetchLatestGithubRelease() {

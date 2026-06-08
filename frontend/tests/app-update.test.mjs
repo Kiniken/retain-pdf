@@ -26,7 +26,19 @@ function withLocalStorage(fn) {
 test("isNewerVersion compares beta suffix numbers instead of only major version", () => {
   assert.equal(isNewerVersion("v4.1.6-beta2", "4.1.6-beta1"), true);
   assert.equal(isNewerVersion("v4.1.6-beta1", "4.1.6-beta2"), false);
+  assert.equal(isNewerVersion("v4.1.6-beta10", "4.1.6-beta1"), true);
+  assert.equal(isNewerVersion("v4.1.6-beta1", "4.1.6-beta10"), false);
   assert.equal(isNewerVersion("v4.1.7", "4.1.6-beta9"), true);
+});
+
+test("isNewerVersion treats stable releases as newer than prereleases", () => {
+  assert.equal(isNewerVersion("v4.1.6", "4.1.6-beta10"), true);
+  assert.equal(isNewerVersion("v4.1.6-beta10", "4.1.6"), false);
+});
+
+test("isNewerVersion ignores unsupported prerelease labels", () => {
+  assert.equal(isNewerVersion("v4.1.6-preview1", "4.1.6-beta10"), false);
+  assert.equal(isNewerVersion("v4.1.6-beta10", "4.1.6-preview1"), false);
 });
 
 test("update cache reports freshness using 24 hour ttl", () => {
@@ -45,5 +57,20 @@ test("update cache reports freshness using 24 hour ttl", () => {
     const stale = readUpdateCache(1000 + 25 * 60 * 60 * 1000);
     assert.equal(stale.fresh, false);
     assert.equal(stale.info.latestVersion, "4.1.6-beta2");
+  });
+});
+
+test("update cache treats future timestamps as stale", () => {
+  withLocalStorage(() => {
+    writeUpdateCache({
+      currentVersion: "4.1.6-beta1",
+      latestVersion: "4.1.6-beta2",
+      hasUpdate: true,
+    }, 2000);
+
+    const cached = readUpdateCache(1000);
+
+    assert.equal(cached.fresh, false);
+    assert.equal(cached.info.latestVersion, "4.1.6-beta2");
   });
 });
