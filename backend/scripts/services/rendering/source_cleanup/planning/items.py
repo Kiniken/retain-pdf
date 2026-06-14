@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 import fitz
 
-from services.rendering.source_cleanup.planning.geometry import ocr_bbox_to_pdf_rect
 from services.rendering.source_cleanup.planning.coordinate_resolver import PageBBoxResolver
 from services.rendering.source_cleanup.planning.intent_classifier import classify_source_cleanup_intent
 from services.rendering.source_cleanup.planning.rects import merge_rects
@@ -26,12 +25,12 @@ def iter_strip_item_rect_pairs_for_page(
     resolver: PageBBoxResolver | None = None,
     prefiltered: bool = False,
 ) -> Iterator[SourceCleanupItemRects]:
-    active_resolver = resolver or PageBBoxResolver.build(page)
+    active_resolver = resolver or PageBBoxResolver.build(page, items=translated_items)
     for item in translated_items:
         if not prefiltered and not item_should_emit_strip_rect(item):
             continue
-        pdf_rect = active_resolver.ocr_bbox_to_pdf_rect(item.get("bbox", []))
-        view_rect = active_resolver.resolve_bbox_rect(item.get("bbox", []))
+        pdf_rect = active_resolver.ocr_item_bbox_to_pdf_rect(item)
+        view_rect = active_resolver.resolve_item_bbox_rect(item)
         probe_rects = active_resolver.resolve_bbox_probe_rects(item.get("bbox", []))
         if pdf_rect is not None and view_rect is not None:
             yield SourceCleanupItemRects(
@@ -47,11 +46,17 @@ def iter_strip_item_rects_for_page(page: fitz.Page, translated_items: list[dict]
         yield pair.item, pair.pdf_rect
 
 
-def iter_formula_item_rects_for_page(page: fitz.Page, translated_items: list[dict]) -> Iterator[tuple[dict, fitz.Rect]]:
+def iter_formula_item_rects_for_page(
+    page: fitz.Page,
+    translated_items: list[dict],
+    *,
+    resolver: PageBBoxResolver | None = None,
+) -> Iterator[tuple[dict, fitz.Rect]]:
+    active_resolver = resolver or PageBBoxResolver.build(page, items=translated_items)
     for item in translated_items:
         if not classify_source_cleanup_intent(item).should_protect_source:
             continue
-        rect = ocr_bbox_to_pdf_rect(page, item.get("bbox", []))
+        rect = active_resolver.ocr_item_bbox_to_pdf_rect(item)
         if rect is not None:
             yield item, rect
 

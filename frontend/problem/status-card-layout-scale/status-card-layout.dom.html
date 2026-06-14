@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Status Card Layout Scale</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f5f5f7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .translation-workflow-dialog {
+      display: grid !important;
+    }
+
+    .translation-workflow-card {
+      display: none !important;
+    }
+
+    .translation-status-panel {
+      display: grid !important;
+    }
+  </style>
+<script src="./vendor/lottie-web/build/player/lottie.min.js" async=""></script></head>
+<body>
+  <div id="translation-workflow-dialog" class="translation-workflow-dialog is-status-mode" role="dialog" aria-modal="true" aria-labelledby="translation-workflow-title">
+    <div class="desktop-shell translation-workflow-shell">
+      <div class="translation-workflow-head">
+        <h2 id="translation-workflow-title">任务进度</h2>
+        <button type="button" class="dialog-close-btn" aria-label="关闭">×</button>
+      </div>
+      <section class="translation-workflow-card"></section>
+      <section id="status-section" class="translation-status-panel" aria-label="任务进度">
+        <job-status-card id="job-status-card" data-hydrated="1" class="card status-card has-stage-animation is-translation-stage" data-visual-stage-key="translate">
+    <div class="status-head">
+      <button id="cancel-btn" type="button" class="task-toolbar-btn secondary status-head-btn status-head-cancel" aria-label="取消任务" title="取消任务">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M8.4 8.4l7.2 7.2M15.6 8.4l-7.2 7.2" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"></path>
+        </svg>
+        <span>取消</span>
+      </button>
+      <div id="status-ring-elapsed" class="status-ring-elapsed">2分18秒</div>
+      <button id="back-home-btn" type="button" class="task-toolbar-btn secondary status-head-btn status-head-home hidden" aria-label="返回主页面" title="返回主页面">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M5.4 11.4 12 6.05l6.6 5.35" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"></path>
+          <path d="M8.7 10.8v6.95h6.6V10.8" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+        <span>主页</span>
+      </button>
+    </div>
+
+    <div class="status-ring-shell">
+      <div class="status-focus-card">
+        <div class="status-focus-top">
+          <div id="status-stage-flow" class="status-stage-flow" role="tablist" aria-label="任务流程">
+            <button type="button" class="status-stage-step is-done" data-stage-key="ocr" role="tab" aria-selected="false">
+              <span class="status-stage-step-name">OCR</span>
+            </button>
+            <button type="button" class="status-stage-step is-active is-selected" data-stage-key="translate" role="tab" aria-selected="true">
+              <span class="status-stage-step-name">翻译</span>
+            </button>
+            <button type="button" class="status-stage-step is-disabled" data-stage-key="render" role="tab" disabled="" aria-selected="false">
+              <span class="status-stage-step-name">渲染</span>
+            </button>
+            <button type="button" class="status-stage-step is-disabled" data-stage-key="done" role="tab" disabled="" aria-selected="false">
+              <span class="status-stage-step-name">完成</span>
+            </button>
+          </div>
+        </div>
+        <div class="status-focus-body">
+          <div id="status-stage-error-summary" class="status-stage-error-summary hidden"></div>
+          <div id="status-ring-value" class="status-ring-value hidden">正在执行全书翻译</div>
+          <div id="status-stage-detail" class="status-stage-detail hidden">正在执行全书翻译</div>
+          <div id="status-stage-animation" class="status-stage-animation" aria-label="任务阶段动画">
+            <div id="status-stage-lottie" class="status-stage-lottie is-fallback"></div>
+          </div>
+          <div class="status-substage-flow" aria-label="任务子阶段" style="--status-substage-count: 5;"><span class="status-substage-step is-done" data-substage-key="translation_prepare">准备</span><span class="status-substage-step is-done" data-substage-key="domain_inference">领域</span><span class="status-substage-step is-done" data-substage-key="page_policies">页面策略</span><span class="status-substage-step is-done" data-substage-key="continuation_review">跨栏/跨页</span><span class="status-substage-step is-active" data-substage-key="translation_batches">翻译批次</span><span class="status-substage-step" data-substage-key="translation_tail_retry">尾部重试</span><span class="status-substage-step" data-substage-key="garbled_repair">乱码修复</span><span class="status-substage-step" data-substage-key="agent_repair">结果修复</span><span class="status-substage-step" data-substage-key="final_untranslated_recovery">最终收口</span></div>
+          <div class="status-progress-block">
+            <div class="progress-track"><div id="job-progress-bar" class="progress-bar" style="width: 8.20552%;"></div></div>
+            <div id="job-progress-text" class="status-progress-text">第 428/5216 批</div>
+          </div>
+          <div id="status-stage-retry" class="status-stage-retry hidden"></div>
+        </div>
+      </div>
+      <div class="status-card-footer">
+        <button id="status-detail-btn" type="button" class="task-toolbar-btn task-toolbar-btn-compact secondary" aria-label="任务详情" title="任务详情">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="7.9" r="1" fill="currentColor"></circle>
+            <path d="M12 10.95v5.05" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"></path>
+          </svg>
+          <span>详情</span>
+        </button>
+        <div class="status-result-actions hidden">
+          <a id="reader-btn" class="button-link secondary disabled task-toolbar-btn task-toolbar-btn-result hidden" href="#" aria-label="对照阅读" title="对照阅读" aria-disabled="true" data-url="">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5.1 7.95c0-.97.78-1.75 1.75-1.75H11v11.95H6.85A1.75 1.75 0 0 0 5.1 19.9V7.95Zm13.8 0c0-.97-.78-1.75-1.75-1.75H13v11.95h4.15c.97 0 1.75.78 1.75 1.75V7.95Z" stroke="currentColor" stroke-width="1.55" stroke-linejoin="round"></path>
+              <path d="M12 6.45v12.9" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"></path>
+            </svg>
+            <span>对照阅读</span>
+          </a>
+          <a id="pdf-btn" class="button-link secondary disabled task-toolbar-btn task-toolbar-btn-result hidden" href="#" target="_blank" rel="noopener noreferrer" aria-label="下载 PDF" title="下载 PDF" aria-disabled="true" data-url="">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 6v8.1" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"></path>
+              <path d="M9.15 11.35 12 14.2l2.85-2.85" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"></path>
+              <path d="M7.1 17.85h9.8" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"></path>
+            </svg>
+            <span>下载 PDF</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="hidden">
+      <div id="job-id">-</div>
+      <div id="job-status">idle</div>
+      <div id="job-stage-detail">-</div>
+      <div id="query-job-duration">-</div>
+      <div id="job-finished-at">-</div>
+      <span id="status-translation-animation-src">./src/assets/animations/deepseek_lottie.json</span>
+      <span id="status-ocr-animation-src">./src/assets/animations/ocr_Lottie.json</span>
+      <span id="status-upload-animation-src">./src/assets/animations/pdf_upload_Lottie.json</span>
+      <span id="status-download-animation-src">./src/assets/animations/pdf_download_Lottie.json</span>
+      <span id="status-render-animation-src">./src/assets/animations/typst_rendering.json</span>
+      <a id="download-btn" class="button-link disabled" href="#" target="_blank" rel="noopener noreferrer">ZIP</a>
+      <a id="markdown-raw-btn" class="button-link secondary disabled" href="#" target="_blank" rel="noopener noreferrer">Markdown</a>
+      <a id="markdown-btn" class="button-link secondary disabled" href="#" target="_blank" rel="noopener noreferrer">JSON</a>
+    </div>
+  </job-status-card>
+      </section>
+    </div>
+  </div>
+
+  <script type="module">
+    import "/src/js/components/status/job-status-card.js";
+
+    const snapshot = {
+      jobId: "layout-scale-smoke",
+      status: "running",
+      elapsed: "2分18秒",
+      cancelEnabled: true,
+      backHomeVisible: false,
+      label: "第 2/4 步 · 翻译",
+      value: "正在执行全书翻译",
+      stageKey: "translate",
+      visualStageKey: "translate",
+      progressCurrent: 428,
+      progressTotal: 5216,
+      progressText: "第 428/5216 批",
+      progressUnit: "batch",
+      substageKey: "translation_batches",
+      progressFallbackText: "-",
+      stageProgressByKey: {
+        ocr: {
+          current: 533,
+          total: 533,
+          progressText: "第 533/533 页",
+          progressUnit: "page",
+          substageKey: "normalizing",
+          visualStageKey: "ocr_processing",
+        },
+        translate: {
+          current: 428,
+          total: 5216,
+          progressText: "第 428/5216 批",
+          progressUnit: "batch",
+          substageKey: "translation_batches",
+          visualStageKey: "translate",
+          bySubstage: {
+            translation_prepare: { current: 1, total: 1, progressText: "准备完成", progressUnit: "step", substageKey: "translation_prepare" },
+            domain_inference: { current: 1, total: 1, progressText: "领域识别完成", progressUnit: "step", substageKey: "domain_inference" },
+            page_policies: { current: 533, total: 533, progressText: "第 533/533 页", progressUnit: "page", substageKey: "page_policies" },
+            continuation_review: { current: 533, total: 533, progressText: "第 533/533 页", progressUnit: "page", substageKey: "continuation_review" },
+            translation_batches: { current: 428, total: 5216, progressText: "第 428/5216 批", progressUnit: "batch", substageKey: "translation_batches" },
+          },
+        },
+      },
+      stageRetryActions: {},
+    };
+
+    customElements.whenDefined("job-status-card").then(() => {
+      const card = document.querySelector("#job-status-card");
+      card.renderSnapshot(snapshot);
+      card.classList.remove("hidden");
+      window.__STATUS_CARD_LAYOUT_READY__ = true;
+      setTimeout(() => {
+        const selectors = [
+          ".translation-workflow-shell",
+          ".translation-status-panel",
+          "job-status-card",
+          ".status-head",
+          ".status-focus-card",
+          ".status-stage-flow",
+          ".status-focus-body",
+          ".status-stage-animation",
+          ".status-substage-flow",
+          ".status-progress-block",
+          ".status-card-footer",
+        ];
+        const metrics = Object.fromEntries(selectors.map((selector) => {
+          const el = document.querySelector(selector);
+          if (!el) {
+            return [selector, null];
+          }
+          const rect = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+          return [selector, {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            gap: style.gap,
+            padding: style.padding,
+          }];
+        }));
+        const output = document.createElement("pre");
+        output.id = "layout-metrics";
+        output.textContent = JSON.stringify(metrics, null, 2);
+        output.style.display = "none";
+        document.body.appendChild(output);
+      }, 300);
+    });
+  </script>
+
+
+<pre id="layout-metrics" style="display: none;">{
+  ".translation-workflow-shell": {
+    "x": 12,
+    "y": 12,
+    "width": 756,
+    "height": 469,
+    "gap": "normal",
+    "padding": "0px"
+  },
+  ".translation-status-panel": {
+    "x": 13,
+    "y": 67,
+    "width": 754,
+    "height": 413,
+    "gap": "normal",
+    "padding": "15px 21px 18px"
+  },
+  "job-status-card": {
+    "x": 34,
+    "y": 2,
+    "width": 712,
+    "height": 540,
+    "gap": "12px normal",
+    "padding": "0px"
+  },
+  ".status-head": {
+    "x": 34,
+    "y": 2,
+    "width": 712,
+    "height": 45,
+    "gap": "10px",
+    "padding": "0px"
+  },
+  ".status-focus-card": {
+    "x": 34,
+    "y": 59,
+    "width": 712,
+    "height": 426,
+    "gap": "10.5px",
+    "padding": "21px 24px 15px"
+  },
+  ".status-stage-flow": {
+    "x": 135,
+    "y": 81,
+    "width": 510,
+    "height": 39,
+    "gap": "7.5px",
+    "padding": "0px"
+  },
+  ".status-focus-body": {
+    "x": 59,
+    "y": 137,
+    "width": 662,
+    "height": 326,
+    "gap": "10.5px",
+    "padding": "0px"
+  },
+  ".status-stage-animation": {
+    "x": 105,
+    "y": 137,
+    "width": 570,
+    "height": 174,
+    "gap": "normal",
+    "padding": "0px"
+  },
+  ".status-substage-flow": {
+    "x": 59,
+    "y": 322,
+    "width": 662,
+    "height": 80,
+    "gap": "7.5px",
+    "padding": "0px"
+  },
+  ".status-progress-block": {
+    "x": 105,
+    "y": 412,
+    "width": 570,
+    "height": 51,
+    "gap": "9px",
+    "padding": "0px"
+  },
+  ".status-card-footer": {
+    "x": 34,
+    "y": 497,
+    "width": 712,
+    "height": 45,
+    "gap": "9px",
+    "padding": "0px"
+  }
+}</pre></body></html>

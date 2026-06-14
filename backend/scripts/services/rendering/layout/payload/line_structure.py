@@ -5,6 +5,7 @@ import re
 from services.document_schema.text_flow import TEXT_FLOW_PRESERVE_LINES
 from services.document_schema.text_flow import classify_text_flow
 from services.document_schema.text_flow import line_texts_from_lines
+from services.document_schema.semantics import is_caption_like_block
 from services.rendering.layout.model.models import RenderLineBox
 
 TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*|[^\S\r\n]+|.")
@@ -14,6 +15,8 @@ PRESERVED_LINE_HEIGHT_FILL = 0.96
 PRESERVED_LINE_MIN_FONT_PT = 7.2
 PRESERVED_LINE_IDEAL_LEADING = 0.22
 PRESERVED_LINE_IDEAL_FONT_PT = 10.6
+CAPTION_PRESERVE_LINE_MAX_UNITS = 52.0
+CAPTION_PRESERVE_LINE_MAX_CHARS = 80
 
 
 def source_line_texts(item: dict) -> list[str]:
@@ -78,6 +81,21 @@ def _text_units(text: str) -> float:
     return sum(_token_units(token) for token in TOKEN_RE.findall(text or ""))
 
 
+def _has_long_caption_line(lines: list[str]) -> bool:
+    for line in lines:
+        text = str(line or "").strip()
+        if len(text) > CAPTION_PRESERVE_LINE_MAX_CHARS or _text_units(text) > CAPTION_PRESERVE_LINE_MAX_UNITS:
+            return True
+    return False
+
+
+def _should_disable_caption_preserve_lines(item: dict, translated_lines: list[str] | None = None) -> bool:
+    if not is_caption_like_block(item):
+        return False
+    candidate_lines = translated_lines or source_line_texts(item)
+    return _has_long_caption_line(candidate_lines)
+
+
 def _clean_line(tokens: list[str]) -> str:
     return re.sub(r"\s+", " ", "".join(tokens)).strip()
 
@@ -120,12 +138,17 @@ def maybe_preserve_structured_line_breaks(item: dict, translated_text: str) -> s
     if not text:
         return text
     if "\n" in text:
+        text_lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if _should_disable_caption_preserve_lines(item, text_lines):
+            return re.sub(r"[ \t]*[\r\n]+[ \t]*", " ", text).strip()
         if looks_like_structured_line_block(item):
             item["_render_preserve_line_breaks"] = True
             item["_render_line_structure"] = "structured_lines"
             return text
         return re.sub(r"[ \t]*[\r\n]+[ \t]*", " ", text).strip()
     lines = source_line_texts(item)
+    if _should_disable_caption_preserve_lines(item, lines):
+        return text
     if not looks_like_structured_line_block(item, lines):
         return text
     chunks = split_text_by_source_line_weights(text, lines)

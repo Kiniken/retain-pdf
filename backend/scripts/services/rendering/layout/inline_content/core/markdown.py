@@ -6,6 +6,7 @@ from services.rendering.layout.inline_content.core.inline_math import demote_tex
 from services.rendering.layout.inline_content.core.inline_math import escape_markdown_literal_asterisks
 from services.rendering.layout.inline_content.core.inline_math import surround_inline_math_with_spaces
 from services.rendering.layout.inline_content.fallback.latex_normalizer import normalize_formula_for_latex_math
+from services.rendering.layout.text_analysis import analyze_text
 
 
 def _normalize_text_chunk(text: str) -> str:
@@ -14,16 +15,21 @@ def _normalize_text_chunk(text: str) -> str:
 
 
 def _sanitize_existing_inline_math_for_markdown(text: str) -> str:
-    def _replace(match: re.Match[str]) -> str:
-        expr = match.group(0)[1:-1].strip()
+    chunks: list[str] = []
+    analysis = analyze_text(text or "")
+    inline_by_start = {segment.start: segment for segment in analysis.inline_math_segments}
+    for token in analysis.tokens:
+        segment = inline_by_start.get(token.start)
+        if segment is None:
+            chunks.append(token.value)
+            continue
+        expr = segment.body
         if not expr:
-            return match.group(0)
+            chunks.append(token.value)
+            continue
         expr = normalize_formula_for_latex_math(expr)
-        return f"${expr}$"
-
-    from services.rendering.layout.inline_content.core.inline_math import INLINE_MATH_BLOCK_RE
-
-    return INLINE_MATH_BLOCK_RE.sub(_replace, text or "")
+        chunks.append(f"${expr}$")
+    return "".join(chunks)
 
 
 def build_markdown_from_direct_text(

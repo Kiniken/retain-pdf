@@ -20,6 +20,7 @@ from services.rendering.layout.typography_memory.learning import observe_payload
 from foundation.config import layout
 
 RenderPageSpecProgressCallback = Callable[[int, int, int], None]
+PageSizeLookup = dict[int, tuple[float, float]]
 
 
 def _layout_block_from_render_block(block, *, page_index: int) -> RenderLayoutBlock:
@@ -101,42 +102,75 @@ def build_render_page_specs(
     background_pdf_path: Path | None = None,
     prepared: bool = False,
     on_page_spec_built: RenderPageSpecProgressCallback | None = None,
+    page_size_lookup: PageSizeLookup | None = None,
 ) -> list[RenderPageSpec]:
     prepared_pages = (
         apply_render_pages_policy_fields(translated_pages)
         if prepared
         else apply_render_pages_policy_fields(prepare_render_payloads_by_page(translated_pages))
     )
+    if page_size_lookup is not None:
+        return build_render_page_specs_from_page_sizes(
+            translated_pages=prepared_pages,
+            page_size_lookup=page_size_lookup,
+            background_pdf_path=background_pdf_path,
+            on_page_spec_built=on_page_spec_built,
+        )
     source_doc = fitz.open(source_pdf_path)
     try:
-        page_payloads: dict[int, tuple[list[dict], float]] = {}
-        for page_index in sorted(page_idx for page_idx in prepared_pages if 0 <= page_idx < len(source_doc)):
-            page = source_doc[page_index]
-            page_payloads[page_index] = build_render_block_payloads(
-                prepared_pages[page_index],
-                page_width=page.rect.width,
-                page_height=page.rect.height,
-            )
-        book_body_font_target = resolve_book_body_font_target_from_payloads(list(page_payloads.values()))
-        page_specs: list[RenderPageSpec] = []
-        ordered_page_indices = sorted(page_payloads)
-        total_pages = len(ordered_page_indices)
-        for completed, page_index in enumerate(ordered_page_indices, start=1):
-            page = source_doc[page_index]
-            block_payloads, page_text_width_med = page_payloads[page_index]
-            page_specs.append(
-                _layout_page_spec(
-                    page_index=page_index,
-                    page_width_pt=page.rect.width,
-                    page_height_pt=page.rect.height,
-                    block_payloads=block_payloads,
-                    page_text_width_med=page_text_width_med,
-                    book_body_font_target=book_body_font_target,
-                    background_pdf_path=background_pdf_path,
-                )
-            )
-            if on_page_spec_built is not None:
-                on_page_spec_built(completed, total_pages, page_index)
-        return page_specs
+        source_page_sizes = {
+            page_index: (float(source_doc[page_index].rect.width), float(source_doc[page_index].rect.height))
+            for page_index in sorted(page_idx for page_idx in prepared_pages if 0 <= page_idx < len(source_doc))
+        }
+        return build_render_page_specs_from_page_sizes(
+            translated_pages=prepared_pages,
+            page_size_lookup=source_page_sizes,
+            background_pdf_path=background_pdf_path,
+            on_page_spec_built=on_page_spec_built,
+        )
     finally:
         source_doc.close()
+
+
+def build_render_page_specs_from_page_sizes(
+    *,
+    translated_pages: dict[int, list[dict]],
+    page_size_lookup: PageSizeLookup,
+    background_pdf_path: Path | None = None,
+    on_page_spec_built: RenderPageSpecProgressCallback | None = None,
+) -> list[RenderPageSpec]:
+    page_payloads: dict[int, tuple[list[dict], float]] = {}
+    for page_index in sorted(translated_pages):
+        page_size = page_size_lookup.get(page_index)
+        if page_size is None:
+            continue
+        page_width, page_height = page_size
+        page_payloads[page_index] = build_render_block_payloads(
+            translated_pages[page_index],
+            page_width=page_width,
+            page_height=page_height,
+        )
+    book_body_font_target = resolve_book_body_font_target_from_payloads(list(page_payloads.values()))
+    page_specs: list[RenderPageSpec] = []
+    ordered_page_indices = sorted(page_payloads)
+    total_pages = len(ordered_page_indices)
+    for completed, page_index in enumerate(ordered_page_indices, start=1):
+        page_size = page_size_lookup.get(page_index)
+        if page_size is None:
+            continue
+        page_width, page_height = page_size
+        block_payloads, page_text_width_med = page_payloads[page_index]
+        page_specs.append(
+            _layout_page_spec(
+                page_index=page_index,
+                page_width_pt=page_width,
+                page_height_pt=page_height,
+                block_payloads=block_payloads,
+                page_text_width_med=page_text_width_med,
+                book_body_font_target=book_body_font_target,
+                background_pdf_path=background_pdf_path,
+            )
+        )
+        if on_page_spec_built is not None:
+            on_page_spec_built(completed, total_pages, page_index)
+    return page_specs

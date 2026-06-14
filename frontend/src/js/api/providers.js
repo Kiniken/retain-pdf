@@ -1,4 +1,4 @@
-import { isMockMode } from "../config.js";
+import { isMockMode } from "../config/runtime.js";
 import { buildApiEndpoint, submitJson } from "./http.js";
 
 export async function validateMineruToken(apiPrefix, payload) {

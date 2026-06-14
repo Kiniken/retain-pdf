@@ -12,11 +12,12 @@ from services.translation.services.fast_path.keep_origin import _fast_path_keep_
 from services.translation.services.fast_path.keep_origin import _is_fast_path_keep_origin_item
 from services.translation.services.fast_path.keep_origin import _normalized_text_without_placeholders
 from services.translation.services.fast_path.keep_origin import _plan_item_view
-from services.translation.workflow.workers import TranslationBatchRunStats
-from services.translation.workflow.workers import _adaptive_floor_limit
-from services.translation.workflow.workers import _adaptive_initial_limit
-from services.translation.workflow.workers import _allocate_translation_queue_workers
-from services.translation.workflow.workers import _slow_worker_cap
+from services.translation.workflow.scheduling.allocation import _adaptive_floor_limit
+from services.translation.workflow.scheduling.allocation import _adaptive_initial_limit
+from services.translation.workflow.scheduling.allocation import _allocate_translation_queue_workers
+from services.translation.workflow.scheduling.allocation import _provider_adaptive_initial_limit
+from services.translation.workflow.scheduling.allocation import _slow_worker_cap
+from services.translation.workflow.scheduling.stats import TranslationBatchRunStats
 
 
 def _build_translation_batches(
@@ -40,6 +41,7 @@ __all__ = [
     "TranslationBatchRunStats",
     "_adaptive_floor_limit",
     "_adaptive_initial_limit",
+    "_provider_adaptive_initial_limit",
     "_allocate_translation_queue_workers",
     "_build_translation_batches",
     "_classify_translation_batches",

@@ -1,7 +1,7 @@
 export const JOB_EVENTS_PAGE_SIZE = 200;
 export const JOB_EVENTS_PREVIEW_PAGE_SIZE = 500;
 export const JOB_POLL_INTERVAL_MS = 1000;
-export const JOB_EVENTS_REFRESH_MS = 2500;
+export const JOB_EVENTS_REFRESH_MS = 1000;
 export const JOB_MANIFEST_REFRESH_MS = 5000;
 export const JOB_STAGE_ACTIONS_REFRESH_MS = 5000;
 
@@ -235,7 +235,20 @@ export async function fetchAllJobEvents({ fetchJobEvents, apiPrefix, jobId }) {
 }
 
 export async function fetchRecentJobEvents({ fetchJobEvents, apiPrefix, jobId }) {
-  return await fetchJobEvents(jobId, apiPrefix, JOB_EVENTS_PREVIEW_PAGE_SIZE, 0);
+  let offset = 0;
+  let latestPayload = await fetchJobEvents(jobId, apiPrefix, JOB_EVENTS_PREVIEW_PAGE_SIZE, offset);
+  let batch = Array.isArray(latestPayload?.items) ? latestPayload.items : [];
+  while (batch.length >= JOB_EVENTS_PREVIEW_PAGE_SIZE) {
+    offset += batch.length;
+    const nextPayload = await fetchJobEvents(jobId, apiPrefix, JOB_EVENTS_PREVIEW_PAGE_SIZE, offset);
+    const nextBatch = Array.isArray(nextPayload?.items) ? nextPayload.items : [];
+    if (nextBatch.length === 0) {
+      return latestPayload;
+    }
+    latestPayload = nextPayload;
+    batch = nextBatch;
+  }
+  return latestPayload;
 }
 
 export function cachedEventsFor(state, jobId) {

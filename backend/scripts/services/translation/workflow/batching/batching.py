@@ -7,6 +7,7 @@ from services.translation.core.item_reader import item_block_kind
 from services.translation.core.item_reader import item_is_bodylike
 from services.translation.llm.validation.english_residue import should_force_translate_body_text
 from services.translation.llm.validation.placeholder_tokens import placeholder_sequence
+from services.translation.llm.placeholder_transform import has_formula_placeholders
 from services.translation.llm.shared.control_context import TranslationControlContext
 from services.translation.core.payload.parts.common import GROUP_ITEM_PREFIX
 
@@ -56,6 +57,15 @@ def _has_acceptable_placeholder_count(view, context: TranslationControlContext) 
     return len(placeholder_sequence(view.source)) <= context.batch_policy.batch_low_risk_max_placeholders
 
 
+def _has_no_formula_payload(view, _context: TranslationControlContext) -> bool:
+    return not (
+        view.item.get("formula_map")
+        or view.item.get("translation_unit_formula_map")
+        or view.item.get("group_formula_map")
+        or has_formula_placeholders(view.item)
+    )
+
+
 _LOW_RISK_BATCHABILITY_RULES: tuple[_BatchabilityRule, ...] = (
     _BatchabilityRule(lambda view, _context: not str(view.item.get("continuation_group", "") or "").strip()),
     _BatchabilityRule(lambda view, _context: not str(view.item.get("translation_unit_id", "") or "").startswith(GROUP_ITEM_PREFIX)),
@@ -63,6 +73,7 @@ _LOW_RISK_BATCHABILITY_RULES: tuple[_BatchabilityRule, ...] = (
     _BatchabilityRule(lambda view, _context: item_is_bodylike(view.item)),
     _BatchabilityRule(lambda view, _context: should_force_translate_body_text(view.item)),
     _BatchabilityRule(lambda view, _context: bool(view.source.strip())),
+    _BatchabilityRule(_has_no_formula_payload),
     _BatchabilityRule(_is_within_batch_text_size),
     _BatchabilityRule(_has_acceptable_placeholder_count),
 )

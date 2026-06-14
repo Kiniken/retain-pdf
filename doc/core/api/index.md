@@ -201,6 +201,8 @@
 阶段恢复：
 
 - `POST /api/v1/jobs/{job_id}/rerun`
+- `GET /api/v1/jobs/{job_id}/stage-actions`
+- `POST /api/v1/jobs/{job_id}/retry-stage`
 - `GET /api/v1/jobs/{job_id}/resume-plan`
 - `POST /api/v1/jobs/{job_id}/resume`
 - 有 `translations_dir + source_pdf` 时，复用原 `job_id` 原地重渲染并替换渲染产物
@@ -210,6 +212,56 @@
 - `workflow=render` + `source.artifact_job_id`：复用翻译产物后只重跑渲染
 
 `/resume` 当前复用 `/rerun` 的恢复执行契约；`/resume-plan` 用于前端先展示“会从哪里恢复、会复用哪些产物、会重跑哪些阶段”。
+
+主动阶段重试：
+
+`GET /api/v1/jobs/{job_id}/stage-actions`
+
+返回每个阶段当前是否能主动重跑。前端按钮优先读这个接口，不要自己猜可重试阶段。
+
+```json
+{
+  "job_id": "job-id",
+  "stages": [
+    {
+      "stage": "translation",
+      "label": "重试翻译",
+      "can_retry": true,
+      "disabled_reason": "",
+      "will_reuse": ["source_pdf", "ocr_result"],
+      "will_rerun": ["translation", "render"],
+      "danger": false,
+      "action": {
+        "method": "POST",
+        "url": "/api/v1/jobs/job-id/retry-stage",
+        "body": {
+          "stage": "translation",
+          "mode": "from_stage",
+          "create_new_job": true
+        }
+      }
+    }
+  ]
+}
+```
+
+`POST /api/v1/jobs/{job_id}/retry-stage`
+
+```json
+{
+  "stage": "render",
+  "mode": "from_stage",
+  "create_new_job": true,
+  "overrides": {
+    "render": {
+      "compile_workers": 8
+    }
+  }
+}
+```
+
+返回新任务或原地任务的 `job_id`。前端拿到响应后直接按返回的 `job_id`
+进入 `GET /jobs/{job_id}` 和 `GET /jobs/{job_id}/events` 轮询。
 
 ## 6. 任务查询与事件
 
@@ -246,7 +298,7 @@
 
 `GET /api/v1/jobs/{job_id}/events?limit=200&offset=0`
 
-阶段事件稳定字段：
+前端应消费的稳定字段：
 
 - `stage`
 - `substage`
@@ -258,7 +310,15 @@
 - `message`
 - `payload`
 
-`stage` 是公共展示阶段，当前只按这层理解：
+其中：
+
+- `stage`：公共展示阶段，当前只按 `ocr` / `translation` / `render` / `done` 理解。
+- `substage`：机器可读子阶段。
+- `lane`：事件所属通道，主状态卡只消费 `main`。
+- `progress`：唯一推荐进度对象。
+- `message`：只给人看，前端不要靠它判断阶段。
+
+`stage` 枚举：
 
 - `ocr`
 - `translation`
@@ -322,6 +382,14 @@
 - Python 原始事件里的 `user_stage` 不作为公共 API 字段暴露；排障时看 `payload.raw_user_stage`。
 
 主任务事件流会合并 OCR 子任务页进度。任务完成后仍保留历史事件。
+
+前端接入最小规则：
+
+1. 状态卡阶段只认 `stage`。
+2. 子阶段卡片只认 `substage`。
+3. 进度条只认 `progress.unit/current/total/percent`。
+4. 后台预热、缓存、并行渲染准备类事件如果 `lane != "main"`，不能覆盖主状态卡。
+5. 事件排序优先读 `seq`，没有 `seq` 时再用 `created_at`。
 
 失败诊断：
 

@@ -1,0 +1,24 @@
+{
+  "ready": true,
+  "cards": 4,
+  "upgraded": {
+    "card": true,
+    "button": true,
+    "badge": true,
+    "progressBar": true,
+    "progressRing": true
+  },
+  "statuses": [
+    "running",
+    "running",
+    "running",
+    "succeeded"
+  ],
+  "labels": [
+    "正在进行 OCR",
+    "正在翻译全书",
+    "正在渲染 PDF",
+    "任务已完成"
+  ],
+  "no_lit_boolean_syntax": true
+}

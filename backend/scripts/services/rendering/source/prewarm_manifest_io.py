@@ -6,6 +6,7 @@ from typing import Any
 
 from services.rendering.source_cleanup.types import BBOX_TEXT_STRIP_CANDIDATE_SOURCE_MANIFEST
 from services.rendering.source_cleanup.types import BBoxTextStripCandidates
+from services.rendering.source_cleanup.types import SourceCleanupDecision
 from services.rendering.contracts import RenderDocumentAnalysis
 from services.rendering.source.prewarm_color_profile import render_colors_from_manifest
 from services.rendering.source.prewarm_contracts import BBOX_TEXT_STRIP_ALGORITHM_ID
@@ -323,6 +324,13 @@ def bbox_candidates_to_manifest(candidates: BBoxTextStripCandidates) -> dict[str
             str(page_idx): [list(rect) for rect in rects]
             for page_idx, rects in sorted((candidates.page_protected_rects or {}).items())
         },
+        "decisions": [
+            decision.to_manifest()
+            for decision in sorted(
+                candidates.decisions,
+                key=lambda value: (value.page_idx, value.item_id, value.action, value.status),
+            )
+        ],
         "uncovered_unsafe_vector_item_ids": sorted(candidates.uncovered_unsafe_vector_item_ids),
         "pages_skipped_complex": candidates.pages_skipped_complex,
         "pages_skipped_no_text_overlap": candidates.pages_skipped_no_text_overlap,
@@ -371,6 +379,9 @@ def bbox_candidates_from_manifest(value: object) -> BBoxTextStripCandidates | No
                 rects.append(rect)
         if rects:
             page_protected_rects[page_idx] = tuple(rects)
+    decisions = decisions_from_manifest(payload.get("decisions"))
+    if page_rects and not decisions:
+        return None
     if (
         not page_rects
         and not payload.get("skipped_complex_page_indices")
@@ -383,6 +394,7 @@ def bbox_candidates_from_manifest(value: object) -> BBoxTextStripCandidates | No
     return BBoxTextStripCandidates(
         page_rects=page_rects,
         page_protected_rects=page_protected_rects,
+        decisions=decisions,
         uncovered_unsafe_vector_item_ids=frozenset(
             str(value)
             for value in list(payload.get("uncovered_unsafe_vector_item_ids") or [])
@@ -400,6 +412,16 @@ def bbox_candidates_from_manifest(value: object) -> BBoxTextStripCandidates | No
         skipped_form_xobject_page_indices=frozenset(int_list(payload.get("skipped_form_xobject_page_indices"))),
         strip_no_effect_page_indices=frozenset(int_list(payload.get("strip_no_effect_page_indices"))),
         page_features=page_features_from_manifest(payload.get("page_features")),
+    )
+
+
+def decisions_from_manifest(value: object) -> tuple[SourceCleanupDecision, ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(
+        decision
+        for item in value
+        if (decision := SourceCleanupDecision.from_manifest(item)) is not None
     )
 
 

@@ -3,12 +3,12 @@ import {
   failDownloadToast,
   showDownloadPreparing,
   updateDownloadProgress,
-} from "../../download-feedback.js";
+} from "../../utils/download-feedback.js";
 import {
   fileNameFromDisposition,
   prepareDownloadTarget,
   saveResponseDownload,
-} from "../../downloads.js";
+} from "../../utils/downloads.js";
 import {
   appendGlossaryEntryRow,
   bindGlossaryViewEvents,

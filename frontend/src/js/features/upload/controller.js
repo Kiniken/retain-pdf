@@ -1,5 +1,5 @@
 import { $ } from "../../dom.js";
-import { withTimeout } from "../../async-timeout.js";
+import { withTimeout } from "../../utils/async-timeout.js";
 import { buildApiUrl } from "../../config.js";
 import {
   clearAppliedPageRange,

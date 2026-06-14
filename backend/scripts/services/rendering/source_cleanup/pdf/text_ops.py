@@ -91,6 +91,27 @@ def text_advance_tx(
     return max(1.0, tx)
 
 
+def invisible_text_advance_operands(
+    text_matrix: PdfMatrix,
+    operands: object,
+    *,
+    text_metrics: TextOperandMetrics | None = None,
+    text_state: TextState | None = None,
+) -> pikepdf.Array:
+    state = text_state or TextState(font_size=max(abs(text_matrix[0]), 1.0))
+    metrics = text_metrics or text_operand_metrics(operands)
+    advance = text_advance_tx(
+        text_matrix,
+        operands,
+        text_metrics=metrics,
+        text_state=state,
+    )
+    adjustment = -advance * 1000.0 / (
+        max(state.font_size, 0.1) * max(state.horizontal_scaling, 0.01)
+    )
+    return pikepdf.Array([round(adjustment, 3)])
+
+
 def estimated_text_rect(
     matrix: PdfMatrix,
     *,
@@ -98,9 +119,10 @@ def estimated_text_rect(
     text_state: TextState | None = None,
 ) -> RectTuple:
     x, y = matrix_point(matrix)
-    state = text_state or TextState(font_size=max(abs(matrix[3]), abs(matrix[1]), MIN_TEXT_BOX_HEIGHT_PT))
-    font_height = max(abs(matrix[3]), abs(matrix[1]), state.font_size, MIN_TEXT_BOX_HEIGHT_PT)
-    char_width = max(state.font_size * state.horizontal_scaling * DEFAULT_GLYPH_WIDTH_EM, 1.0)
+    state = text_state or TextState()
+    effective_font_size = max(abs(matrix[0]), abs(matrix[1]), abs(matrix[2]), abs(matrix[3]), state.font_size)
+    font_height = max(abs(matrix[3]), abs(matrix[1]), effective_font_size, MIN_TEXT_BOX_HEIGHT_PT)
+    char_width = max(effective_font_size * state.horizontal_scaling * DEFAULT_GLYPH_WIDTH_EM, 1.0)
     width = max(char_width, char_width * max(text_length, 1))
     return (x, y - font_height * 0.35, x + width, y + font_height * 1.05)
 
@@ -132,21 +154,51 @@ def estimated_user_text_geometry(
 
 def _value_text_metrics(value: object) -> TextOperandMetrics:
     if isinstance(value, (str, bytes, pikepdf.String)):
-        text = str(value)
-        return (len(text), text.count(" "), 0.0)
+        return _string_text_metrics(value)
     if isinstance(value, pikepdf.Array):
         chars = 0
         spaces = 0
         adjustment = 0.0
         for item in value:
             if isinstance(item, (str, bytes, pikepdf.String)):
-                text = str(item)
-                chars += len(text)
-                spaces += text.count(" ")
+                item_chars, item_spaces, _item_adjustment = _string_text_metrics(item)
+                chars += item_chars
+                spaces += item_spaces
             else:
                 adjustment += to_float(item)
         return (chars, spaces, adjustment)
     return (1, 0, 0.0)
+
+
+def _string_text_metrics(value: object) -> TextOperandMetrics:
+    text = str(value)
+    raw_byte_count = _pdf_string_byte_count(value)
+    if raw_byte_count >= 2 and _looks_like_two_byte_cid_string(text, raw_byte_count):
+        return (max(1, raw_byte_count // 2), 0, 0.0)
+    return (len(text), text.count(" "), 0.0)
+
+
+def _pdf_string_byte_count(value: object) -> int:
+    if isinstance(value, bytes):
+        return len(value)
+    unparse = getattr(value, "unparse", None)
+    if callable(unparse):
+        try:
+            raw = bytes(unparse())
+        except Exception:
+            raw = b""
+        if raw.startswith(b"<") and raw.endswith(b">") and not raw.startswith(b"<<"):
+            return max(0, (len(raw) - 2) // 2)
+    return len(str(value).encode("latin-1", errors="ignore"))
+
+
+def _looks_like_two_byte_cid_string(text: str, raw_byte_count: int) -> bool:
+    if raw_byte_count % 2 != 0:
+        return False
+    if len(text) != raw_byte_count:
+        return False
+    pairs = [text[index : index + 2] for index in range(0, len(text), 2)]
+    return bool(pairs) and sum(1 for pair in pairs if pair[:1] == "\x00") / len(pairs) >= 0.6
 
 
 __all__ = [
@@ -155,6 +207,7 @@ __all__ = [
     "TextOperandMetrics",
     "TextState",
     "estimated_text_rect",
+    "invisible_text_advance_operands",
     "text_advance_tx",
     "text_operand_length",
     "text_operand_metrics",

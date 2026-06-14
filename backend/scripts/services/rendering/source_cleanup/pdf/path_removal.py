@@ -15,6 +15,7 @@ from services.rendering.source_cleanup.planning.drawing_classifier import rect_i
 PATH_CONSTRUCTION_OPERATORS = frozenset({"m", "l", "c", "v", "y", "h", "re"})
 PATH_PAINT_OPERATORS = frozenset({"f", "F", "f*", "B", "B*", "b", "b*", "S", "s", "n"})
 TEXT_LIKE_PATH_PAINT_OPERATORS = frozenset({"f", "F", "f*"})
+MIN_PATH_AUTHORIZED_OVERLAP_RATIO = 0.75
 
 
 @dataclass(frozen=True)
@@ -72,13 +73,27 @@ def decide_path_paint_rewrite(
     path_rect: RectTuple | None,
     strip_index: RectIndex,
     protected_index: RectIndex,
+    path_removal_index: RectIndex | None = None,
+    require_path_authorization: bool = False,
 ) -> PathPaintRewriteDecision:
     if op not in TEXT_LIKE_PATH_PAINT_OPERATORS or path_rect is None:
         return PathPaintRewriteDecision(remove=False, rect=path_rect)
     if not rect_is_text_like_fill_path(fitz.Rect(path_rect)):
         return PathPaintRewriteDecision(remove=False, rect=path_rect)
-    remove = strip_index.intersects(path_rect) and not protected_index.intersects(path_rect)
+    if protected_index.intersects(path_rect):
+        return PathPaintRewriteDecision(remove=False, rect=path_rect)
+    if require_path_authorization:
+        if path_removal_index is None or not path_authorized_for_removal(path_rect, path_removal_index):
+            return PathPaintRewriteDecision(remove=False, rect=path_rect)
+        remove = strip_index.intersects(path_rect)
+    else:
+        remove = strip_index.intersects(path_rect)
     return PathPaintRewriteDecision(remove=remove, rect=path_rect)
+
+
+def path_authorized_for_removal(path_rect: RectTuple, path_removal_index: RectIndex) -> bool:
+    path_area = max(_rect_area(path_rect), 0.001)
+    return path_removal_index.max_overlap_area(path_rect) / path_area >= MIN_PATH_AUTHORIZED_OVERLAP_RATIO
 
 
 def _operator_points(op: str, operands: object) -> tuple[tuple[float, float], ...]:
@@ -103,9 +118,14 @@ def _operator_points(op: str, operands: object) -> tuple[tuple[float, float], ..
     return ()
 
 
+def _rect_area(rect: RectTuple) -> float:
+    return max(0.0, rect[2] - rect[0]) * max(0.0, rect[3] - rect[1])
+
+
 __all__ = [
     "PATH_CONSTRUCTION_OPERATORS",
     "PATH_PAINT_OPERATORS",
     "PathTracker",
     "decide_path_paint_rewrite",
+    "path_authorized_for_removal",
 ]

@@ -1,31 +1,32 @@
-import { firstNonEmpty } from "./job-core.js";
+import { firstNonEmpty } from "./job/core.js";
 export {
   resolveJobActions,
+  resolveJobMarkdownBundleAction,
   resolveJobSourcePdfAction,
-} from "./job-actions.js";
-export { normalizeJobPayload } from "./job-normalize.js";
+} from "./job/actions.js";
+export { normalizeJobPayload } from "./job/normalize.js";
 export {
   summarizeDiagnostic,
   summarizePublicError,
   summarizeStatus,
-} from "./job-diagnostics.js";
+} from "./job/diagnostics.js";
 export {
   isTerminalStatus,
   unwrapEnvelope,
-} from "./job-core.js";
+} from "./job/core.js";
 export {
   formatEventTimestamp,
   formatJobDuration,
   formatJobFinishedAt,
   formatRuntimeDuration,
   summarizeRuntimeField,
-} from "./job-formatters.js";
+} from "./job/formatters.js";
 export {
   summarizeStageDetail,
   summarizeStageKey,
   summarizeStageLabel,
   summarizeStageProgressText,
-} from "./job-status-summary.js";
+} from "./job-status/job-status-summary.js";
 
 export function summarizeInvocationProtocol(payload) {
   const invocation = payload?.invocation || {};

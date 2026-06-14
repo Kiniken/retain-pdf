@@ -25,7 +25,7 @@ import {
   normalizeMathMode,
   normalizeWorkflow,
   setText,
-} from "../main-helpers.js";
+} from "./main-helpers.js";
 import { fetchGlossaries } from "../api/glossaries.js";
 import { submitUploadRequest } from "../api/http.js";
 import { state } from "../state/store.js";

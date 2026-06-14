@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Status Card Layout Scale</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f5f5f7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .translation-workflow-dialog {
+      display: grid !important;
+    }
+
+    .translation-workflow-card {
+      display: none !important;
+    }
+
+    .translation-status-panel {
+      display: grid !important;
+    }
+  </style>
+<script src="./vendor/lottie-web/build/player/lottie.min.js" async=""></script></head>
+<body>
+  <div id="translation-workflow-dialog" class="translation-workflow-dialog is-status-mode" role="dialog" aria-modal="true" aria-labelledby="translation-workflow-title">
+    <div class="desktop-shell translation-workflow-shell">
+      <div class="translation-workflow-head">
+        <h2 id="translation-workflow-title">任务进度</h2>
+        <button type="button" class="dialog-close-btn" aria-label="关闭">×</button>
+      </div>
+      <section class="translation-workflow-card"></section>
+      <section id="status-section" class="translation-status-panel" aria-label="任务进度">
+        <job-status-card id="job-status-card" data-hydrated="1" class="card status-card has-stage-animation is-translation-stage" data-visual-stage-key="translate">
+    <div class="status-wa-card">
+      <div class="status-wa-body">
+        <div class="status-head">
+          <wa-button id="cancel-btn" type="button" class="status-head-btn status-head-cancel" appearance="outlined" variant="neutral" size="s" aria-label="取消任务" title="取消任务" disabled="">
+            <span>取消</span>
+          </wa-button>
+          <div class="status-head-center">
+            <div id="status-ring-label" class="status-ring-label">翻译</div>
+            <div id="status-ring-elapsed" class="status-ring-elapsed">2分18秒</div>
+          </div>
+          <wa-button id="status-detail-btn" type="button" class="status-head-btn status-head-detail" appearance="plain" variant="neutral" size="s" aria-label="任务详情" title="任务详情">
+            <span>详情</span>
+          </wa-button>
+        </div>
+
+        <div id="status-stage-flow" class="status-stage-flow" role="tablist" aria-label="任务流程">
+          <button type="button" class="status-stage-step is-done" data-stage-key="ocr" role="tab" aria-selected="false">
+            <span class="status-stage-step-name">OCR</span>
+          </button>
+          <button type="button" class="status-stage-step is-active is-selected" data-stage-key="translate" role="tab" aria-selected="true">
+            <span class="status-stage-step-name">翻译</span>
+          </button>
+          <button type="button" class="status-stage-step is-disabled" data-stage-key="render" role="tab" disabled="" aria-selected="false">
+            <span class="status-stage-step-name">渲染</span>
+          </button>
+          <button type="button" class="status-stage-step is-disabled" data-stage-key="done" role="tab" disabled="" aria-selected="false">
+            <span class="status-stage-step-name">完成</span>
+          </button>
+        </div>
+
+        <div id="status-stage-error-summary" class="status-stage-error-summary hidden"></div>
+        <section class="status-progress-hero">
+          <div class="status-animation-wrap">
+            <div id="status-stage-animation" class="status-stage-animation" aria-label="任务阶段动画">
+              <div id="status-stage-lottie" class="status-stage-lottie is-fallback"></div>
+            </div>
+            <div id="status-progress-ring-meta" class="status-animation-meta">第 428/5216 批</div>
+          </div>
+          <div class="status-progress-content">
+            <div class="status-progress-copy">
+              <div id="status-ring-value" class="status-ring-value">正在执行全书翻译</div>
+              <div id="status-stage-detail" class="status-stage-detail">正在执行全书翻译</div>
+            </div>
+            <div class="status-substage-flow" aria-label="任务子阶段" style="--status-substage-count: 5;"><wa-badge class="status-substage-step is-done" data-substage-key="translation_prepare" pill="" appearance="filled-outlined" variant="neutral">准备</wa-badge><wa-badge class="status-substage-step is-done" data-substage-key="domain_inference" pill="" appearance="filled-outlined" variant="neutral">领域</wa-badge><wa-badge class="status-substage-step is-done" data-substage-key="page_policies" pill="" appearance="filled-outlined" variant="neutral">页面策略</wa-badge><wa-badge class="status-substage-step is-done" data-substage-key="continuation_review" pill="" appearance="filled-outlined" variant="neutral">跨栏/跨页</wa-badge><wa-badge class="status-substage-step is-active" data-substage-key="translation_batches" pill="" appearance="filled" variant="neutral">翻译批次</wa-badge></div>
+            <div class="status-progress-block">
+              <wa-progress-bar id="status-progress-bar" class="status-progress-bar" value="8.205521472392638" label="任务进度"></wa-progress-bar>
+              <div class="progress-track hidden"><div id="job-progress-bar" class="progress-bar" style="width: 8.20552%;"></div></div>
+              <div class="status-progress-foot">
+                <span id="job-progress-text" class="status-progress-text">第 428/5216 批</span>
+                <span id="status-progress-percent" class="status-progress-percent">8%</span>
+              </div>
+            </div>
+            <div id="status-stage-retry" class="status-stage-retry is-empty" aria-hidden="true"></div>
+          </div>
+        </section>
+
+        <div class="status-card-footer">
+          <div class="status-result-actions hidden">
+            <wa-button id="status-markdown-bundle-btn" class="task-toolbar-btn-result hidden disabled" href="#" target="_blank" rel="noopener noreferrer" appearance="outlined" variant="neutral" size="s" aria-label="下载 Markdown" title="下载 Markdown" aria-disabled="true" data-url="">
+              <span>下载 Markdown</span>
+            </wa-button>
+            <wa-button id="reader-btn" class="task-toolbar-btn-result hidden disabled" href="#" appearance="outlined" variant="neutral" size="s" aria-label="对照阅读" title="对照阅读" aria-disabled="true" data-url="">
+              <span>对照阅读</span>
+            </wa-button>
+            <wa-button id="pdf-btn" class="task-toolbar-btn-result hidden disabled" href="#" target="_blank" rel="noopener noreferrer" appearance="outlined" variant="neutral" size="s" aria-label="下载 PDF" title="下载 PDF" aria-disabled="true" data-url="">
+              <span>下载 PDF</span>
+            </wa-button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hidden">
+      <div id="job-id">-</div>
+      <div id="job-status">idle</div>
+      <div id="job-stage-detail">-</div>
+      <div id="query-job-duration">-</div>
+      <div id="job-finished-at">-</div>
+      <span id="status-translation-animation-src">./src/assets/animations/deepseek_lottie.json</span>
+      <span id="status-ocr-animation-src">./src/assets/animations/ocr_Lottie.json</span>
+      <span id="status-upload-animation-src">./src/assets/animations/pdf_upload_Lottie.json</span>
+      <span id="status-download-animation-src">./src/assets/animations/pdf_download_Lottie.json</span>
+      <span id="status-render-animation-src">./src/assets/animations/typst_rendering.json</span>
+      <a id="download-btn" class="button-link disabled" href="#" target="_blank" rel="noopener noreferrer">ZIP</a>
+      <a id="markdown-raw-btn" class="button-link secondary disabled" href="#" target="_blank" rel="noopener noreferrer">Markdown</a>
+      <a id="markdown-btn" class="button-link secondary disabled" href="#" target="_blank" rel="noopener noreferrer">JSON</a>
+    </div>
+  </job-status-card>
+      </section>
+    </div>
+  </div>
+
+  <script type="module">
+    import "/src/js/components/status/job-status-card.js";
+
+    const snapshot = {
+      jobId: "layout-scale-smoke",
+      status: "running",
+      elapsed: "2分18秒",
+      cancelEnabled: true,
+      backHomeVisible: false,
+      label: "第 2/4 步 · 翻译",
+      value: "正在执行全书翻译",
+      stageKey: "translate",
+      visualStageKey: "translate",
+      progressCurrent: 428,
+      progressTotal: 5216,
+      progressText: "第 428/5216 批",
+      progressUnit: "batch",
+      substageKey: "translation_batches",
+      progressFallbackText: "-",
+      stageProgressByKey: {
+        ocr: {
+          current: 533,
+          total: 533,
+          progressText: "第 533/533 页",
+          progressUnit: "page",
+          substageKey: "normalizing",
+          visualStageKey: "ocr_processing",
+        },
+        translate: {
+          current: 428,
+          total: 5216,
+          progressText: "第 428/5216 批",
+          progressUnit: "batch",
+          substageKey: "translation_batches",
+          visualStageKey: "translate",
+          bySubstage: {
+            translation_prepare: { current: 1, total: 1, progressText: "准备完成", progressUnit: "step", substageKey: "translation_prepare" },
+            domain_inference: { current: 1, total: 1, progressText: "领域识别完成", progressUnit: "step", substageKey: "domain_inference" },
+            page_policies: { current: 533, total: 533, progressText: "第 533/533 页", progressUnit: "page", substageKey: "page_policies" },
+            continuation_review: { current: 533, total: 533, progressText: "第 533/533 页", progressUnit: "page", substageKey: "continuation_review" },
+            translation_batches: { current: 428, total: 5216, progressText: "第 428/5216 批", progressUnit: "batch", substageKey: "translation_batches" },
+          },
+        },
+      },
+      stageRetryActions: {},
+    };
+
+    customElements.whenDefined("job-status-card").then(() => {
+      const card = document.querySelector("#job-status-card");
+      card.renderSnapshot(snapshot);
+      card.classList.remove("hidden");
+      window.__STATUS_CARD_LAYOUT_READY__ = true;
+      setTimeout(() => {
+        const selectors = [
+          ".translation-workflow-shell",
+          ".translation-status-panel",
+          "job-status-card",
+          ".status-head",
+          ".status-focus-card",
+          ".status-stage-flow",
+          ".status-focus-body",
+          ".status-stage-animation",
+          ".status-substage-flow",
+          ".status-progress-block",
+          ".status-card-footer",
+        ];
+        const metrics = Object.fromEntries(selectors.map((selector) => {
+          const el = document.querySelector(selector);
+          if (!el) {
+            return [selector, null];
+          }
+          const rect = el.getBoundingClientRect();
+          const style = getComputedStyle(el);
+          return [selector, {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            gap: style.gap,
+            padding: style.padding,
+          }];
+        }));
+        const output = document.createElement("pre");
+        output.id = "layout-metrics";
+        output.textContent = JSON.stringify(metrics, null, 2);
+        output.style.display = "none";
+        document.body.appendChild(output);
+      }, 300);
+    });
+  </script>
+
+
+<pre id="layout-metrics" style="display: none;">{
+  ".translation-workflow-shell": {
+    "x": 70,
+    "y": 12,
+    "width": 640,
+    "height": 469,
+    "gap": "normal",
+    "padding": "0px"
+  },
+  ".translation-status-panel": {
+    "x": 71,
+    "y": 67,
+    "width": 638,
+    "height": 413,
+    "gap": "normal",
+    "padding": "0px"
+  },
+  "job-status-card": {
+    "x": 71,
+    "y": 67,
+    "width": 638,
+    "height": 413,
+    "gap": "normal",
+    "padding": "0px"
+  },
+  ".status-head": {
+    "x": 86,
+    "y": 82,
+    "width": 608,
+    "height": 44,
+    "gap": "12px",
+    "padding": "0px"
+  },
+  ".status-focus-card": null,
+  ".status-stage-flow": {
+    "x": 86,
+    "y": 147,
+    "width": 608,
+    "height": 38,
+    "gap": "7px",
+    "padding": "0px"
+  },
+  ".status-focus-body": null,
+  ".status-stage-animation": {
+    "x": 115,
+    "y": 260,
+    "width": 78,
+    "height": 78,
+    "gap": "normal",
+    "padding": "0px"
+  },
+  ".status-substage-flow": {
+    "x": 224,
+    "y": 276,
+    "width": 458,
+    "height": 20,
+    "gap": "7px",
+    "padding": "0px"
+  },
+  ".status-progress-block": {
+    "x": 224,
+    "y": 305,
+    "width": 458,
+    "height": 24,
+    "gap": "5px",
+    "padding": "0px"
+  },
+  ".status-card-footer": {
+    "x": 86,
+    "y": 417,
+    "width": 608,
+    "height": 48,
+    "gap": "7px",
+    "padding": "0px"
+  }
+}</pre></body></html>

@@ -12,6 +12,7 @@ export function normalizeSelectedProgress(progress = {}, fallback = {}) {
     indeterminate: Boolean(progress?.indeterminate ?? progress?.progressIndeterminate ?? substageFallback?.indeterminate ?? substageFallback?.progressIndeterminate ?? fallback?.indeterminate ?? fallback?.progressIndeterminate),
     substageKey: progressSubstageKey,
     visualStageKey: progress?.visualStageKey || substageFallback?.visualStageKey || fallback?.visualStageKey || "",
+    bySubstage: progress?.bySubstage || fallback?.bySubstage || {},
   };
 }
 
@@ -56,6 +57,7 @@ export function buildProgressOptions({
 }) {
   const current = displayedCurrent ?? selectedProgress?.current;
   const total = selectedProgress?.total;
+  const hasSelectedProgress = Number.isFinite(Number(current)) && Number.isFinite(Number(total)) && Number(total) > 0;
   const progressText = displayedCurrent === null || displayedCurrent >= Number(selectedProgress?.current)
     ? selectedProgress?.progressText || ""
     : `第 ${displayedCurrent}/${total} 页`;
@@ -63,12 +65,11 @@ export function buildProgressOptions({
     current,
     total,
     fallbackText: snapshot.progressFallbackText,
-    percent: displayedCurrent === null && selectedIsCurrent ? snapshot.progressPercent : NaN,
+    percent: displayedCurrent === null && selectedIsCurrent && selected !== "done" ? snapshot.progressPercent : NaN,
     progressText,
     progressUnit: displayedCurrent === null ? selectedProgress?.progressUnit || "" : "",
     indeterminate: displayedCurrent === null ? selectedProgress?.indeterminate : false,
     stageKey: selected,
-    forceVisible: displayedCurrent !== null || (["ocr", "translate", "render"].includes(selected)
-      && (selectedIsCurrent || Boolean(selectedProgress))),
+    forceVisible: displayedCurrent !== null || (["ocr", "translate", "render"].includes(selected) && hasSelectedProgress),
   };
 }

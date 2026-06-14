@@ -3,9 +3,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from services.rendering.layout.text_analysis import formula_texts_for_render
 
-INLINE_MATH_RE = re.compile(r"\$(?!\s)(?:\\.|[^$\n]){1,240}?\$")
-FORMULA_PLACEHOLDER_RE = re.compile(r"<[futnvc]\d+-[0-9a-z]{3}/>|\[\[FORMULA_\d+]]")
 SCRIPT_OR_TALL_MATH_RE = re.compile(
     r"[_^]|\\(?:frac|dfrac|tfrac|sqrt|sum|prod|int|iint|iiint|lim|underset|overset|substack)\b"
 )
@@ -45,18 +44,6 @@ def formula_safety_insets_pt(
     top = min(max(font_size_pt * top_ratio, 0.25), 1.15)
     bottom = min(max(font_size_pt * bottom_ratio, 0.55), 2.6)
     return _fit_insets_to_box(top, bottom, box_height_pt)
-
-
-def formula_texts_for_render(text: str, formula_map: list[dict] | None) -> list[str]:
-    formulas = [
-        str(entry.get("formula_text") or entry.get("latex") or "").strip()
-        for entry in formula_map or []
-        if isinstance(entry, dict)
-    ]
-    formulas.extend(match.group(0).strip("$") for match in INLINE_MATH_RE.finditer(str(text or "")))
-    if formulas:
-        return [formula for formula in formulas if formula]
-    return [match.group(0) for match in FORMULA_PLACEHOLDER_RE.finditer(str(text or ""))]
 
 
 def formula_needs_extra_descent(formula_text: str) -> bool:

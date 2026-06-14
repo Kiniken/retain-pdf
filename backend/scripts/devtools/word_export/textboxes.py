@@ -4,7 +4,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from lxml import etree
 
-from backend.scripts.devtools.word_export.math_omml import append_inline_content
+from devtools.word_export.math_omml import append_inline_content
 
 
 VML_NS = "urn:schemas-microsoft-com:vml"

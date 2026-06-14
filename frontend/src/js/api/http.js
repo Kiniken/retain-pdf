@@ -1,6 +1,12 @@
-import { apiBase, buildApiHeaders, buildApiUrl, frontendApiKey, isMockMode } from "../config.js";
-import { unwrapEnvelope } from "../job.js";
-import { fetchMockProtected, submitMockJob, submitMockUpload } from "../mock.js";
+import {
+  apiBase,
+  buildApiHeaders,
+  buildApiUrl,
+  frontendApiKey,
+  isMockMode,
+} from "../config/runtime.js";
+import { unwrapEnvelope } from "../job/core.js";
+import { fetchMockProtected, submitMockJob, submitMockUpload } from "../mock/index.js";
 
 function isObject(value) {
   return value && typeof value === "object" && !Array.isArray(value);

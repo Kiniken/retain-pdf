@@ -250,7 +250,7 @@ class TranslationRunDiagnosticsTests(unittest.TestCase):
         self.assertEqual(summary["retry_summary"]["max_http_attempt"], 2)
         self.assertEqual(summary["adaptive_concurrency"]["current_limit"], 16)
 
-    def test_deepseek_session_pool_scales_to_configured_workers(self):
+    def test_deepseek_session_pool_uses_small_per_thread_pool(self):
         deepseek_client = load_deepseek_client()
         run = TranslationRunDiagnostics(
             provider_family="deepseek_official",
@@ -266,11 +266,11 @@ class TranslationRunDiagnosticsTests(unittest.TestCase):
         try:
             summary = run.build_summary()
             self.assertEqual(summary["http_pool_cap"], 1000)
-            self.assertEqual(summary["http_pool_size"], 1000)
+            self.assertEqual(summary["http_pool_size"], 2)
         finally:
             session.close()
 
-    def test_deepseek_session_pool_cap_can_be_lowered_by_env(self):
+    def test_deepseek_session_pool_per_thread_cap_can_be_adjusted_by_env(self):
         deepseek_client = load_deepseek_client()
         run = TranslationRunDiagnostics(
             provider_family="deepseek_official",
@@ -280,15 +280,41 @@ class TranslationRunDiagnosticsTests(unittest.TestCase):
             configured_batch_size=1,
             configured_classify_batch_size=12,
         )
+        run.configure_adaptive_concurrency(initial_limit=100, floor_limit=8)
         with translation_run_diagnostics_scope(run):
-            with patch.dict(deepseek_client.os.environ, {"RETAIN_TRANSLATION_HTTP_POOL_MAX": "128"}, clear=False):
+            with patch.dict(
+                deepseek_client.os.environ,
+                {
+                    "RETAIN_TRANSLATION_HTTP_POOL_MAX": "128",
+                    "RETAIN_TRANSLATION_HTTP_POOL_PER_THREAD": "4",
+                },
+                clear=False,
+            ):
                 session = deepseek_client._build_session()
         try:
             summary = run.build_summary()
             self.assertEqual(summary["http_pool_cap"], 128)
-            self.assertEqual(summary["http_pool_size"], 128)
+            self.assertEqual(summary["http_pool_size"], 4)
         finally:
             session.close()
+
+    def test_deepseek_dns_prewarm_does_not_block_request_path(self):
+        deepseek_client = load_deepseek_client()
+        calls = []
+
+        def slow_getaddrinfo(*_args, **_kwargs):
+            calls.append(1)
+            time.sleep(1)
+            return []
+
+        started = time.perf_counter()
+        with patch.object(deepseek_client.transport.socket, "getaddrinfo", side_effect=slow_getaddrinfo):
+            with patch.dict(deepseek_client.transport.os.environ, {"RETAIN_TRANSLATION_DNS_PREWARM_TIMEOUT_MS": "1"}, clear=False):
+                deepseek_client._prewarm_dns("https://slow-dns.example/v1", request_label="dns-nonblocking-test")
+                deepseek_client._prewarm_dns("https://slow-dns.example/v1", request_label="dns-nonblocking-test")
+
+        self.assertLess(time.perf_counter() - started, 0.2)
+        self.assertEqual(len(calls), 1)
 
     def test_adaptive_concurrency_applies_to_any_provider_family(self):
         run = TranslationRunDiagnostics(

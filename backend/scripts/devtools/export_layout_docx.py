@@ -10,7 +10,7 @@ for path in (REPO_ROOT, SCRIPTS_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from backend.scripts.devtools.word_export.cli import main
+from devtools.word_export.cli import main
 
 
 if __name__ == "__main__":

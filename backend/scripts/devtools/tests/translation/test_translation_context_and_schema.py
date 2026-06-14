@@ -182,6 +182,56 @@ def test_garbled_reconstruction_uses_injected_runtime() -> None:
     assert item["final_status"] == "translated"
 
 
+def test_garbled_reconstruction_respects_candidate_budget(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    def fake_request_chat_content(messages, **kwargs):
+        calls.append({"messages": messages, **kwargs})
+        return '{"translated_text":"自洽场过程会计算分子轨道。"}'
+
+    def _item(item_id: str) -> dict:
+        return {
+            "item_id": item_id,
+            "page_idx": 0,
+            "block_type": "text",
+            "block_kind": "text",
+            "should_translate": True,
+            "source_text": (
+                "ASMALL self-consistent field procedure computes molecular orbitals before final energy "
+                "is evaluated for the electronic structure calculation."
+            ),
+            "translation_unit_protected_source_text": (
+                "ASMALL self-consistent field procedure computes molecular orbitals before final energy "
+                "is evaluated for the electronic structure calculation."
+            ),
+            "translation_unit_protected_translated_text": "",
+            "final_status": "failed",
+        }
+
+    runtime = garbled_reconstruction.GarbledReconstructionRuntime(
+        api_key="test-key",
+        model="test-model",
+        base_url="https://example.test/v1",
+        provider_reason="test",
+        request_chat_content_fn=fake_request_chat_content,
+    )
+    monkeypatch.setenv("RETAIN_TRANSLATION_GARBLED_MAX_CANDIDATES", "1")
+
+    summary = garbled_reconstruction.reconstruct_garbled_page_payloads(
+        {0: [_item("p001-b001"), _item("p001-b002")]},
+        api_key="ignored",
+        model="ignored",
+        base_url="ignored",
+        workers=1,
+        runtime=runtime,
+    )
+
+    assert len(calls) == 1
+    assert summary["garbled_candidates"] == 2
+    assert summary["garbled_attempted"] == 1
+    assert summary["garbled_skipped_by_budget"] == 1
+
+
 def test_domain_context_cache_round_trip() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         output_dir = Path(tmp)

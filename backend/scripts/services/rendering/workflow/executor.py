@@ -21,7 +21,7 @@ from services.rendering.workflow.prewarm_cache import build_sync_payload_prewarm
 from services.rendering.workflow.prewarm_cache import has_material_payload_prewarm
 from services.rendering.workflow.prewarm_cache import persist_sync_render_source_prewarm
 from services.rendering.source.render_source import build_render_source_pdf
-from services.rendering.source_cleanup.protected_blocks import protected_pages_from_document_path
+from services.rendering.source.preprocess_inputs import build_preprocess_protected_pages
 from services.rendering.source.prewarm import try_load_prewarmed_render_source_pdf
 from services.rendering.source.prewarm import try_load_render_payload_prewarm
 from services.rendering.source.prewarm_manifest_io import render_payload_prewarm_from_manifest_payload
@@ -83,7 +83,10 @@ def execute_render_plan(
         render_source_pdf=render_source_pdf,
         payload_prewarm=payload_prewarm,
     )
-    protected_pages = _protected_pages_for_render(render_plan.render_inputs.translations_dir)
+    protected_pages = _protected_pages_for_render(
+        render_plan.render_inputs.translations_dir,
+        translated_pages=render_plan.selected_pages,
+    )
     render_source_sync_cache_written = False
     if render_source_pdf is None:
         sync_prepare_started = time.perf_counter()
@@ -116,6 +119,7 @@ def execute_render_plan(
             translated_pages=render_plan.selected_pages,
             effective_render_mode=render_plan.effective_render_mode,
             source_cleanup_strategy=cleanup_strategy,
+            protected_pages=protected_pages,
         )
         merged_sync_payload_prewarm = build_sync_payload_prewarm(
             manifest_path=render_prewarm_manifest_path,
@@ -277,7 +281,12 @@ def _dispatch_render_mode(
     )
 
 
-def _protected_pages_for_render(translations_dir: Path) -> dict[int, list[dict]]:
-    return protected_pages_from_document_path(
-        Path(translations_dir).parent / "ocr" / "normalized" / "document.v1.json"
+def _protected_pages_for_render(
+    translations_dir: Path,
+    *,
+    translated_pages: dict[int, list[dict]],
+) -> dict[int, list[dict]]:
+    return build_preprocess_protected_pages(
+        artifacts_dir=Path(translations_dir).parent / "artifacts",
+        translated_pages=translated_pages,
     )

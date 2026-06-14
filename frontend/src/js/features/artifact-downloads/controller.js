@@ -7,17 +7,17 @@ import {
   formatTransferSize,
   prepareDownloadTarget,
   saveResponseDownload,
-} from "../../downloads.js";
+} from "../../utils/downloads.js";
 import {
   completeDownloadToast,
   failDownloadToast,
   showDownloadPreparing,
   updateDownloadProgress,
-} from "../../download-feedback.js";
+} from "../../utils/download-feedback.js";
 import {
   resolveSourcePdfDownloadName,
   resolveTranslatedPdfDownloadName,
-} from "../../job-artifacts.js";
+} from "../../job/artifacts.js";
 import { currentJobId } from "../job-runtime/runtime-state.js";
 
 export function mountArtifactDownloadsFeature({
@@ -49,8 +49,11 @@ export function mountArtifactDownloadsFeature({
     return receivedText ? `正在下载 ${receivedText}` : "正在下载...";
   }
 
-  async function handleProtectedArtifactClick(event) {
-    const link = event.currentTarget;
+  async function handleProtectedArtifactClick(event, matchedLink = null) {
+    const link = matchedLink || event.currentTarget;
+    if (!link) {
+      return;
+    }
     const disabled = isActionLinkDisabled(link);
     const url = link.dataset.url || "";
     if (disabled || !url) {
@@ -63,7 +66,7 @@ export function mountArtifactDownloadsFeature({
     const jobId = currentJobId(state) || "result";
     const fallbackName = link.id === "download-btn"
       ? `${jobId}.zip`
-      : link.id === "markdown-bundle-btn"
+      : link.id === "markdown-bundle-btn" || link.id === "status-markdown-bundle-btn"
         ? `${jobId}-markdown.zip`
         : link.id === "source-pdf-btn"
           ? `${jobId}-source.pdf`

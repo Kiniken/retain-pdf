@@ -6,14 +6,14 @@ from docx import Document
 from docx.enum.section import WD_SECTION
 from docx.shared import Pt
 
-from backend.scripts.devtools.word_export.backgrounds import render_page_backgrounds
-from backend.scripts.devtools.word_export.document_builder import add_background_image
-from backend.scripts.devtools.word_export.document_builder import add_page_break
-from backend.scripts.devtools.word_export.document_builder import set_section_page
-from backend.scripts.devtools.word_export.job_io import single_pdf
-from backend.scripts.devtools.word_export.job_io import translated_pages
-from backend.scripts.devtools.word_export.paths import SCRIPTS_ROOT  # noqa: F401
-from backend.scripts.devtools.word_export.textboxes import append_absolute_textbox
+from devtools.word_export.backgrounds import render_page_backgrounds
+from devtools.word_export.document_builder import add_background_image
+from devtools.word_export.document_builder import add_page_break
+from devtools.word_export.document_builder import set_section_page
+from devtools.word_export.job_io import single_pdf
+from devtools.word_export.job_io import translated_pages
+from devtools.word_export.paths import SCRIPTS_ROOT  # noqa: F401
+from devtools.word_export.textboxes import append_absolute_textbox
 from services.rendering.layout.page_specs import build_render_page_specs
 
 

@@ -1,5 +1,6 @@
 import sys
 import tempfile
+import time
 from pathlib import Path
 from unittest import mock
 import re
@@ -104,9 +105,46 @@ def test_text_heavy_inline_math_demotes_latex_text_to_plain_text() -> None:
     assert "表示电子" in markdown
 
 
+def test_dense_inline_math_paragraph_builds_render_blocks_without_backtracking() -> None:
+    text = (
+        r"其中 $\lambda_{\parallel}$ 和 $\lambda_{\perp}$ 分别表示层内和层间几何自旋-轨道耦合强度，"
+        r"由 $\lambda = -\hbar^{2}/8mS$ 给出，其中 $S$ 为相邻位点间的弧长。"
+        r"算符 $\Omega_{nl}^{\parallel}$ 和 $\Omega_{nl}^{\perp}$ 包含依赖于曲率的自旋-轨道场。"
+        r"具体地，$\Omega_{n+1,l}^{\parallel} = \kappa_{n+1,l} \sigma_{n+1,l}^{\parallel}"
+        r" = \kappa_{n+1,l} [(\sin \theta_n \cos \varphi_{nl} \sin \Psi_n"
+        r" - \sin \varphi_{nl} \cos \Psi_n) \sigma_x +"
+        r"(\sin \theta_n \sin \varphi_{nl} \sin \Psi_n + \cos \varphi_{nl} \cos \Psi_n)"
+        r" \sigma_y + \cos \theta_n \sin \Psi_n \sigma_z]$。"
+    )
+    started = time.perf_counter()
+
+    blocks = build_render_blocks(
+        [
+            {
+                "item_id": "p003-b019",
+                "page_idx": 2,
+                "block_type": "text",
+                "block_kind": "text",
+                "normalized_sub_type": "body",
+                "bbox": [304.0, 540.0, 553.0, 732.0],
+                "source_text": text,
+                "protected_source_text": text,
+                "protected_translated_text": text,
+            }
+        ],
+        page_width=595.0,
+        page_height=842.0,
+    )
+
+    assert time.perf_counter() - started < 1.0
+    assert len(blocks) == 1
+    assert "自旋-轨道场" in blocks[0].markdown_text
+    assert r"\sigma_x" in blocks[0].markdown_text
+
+
 def test_direct_typst_adjacent_inline_math_boundaries_do_not_cross_text() -> None:
     from services.rendering.layout.inline_content.core.markdown import build_direct_typst_passthrough_text
-    from services.rendering.layout.inline_content.core.inline_math import MATH_BLOCK_RE
+    from services.rendering.layout.text_analysis import analyze_text
 
     text = (
         r"根据Stewart的高斯展开，$^{70}$$ \phi_{\kappa} $指的是收缩型高斯原子轨道，"
@@ -120,7 +158,7 @@ def test_direct_typst_adjacent_inline_math_boundaries_do_not_cross_text() -> Non
     assert r"$\zeta_{\kappa}$" in markdown
     assert "指的是收缩型高斯原子轨道" in markdown
     assert r"\$phi" not in markdown
-    assert not any("指的是收缩型高斯原子轨道" in match.group(0) for match in MATH_BLOCK_RE.finditer(markdown))
+    assert not any("指的是收缩型高斯原子轨道" in segment.value for segment in analyze_text(markdown).formula_segments)
 
 
 def test_formula_safety_insets_reserve_more_bottom_space_for_subscripts() -> None:
@@ -269,6 +307,185 @@ def test_toc_line_fallback_uses_model_lines_without_content_rules() -> None:
     assert '"表8.4 2-丁酮构象热力学性质"' in typst
     assert "dash: (1pt, 2pt)" in typst
     assert "pdftr_fit_single_line_markdown" not in typst
+
+
+def test_toc_entries_render_plain_page_number_lines_without_dot_leaders() -> None:
+    blocks = build_render_blocks(
+        [
+            {
+                "item_id": "p001-b006",
+                "page_idx": 0,
+                "block_type": "text",
+                "block_kind": "text",
+                "layout_role": "toc",
+                "semantic_role": "table_of_contents",
+                "structure_role": "table_of_contents",
+                "normalized_sub_type": "table_of_contents",
+                "bbox": [68.474, 416.052, 542.793, 659.518],
+                "text_flow": "preserve_lines",
+                "source_text": (
+                    "1 Introduction 2\n"
+                    "2 Sources of components for thermodynamic quantities 2\n"
+                    "2.1 Contributions from translation ..... 3\n"
+                    "3 Thermochemistry output from Gaussian 8\n"
+                    "3.2 Output from compound model chemistries 11\n"
+                    "5 Summary 17"
+                ),
+                "protected_translated_text": (
+                    "1 引言 2\n"
+                    "2 热力学量组分的来源 2\n"
+                    "2.1 平动贡献 ..... 3\n"
+                    "3 来自Gaussian的热化学输出 8\n"
+                    "3.2 复合模型化学输出 11\n"
+                    "5 总结 17"
+                ),
+                "source_line_texts": [
+                    "1 Introduction 2",
+                    "2 Sources of components for thermodynamic quantities 2",
+                    "2.1 Contributions from translation ..... 3",
+                    "3 Thermochemistry output from Gaussian 8",
+                    "3.2 Output from compound model chemistries 11",
+                    "5 Summary 17",
+                ],
+                "lines": [
+                    {"bbox": [68.474, 416.052 + index * 17.39, 542.793, 433.442 + index * 17.39]}
+                    for index in range(6)
+                ],
+                "toc_entries": [],
+            }
+        ],
+        page_width=595.0,
+        page_height=842.0,
+    )
+
+    block = blocks[0]
+    typst = build_typst_block("rp0_item_p001_b006_0", block)
+
+    assert len(block.toc_entries or []) == 6
+    assert '"1 引言"' in typst
+    assert '"2 热力学量组分的来源"' in typst
+    assert '"3 来自Gaussian的热化学输出"' in typst
+    assert '"5 总结"' in typst
+    assert '_toc_0_page = "2"' in typst
+    assert '_toc_3_page = "8"' in typst
+    assert '_toc_5_page = "17"' in typst
+    assert "dash: (1pt, 2pt)" in typst
+
+
+def test_toc_entries_rebuild_partial_source_entries_before_rendering() -> None:
+    blocks = build_render_blocks(
+        [
+            {
+                "item_id": "p001-b006",
+                "page_idx": 0,
+                "block_type": "text",
+                "block_kind": "text",
+                "layout_role": "toc",
+                "semantic_role": "table_of_contents",
+                "structure_role": "table_of_contents",
+                "normalized_sub_type": "table_of_contents",
+                "bbox": [68.474, 416.052, 542.793, 520.394],
+                "text_flow": "preserve_lines",
+                "source_text": (
+                    "1 Introduction 2\n"
+                    "2 Sources of components for thermodynamic quantities 2\n"
+                    "2.1 Contributions from translation ..... 3"
+                ),
+                "protected_translated_text": (
+                    "1 引言 2\n"
+                    "2 热力学量组分的来源 2\n"
+                    "2.1 平动贡献 ..... 3"
+                ),
+                "source_line_texts": [
+                    "1 Introduction 2",
+                    "2 Sources of components for thermodynamic quantities 2",
+                    "2.1 Contributions from translation ..... 3",
+                ],
+                "lines": [
+                    {"bbox": [68.474, 416.052 + index * 17.39, 542.793, 433.442 + index * 17.39]}
+                    for index in range(3)
+                ],
+                "toc_entries": [
+                    {
+                        "number": "2.1",
+                        "title": "Contributions from translation",
+                        "page_label": "3",
+                        "level": 2,
+                        "line_index": 2,
+                        "bbox": [68.474, 450.832, 542.793, 468.222],
+                    }
+                ],
+            }
+        ],
+        page_width=595.0,
+        page_height=842.0,
+    )
+
+    block = blocks[0]
+    typst = build_typst_block("rp0_item_p001_b006_0", block)
+
+    assert len(block.toc_entries or []) == 3
+    assert '"1 引言"' in typst
+    assert '"2 热力学量组分的来源"' in typst
+    assert '"2.1 平动贡献"' in typst
+    assert '_toc_0_page = "2"' in typst
+    assert '_toc_1_page = "2"' in typst
+    assert '_toc_2_page = "3"' in typst
+
+
+def test_toc_rendering_maps_two_column_translated_lines_by_geometry() -> None:
+    blocks = build_render_blocks(
+        [
+            {
+                "item_id": "p010-b002",
+                "page_idx": 9,
+                "block_type": "text",
+                "block_kind": "text",
+                "layout_role": "toc",
+                "semantic_role": "table_of_contents",
+                "structure_role": "table_of_contents",
+                "normalized_sub_type": "table_of_contents",
+                "bbox": [50.0, 100.0, 520.0, 160.0],
+                "text_flow": "preserve_lines",
+                "source_text": (
+                    "1 Left first 1\n"
+                    "4 Right first 4\n"
+                    "2 Left second 2\n"
+                    "5 Right second 5"
+                ),
+                "protected_translated_text": (
+                    "1 左一 1\n"
+                    "4 右一 4\n"
+                    "2 左二 2\n"
+                    "5 右二 5"
+                ),
+                "source_line_texts": [
+                    "1 Left first 1",
+                    "4 Right first 4",
+                    "2 Left second 2",
+                    "5 Right second 5",
+                ],
+                "lines": [
+                    {"bbox": [50.0, 100.0, 240.0, 112.0]},
+                    {"bbox": [300.0, 100.0, 520.0, 112.0]},
+                    {"bbox": [50.0, 120.0, 240.0, 132.0]},
+                    {"bbox": [300.0, 120.0, 520.0, 132.0]},
+                ],
+                "toc_entries": [],
+            }
+        ],
+        page_width=595.0,
+        page_height=842.0,
+    )
+
+    block = blocks[0]
+    typst = build_typst_block("rp9_item_p010_b002_0", block)
+
+    assert [entry.title for entry in block.toc_entries or []] == ["左一", "左二", "右一", "右二"]
+    assert '_toc_0_page = "1"' in typst
+    assert '_toc_1_page = "2"' in typst
+    assert '_toc_2_page = "4"' in typst
+    assert '_toc_3_page = "5"' in typst
 
 
 def test_toc_entries_normalize_spaced_inline_math() -> None:

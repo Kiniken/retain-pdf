@@ -27,7 +27,6 @@ from services.rendering.layout.payload.text_common import tokenize_protected_tex
 from services.rendering.layout.payload.text_common import translated_zh_char_count
 from services.rendering.layout.payload.text_common import translation_density_ratio
 from services.rendering.layout.payload.text_common import trim_joined_tokens
-from services.rendering.layout.payload.text_common import TOKEN_RE
 from services.rendering.layout.payload.text_common import WORD_RE
 from services.rendering.layout.payload.text_common import ZH_CHAR_RE
 
@@ -62,7 +61,6 @@ __all__ = [
     "translated_zh_char_count",
     "translation_density_ratio",
     "trim_joined_tokens",
-    "TOKEN_RE",
     "WORD_RE",
     "ZH_CHAR_RE",
 ]

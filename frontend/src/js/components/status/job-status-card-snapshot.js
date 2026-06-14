@@ -19,12 +19,13 @@ export function normalizeStatusCardSnapshot({
   stageRetryActions = {},
   pdfReady = false,
   pdfUrl = "",
+  markdownBundleReady = false,
+  markdownBundleUrl = "",
   readerReady = false,
   readerUrl = "",
   sourcePdfReady = false,
   sourcePdfUrl = "",
   cancelEnabled = false,
-  backHomeVisible = false,
 } = {}) {
   return {
     jobId: `${jobId || ""}`.trim(),
@@ -47,11 +48,12 @@ export function normalizeStatusCardSnapshot({
     stageRetryActions,
     pdfReady,
     pdfUrl,
+    markdownBundleReady,
+    markdownBundleUrl,
     readerReady,
     readerUrl,
     sourcePdfReady,
     sourcePdfUrl,
     cancelEnabled,
-    backHomeVisible,
   };
 }

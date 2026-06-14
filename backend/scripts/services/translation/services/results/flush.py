@@ -57,7 +57,7 @@ class TranslationFlushState:
         save_started = time.perf_counter()
         flushed_pages = set(self.dirty_pages)
         page_count = len(flushed_pages)
-        save_pages(self.page_payloads, self.translation_paths, flushed_pages)
+        save_pages(self.page_payloads, self.translation_paths, flushed_pages, refresh_units=False)
         print(
             f"book: {label} pages={page_count} in {time.perf_counter() - save_started:.2f}s",
             flush=True,

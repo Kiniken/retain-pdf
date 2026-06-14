@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from services.document_schema.toc import build_toc_entries
+from services.document_schema.toc import order_toc_lines_by_geometry
 from services.rendering.layout.model.models import RenderTocEntry
 
 TRANSLATED_TOC_LINE_RE = re.compile(
@@ -15,6 +16,23 @@ PAREN_PAGE_SUFFIX_RE = re.compile(r"^\s*(?P<title>.+?)\s*\((?P<page>\d+[A-Za-z]?
 
 def _translated_lines(text: str) -> list[str]:
     return [line.strip() for line in str(text or "").splitlines() if line.strip()]
+
+
+def _translated_lines_by_source_geometry(item: dict, translated_text: str) -> list[str]:
+    lines = _translated_lines(translated_text)
+    source_lines = item.get("source_line_texts") or []
+    source_line_boxes = item.get("lines") or []
+    if not isinstance(source_lines, list) or not isinstance(source_line_boxes, list):
+        return lines
+    if len(lines) != len(source_lines):
+        return lines
+    ordered = order_toc_lines_by_geometry(
+        lines=source_line_boxes,
+        line_texts=[str(line) for line in source_lines],
+    )
+    if len(ordered) != len(lines):
+        return lines
+    return [lines[index] for index, _text, _line in ordered]
 
 
 def _strip_toc_page_label(text: str, page_label: str) -> str:
@@ -81,6 +99,23 @@ def _fallback_toc_entries(item: dict) -> list[dict]:
     return build_toc_entries(lines=lines, line_texts=[str(line) for line in line_texts])
 
 
+def _toc_line_count(item: dict) -> int:
+    line_texts = item.get("source_line_texts") or []
+    if isinstance(line_texts, list) and line_texts:
+        return len([line for line in line_texts if str(line or "").strip()])
+    lines = item.get("lines") or []
+    if isinstance(lines, list):
+        return len(lines)
+    return 0
+
+
+def _should_rebuild_partial_toc_entries(item: dict, entries: list[dict]) -> bool:
+    if not entries:
+        return False
+    line_count = _toc_line_count(item)
+    return line_count > 0 and len(entries) < line_count
+
+
 def _line_bbox(item: dict, index: int) -> list[float] | None:
     lines = item.get("lines") or []
     if not isinstance(lines, list) or index < 0 or index >= len(lines):
@@ -121,7 +156,7 @@ def _render_toc_entries_from_translated_lines(item: dict, translated_text: str) 
     if structure_role != "table_of_contents" and semantic_role != "table_of_contents":
         return []
     rendered: list[RenderTocEntry] = []
-    for index, line in enumerate(_translated_lines(translated_text)):
+    for index, line in enumerate(_translated_lines_by_source_geometry(item, translated_text)):
         bbox = _line_bbox(item, index)
         if bbox is None:
             continue
@@ -134,9 +169,13 @@ def _render_toc_entries_from_translated_lines(item: dict, translated_text: str) 
 
 def render_toc_entries_for_item(item: dict, translated_text: str) -> list[RenderTocEntry]:
     entries = item.get("toc_entries") or _fallback_toc_entries(item)
+    if isinstance(entries, list) and _should_rebuild_partial_toc_entries(item, entries):
+        rebuilt_entries = _fallback_toc_entries(item)
+        if len(rebuilt_entries) > len(entries):
+            entries = rebuilt_entries
     if not isinstance(entries, list) or not entries:
         return _render_toc_entries_from_translated_lines(item, translated_text)
-    lines = _translated_lines(translated_text)
+    lines = _translated_lines_by_source_geometry(item, translated_text)
     rendered: list[RenderTocEntry] = []
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -12,6 +13,10 @@ from services.translation.llm.shared.structured_parsers import parse_garbled_rec
 from services.translation.artifacts.status import has_translation_artifact
 from services.translation.services.policy import should_skip_model_by_policy
 from services.translation.services.quality import review_translation_item
+
+
+MAX_CANDIDATES_ENV = "RETAIN_TRANSLATION_GARBLED_MAX_CANDIDATES"
+DEFAULT_MAX_CANDIDATES = 64
 
 
 GARBLED_LEGACY_STYLE_RE = re.compile(r"\\(?:bf|rm|it|sf|tt|pmb)\b")
@@ -354,6 +359,8 @@ def reconstruct_garbled_items(
         return {"garbled_candidates": 0, "garbled_reconstructed": 0}
 
     candidate_list = [(key, representatives[key]) for key in sorted(representatives)]
+    total_candidates = len(candidate_list)
+    candidate_list = candidate_list[: _max_candidates_from_env(DEFAULT_MAX_CANDIDATES)]
     reconstructed, _dirty_pages = _run_reconstruction_candidates(
         candidate_list,
         candidates_by_key=candidates_by_key,
@@ -363,7 +370,12 @@ def reconstruct_garbled_items(
         workers=workers,
         runtime=runtime,
     )
-    return {"garbled_candidates": len(candidate_list), "garbled_reconstructed": reconstructed}
+    return {
+        "garbled_candidates": total_candidates,
+        "garbled_attempted": len(candidate_list),
+        "garbled_skipped_by_budget": max(0, total_candidates - len(candidate_list)),
+        "garbled_reconstructed": reconstructed,
+    }
 
 
 def reconstruct_garbled_page_payloads(
@@ -381,11 +393,15 @@ def reconstruct_garbled_page_payloads(
     if not representatives:
         return {
             "garbled_candidates": 0,
+            "garbled_attempted": 0,
+            "garbled_skipped_by_budget": 0,
             "garbled_reconstructed": 0,
             "dirty_pages": [],
         }
 
     candidate_list = [(key, representatives[key]) for key in sorted(representatives)]
+    total_candidates = len(candidate_list)
+    candidate_list = candidate_list[: _max_candidates_from_env(DEFAULT_MAX_CANDIDATES)]
     reconstructed, dirty_pages = _run_reconstruction_candidates(
         candidate_list,
         candidates_by_key=candidates_by_key,
@@ -397,10 +413,22 @@ def reconstruct_garbled_page_payloads(
         progress_callback=progress_callback,
     )
     return {
-        "garbled_candidates": len(candidate_list),
+        "garbled_candidates": total_candidates,
+        "garbled_attempted": len(candidate_list),
+        "garbled_skipped_by_budget": max(0, total_candidates - len(candidate_list)),
         "garbled_reconstructed": reconstructed,
         "dirty_pages": sorted(dirty_pages),
     }
+
+
+def _max_candidates_from_env(default: int) -> int:
+    raw = str(os.environ.get(MAX_CANDIDATES_ENV, "") or "").strip()
+    if not raw:
+        return max(0, int(default))
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return max(0, int(default))
 
 
 __all__ = [

@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 
 import fitz
 
@@ -12,9 +11,10 @@ from services.rendering.source.items import iter_valid_translated_items
 from services.rendering.layout.inline_content.fallback.png_renderer import compile_formula_png
 from services.rendering.layout.inline_content.mode_router import is_direct_typst_math_mode
 from services.rendering.layout.protected_tokens import re_protect_restored_formulas
+from services.rendering.layout.text_analysis import analyze_text
+from services.rendering.layout.text_analysis import tokenize_direct_math_text as analyze_direct_math_tokens
 
 
-DIRECT_MATH_TOKEN_RE = re.compile(r"(?<!\\)\$(?:\\.|[^$\\\n])+(?<!\\)\$|\s+|[^\s]+")
 FORMULA_HEIGHT_SCALE = 1.35
 LINE_HEIGHT_SCALE = 1.45
 FONT_STEP_PT = 0.5
@@ -77,7 +77,7 @@ def tokenize_protected_text(protected_text: str) -> list[str]:
 
 
 def tokenize_direct_math_text(text: str) -> list[str]:
-    return [token for token in DIRECT_MATH_TOKEN_RE.findall(text or "") if token]
+    return [token for token in analyze_direct_math_tokens(text or "") if token]
 
 
 def formula_lookup_map(formula_map: list[dict]) -> dict[str, str]:
@@ -122,8 +122,9 @@ def _build_direct_draw_tokens(markdown_text: str, font: fitz.Font) -> list[dict]
         if token.isspace():
             tokens.append({"kind": "newline" if "\n" in token else "space", "text": token})
             continue
-        if token.startswith("$") and token.endswith("$") and len(token) >= 2:
-            tokens.append(_build_draw_token(text=token[1:-1], kind="formula", font=font))
+        analysis = analyze_text(token)
+        if len(analysis.formula_segments) == 1 and analysis.formula_segments[0].value == token:
+            tokens.append(_build_draw_token(text=analysis.formula_segments[0].body, kind="formula", font=font))
             continue
         tokens.append({"kind": "text", "text": token})
     return tokens

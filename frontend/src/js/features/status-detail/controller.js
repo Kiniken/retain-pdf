@@ -1,7 +1,7 @@
 import { $ } from "../../dom.js";
 import { buildFrontendPageUrl } from "../../config.js";
 import { normalizeJobPayload } from "../../job.js";
-import { buildStatusDetailSnapshot } from "../../status-detail-presentation.js";
+import { buildStatusDetailSnapshot } from "../../status-detail/presentation.js";
 import {
   cacheSecondaryResource,
   cacheJobDiagnostics,

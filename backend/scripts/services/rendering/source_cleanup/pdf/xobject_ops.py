@@ -10,6 +10,7 @@ from pikepdf import Name
 from services.rendering.source_cleanup.pdf.pdf_math import PdfMatrix
 from services.rendering.source_cleanup.pdf.pdf_math import matrix_from_object
 from services.rendering.source_cleanup.pdf.pdf_math import mul_matrix
+from services.rendering.source_cleanup.execution_policy import PageCleanupExecutionPolicy
 
 
 StreamRewrite = Callable[
@@ -21,6 +22,7 @@ StreamRewrite = Callable[
         bool,
         PdfMatrix,
         set[tuple[int, int]],
+        PageCleanupExecutionPolicy | None,
     ],
     tuple[bytes | None, int, int],
 ]
@@ -54,6 +56,7 @@ def rewrite_xobject_do(
     ctm: PdfMatrix,
     visited_forms: set[tuple[int, int]] | None,
     rewrite_stream: StreamRewrite,
+    execution_policy: PageCleanupExecutionPolicy | None = None,
 ) -> XObjectRewriteResult:
     form_context = _form_context(
         operands=operands,
@@ -76,6 +79,7 @@ def rewrite_xobject_do(
             recurse_forms=recurse_forms,
             ctm=ctm,
             rewrite_stream=rewrite_stream,
+            execution_policy=execution_policy,
         )
     finally:
         active_forms.remove(form_context.form_key)
@@ -128,6 +132,7 @@ def _rewrite_form_context(
     recurse_forms: bool,
     ctm: PdfMatrix,
     rewrite_stream: StreamRewrite,
+    execution_policy: PageCleanupExecutionPolicy | None,
 ) -> XObjectRewriteResult:
     cloned_xobject = _clone_form_xobject(context.pdf, context.xobject)
     form_matrix = matrix_from_object(context.xobject.get(Name("/Matrix"), []))
@@ -139,6 +144,7 @@ def _rewrite_form_context(
         recurse_forms,
         mul_matrix(ctm, form_matrix),
         context.visited_forms,
+        execution_policy,
     )
     if not form_content or form_removed <= 0:
         return XObjectRewriteResult(

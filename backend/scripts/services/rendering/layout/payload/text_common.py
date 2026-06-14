@@ -6,11 +6,12 @@ from services.rendering.layout.inline_content.core.markdown import build_plain_t
 from services.rendering.layout.model.render_text import get_render_formula_map
 from services.rendering.layout.model.render_text import get_render_protected_text
 from services.rendering.layout.model.render_text import restore_render_protected_text
+from services.rendering.layout.text_analysis import analyze_text
+from services.rendering.layout.text_analysis import strip_formula_tokens
+from services.rendering.layout.text_analysis import tokenize_text
 from services.document_schema.semantics import is_plain_bodylike_block
 
 
-FORMULA_TOKEN_PATTERN = r"<[futnvc]\d+-[0-9a-z]{3}/>|\[\[FORMULA_\d+]]|\$(?!\s)(?:\\.|[^$\n]){1,240}?\$"
-TOKEN_RE = re.compile(rf"({FORMULA_TOKEN_PATTERN}|\s+|[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*|[\u4e00-\u9fff]|.)")
 WORD_RE = re.compile(r"[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*")
 ZH_CHAR_RE = re.compile(r"[\u4e00-\u9fff]")
 SPLIT_PUNCTUATION = (".", "。", "!", "！", "?", "？", ";", "；", ":", "：", ",", "，")
@@ -49,11 +50,11 @@ def is_flag_like_plain_text_block(item: dict) -> bool:
 
 
 def tokenize_protected_text(text: str) -> list[str]:
-    return TOKEN_RE.findall(text or "")
+    return tokenize_text(text)
 
 
 def strip_formula_placeholders(text: str) -> str:
-    return re.sub(FORMULA_TOKEN_PATTERN, " ", text or "")
+    return strip_formula_tokens(text)
 
 
 def normalize_render_text(text: str) -> str:
@@ -71,13 +72,11 @@ def source_word_count(item: dict) -> int:
         or item.get("source_text")
         or ""
     )
-    plain = strip_formula_placeholders(source_text)
-    return len(WORD_RE.findall(plain))
+    return analyze_text(source_text).word_count
 
 
 def translated_zh_char_count(protected_text: str) -> int:
-    plain = strip_formula_placeholders(protected_text)
-    return len(ZH_CHAR_RE.findall(plain))
+    return analyze_text(protected_text).zh_char_count
 
 
 def translation_density_ratio(item: dict, protected_text: str) -> float:

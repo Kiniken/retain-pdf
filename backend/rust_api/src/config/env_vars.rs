@@ -41,6 +41,13 @@ pub(super) fn env_string(name: &str, fallback: &str) -> String {
         .unwrap_or_else(|| fallback.to_string())
 }
 
+pub(super) fn env_optional_string(name: &str) -> Option<String> {
+    env::var(name)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
 pub(super) fn env_path(name: &str) -> Option<PathBuf> {
     env::var(name)
         .ok()

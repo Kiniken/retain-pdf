@@ -31,11 +31,15 @@ class SourceCleanupEvidence:
     item_id: str
     block_kind: str
     has_formula_region: bool
+    is_textual_formula: bool
     source_text: str
     output_text: str
     is_marked_non_translated: bool
     has_unresolved_embedded_formula: bool
     is_force_strip_text: bool
+
+
+CleanupIntentInput = SourceCleanupEvidence
 
 
 @dataclass(frozen=True)

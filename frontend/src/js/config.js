@@ -19,7 +19,7 @@ import {
   readerMessageTargetOrigin,
   runtimeConfig,
   setRuntimeConfig,
-} from "./config-runtime.js";
+} from "./config/runtime.js";
 import {
   normalizeBrowserStoredConfig,
   normalizeDeveloperStoredConfig,
@@ -27,7 +27,7 @@ import {
   readDeveloperStoredConfig,
   writeBrowserStoredConfig,
   writeDeveloperStoredConfig,
-} from "./config-storage.js";
+} from "./config/storage.js";
 import {
   desktopInvoke,
   isDesktopMode,
@@ -37,7 +37,7 @@ import {
   savePersistedBrowserConfig,
   savePersistedDesktopConfig,
   savePersistedDeveloperConfig,
-} from "./config-desktop-persistence.js";
+} from "./config/desktop-persistence.js";
 import { DEFAULT_OCR_PROVIDER, normalizeOcrProvider } from "./provider-config.js";
 
 function currentBrowserStoredConfig() {

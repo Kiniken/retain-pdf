@@ -53,6 +53,7 @@ fn test_state(test_name: &str) -> AppState {
         jobs_db_path: data_root.join("db").join("jobs.db"),
         output_root,
         python_bin: "python".to_string(),
+        python_entrypoint_mode: crate::config::PythonWorkerEntrypointMode::Script,
         bind_host: "127.0.0.1".to_string(),
         port: 41000,
         simple_port: 41001,

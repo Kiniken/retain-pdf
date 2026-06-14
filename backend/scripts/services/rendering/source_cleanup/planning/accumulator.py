@@ -5,10 +5,12 @@ from dataclasses import dataclass, field
 from services.rendering.source_cleanup.planning.geometry import rect_tuple
 from services.rendering.source_cleanup.planning.page_features import PageCleanupFeatures
 from services.rendering.source_cleanup.types import BBOX_TEXT_STRIP_PAGE_SKIP_COMPLEX
+from services.rendering.source_cleanup.types import BBOX_TEXT_STRIP_PAGE_SKIP_NO_EFFECT
 from services.rendering.source_cleanup.types import BBOX_TEXT_STRIP_PAGE_SKIP_NO_TEXT_OVERLAP
 from services.rendering.source_cleanup.types import BBOX_TEXT_STRIP_PAGE_SKIP_VISUAL_BACKGROUND
 from services.rendering.source_cleanup.types import BBoxTextStripCandidates
-from services.rendering.source_cleanup.types import BBoxTextStripPagePlan
+from services.rendering.source_cleanup.types import SourceCleanupDecision
+from services.rendering.source_cleanup.planning.contracts import BBoxTextStripPagePlan
 
 
 @dataclass
@@ -18,13 +20,16 @@ class BBoxTextStripCandidateAccumulator:
     skipped_complex_page_indices: set[int] = field(default_factory=set)
     skipped_no_text_overlap_page_indices: set[int] = field(default_factory=set)
     skipped_visual_background_page_indices: set[int] = field(default_factory=set)
+    strip_no_effect_page_indices: set[int] = field(default_factory=set)
     uncovered_unsafe_vector_item_ids: set[str] = field(default_factory=set)
     page_features: dict[int, dict[str, object]] = field(default_factory=dict)
+    decisions: list[SourceCleanupDecision] = field(default_factory=list)
 
     def add_page_features(self, page_idx: int, features: PageCleanupFeatures) -> None:
         self.page_features[page_idx] = features.to_manifest()
 
     def add_page_plan(self, page_idx: int, page_plan: BBoxTextStripPagePlan) -> None:
+        self.decisions.extend(page_plan.decisions)
         self.uncovered_unsafe_vector_item_ids.update(page_plan.uncovered_unsafe_vector_item_ids)
         if page_plan.skip_reason == BBOX_TEXT_STRIP_PAGE_SKIP_COMPLEX:
             self.skipped_complex_page_indices.add(page_idx)
@@ -34,6 +39,9 @@ class BBoxTextStripCandidateAccumulator:
             return
         if page_plan.skip_reason == BBOX_TEXT_STRIP_PAGE_SKIP_VISUAL_BACKGROUND:
             self.skipped_visual_background_page_indices.add(page_idx)
+            return
+        if page_plan.skip_reason == BBOX_TEXT_STRIP_PAGE_SKIP_NO_EFFECT:
+            self.strip_no_effect_page_indices.add(page_idx)
             return
         if not page_plan.strip_rects:
             return
@@ -45,6 +53,7 @@ class BBoxTextStripCandidateAccumulator:
         return BBoxTextStripCandidates(
             page_rects=self.page_rects,
             page_protected_rects=self.page_protected_rects,
+            decisions=tuple(self.decisions),
             uncovered_unsafe_vector_item_ids=frozenset(self.uncovered_unsafe_vector_item_ids),
             pages_skipped_complex=len(self.skipped_complex_page_indices),
             pages_skipped_no_text_overlap=len(self.skipped_no_text_overlap_page_indices),
@@ -52,5 +61,7 @@ class BBoxTextStripCandidateAccumulator:
             skipped_complex_page_indices=frozenset(self.skipped_complex_page_indices),
             skipped_no_text_overlap_page_indices=frozenset(self.skipped_no_text_overlap_page_indices),
             skipped_visual_background_page_indices=frozenset(self.skipped_visual_background_page_indices),
+            strip_no_effect_page_indices=frozenset(self.strip_no_effect_page_indices),
+            pages_strip_no_effect=len(self.strip_no_effect_page_indices),
             page_features=self.page_features,
         )

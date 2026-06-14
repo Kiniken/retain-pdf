@@ -9,6 +9,7 @@ from services.translation.core.item_reader import item_policy_translate
 from services.translation.core.item_reader import item_raw_block_type
 from services.translation.llm.validation.placeholder_tokens import strip_placeholders
 from services.translation.services.policy.metadata_filter import looks_like_hard_nontranslatable_metadata
+from services.translation.services.policy.special_blocks import looks_like_special_long_list_block
 
 
 BYTE_TOKEN_RE = re.compile(r"^[0-9A-Fa-f]{2}$")
@@ -135,6 +136,7 @@ _KEEP_ORIGIN_RULES: tuple[_PolicyRule, ...] = (
     _PolicyRule("skip_model_keep_origin", lambda view: bool(view.labels & SKIP_MODEL_LABELS)),
     _PolicyRule("non_textual_raw_block", lambda view: view.raw_block_type in NON_TRANSLATABLE_RAW_TYPES),
     _PolicyRule("hard_metadata_fragment", lambda view: looks_like_hard_nontranslatable_metadata(view.item)),
+    _PolicyRule("special_long_list_block", lambda view: looks_like_special_long_list_block(view.source)),
     _PolicyRule("protocol_hex_dump", lambda view: looks_like_protocol_or_hex_dump(view.source)),
     _PolicyRule(
         "short_non_body_label",

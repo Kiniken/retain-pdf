@@ -3,6 +3,7 @@ from __future__ import annotations
 import fitz
 
 from foundation.config import layout
+from services.rendering.layout.model.render_text import get_render_translation_overlay_text
 from services.rendering.policy.geometry import item_rect
 from services.rendering.policy.models import RenderItemPolicy
 from services.rendering.policy.models import RenderPagePolicy
@@ -176,8 +177,7 @@ def item_is_marked_non_translated(item: dict) -> bool:
 
 def item_render_output_text(item: dict) -> str:
     return str(
-        item.get("protected_translated_text")
-        or item.get("translated_text")
+        get_render_translation_overlay_text(item)
         or item.get("render_text")
         or ""
     ).strip()

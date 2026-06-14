@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from bisect import bisect_right
 from dataclasses import dataclass
+from difflib import SequenceMatcher
+import re
 from typing import Iterable
 from typing import Callable
 
@@ -13,12 +15,16 @@ from services.rendering.source_cleanup.planning.drawing_classifier import bboxlo
 
 
 BBoxTransform = Callable[[fitz.Page, fitz.Rect], fitz.Rect]
+MIN_TEXT_MATCH_SCORE = 0.35
+TEXT_MATCH_MARGIN_PT = 1.0
+TEXT_MATCH_SAMPLE_CHARS = 360
 
 
 @dataclass(frozen=True)
 class BBoxCoordinateCandidate:
     name: str
     transform: BBoxTransform
+    pdf_transform: BBoxTransform
 
 
 @dataclass(frozen=True)
@@ -27,6 +33,34 @@ class BBoxCoordinateScore:
     rect: fitz.Rect
     text_overlap_count: int
     text_overlap_area: float
+
+
+@dataclass(frozen=True)
+class ItemCoordinateScore:
+    candidate: BBoxCoordinateCandidate
+    rect: fitz.Rect
+    source_match_score: float
+    text_overlap_count: int
+    text_overlap_area: float
+
+
+@dataclass(frozen=True)
+class ItemCoordinateResolution:
+    candidate: BBoxCoordinateCandidate | None
+    score: float
+    status: str
+    reason: str
+
+    @property
+    def is_resolved(self) -> bool:
+        return self.candidate is not None and self.status == "resolved"
+
+
+@dataclass(frozen=True)
+class TextClipFragment:
+    rect: fitz.Rect
+    text: str
+    order: int
 
 
 @dataclass(frozen=True)
@@ -61,27 +95,101 @@ class TextRectIndex:
 
 
 @dataclass(frozen=True)
+class PageTextClipIndex:
+    fragments: tuple[TextClipFragment, ...]
+    y0_sorted: tuple[float, ...]
+
+    @classmethod
+    def build(cls, page: fitz.Page) -> "PageTextClipIndex":
+        try:
+            words = page.get_text("words")
+        except Exception:
+            return cls.empty()
+        fragments = tuple(
+            fragment
+            for order, word in enumerate(words)
+            if (fragment := text_clip_fragment_from_word(word, order)) is not None
+        )
+        ordered = tuple(sorted(fragments, key=lambda fragment: fragment.rect.y0))
+        return cls(
+            fragments=ordered,
+            y0_sorted=tuple(float(fragment.rect.y0) for fragment in ordered),
+        )
+
+    @classmethod
+    def empty(cls) -> "PageTextClipIndex":
+        return cls(fragments=(), y0_sorted=())
+
+    def text_for_rect(self, rect: fitz.Rect) -> str:
+        if rect.is_empty or not self.fragments:
+            return ""
+        clip = expanded_text_match_rect(rect)
+        matches: list[TextClipFragment] = []
+        limit = bisect_right(self.y0_sorted, float(clip.y1))
+        for index in range(limit):
+            fragment = self.fragments[index]
+            if fragment.rect.y1 < clip.y0:
+                continue
+            if fragment.rect.x1 < clip.x0 or fragment.rect.x0 > clip.x1:
+                continue
+            if rect_area(fragment.rect & clip) <= 0.0:
+                continue
+            matches.append(fragment)
+        return " ".join(fragment.text for fragment in sorted(matches, key=lambda value: value.order))
+
+
+@dataclass(frozen=True)
 class PageBBoxResolver:
     page: fitz.Page
     text_rects: tuple[fitz.Rect, ...]
     text_index: TextRectIndex
+    text_clip_index: PageTextClipIndex
     image_rects: tuple[fitz.Rect, ...]
     unsafe_vector_rects: tuple[fitz.Rect, ...]
     unsafe_vector_index: RectOverlapIndex
     preferred_candidate: BBoxCoordinateCandidate
+    item_candidates: dict[str, BBoxCoordinateCandidate]
+    item_resolutions: dict[str, ItemCoordinateResolution]
+    bbox_candidates: dict[tuple[float, float, float, float], BBoxCoordinateCandidate]
 
     @classmethod
-    def build(cls, page: fitz.Page, bboxes: Iterable[object] = ()) -> "PageBBoxResolver":
+    def build(
+        cls,
+        page: fitz.Page,
+        bboxes: Iterable[object] = (),
+        items: Iterable[dict] = (),
+    ) -> "PageBBoxResolver":
+        item_tuple = tuple(item for item in items if isinstance(item, dict))
+        bbox_tuple = tuple(bboxes)
+        if item_tuple and not bbox_tuple:
+            bbox_tuple = tuple(item.get("bbox", []) for item in item_tuple)
         text_rects, image_rects, unsafe_vector_rects = page_bboxlog_rect_groups(page)
         text_index = TextRectIndex.build(text_rects)
+        text_clip_index = PageTextClipIndex.build(page) if item_tuple else PageTextClipIndex.empty()
+        preferred = choose_page_coordinate_candidate(page, bbox_tuple, text_index)
+        item_resolutions = choose_item_coordinate_resolutions(page, item_tuple, text_index, text_clip_index, preferred)
+        item_candidates = {
+            key: resolution.candidate
+            for key, resolution in item_resolutions.items()
+            if resolution.candidate is not None
+        }
         return cls(
             page=page,
             text_rects=text_rects,
             text_index=text_index,
+            text_clip_index=text_clip_index,
             image_rects=image_rects,
             unsafe_vector_rects=unsafe_vector_rects,
             unsafe_vector_index=RectOverlapIndex.build(unsafe_vector_rects),
-            preferred_candidate=choose_page_coordinate_candidate(page, bboxes, text_index),
+            preferred_candidate=preferred,
+            item_candidates=item_candidates,
+            item_resolutions=item_resolutions,
+            bbox_candidates={
+                key: candidate
+                for item in item_tuple
+                if (key := bbox_key(item.get("bbox", []))) is not None
+                if (candidate := item_candidates.get(item_key(item))) is not None
+            },
         )
 
     def resolve_bbox_rect(self, bbox: object) -> fitz.Rect | None:
@@ -89,6 +197,13 @@ class PageBBoxResolver:
         if raw_rect is None:
             return None
         rect = self.preferred_candidate.transform(self.page, raw_rect)
+        return None if rect.is_empty else rect
+
+    def resolve_item_bbox_rect(self, item: dict) -> fitz.Rect | None:
+        raw_rect = raw_bbox_rect(item.get("bbox", []))
+        if raw_rect is None:
+            return None
+        rect = self._candidate_for_item(item).transform(self.page, raw_rect)
         return None if rect.is_empty else rect
 
     def resolve_bbox_probe_rects(self, bbox: object) -> tuple[fitz.Rect, ...]:
@@ -106,8 +221,37 @@ class PageBBoxResolver:
         raw_rect = raw_bbox_rect(bbox)
         if raw_rect is None:
             return None
-        pdf_rect = raw_rect * ~self.page.transformation_matrix
+        candidate = self.bbox_candidates.get(bbox_key(bbox)) or self.preferred_candidate
+        pdf_rect = candidate.pdf_transform(self.page, raw_rect)
         return None if pdf_rect.is_empty else pdf_rect
+
+    def ocr_item_bbox_to_pdf_rect(self, item: dict) -> fitz.Rect | None:
+        raw_rect = raw_bbox_rect(item.get("bbox", []))
+        if raw_rect is None:
+            return None
+        pdf_rect = self._candidate_for_item(item).pdf_transform(self.page, raw_rect)
+        return None if pdf_rect.is_empty else pdf_rect
+
+    def _candidate_for_item(self, item: dict) -> BBoxCoordinateCandidate:
+        candidate = self.item_candidates.get(item_key(item))
+        if candidate is not None:
+            return candidate
+        key = bbox_key(item.get("bbox", []))
+        if key is not None and key in self.bbox_candidates:
+            return self.bbox_candidates[key]
+        return self.preferred_candidate
+
+    def coordinate_resolution_for_item(self, item: dict) -> ItemCoordinateResolution:
+        key = item_key(item)
+        if key and key in self.item_resolutions:
+            return self.item_resolutions[key]
+        candidate = self._candidate_for_item(item)
+        return ItemCoordinateResolution(
+            candidate=candidate,
+            score=0.0,
+            status="resolved",
+            reason="fallback_page_candidate",
+        )
 
     def has_large_background_image(self, *, coverage_ratio_threshold: float = 0.75) -> bool:
         if not self.image_rects:
@@ -122,10 +266,12 @@ BBOX_COORDINATE_CANDIDATES: tuple[BBoxCoordinateCandidate, ...] = (
     BBoxCoordinateCandidate(
         name="pdf_matrix",
         transform=lambda page, rect: rect * ~page.transformation_matrix,
+        pdf_transform=lambda _page, rect: fitz.Rect(rect),
     ),
     BBoxCoordinateCandidate(
         name="raw_top_left",
         transform=lambda _page, rect: fitz.Rect(rect),
+        pdf_transform=lambda page, rect: rect * ~page.transformation_matrix,
     ),
 )
 
@@ -143,6 +289,119 @@ def choose_page_coordinate_candidate(
         for candidate in BBOX_COORDINATE_CANDIDATES
     ]
     return max(scores, key=lambda score: (score.text_overlap_count, score.text_overlap_area)).candidate
+
+
+def choose_item_coordinate_candidates(
+    page: fitz.Page,
+    items: tuple[dict, ...],
+    text_index: TextRectIndex,
+    text_clip_index: PageTextClipIndex,
+    fallback: BBoxCoordinateCandidate,
+) -> dict[str, BBoxCoordinateCandidate]:
+    return {
+        key: resolution.candidate
+        for key, resolution in choose_item_coordinate_resolutions(
+            page,
+            items,
+            text_index,
+            text_clip_index,
+            fallback,
+        ).items()
+        if resolution.candidate is not None
+    }
+
+
+def choose_item_coordinate_resolutions(
+    page: fitz.Page,
+    items: tuple[dict, ...],
+    text_index: TextRectIndex,
+    text_clip_index: PageTextClipIndex,
+    fallback: BBoxCoordinateCandidate,
+) -> dict[str, ItemCoordinateResolution]:
+    result: dict[str, ItemCoordinateResolution] = {}
+    for item in items:
+        key = item_key(item)
+        if not key:
+            continue
+        raw_rect = raw_bbox_rect(item.get("bbox", []))
+        if raw_rect is None:
+            continue
+        result[key] = choose_item_coordinate_resolution(page, item, raw_rect, text_index, text_clip_index, fallback)
+    return result
+
+
+def choose_item_coordinate_candidate(
+    page: fitz.Page,
+    item: dict,
+    raw_rect: fitz.Rect,
+    text_index: TextRectIndex,
+    text_clip_index: PageTextClipIndex,
+    fallback: BBoxCoordinateCandidate,
+) -> BBoxCoordinateCandidate:
+    resolution = choose_item_coordinate_resolution(page, item, raw_rect, text_index, text_clip_index, fallback)
+    return resolution.candidate or fallback
+
+
+def choose_item_coordinate_resolution(
+    page: fitz.Page,
+    item: dict,
+    raw_rect: fitz.Rect,
+    text_index: TextRectIndex,
+    text_clip_index: PageTextClipIndex,
+    fallback: BBoxCoordinateCandidate,
+) -> ItemCoordinateResolution:
+    scores = tuple(
+        score_item_coordinate_candidate(page, item, candidate, raw_rect, text_index, text_clip_index)
+        for candidate in BBOX_COORDINATE_CANDIDATES
+    )
+    best = max(scores, key=lambda score: (score.source_match_score, score.text_overlap_count, score.text_overlap_area))
+    if best.source_match_score >= MIN_TEXT_MATCH_SCORE:
+        return ItemCoordinateResolution(
+            candidate=best.candidate,
+            score=best.source_match_score,
+            status="resolved",
+            reason="source_text_match",
+        )
+    if normalized_text_for_match(item_source_text(item)):
+        return ItemCoordinateResolution(
+            candidate=None,
+            score=best.source_match_score,
+            status="unresolved",
+            reason="low_source_text_match",
+        )
+    return ItemCoordinateResolution(
+        candidate=fallback,
+        score=0.0,
+        status="resolved",
+        reason="page_coordinate_vote",
+    )
+
+
+def candidate_by_name(name: str) -> BBoxCoordinateCandidate:
+    return next(
+        candidate
+        for candidate in BBOX_COORDINATE_CANDIDATES
+        if candidate.name == name
+    )
+
+
+def score_item_coordinate_candidate(
+    page: fitz.Page,
+    item: dict,
+    candidate: BBoxCoordinateCandidate,
+    raw_rect: fitz.Rect,
+    text_index: TextRectIndex,
+    text_clip_index: PageTextClipIndex | None = None,
+) -> ItemCoordinateScore:
+    rect = candidate.transform(page, raw_rect)
+    count, area = text_index.score(rect)
+    return ItemCoordinateScore(
+        candidate=candidate,
+        rect=rect,
+        source_match_score=source_text_match_score(page, item, rect, text_clip_index),
+        text_overlap_count=count,
+        text_overlap_area=area,
+    )
 
 
 def aggregate_candidate_score(
@@ -185,6 +444,108 @@ def raw_bbox_rect(bbox: object) -> fitz.Rect | None:
         return None
     rect = fitz.Rect(*(to_float(value) for value in bbox))
     return None if rect.is_empty else rect
+
+
+def item_key(item: dict) -> str:
+    explicit = str(item.get("item_id") or item.get("block_id") or item.get("id") or "").strip()
+    if explicit:
+        return explicit
+    key = bbox_key(item.get("bbox", []))
+    return "" if key is None else "bbox:" + ",".join(str(value) for value in key)
+
+
+def bbox_key(bbox: object) -> tuple[float, float, float, float] | None:
+    rect = raw_bbox_rect(bbox)
+    if rect is None:
+        return None
+    return (
+        round(float(rect.x0), 3),
+        round(float(rect.y0), 3),
+        round(float(rect.x1), 3),
+        round(float(rect.y1), 3),
+    )
+
+
+def source_text_match_score(
+    page: fitz.Page,
+    item: dict,
+    rect: fitz.Rect,
+    text_clip_index: PageTextClipIndex | None = None,
+) -> float:
+    raw_source_text = item_source_text(item)
+    source_text = normalized_text_for_match(raw_source_text)
+    if not source_text:
+        return 0.0
+    raw_clip_text = text_clip_index.text_for_rect(rect) if text_clip_index is not None else page_clip_text(page, rect)
+    clip_text = normalized_text_for_match(raw_clip_text)
+    if not clip_text:
+        return 0.0
+    source_sample = source_text[:TEXT_MATCH_SAMPLE_CHARS]
+    clip_sample = clip_text[:TEXT_MATCH_SAMPLE_CHARS]
+    if source_sample in clip_text or clip_sample in source_text:
+        shorter = max(min(len(source_sample), len(clip_sample)), 1)
+        longer = max(max(len(source_sample), len(clip_sample)), 1)
+        return max(0.85, shorter / longer)
+    token_score = source_token_match_score(raw_source_text, raw_clip_text)
+    if min(len(source_sample), len(clip_sample)) < 40:
+        return token_score if token_score >= 0.8 else 0.0
+    return SequenceMatcher(None, source_sample, clip_sample).ratio()
+
+
+def page_clip_text(page: fitz.Page, rect: fitz.Rect) -> str:
+    try:
+        return page.get_text("text", clip=expanded_text_match_rect(rect))
+    except Exception:
+        return ""
+
+
+def expanded_text_match_rect(rect: fitz.Rect) -> fitz.Rect:
+    return fitz.Rect(
+        rect.x0 - TEXT_MATCH_MARGIN_PT,
+        rect.y0 - TEXT_MATCH_MARGIN_PT,
+        rect.x1 + TEXT_MATCH_MARGIN_PT,
+        rect.y1 + TEXT_MATCH_MARGIN_PT,
+    )
+
+
+def text_clip_fragment_from_word(word: object, order: int) -> TextClipFragment | None:
+    try:
+        rect = fitz.Rect(float(word[0]), float(word[1]), float(word[2]), float(word[3]))
+        text = str(word[4] or "").strip()
+    except Exception:
+        return None
+    if rect.is_empty or not text:
+        return None
+    return TextClipFragment(rect=rect, text=text, order=order)
+
+
+def item_source_text(item: dict) -> str:
+    return str(
+        item.get("translation_unit_protected_source_text")
+        or item.get("protected_source_text")
+        or item.get("source_text")
+        or item.get("text")
+        or ""
+    )
+
+
+def normalized_text_for_match(value: str) -> str:
+    return "".join(str(value).lower().split())
+
+
+def source_token_match_score(source_text: str, clip_text: str) -> float:
+    source_tokens = text_match_tokens(source_text)
+    if not source_tokens:
+        return 0.0
+    clip_tokens = set(text_match_tokens(clip_text))
+    if not clip_tokens:
+        return 0.0
+    matched = sum(1 for token in source_tokens if token in clip_tokens)
+    return matched / max(len(source_tokens), 1)
+
+
+def text_match_tokens(value: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", str(value).lower())
 
 
 def _rect_probe_key(rect: fitz.Rect) -> tuple[int, int, int, int]:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+import os
 
 from services.translation.artifacts import blocking_untranslated_items
 from services.translation.core.payload.parts.apply import apply_single_translated_entry
@@ -13,7 +14,8 @@ from services.translation.services.policy import should_skip_model_by_policy
 
 
 DEFAULT_MAX_WORKERS = 32
-DEFAULT_MAX_ITEMS = 256
+DEFAULT_MAX_ITEMS = 64
+MAX_ITEMS_ENV = "RETAIN_TRANSLATION_FINAL_RECOVERY_MAX_ITEMS"
 
 
 @dataclass(frozen=True)
@@ -23,6 +25,7 @@ class FinalUntranslatedRecoverySummary:
     recovered_items: int = 0
     dead_letter_items: int = 0
     blocking_after: int = 0
+    skipped_by_budget: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return {
@@ -31,6 +34,7 @@ class FinalUntranslatedRecoverySummary:
             "recovered_items": self.recovered_items,
             "dead_letter_items": self.dead_letter_items,
             "blocking_after": self.blocking_after,
+            "skipped_by_budget": self.skipped_by_budget,
         }
 
 
@@ -45,6 +49,7 @@ def recover_blocking_untranslated_items(
     workers: int = DEFAULT_MAX_WORKERS,
     request_chat_content_fn=request_chat_content,
 ) -> FinalUntranslatedRecoverySummary:
+    max_items = _max_items_from_env(max_items)
     blocking = blocking_untranslated_items(page_payloads)
     if not blocking:
         return FinalUntranslatedRecoverySummary()
@@ -62,15 +67,18 @@ def recover_blocking_untranslated_items(
             blocking_before=blocking_before,
             blocking_after=0,
         )
-    candidates = [
+    recoverable = [
         item_by_id[item["item_id"]]
-        for item in blocking[: max(0, max_items)]
+        for item in blocking
         if item.get("item_id") in item_by_id and _can_final_recover(item_by_id[item["item_id"]])
     ]
+    candidates = recoverable[: max(0, max_items)]
+    skipped_by_budget = max(0, len(recoverable) - len(candidates))
     if not candidates:
         return FinalUntranslatedRecoverySummary(
             blocking_before=blocking_before,
             blocking_after=len(blocking),
+            skipped_by_budget=skipped_by_budget,
         )
 
     recovered = 0
@@ -119,7 +127,18 @@ def recover_blocking_untranslated_items(
         recovered_items=recovered,
         dead_letter_items=dead_letter,
         blocking_after=len(after),
+        skipped_by_budget=skipped_by_budget,
     )
+
+
+def _max_items_from_env(default: int) -> int:
+    raw = str(os.environ.get(MAX_ITEMS_ENV, "") or "").strip()
+    if not raw:
+        return max(0, int(default))
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return max(0, int(default))
 
 
 def _item_index(page_payloads: dict[int, list[dict]]) -> dict[str, dict]:

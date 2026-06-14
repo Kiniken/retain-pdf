@@ -7,6 +7,7 @@ from typing import Any
 
 from foundation.config import layout
 from services.document_schema.semantics import block_kind as schema_block_kind
+from services.rendering.layout.model.render_text import get_render_translation_overlay_text
 from services.rendering.policy.cleanup_policy import item_will_render_translated_overlay
 from services.rendering.source.prewarm_algorithm_hash import source_cleanup_implementation_hash
 from services.rendering.source.prewarm_contracts import BBOX_TEXT_STRIP_ALGORITHM_ID
@@ -16,7 +17,7 @@ from services.rendering.source.prewarm_contracts import IMAGE_COMPRESSION_ALGORI
 from services.rendering.source.prewarm_contracts import PAYLOAD_RENDER_ALGORITHM_VERSION
 from services.rendering.source.prewarm_manifest import float_or_zero
 from services.rendering.source.prewarm_manifest import int_or_default
-from services.rendering.source_cleanup.protected_blocks import protected_pages_from_document_path
+from services.rendering.source.preprocess_inputs import build_preprocess_protected_pages_from_document_path
 
 
 def build_payload_structure_hash(translated_pages: dict[int, list[dict]]) -> str:
@@ -83,7 +84,8 @@ def build_render_prewarm_fingerprint(
         "bbox_text_strip_algorithm": BBOX_TEXT_STRIP_ALGORITHM_ID,
         "bbox_text_strip_implementation_hash": source_cleanup_implementation_hash(),
         "bbox_text_strip_protected_source_hash": build_protected_source_hash(
-            source_pdf_path.parent.parent / "ocr" / "normalized" / "document.v1.json"
+            source_pdf_path.parent.parent / "ocr" / "normalized" / "document.v1.json",
+            translated_pages=translated_pages,
         ),
         "hidden_text_strip_algorithm": HIDDEN_TEXT_STRIP_ALGORITHM_VERSION,
         "image_compression_algorithm": IMAGE_COMPRESSION_ALGORITHM_VERSION,
@@ -92,8 +94,15 @@ def build_render_prewarm_fingerprint(
     }
 
 
-def build_protected_source_hash(document_path: Path) -> str:
-    protected_pages = protected_pages_from_document_path(document_path)
+def build_protected_source_hash(
+    document_path: Path,
+    *,
+    translated_pages: dict[int, list[dict]] | None = None,
+) -> str:
+    protected_pages = build_preprocess_protected_pages_from_document_path(
+        document_path,
+        translated_pages=translated_pages,
+    )
     digest = hashlib.sha256()
     for page_idx in sorted(protected_pages):
         digest.update(f"page:{page_idx}\n".encode("utf-8"))
@@ -202,11 +211,8 @@ def _render_source_text(item: dict) -> str:
 
 def _render_output_text(item: dict) -> str:
     return str(
-        item.get("render_protected_text")
-        or item.get("protected_translated_text")
-        or item.get("translated_text")
-        or item.get("translation_unit_protected_text")
-        or item.get("translation_unit_translated_text")
+        get_render_translation_overlay_text(item)
+        or item.get("render_text")
         or ""
     ).strip()
 

@@ -1,5 +1,5 @@
 import { resetMissingUploadState, setSubmitBusy } from "./view.js";
-import { withTimeout } from "../../async-timeout.js";
+import { withTimeout } from "../../utils/async-timeout.js";
 import { isDesktopConfigured, isDesktopMode } from "../../state/desktop-state.js";
 import { getUploadState } from "../../state/upload-state.js";
 import { syncCurrentJobSnapshot } from "../job-runtime/runtime-state.js";

@@ -2,14 +2,15 @@ from __future__ import annotations
 
 import re
 
+from services.rendering.layout.text_analysis import analyze_text
+from services.rendering.layout.text_analysis import math_token_body
+from services.rendering.layout.text_analysis import normalize_direct_typst_math_boundaries
+from services.rendering.layout.text_analysis import RAW_MATH_TOKEN_KINDS
+from services.rendering.layout.text_analysis import replace_non_formula_segments
+from services.rendering.layout.text_analysis import TextToken
+from services.rendering.layout.text_analysis import TextTokenKind
 
-DISPLAY_MATH_BLOCK_RE = re.compile(r"(?<!\\)\$\$(?:\\.|(?!\$\$).)+?(?<!\\)\$\$")
-INLINE_MATH_BLOCK_RE = re.compile(r"(?<!\\)(?<!\$)\$(?!\$)(?:\\.|[^$\\\n])+(?<!\\)\$(?!\$)")
-MATH_BLOCK_RE = re.compile(
-    r"(?<!\\)\$\$(?:\\.|(?!\$\$).)+?(?<!\\)\$\$"
-    r"|(?<!\\)(?<!\$)\$(?!\$)(?:\\.|[^$\\\n])+(?<!\\)\$(?!\$)",
-    re.DOTALL,
-)
+
 MARKDOWN_EMPHASIS_RE = re.compile(
     r"(?<![\\*])(?P<marker>\*\*|\*)"
     r"(?=\S)"
@@ -17,29 +18,12 @@ MARKDOWN_EMPHASIS_RE = re.compile(
     r"(?P=marker)"
     r"(?!\*)"
 )
-ADJACENT_INLINE_MATH_BOUNDARY_RE = re.compile(r"(?<=[^\s$])\$\$(?=\s*[^$\s])")
-PAREN_INLINE_MATH_RE = re.compile(
-    r"(?P<open>[\(])\s*"
-    r"(?P<math>(?<!\\)(?<!\$)\$(?!\$)(?:\\.|[^$\\\n])+(?<!\\)\$(?!\$))"
-    r"\s*(?P<close>[\)])"
-)
 TEXT_HEAVY_INLINE_MATH_MIN_TEXT_CHARS = 10
 TEXT_HEAVY_INLINE_MATH_MIN_TEXT_BLOCKS = 2
 
 
 def apply_to_non_math_segments(text: str, replacer) -> str:
-    chunks: list[str] = []
-    last_end = 0
-    for match in MATH_BLOCK_RE.finditer(text):
-        plain = text[last_end : match.start()]
-        if plain:
-            chunks.append(replacer(plain))
-        chunks.append(match.group(0))
-        last_end = match.end()
-    tail = text[last_end:]
-    if tail:
-        chunks.append(replacer(tail))
-    return "".join(chunks)
+    return replace_non_formula_segments(text, replacer)
 
 
 def escape_markdown_literal_asterisks(text: str) -> str:
@@ -65,14 +49,15 @@ def surround_inline_math_with_spaces(markdown: str) -> str:
     if not text:
         return ""
     chunks: list[str] = []
-    last_end = 0
     left_no_space = set("([{\"'“‘（【「『")
     right_no_space = set(".,;:!?)]}，。！？；：、（）【】「」『』")
-    for match in MATH_BLOCK_RE.finditer(text):
-        chunks.append(text[last_end:match.start()])
-        expr = match.group(0)
-        prev_char = text[match.start() - 1] if match.start() > 0 else ""
-        next_char = text[match.end()] if match.end() < len(text) else ""
+    for token in analyze_text(text).tokens:
+        if token.kind not in RAW_MATH_TOKEN_KINDS:
+            chunks.append(token.value)
+            continue
+        expr = token.value
+        prev_char = text[token.start - 1] if token.start > 0 else ""
+        next_char = text[token.end] if token.end < len(text) else ""
         prefix = ""
         suffix = ""
         if prev_char and not prev_char.isspace() and prev_char not in left_no_space:
@@ -80,25 +65,7 @@ def surround_inline_math_with_spaces(markdown: str) -> str:
         if next_char and not next_char.isspace() and next_char not in right_no_space:
             suffix = " "
         chunks.append(f"{prefix}{expr}{suffix}")
-        last_end = match.end()
-    chunks.append(text[last_end:])
     return re.sub(r"[ \t]{2,}", " ", "".join(chunks)).strip()
-
-
-def normalize_direct_typst_math_boundaries(text: str) -> str:
-    source = str(text or "")
-    if not source:
-        return ""
-    source = ADJACENT_INLINE_MATH_BOUNDARY_RE.sub("$ $", source)
-
-    def _wrap_parenthesized_math(match: re.Match[str]) -> str:
-        math = match.group("math")
-        expr = math[1:-1].strip()
-        if not expr:
-            return match.group(0)
-        return f"${match.group('open')}{expr}{match.group('close')}$"
-
-    return PAREN_INLINE_MATH_RE.sub(_wrap_parenthesized_math, source)
 
 
 def normalize_direct_typst_inline_math_whitespace(text: str) -> str:
@@ -243,15 +210,15 @@ def _demote_text_heavy_inline_math_expr(expr: str) -> str | None:
 
 
 def demote_text_heavy_inline_math(text: str) -> str:
-    def _replace(match: re.Match[str]) -> str:
-        raw = match.group(0)
-        if raw.startswith("$$"):
-            return raw
-        expr = raw[1:-1].strip()
+    chunks: list[str] = []
+    for token in analyze_text(text or "").tokens:
+        if token.kind != TextTokenKind.INLINE_MATH:
+            chunks.append(token.value)
+            continue
+        expr = math_token_body(token)
         replacement = _demote_text_heavy_inline_math_expr(expr)
-        return replacement if replacement is not None else raw
-
-    return MATH_BLOCK_RE.sub(_replace, text or "")
+        chunks.append(replacement if replacement is not None else token.value)
+    return "".join(chunks)
 
 
 def sanitize_direct_typst_inline_math(text: str) -> str:
@@ -259,12 +226,11 @@ def sanitize_direct_typst_inline_math(text: str) -> str:
         normalize_formula_for_latex_math,
     )
 
-    def _replace(match: re.Match[str]) -> str:
-        raw = match.group(0)
-        is_display = raw.startswith("$$")
-        expr = raw[2:-2].strip() if is_display else raw[1:-1].strip()
+    def _sanitize_token(token: TextToken) -> str:
+        is_display = token.kind == TextTokenKind.DISPLAY_MATH
+        expr = math_token_body(token)
         if not expr:
-            return match.group(0)
+            return token.value
         if expr in {"^®", "^{®}", r"^\circled{R}", r"^\textcircled{R}"}:
             return "®"
         spreadsheet_cell = re.fullmatch(r"\\([A-Za-z]{1,3})\\([0-9]{1,7})", expr)
@@ -281,7 +247,13 @@ def sanitize_direct_typst_inline_math(text: str) -> str:
             expr = normalize_formula_for_latex_math(expr)
         return f"${expr}$"
 
-    return MATH_BLOCK_RE.sub(_replace, text or "")
+    chunks: list[str] = []
+    for token in analyze_text(text or "").tokens:
+        if token.kind in RAW_MATH_TOKEN_KINDS:
+            chunks.append(_sanitize_token(token))
+        else:
+            chunks.append(token.value)
+    return "".join(chunks)
 
 
 def build_direct_typst_passthrough_markdown(text: str) -> str:

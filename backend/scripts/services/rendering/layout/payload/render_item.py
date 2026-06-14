@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-import re
 
+from services.rendering.layout.text_analysis import analyze_text
 from services.rendering.layout.payload.text_common import get_render_formula_map
 from services.rendering.layout.payload.line_structure import maybe_preserve_structured_line_breaks
 from services.rendering.layout.payload.text_common import same_meaningful_render_text
 from services.rendering.layout.model.render_text import should_skip_display_math_render
 
-MATH_SOURCE_RE = re.compile(r"\$[^$]+\$|\\(?:begin|end|frac|lim|sum|int|mathrm|left|right|cdot|epsilon|forall|in)\b")
 MODEL_KEEP_ORIGIN_REASONS = {"skip_model_keep_origin"}
 RENDER_FIRST_LINE_INDENT_KEY = "_render_first_line_indent_pt"
 RENDER_INNER_BBOX_KEY = "_render_inner_bbox"
@@ -78,7 +77,8 @@ def should_render_source_block(item: dict) -> bool:
     sub_type = str(item.get("normalized_sub_type", "") or "").strip().lower()
     if block_kind == "formula" or sub_type in {"formula", "display_formula"}:
         return True
-    return bool(MATH_SOURCE_RE.search(source_text))
+    analysis = analyze_text(source_text)
+    return analysis.raw_math_count > 0 or analysis.latex_command_count > 0
 
 
 def _skip_reason(item: dict) -> str:

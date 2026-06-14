@@ -19,14 +19,14 @@ from services.translation.services.results.flush import TranslationFlushState
 from services.translation.services.results.applier import TranslationResultApplier
 from services.translation.services.results.applier import expand_duplicate_results as _expand_duplicate_results
 from services.translation.services.results.applier import touched_pages_for_batch
-from services.translation.workflow.batching.plan import _allocate_translation_queue_workers
-from services.translation.workflow.batching.plan import _slow_worker_cap
+from services.translation.workflow.scheduling.allocation import _allocate_translation_queue_workers
+from services.translation.workflow.scheduling.allocation import _slow_worker_cap
 from services.translation.workflow.batching.plan import _build_translation_batches
 from services.translation.workflow.batching.plan import _classify_translation_batches
 from services.translation.workflow.batching.plan import _dedupe_pending_items
 from services.translation.workflow.batching.plan import _effective_translation_batch_size
 from services.translation.workflow.batching.plan import _save_flush_interval
-from services.translation.workflow.batching.plan import TranslationBatchRunStats
+from services.translation.workflow.scheduling.stats import TranslationBatchRunStats
 
 
 def _translate_batch_or_keep_origin(

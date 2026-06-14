@@ -3,12 +3,12 @@ import {
   formatTransferSize,
   prepareDownloadTarget,
   saveResponseDownload,
-} from "../../downloads.js";
+} from "../../utils/downloads.js";
 import {
   completeDownloadToast,
   showDownloadPreparing,
   updateDownloadProgress,
-} from "../../download-feedback.js";
+} from "../../utils/download-feedback.js";
 
 let pdfDocumentModulePromise = null;
 

@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import re
 
+from services.rendering.layout.text_analysis import inline_math_segments as analyzed_inline_math_segments
 
-INLINE_MATH_RE = re.compile(r"(?<!\\)\$(?!\$)(?:\\.|[^$\\\n])+(?<!\\)\$(?!\$)")
 COMPLEX_INLINE_MATH_RE = re.compile(
     r"\\(?:sqrt|frac|dfrac|tfrac|cfrac|sum|prod|int|iint|iiint|oint|lim|left|right|begin|overline|underline|underbrace|overbrace|widehat|widetilde|binom|choose|substack|cases|matrix|pmatrix|bmatrix|vmatrix)\b"
 )
 
 
 def inline_math_segments(text: str) -> list[str]:
-    return [match.group(0)[1:-1].strip() for match in INLINE_MATH_RE.finditer(text or "")]
+    return analyzed_inline_math_segments(text)
 
 
 def has_complex_inline_math_text(text: str) -> bool:

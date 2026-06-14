@@ -116,6 +116,43 @@ def test_regular_structured_lines_preserve_source_line_structure() -> None:
     assert "CSDFT" in structured.splitlines()[-1]
 
 
+def test_long_caption_lines_do_not_use_single_line_preserve_fit() -> None:
+    item = {
+        "item_id": "p008-b003",
+        "block_type": "text",
+        "block_kind": "text",
+        "layout_role": "caption",
+        "semantic_role": "metadata",
+        "structure_role": "figure_caption",
+        "normalized_sub_type": "figure_caption",
+        "text_flow": "preserve_lines",
+        "bbox": [49.5, 314.5, 561.5, 408.0],
+        "source_text": (
+            "FIG. 7: Dy2Be2GeO7\n"
+            "a: The specific heat capacity of Dy2Be2GeO7 in both zero and 500 mT applied fields. "
+            "The solid black line in the ZF data is a visual guide."
+        ),
+        "lines": [
+            {"bbox": [49.5, 314.5, 561.5, 361.25], "spans": [{"content": "FIG. 7: Dy2Be2GeO7"}]},
+            {
+                "bbox": [49.5, 361.25, 561.5, 408.0],
+                "spans": [{"content": "a: The specific heat capacity of Dy2Be2GeO7 in both zero and 500 mT applied fields."}],
+            },
+        ],
+    }
+    translated = (
+        "FIG. 7: Dy2Be2GeO7\n"
+        "a: Dy2Be2GeO7在零场和500 mT外加磁场下的比热容。零场数据中的黑色实线为视觉辅助线。"
+        "使用La2Be2GeO7作为非磁类比扣除声子贡献。"
+    )
+
+    rendered = maybe_preserve_structured_line_breaks(item, translated)
+
+    assert "\n" not in rendered
+    assert "_render_preserve_line_breaks" not in item
+    assert "FIG. 7: Dy2Be2GeO7 a:" in rendered
+
+
 def test_structured_line_render_block_keeps_hard_line_breaks() -> None:
     blocks = build_render_blocks(
         [
@@ -198,5 +235,4 @@ def test_structured_line_typst_uses_source_line_boxes() -> None:
     assert "dy: 221.367pt" in typst
     assert "dy: 233.408pt" in typst
     assert "dy: 245.449pt" in typst
-
 

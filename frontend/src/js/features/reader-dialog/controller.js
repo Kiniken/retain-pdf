@@ -1,13 +1,13 @@
 import { isTrustedWindowMessage } from "../../config.js";
-import { downloadBlob } from "../../downloads.js";
+import { downloadBlob } from "../../utils/downloads.js";
 import {
   completeDownloadToast,
   failDownloadToast,
-} from "../../download-feedback.js";
+} from "../../utils/download-feedback.js";
 import {
   resolveSourcePdfDownloadName,
   resolveTranslatedPdfDownloadName,
-} from "../../job-artifacts.js";
+} from "../../job/artifacts.js";
 import {
   bindReaderDialogEvents,
   closeReaderDialog,

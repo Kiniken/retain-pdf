@@ -198,7 +198,7 @@ pub(crate) fn build_normalize_ocr_command(
 mod tests {
     use self::stage_specs::TRANSLATION_API_KEY_ENV_NAME;
     use super::*;
-    use crate::config::AppConfig;
+    use crate::config::{AppConfig, PythonWorkerEntrypointMode};
     use crate::models::{CreateJobInput, GlossaryEntryInput, OcrProviderKind, WorkflowKind};
     use crate::ocr_provider::provider_token_env_name;
     use crate::storage_paths::JobPaths;
@@ -238,6 +238,7 @@ mod tests {
             jobs_db_path: data_root.join("db").join("jobs.db"),
             output_root,
             python_bin: "python".to_string(),
+            python_entrypoint_mode: PythonWorkerEntrypointMode::Script,
             bind_host: "127.0.0.1".to_string(),
             port: 41000,
             simple_port: 41001,
@@ -249,6 +250,12 @@ mod tests {
             provider_runtime: crate::config::ProviderRuntimeConfig::default(),
             job_runner: crate::config::JobRunnerConfig::default(),
         })
+    }
+
+    fn test_config_with_entrypoint_mode(mode: PythonWorkerEntrypointMode) -> Arc<AppConfig> {
+        let mut config = Arc::try_unwrap(test_config()).expect("test config has no other refs");
+        config.python_entrypoint_mode = mode;
+        Arc::new(config)
     }
 
     fn build_request(workflow: WorkflowKind) -> ResolvedJobSpec {
@@ -408,6 +415,31 @@ mod tests {
         assert_eq!(payload["job"]["job_id"], "job-command-test");
         assert_eq!(payload["inputs"]["provider"], "mineru");
         assert_eq!(payload["inputs"]["source_json"], "/tmp/layout.json");
+    }
+
+    #[test]
+    fn console_entrypoint_mode_uses_installed_worker_commands() {
+        let config = test_config_with_entrypoint_mode(PythonWorkerEntrypointMode::Console);
+        let request = build_request(WorkflowKind::Render);
+        let job_paths = build_paths(config.as_ref());
+        let cmd = build_render_only_command(
+            &config.worker_command_runtime(),
+            &request,
+            &job_paths,
+            Path::new("/tmp/source.pdf"),
+            Path::new("/tmp/translated"),
+        );
+
+        assert_eq!(
+            cmd.first().map(String::as_str),
+            Some("retainpdf-run-render-only")
+        );
+        assert!(!contains(&cmd, "python"));
+        assert!(!contains(
+            &cmd,
+            &config.run_render_only_script.to_string_lossy().to_string()
+        ));
+        assert!(contains(&cmd, "--spec"));
     }
 
     #[test]

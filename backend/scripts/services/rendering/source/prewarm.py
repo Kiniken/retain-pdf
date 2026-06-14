@@ -4,14 +4,11 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import time
 
-from foundation.config import layout
 from runtime.pipeline.render_mode import resolve_effective_render_mode
 from services.translation.public import resolve_page_range
 from services.pipeline_shared.events import emit_stage_progress
 from services.pipeline_shared.events import get_active_pipeline_event_writer
 from services.pipeline_shared.events import pipeline_event_writer_scope
-from services.rendering.source.render_source import build_render_source_pdf
-from services.rendering.source.prewarm_manifest import write_json_atomic
 from services.rendering.source.prewarm_contracts import PAYLOAD_RENDER_ALGORITHM_VERSION
 from services.rendering.source.prewarm_contracts import RenderPayloadPrewarm
 from services.rendering.source.prewarm_contracts import RenderPrewarmHandle
@@ -19,12 +16,11 @@ from services.rendering.source.prewarm_contracts import RenderPrewarmSpec
 from services.rendering.source.prewarm_contracts import prewarm_manifest_path_from_artifacts_dir
 from services.rendering.source.prewarm_contracts import prewarm_manifest_path_from_translations_dir
 from services.rendering.source.prewarm_fingerprint import build_render_prewarm_fingerprint
-from services.rendering.source.prewarm_manifest_io import build_prewarm_manifest
 from services.rendering.source.prewarm_manifest_io import load_matching_manifest
 from services.rendering.source.prewarm_manifest_io import try_load_prewarmed_render_source_pdf
 from services.rendering.source.prewarm_manifest_io import try_load_render_payload_prewarm
-from services.rendering.source.prewarm_payload import build_payload_prewarm
-from services.rendering.source_cleanup.protected_blocks import protected_pages_from_document_path
+from services.rendering.source.preprocess import RenderPreprocessRequest
+from services.rendering.source.preprocess import run_render_preprocess
 
 
 def start_render_source_prewarm(spec: RenderPrewarmSpec) -> RenderPrewarmHandle:
@@ -45,8 +41,6 @@ def _run_render_source_prewarm_with_events(spec: RenderPrewarmSpec, manifest_pat
 def _run_render_source_prewarm(spec: RenderPrewarmSpec, manifest_path: Path) -> Path | None:
     started = time.perf_counter()
     try:
-        prewarm_dir = manifest_path.parent
-        prewarm_dir.mkdir(parents=True, exist_ok=True)
         resolved_start, resolved_stop = resolve_page_range(
             len(spec.translated_pages),
             spec.start_page,
@@ -68,58 +62,31 @@ def _run_render_source_prewarm(spec: RenderPrewarmSpec, manifest_path: Path) -> 
             start_page=resolved_start,
             end_page=resolved_stop,
         )
-        if prepared is None:
-            cleanup_strategy = spec.source_cleanup_strategy if spec.include_source_cleanup else layout.SOURCE_CLEANUP_TYPST_FILL
-            protected_pages = _protected_pages_for_prewarm(spec.artifacts_dir)
-            prepared = build_render_source_pdf(
+        result = run_render_preprocess(
+            RenderPreprocessRequest(
                 source_pdf_path=spec.source_pdf_path,
-                output_pdf_path=prewarm_dir / spec.output_pdf_path.name,
-                pdf_compress_dpi=spec.pdf_compress_dpi,
-                translated_pages=spec.translated_pages,
-                protected_pages=protected_pages,
-                strip_hidden_text=effective_render_mode != "overlay",
-                start_page=resolved_start,
-                end_page=resolved_stop,
-                artifact_mode=True,
-                source_cleanup_strategy=cleanup_strategy,
-                document_analysis=document_analysis,
-            )
-        payload_prewarm = build_payload_prewarm(
-            source_pdf_path=spec.source_pdf_path,
-            translated_pages=spec.translated_pages,
-            manifest_path=manifest_path,
-            effective_render_mode=effective_render_mode,
-            source_cleanup_strategy=(
-                spec.source_cleanup_strategy
-                if spec.include_source_cleanup
-                else layout.SOURCE_CLEANUP_TYPST_FILL
-            ),
-            bbox_text_strip_candidates=prepared.bbox_text_strip_candidates if spec.include_source_cleanup else None,
-        )
-        manifest = build_prewarm_manifest(
-            manifest_path=manifest_path,
-            prepared=prepared,
-            fingerprint=build_render_prewarm_fingerprint(
-                source_pdf_path=spec.source_pdf_path,
+                output_pdf_path=spec.output_pdf_path,
+                artifacts_dir=spec.artifacts_dir,
+                manifest_path=manifest_path,
                 translated_pages=spec.translated_pages,
                 effective_render_mode=effective_render_mode,
                 start_page=resolved_start,
                 end_page=resolved_stop,
                 pdf_compress_dpi=spec.pdf_compress_dpi,
-                source_cleanup_strategy=spec.source_cleanup_strategy if spec.include_source_cleanup else layout.SOURCE_CLEANUP_TYPST_FILL,
-            ),
-            elapsed=time.perf_counter() - started,
-            payload_prewarm=payload_prewarm,
-            document_analysis=prepared.document_analysis or document_analysis,
+                source_cleanup_strategy=spec.source_cleanup_strategy,
+                include_source_cleanup=spec.include_source_cleanup,
+                document_analysis=document_analysis,
+                prepared_source=prepared,
+            )
         )
-        write_json_atomic(manifest_path, manifest)
+        elapsed_ms = int(result.elapsed_seconds * 1000)
         emit_stage_progress(
             stage="render_preprocess",
             substage="render_prewarm",
             message=f"渲染预热完成，mode={effective_render_mode} pages={len(spec.translated_pages)}",
             progress_current=3,
             progress_total=3,
-            elapsed_ms=int((time.perf_counter() - started) * 1000),
+            elapsed_ms=elapsed_ms,
             payload={
                 "user_stage": "render",
                 "progress_unit": "step",
@@ -128,7 +95,7 @@ def _run_render_source_prewarm(spec: RenderPrewarmSpec, manifest_path: Path) -> 
                 "manifest_path": str(manifest_path),
             },
         )
-        print(f"render prewarm: ready elapsed={time.perf_counter() - started:.2f}s manifest={manifest_path}", flush=True)
+        print(f"render prewarm: ready elapsed={result.elapsed_seconds:.2f}s manifest={manifest_path}", flush=True)
         return manifest_path
     except Exception as exc:
         emit_stage_progress(
@@ -209,12 +176,6 @@ def _pages_for_prewarm_mode_probe(translated_pages: dict[int, list[dict]]) -> di
             probed_items.append(clone)
         probed[page_idx] = probed_items
     return probed
-
-
-def _protected_pages_for_prewarm(artifacts_dir: Path) -> dict[int, list[dict]]:
-    return protected_pages_from_document_path(
-        Path(artifacts_dir).parent / "ocr" / "normalized" / "document.v1.json"
-    )
 
 
 __all__ = [

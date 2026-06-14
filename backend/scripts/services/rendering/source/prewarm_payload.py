@@ -18,6 +18,7 @@ from services.rendering.layout.payload.render_item import seed_render_fields
 from services.rendering.output.typst.book_support import prepare_translated_pages_for_render
 from services.rendering.source_cleanup.types import BBoxTextStripCandidates
 from services.rendering.source_cleanup import plan_source_cleanup
+from services.rendering.source.prewarm_color_profile import apply_page_color_adapt_from_source_doc
 from services.rendering.source.prewarm_color_profile import build_render_color_profile_manifest
 from services.rendering.source.prewarm_contracts import FIRST_LINE_INDENT_ALGORITHM_VERSION
 from services.rendering.source.prewarm_contracts import GEOMETRY_ADJUSTMENT_ALGORITHM_VERSION
@@ -34,18 +35,24 @@ def build_payload_prewarm(
     effective_render_mode: str = "",
     source_cleanup_strategy: str = "pikepdf_text_strip",
     bbox_text_strip_candidates: BBoxTextStripCandidates | None = None,
+    protected_pages: dict[int, list[dict]] | None = None,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     timings: dict[str, float] = {}
     prepared_pages = seed_pages_for_payload_prewarm(translated_pages)
     first_line_indent_by_item_id: dict[str, float] = {}
     effective_inner_bbox_by_item_id: dict[str, list[float]] = {}
+    page_size_lookup: dict[int, tuple[float, float]] = {}
     indent_stats: dict[str, int] = {"line_hits": 0, "pixmap_candidates": 0, "pixmap_hits": 0}
     geometry_started = time.perf_counter()
-    page_widths = page_widths_by_index(source_pdf_path)
+    prepared_for_render = None
+    color_adapted_pages = None
     with fitz.open(source_pdf_path) as source_doc:
         for page_idx, items in prepared_pages.items():
-            page_width = page_widths.get(page_idx)
+            page_size = page_size_from_source_doc(source_doc, page_idx)
+            if page_size is not None:
+                page_size_lookup[page_idx] = page_size
+            page_width = page_size[0] if page_size is not None else None
             try:
                 metrics = collect_page_seed_metrics(items, page_width=page_width)
             except Exception as exc:
@@ -65,7 +72,27 @@ def build_payload_prewarm(
                 sink=first_line_indent_by_item_id,
                 stats=indent_stats,
             )
-    timings["geometry_indent"] = time.perf_counter() - geometry_started
+        timings["geometry_indent"] = time.perf_counter() - geometry_started
+        try:
+            visual_started = time.perf_counter()
+            prepared_for_render = prepare_translated_pages_for_render(
+                source_pdf_path,
+                translated_pages,
+                first_line_indent_lookup=first_line_indent_by_item_id,
+                effective_inner_bbox_lookup=effective_inner_bbox_by_item_id,
+            )
+            timings["prepare_render_payload"] = time.perf_counter() - visual_started
+        except Exception as exc:
+            print(f"render payload prewarm: prepare render payload failed {type(exc).__name__}: {exc}", flush=True)
+            timings["prepare_render_payload"] = 0.0
+        if prepared_for_render is not None:
+            try:
+                color_adapt_started = time.perf_counter()
+                color_adapted_pages = apply_page_color_adapt_from_source_doc(source_doc, prepared_for_render)
+                timings["color_adapt"] = time.perf_counter() - color_adapt_started
+            except Exception as exc:
+                print(f"render payload prewarm: color adapt failed {type(exc).__name__}: {exc}", flush=True)
+                timings["color_adapt"] = 0.0
     mode = str(effective_render_mode or "").strip()
     if layout.use_bbox_text_strip_cleanup(source_cleanup_strategy):
         try:
@@ -75,6 +102,7 @@ def build_payload_prewarm(
                 or plan_source_cleanup(
                     source_pdf_path=source_pdf_path,
                     translated_pages=translated_pages,
+                    protected_pages=protected_pages,
                     skip_formula_pages=False,
                 )
             )
@@ -88,30 +116,6 @@ def build_payload_prewarm(
         bbox_payload = {}
         timings["bbox_candidates"] = 0.0
     should_build_background_specs = mode in {"typst", "typst_visual"}
-    prepared_for_render = None
-    color_adapted_pages = None
-    try:
-        visual_started = time.perf_counter()
-        prepared_for_render = prepare_translated_pages_for_render(
-            source_pdf_path,
-            translated_pages,
-            first_line_indent_lookup=first_line_indent_by_item_id,
-            effective_inner_bbox_lookup=effective_inner_bbox_by_item_id,
-        )
-        timings["prepare_render_payload"] = time.perf_counter() - visual_started
-    except Exception as exc:
-        print(f"render payload prewarm: prepare render payload failed {type(exc).__name__}: {exc}", flush=True)
-        timings["prepare_render_payload"] = 0.0
-    if prepared_for_render is not None:
-        try:
-            color_adapt_started = time.perf_counter()
-            from services.rendering.source.prewarm_color_profile import apply_page_color_adapt_for_prewarm
-
-            color_adapted_pages = apply_page_color_adapt_for_prewarm(source_pdf_path, prepared_for_render)
-            timings["color_adapt"] = time.perf_counter() - color_adapt_started
-        except Exception as exc:
-            print(f"render payload prewarm: color adapt failed {type(exc).__name__}: {exc}", flush=True)
-            timings["color_adapt"] = 0.0
     color_profile_started = time.perf_counter()
     render_color_profile = build_render_color_profile_manifest(
         source_pdf_path=source_pdf_path,
@@ -131,6 +135,7 @@ def build_payload_prewarm(
             effective_inner_bbox_lookup=effective_inner_bbox_by_item_id,
             prepared_translated_pages=prepared_for_render,
             color_adapted_pages=color_adapted_pages,
+            page_size_lookup=page_size_lookup,
         )
         if should_build_background_specs
         else {}
@@ -279,6 +284,21 @@ def first_line_indent_from_item_lines(item: dict, *, font_size_pt: float) -> flo
     return round(max(0.0, min(indent_pt, max_indent)), 2)
 
 
+def page_size_from_source_doc(source_doc: fitz.Document, page_idx: int) -> tuple[float, float] | None:
+    if page_idx < 0 or page_idx >= len(source_doc):
+        return None
+    try:
+        page = source_doc[page_idx]
+        return float(page.rect.width), float(page.rect.height)
+    except Exception:
+        return None
+
+
+def page_width_from_source_doc(source_doc: fitz.Document, page_idx: int) -> float | None:
+    page_size = page_size_from_source_doc(source_doc, page_idx)
+    return page_size[0] if page_size is not None else None
+
+
 def page_widths_by_index(source_pdf_path: Path) -> dict[int, float]:
     try:
         with fitz.open(source_pdf_path) as doc:
@@ -291,6 +311,8 @@ __all__ = [
     "build_payload_prewarm",
     "collect_first_line_indent_lookup",
     "first_line_indent_from_item_lines",
+    "page_size_from_source_doc",
+    "page_width_from_source_doc",
     "page_widths_by_index",
     "seed_pages_for_payload_prewarm",
 ]

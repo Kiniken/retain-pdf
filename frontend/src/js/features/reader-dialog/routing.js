@@ -1,5 +1,5 @@
 import { buildFrontendPageUrl } from "../../config.js";
-import { resolveManifestArtifactUrl } from "../../job-artifacts.js";
+import { resolveManifestArtifactUrl } from "../../job/artifacts.js";
 import {
   currentJobManifest,
   currentJobSnapshot,

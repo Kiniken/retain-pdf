@@ -363,10 +363,25 @@ Translation 阶段当前只做两件事：
 当前主链接入：
 
 - 翻译批次和乱码修复结束后，会进入 `agent_repair` 后处理阶段
-- 默认最多修复 8 个候选项，避免 repair agent 抢占整本书主翻译吞吐
-- 可通过 `RETAIN_TRANSLATION_AGENT_REPAIR_LIMIT=0` 关闭
+- 默认 `RETAIN_TRANSLATION_REPAIR_PROFILE=fast`，agent repair 只拿小预算做兜底修复，避免少量异常段落拖慢整本书
+- `fast` 默认最多修复 8 个候选项；候选很少时会按阻塞未译项数量收缩
+- `quality` 会放大 agent repair 预算，适合重质量的离线任务
+- 可通过 `RETAIN_TRANSLATION_AGENT_REPAIR_LIMIT=0` 彻底关闭
+- 可通过 `RETAIN_TRANSLATION_AGENT_REPAIR=0` 跳过 agent repair 阶段
 - 只修复英文残留、术语缺失、协议壳等可修复问题
 - placeholder 数量/顺序错误、数学分隔符不平衡、上下文串入等硬错误只写 skip 诊断，不让 repair agent 猜
+
+repair profile：
+
+- `RETAIN_TRANSLATION_REPAIR_PROFILE=fast`
+  默认模式。跳过重型乱码重构，保留小预算 agent repair 和最终空译收口。
+- `RETAIN_TRANSLATION_REPAIR_PROFILE=quality`
+  质量优先。启用更大的 agent repair 和最终恢复预算，适合对速度不敏感的任务。
+- 单项覆盖：
+  `RETAIN_TRANSLATION_GARBLED_RECONSTRUCTION=1`
+  `RETAIN_TRANSLATION_AGENT_REPAIR=0|1`
+  `RETAIN_TRANSLATION_AGENT_REPAIR_LIMIT=N`
+  `RETAIN_TRANSLATION_FINAL_RECOVERY_MAX_ITEMS=N`
 
 后续推进顺序：
 

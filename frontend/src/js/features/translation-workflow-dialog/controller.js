@@ -2,7 +2,7 @@ import { $ } from "../../dom.js";
 import {
   dispatchReturnHomeFromStatusArea,
   isStatusAreaVisible,
-} from "../../status-area-view.js";
+} from "../../ui/status-area-view.js";
 import {
   closeTranslationWorkflowDialogView,
   isTranslationWorkflowDialogOpen,

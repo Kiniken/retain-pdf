@@ -1,5 +1,5 @@
-import { bindMainEvents } from "../main-events.js";
-import { setText } from "../main-helpers.js";
+import { bindMainEvents } from "./main-events.js";
+import { setText } from "./main-helpers.js";
 import { fetchProtected } from "../api/http.js";
 import { state } from "../state/store.js";
 

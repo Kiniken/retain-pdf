@@ -13,8 +13,8 @@ from services.translation.services.policy import build_book_translation_policy_c
 from services.translation.services.context.session_context import build_translation_context_from_policy
 from services.translation.services.terms import GlossaryEntry
 from services.translation.services.terms import normalize_glossary_entries
-from services.translation.workflow.workers import _adaptive_floor_limit
-from services.translation.workflow.workers import _adaptive_initial_limit
+from services.translation.workflow.scheduling.allocation import _adaptive_floor_limit
+from services.translation.workflow.scheduling.allocation import _provider_adaptive_initial_limit
 from services.translation.workflow.page_range import resolve_page_range
 
 if TYPE_CHECKING:
@@ -81,10 +81,9 @@ def build_translation_execution_plan(request: TranslationExecutionRequest) -> Tr
         configured_classify_batch_size=max(1, request.classify_batch_size),
     )
     effective_workers = max(1, request.workers)
-    initial_concurrency_limit = (
-        effective_workers
-        if provider_family == "deepseek_official"
-        else _adaptive_initial_limit(effective_workers)
+    initial_concurrency_limit = _provider_adaptive_initial_limit(
+        workers=effective_workers,
+        provider_family=provider_family,
     )
     run_diagnostics.configure_adaptive_concurrency(
         initial_limit=initial_concurrency_limit,

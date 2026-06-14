@@ -4,11 +4,12 @@ from dataclasses import dataclass
 from math import ceil
 import re
 
+from services.rendering.layout.text_analysis import analyze_text
+from services.rendering.layout.text_analysis import TextTokenKind
+
 
 ZH_CHAR_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 ASCII_WORD_RE = re.compile(r"[A-Za-z0-9]+(?:[-_./][A-Za-z0-9]+)*")
-FORMULA_PLACEHOLDER_RE = re.compile(r"__FORMULA_\d+__|⟦FORMULA_\d+⟧|<FORMULA_\d+>")
-DOLLAR_FORMULA_RE = re.compile(r"\$(?!\s)(?:\\.|[^$\n]){1,240}?\$")
 PUNCTUATION_RE = re.compile(r"[，。！？；：、,.!?;:()\[\]{}<>《》“”‘’\"']")
 WHITESPACE_RE = re.compile(r"\s+")
 
@@ -103,39 +104,29 @@ def tokenize_chinese_body_text(
 ) -> list[_Token]:
     formula_lookup = _formula_lookup(formula_map)
     tokens: list[_Token] = []
-    index = 0
-    while index < len(text):
-        formula_match = FORMULA_PLACEHOLDER_RE.match(text, index)
-        if formula_match:
-            placeholder = formula_match.group(0)
-            formula_text = formula_lookup.get(placeholder, placeholder)
-            tokens.append(_Token(placeholder, _formula_units(formula_text, config), formula=True))
-            index = formula_match.end()
+    for text_token in analyze_text(text or "").tokens:
+        if text_token.kind in {
+            TextTokenKind.DISPLAY_MATH,
+            TextTokenKind.INLINE_MATH,
+            TextTokenKind.PROTECTED_FORMULA,
+            TextTokenKind.FORMULA_PLACEHOLDER,
+        }:
+            formula_text = formula_lookup.get(text_token.value, text_token.value.strip("$"))
+            tokens.append(_Token(text_token.value, _formula_units(formula_text, config), formula=True))
             continue
-        dollar_formula_match = DOLLAR_FORMULA_RE.match(text, index)
-        if dollar_formula_match:
-            formula_text = dollar_formula_match.group(0).strip("$")
-            tokens.append(_Token(dollar_formula_match.group(0), _formula_units(formula_text, config), formula=True))
-            index = dollar_formula_match.end()
-            continue
-
-        word_match = ASCII_WORD_RE.match(text, index)
-        if word_match:
-            word = word_match.group(0)
+        if text_token.kind == TextTokenKind.WORD:
+            word = text_token.value
             tokens.append(_Token(word, max(0.8, len(word) * config.ascii_char_width_em)))
-            index = word_match.end()
             continue
-
-        char = text[index]
-        index += 1
-        if WHITESPACE_RE.match(char):
-            tokens.append(_Token(char, config.space_width_em))
-        elif ZH_CHAR_RE.match(char):
-            tokens.append(_Token(char, config.chinese_char_width_em))
-        elif PUNCTUATION_RE.match(char):
-            tokens.append(_Token(char, config.punctuation_width_em))
-        else:
-            tokens.append(_Token(char, config.ascii_char_width_em))
+        for char in text_token.value:
+            if WHITESPACE_RE.match(char):
+                tokens.append(_Token(char, config.space_width_em))
+            elif ZH_CHAR_RE.match(char):
+                tokens.append(_Token(char, config.chinese_char_width_em))
+            elif PUNCTUATION_RE.match(char):
+                tokens.append(_Token(char, config.punctuation_width_em))
+            else:
+                tokens.append(_Token(char, config.ascii_char_width_em))
     return tokens
 
 

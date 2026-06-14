@@ -55,14 +55,21 @@ def apply_page_color_adapt_for_prewarm(
 ) -> dict[int, list[dict]]:
     sample_doc = fitz.open(source_pdf_path)
     try:
-        return {
-            page_idx: apply_adaptive_overlay_colors(sample_doc[page_idx], items)
-            if 0 <= page_idx < len(sample_doc)
-            else list(items)
-            for page_idx, items in translated_pages.items()
-        }
+        return apply_page_color_adapt_from_source_doc(sample_doc, translated_pages)
     finally:
         sample_doc.close()
+
+
+def apply_page_color_adapt_from_source_doc(
+    source_doc: fitz.Document,
+    translated_pages: dict[int, list[dict]],
+) -> dict[int, list[dict]]:
+    return {
+        page_idx: apply_adaptive_overlay_colors(source_doc[page_idx], items)
+        if 0 <= page_idx < len(source_doc)
+        else list(items)
+        for page_idx, items in translated_pages.items()
+    }
 
 
 def render_colors_from_manifest(value: object) -> dict[str, dict[str, tuple[float, float, float]]]:
@@ -88,6 +95,7 @@ def round_color(value: object) -> list[float]:
 __all__ = [
     "RENDER_COLOR_PROFILE_ALGORITHM_VERSION",
     "apply_page_color_adapt_for_prewarm",
+    "apply_page_color_adapt_from_source_doc",
     "build_render_color_profile_manifest",
     "render_colors_from_manifest",
 ]

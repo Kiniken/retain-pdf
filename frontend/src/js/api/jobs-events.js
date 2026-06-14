@@ -1,6 +1,6 @@
-import { buildApiHeaders, isMockMode } from "../config.js";
-import { unwrapEnvelope } from "../job.js";
-import { getMockJobEvents } from "../mock.js";
+import { buildApiHeaders, isMockMode } from "../config/runtime.js";
+import { unwrapEnvelope } from "../job/core.js";
+import { getMockJobEvents } from "../mock/index.js";
 import { buildJobDetailEndpoint } from "./http.js";
 
 export async function fetchJobEvents(jobId, apiPrefix, limit = 50, offset = 0) {

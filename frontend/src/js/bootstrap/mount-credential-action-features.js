@@ -15,11 +15,11 @@ import {
   openSetupDialog,
   saveDesktopConfig,
   setDesktopBusy,
-} from "../desktop.js";
+} from "../desktop/index.js";
 import { mountAppActionsFeature } from "../features/app-actions/controller.js";
 import { mountArtifactDownloadsFeature } from "../features/artifact-downloads/controller.js";
 import { mountBrowserCredentialsFeature } from "../features/credentials/browser.js";
-import { normalizeMathMode, setText } from "../main-helpers.js";
+import { normalizeMathMode, setText } from "./main-helpers.js";
 import {
   buildApiEndpoint,
   fetchProtected,

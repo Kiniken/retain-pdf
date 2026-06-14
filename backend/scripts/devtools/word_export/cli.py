@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from backend.scripts.devtools.word_export.exporter import export_layout_docx
+from devtools.word_export.exporter import export_layout_docx
 
 
 def parse_args() -> argparse.Namespace:

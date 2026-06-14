@@ -12,7 +12,6 @@ import {
 } from "./job-status-card-visuals.js";
 import { createStatusStageAnimationController } from "./job-status-card-animation.js";
 import {
-  setBackHomeVisible,
   setCancelEnabled,
   setElapsed,
   setProgress,
@@ -35,8 +34,22 @@ import {
   effectiveFlowStageKey,
   resolveSelectedStageContext,
 } from "./job-status-card-selection.js";
-import { syncTranslationSubstageStates } from "./job-status-card-substages.js";
+import { syncStageSubstageStates } from "./job-status-card-substages.js";
 import { jobStatusCardTemplate } from "./job-status-card-template.js";
+
+function shortStageLabel(stageKey = "", fallback = "等待中") {
+  const normalized = `${stageKey || ""}`.trim();
+  if (STAGE_LABELS[normalized]) {
+    return STAGE_LABELS[normalized];
+  }
+  if (normalized === "failed") {
+    return "失败";
+  }
+  if (normalized === "canceled") {
+    return "已取消";
+  }
+  return fallback;
+}
 
 class JobStatusCard extends HTMLElement {
   #stageAnimationController = null;
@@ -101,7 +114,9 @@ class JobStatusCard extends HTMLElement {
     const visualStageKey = selectedIsCurrent ? resolveVisualStageKeyForSnapshot(this.#lastSnapshot, this.#currentStageKey) : this.#selectedStageKey;
     this.#stageAnimationController?.setStageVisualMode(visualStageKey);
     if (labelEl) {
-      labelEl.textContent = selectedIsCurrent ? label : `${STAGE_LABELS[this.#selectedStageKey] || "阶段"} 阶段`;
+      labelEl.textContent = selectedIsCurrent
+        ? shortStageLabel(this.#currentStageKey, label)
+        : shortStageLabel(this.#selectedStageKey, "阶段");
     }
     if (valueEl) {
       valueEl.textContent = value;
@@ -123,8 +138,8 @@ class JobStatusCard extends HTMLElement {
     syncPrimaryActions(this, options);
   }
 
-  #syncTranslationSubstages(selectedStageKey, selectedIsCurrent, selectedProgress = null) {
-    syncTranslationSubstageStates(
+  #syncStageSubstages(selectedStageKey, selectedIsCurrent, selectedProgress = null) {
+    syncStageSubstageStates(
       this.querySelector(".status-substage-flow"),
       selectedStageKey,
       selectedIsCurrent,
@@ -152,10 +167,6 @@ class JobStatusCard extends HTMLElement {
     setCancelEnabled(this, enabled);
   }
 
-  setBackHomeVisible(visible) {
-    setBackHomeVisible(this, visible);
-  }
-
   renderSnapshot(snapshotPayload = {}) {
     const snapshot = normalizeStatusCardSnapshot(snapshotPayload);
     if (snapshot.jobId && snapshot.jobId !== this.#currentJobId) {
@@ -174,7 +185,6 @@ class JobStatusCard extends HTMLElement {
     this.setElapsed(snapshot.elapsed);
     this.#renderSelectedStage();
     this.setCancelEnabled(snapshot.cancelEnabled);
-    this.setBackHomeVisible(snapshot.backHomeVisible);
   }
 
   #renderSelectedStage() {
@@ -197,9 +207,10 @@ class JobStatusCard extends HTMLElement {
       selectedHistoricalProgress?.visualStageKey || resolveVisualStageKeyForSnapshot(snapshot, selected),
     );
     const errorSummaryEl = this.querySelector("#status-stage-error-summary");
+    const bodyEl = this.querySelector(".status-wa-body");
     const errorText = `${snapshot.errorText || ""}`.trim();
     const selectedIsError = snapshot.stageKey === "failed" || snapshot.stageKey === "canceled";
-    this.#syncTranslationSubstages(selected, selectedIsCurrent, selectedProgress);
+    this.#syncStageSubstages(selected, selectedIsCurrent, selectedProgress);
     this.#stageAnimationController?.syncProgressSpeed({
       stageKey: selected,
       current: selectedProgress?.current,
@@ -210,6 +221,7 @@ class JobStatusCard extends HTMLElement {
       errorSummaryEl.textContent = errorText;
       errorSummaryEl.classList.toggle("hidden", !selectedIsError || !errorText);
     }
+    bodyEl?.classList.toggle("has-error", Boolean(selectedIsError && errorText));
     this.#setAnimatedProgress({
       selected,
       selectedIsCurrent,
@@ -219,6 +231,8 @@ class JobStatusCard extends HTMLElement {
     this.syncPrimaryActions({
       pdfReady: selected === "done" && snapshot.pdfReady,
       pdfUrl: snapshot.pdfUrl,
+      markdownBundleReady: selected === "done" && snapshot.markdownBundleReady,
+      markdownBundleUrl: snapshot.markdownBundleUrl,
       readerReady: selected === "done" && snapshot.readerReady,
       readerUrl: snapshot.readerUrl,
       sourcePdfReady: selected === "done" && snapshot.sourcePdfReady,

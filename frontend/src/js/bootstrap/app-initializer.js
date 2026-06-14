@@ -1,5 +1,5 @@
 import { isDesktopMode, loadPersistedConfig } from "../config.js";
-import { bootstrapDesktop } from "../desktop.js";
+import { bootstrapDesktop } from "../desktop/index.js";
 import { fetchProtected } from "../api/http.js";
 import {
   deleteLibraryBook,
@@ -7,11 +7,11 @@ import {
   fetchJobPayload,
   fetchLibraryBookList,
 } from "../api/jobs.js";
-import { setText } from "../main-helpers.js";
+import { setText } from "./main-helpers.js";
 import {
   bootstrapStartupRoute,
   initializeIdleAndRecentJobs,
-} from "../main-startup.js";
+} from "./startup-route.js";
 import { state } from "../state/store.js";
 import { applyPersistedConfig } from "./config-bootstrap.js";
 import { mountApplicationFeatures } from "./feature-registry.js";

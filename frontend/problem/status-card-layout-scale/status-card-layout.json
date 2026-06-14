@@ -1,0 +1,90 @@
+{
+  ".translation-workflow-shell": {
+    "x": 12,
+    "y": 12,
+    "width": 756,
+    "height": 469,
+    "gap": "normal",
+    "padding": "0px"
+  },
+  ".translation-status-panel": {
+    "x": 13,
+    "y": 67,
+    "width": 754,
+    "height": 413,
+    "gap": "normal",
+    "padding": "15px 21px 18px"
+  },
+  "job-status-card": {
+    "x": 34,
+    "y": 2,
+    "width": 712,
+    "height": 540,
+    "gap": "12px normal",
+    "padding": "0px"
+  },
+  ".status-head": {
+    "x": 34,
+    "y": 2,
+    "width": 712,
+    "height": 45,
+    "gap": "10px",
+    "padding": "0px"
+  },
+  ".status-focus-card": {
+    "x": 34,
+    "y": 59,
+    "width": 712,
+    "height": 426,
+    "gap": "10.5px",
+    "padding": "21px 24px 15px"
+  },
+  ".status-stage-flow": {
+    "x": 135,
+    "y": 81,
+    "width": 510,
+    "height": 39,
+    "gap": "7.5px",
+    "padding": "0px"
+  },
+  ".status-focus-body": {
+    "x": 59,
+    "y": 137,
+    "width": 662,
+    "height": 326,
+    "gap": "10.5px",
+    "padding": "0px"
+  },
+  ".status-stage-animation": {
+    "x": 105,
+    "y": 137,
+    "width": 570,
+    "height": 174,
+    "gap": "normal",
+    "padding": "0px"
+  },
+  ".status-substage-flow": {
+    "x": 59,
+    "y": 322,
+    "width": 662,
+    "height": 80,
+    "gap": "7.5px",
+    "padding": "0px"
+  },
+  ".status-progress-block": {
+    "x": 105,
+    "y": 412,
+    "width": 570,
+    "height": 51,
+    "gap": "9px",
+    "padding": "0px"
+  },
+  ".status-card-footer": {
+    "x": 34,
+    "y": 497,
+    "width": 712,
+    "height": 45,
+    "gap": "9px",
+    "padding": "0px"
+  }
+}

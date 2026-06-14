@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 
 mod auth;
 mod env_vars;
@@ -21,6 +21,32 @@ pub use provider::{
 use server::ServerRuntimeConfig;
 use upload::UploadRuntimeConfig;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PythonWorkerEntrypointMode {
+    Script,
+    Console,
+}
+
+impl PythonWorkerEntrypointMode {
+    pub fn from_env() -> Result<Self> {
+        Self::parse(
+            env_vars::env_optional_string("RUST_API_PYTHON_ENTRYPOINT_MODE")
+                .as_deref()
+                .unwrap_or("script"),
+        )
+    }
+
+    fn parse(value: &str) -> Result<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "" | "script" | "scripts" | "path" | "file" => Ok(Self::Script),
+            "console" | "command" | "commands" | "package" => Ok(Self::Console),
+            other => bail!(
+                "invalid RUST_API_PYTHON_ENTRYPOINT_MODE `{other}`; expected script or console"
+            ),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct AppConfig {
     pub project_root: PathBuf,
@@ -39,6 +65,7 @@ pub struct AppConfig {
     pub jobs_db_path: PathBuf,
     pub output_root: PathBuf,
     pub python_bin: String,
+    pub python_entrypoint_mode: PythonWorkerEntrypointMode,
     pub bind_host: String,
     pub port: u16,
     pub simple_port: u16,
@@ -54,6 +81,7 @@ pub struct AppConfig {
 #[derive(Clone, Copy, Debug)]
 pub struct WorkerCommandRuntimeConfig<'a> {
     pub python_bin: &'a str,
+    pub python_entrypoint_mode: PythonWorkerEntrypointMode,
     pub run_provider_case_script: &'a Path,
     pub run_provider_ocr_script: &'a Path,
     pub run_normalize_ocr_script: &'a Path,
@@ -102,6 +130,7 @@ impl AppConfig {
     pub fn worker_command_runtime(&self) -> WorkerCommandRuntimeConfig<'_> {
         WorkerCommandRuntimeConfig {
             python_bin: &self.python_bin,
+            python_entrypoint_mode: self.python_entrypoint_mode,
             run_provider_case_script: &self.run_provider_case_script,
             run_provider_ocr_script: &self.run_provider_ocr_script,
             run_normalize_ocr_script: &self.run_normalize_ocr_script,
@@ -207,6 +236,7 @@ impl AppConfig {
             jobs_db_path: paths.jobs_db_path,
             output_root: paths.output_root,
             python_bin: server.python_bin,
+            python_entrypoint_mode: PythonWorkerEntrypointMode::from_env()?,
             bind_host: server.bind_host,
             port: server.port,
             simple_port: auth.simple_port,

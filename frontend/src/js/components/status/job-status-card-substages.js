@@ -1,4 +1,4 @@
-import { TRANSLATION_SUBSTAGES } from "./job-status-card-presets.js";
+import { STAGE_SUBSTAGES } from "./job-status-card-presets.js";
 
 export function translationSubstageKeyForSnapshot(snapshot = null) {
   const explicitSubstage = `${snapshot?.substageKey || ""}`.trim();
@@ -13,7 +13,7 @@ export function translationSubstageKeyForSnapshot(snapshot = null) {
     return "page_policies";
   }
   if (text.includes("乱码")) {
-    return "garbled";
+    return "garbled_repair";
   }
   if (text.includes("翻译批次") || (text.includes("第 ") && text.includes(" 批"))) {
     return "translation_batches";
@@ -24,19 +24,51 @@ export function translationSubstageKeyForSnapshot(snapshot = null) {
   return "";
 }
 
-export function syncTranslationSubstageStates(container, selectedStageKey, selectedIsCurrent, snapshot, selectedProgress = null) {
+function substageKeyForSnapshot(snapshot = null) {
+  const explicitSubstage = `${snapshot?.substageKey || ""}`.trim();
+  if (explicitSubstage) {
+    return explicitSubstage;
+  }
+  if (snapshot?.stageKey === "translate") {
+    return translationSubstageKeyForSnapshot(snapshot);
+  }
+  return "";
+}
+
+function labelForSubstage(stageKey, substageKey) {
+  const substages = STAGE_SUBSTAGES[stageKey] || [];
+  return substages.find((item) => item.key === substageKey)?.label || substageKey;
+}
+
+function collectVisibleSubstages(stageKey, activeKey, selectedProgress = null) {
+  const known = STAGE_SUBSTAGES[stageKey] || [];
+  const knownKeys = new Set(known.map((item) => item.key));
+  const bySubstage = selectedProgress?.bySubstage || {};
+  const visibleKeys = Object.keys(bySubstage)
+    .filter((key) => knownKeys.has(key));
+  if (activeKey && knownKeys.has(activeKey) && !visibleKeys.includes(activeKey)) {
+    visibleKeys.push(activeKey);
+  }
+  return known.filter((item) => visibleKeys.includes(item.key));
+}
+
+export function syncStageSubstageStates(container, selectedStageKey, selectedIsCurrent, snapshot, selectedProgress = null) {
   if (!container) {
     return;
   }
-  const activeKey = selectedStageKey === "translate"
-    ? selectedProgress?.substageKey || (selectedIsCurrent ? translationSubstageKeyForSnapshot(snapshot) : "")
-    : "";
-  container.classList.toggle("hidden", selectedStageKey !== "translate");
+  const activeKey = selectedProgress?.substageKey || (selectedIsCurrent ? substageKeyForSnapshot(snapshot) : "");
+  const substages = collectVisibleSubstages(selectedStageKey, activeKey, selectedProgress);
+  container.classList.toggle("hidden", substages.length === 0);
+  container.style.setProperty("--status-substage-count", `${Math.min(Math.max(substages.length, 1), 5)}`);
+  container.innerHTML = substages
+    .map((item) => `<wa-badge class="status-substage-step" data-substage-key="${item.key}" pill appearance="filled-outlined" variant="neutral">${labelForSubstage(selectedStageKey, item.key)}</wa-badge>`)
+    .join("");
   container.querySelectorAll(".status-substage-step").forEach((step) => {
     const key = step.dataset.substageKey || "";
-    const stepIndex = TRANSLATION_SUBSTAGES.findIndex((item) => item.key === key);
-    const activeIndex = TRANSLATION_SUBSTAGES.findIndex((item) => item.key === activeKey);
+    const stepIndex = substages.findIndex((item) => item.key === key);
+    const activeIndex = substages.findIndex((item) => item.key === activeKey);
     step.classList.toggle("is-active", key === activeKey);
     step.classList.toggle("is-done", activeIndex >= 0 && stepIndex >= 0 && stepIndex < activeIndex);
+    step.setAttribute("appearance", key === activeKey ? "filled" : "filled-outlined");
   });
 }

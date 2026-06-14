@@ -3,7 +3,7 @@ import {
   HOME_VIEW_MODES,
   setHomeViewMode,
 } from "../home/state.js";
-import { isStatusAreaVisible } from "../../status-area-view.js";
+import { isStatusAreaVisible } from "../../ui/status-area-view.js";
 
 export function translationWorkflowDialogElement() {
   return $("translation-workflow-dialog");

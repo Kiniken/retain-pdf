@@ -4,6 +4,7 @@ from services.rendering.policy.cleanup_policy import item_is_marked_non_translat
 from services.rendering.policy.cleanup_policy import item_render_output_text
 from services.rendering.policy.cleanup_policy import item_render_source_text
 from services.rendering.source_cleanup.intents import SourceCleanupEvidence
+from services.rendering.source_cleanup.planning.formula_classifier import formula_text_has_latin_words
 from services.rendering.source_cleanup.planning.mixed_content import item_has_unresolved_embedded_formula
 from services.rendering.source_cleanup.planning.item_classifier import item_allows_forced_text_strip
 from services.rendering.source_cleanup.policy.adapter import has_formula_region
@@ -15,6 +16,7 @@ def build_source_cleanup_evidence(item: dict) -> SourceCleanupEvidence:
         item_id=str(item.get("item_id") or "").strip(),
         block_kind=item_block_kind(item),
         has_formula_region=has_formula_region(item),
+        is_textual_formula=formula_text_has_latin_words(item),
         source_text=item_render_source_text(item),
         output_text=item_render_output_text(item),
         is_marked_non_translated=item_is_marked_non_translated(item),

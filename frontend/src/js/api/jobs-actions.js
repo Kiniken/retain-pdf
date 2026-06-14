@@ -1,5 +1,5 @@
-import { buildApiHeaders, isMockMode } from "../config.js";
-import { unwrapEnvelope } from "../job.js";
+import { buildApiHeaders, isMockMode } from "../config/runtime.js";
+import { unwrapEnvelope } from "../job/core.js";
 import { buildJobDetailEndpoint, submitJson } from "./http.js";
 
 export async function fetchJobDiagnostics(jobId, apiPrefix) {

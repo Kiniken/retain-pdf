@@ -3,7 +3,7 @@ import { mountAppUpdateFeature } from "../features/app-update/controller.js";
 import { mountAppShellFeature } from "../features/app-shell/controller.js";
 import { mountHomeFeature } from "../features/home/controller.js";
 import { mountTranslationWorkflowDialogFeature } from "../features/translation-workflow-dialog/controller.js";
-import { setText } from "../main-helpers.js";
+import { setText } from "./main-helpers.js";
 import {
   prepareFilePicker,
   renderJob,

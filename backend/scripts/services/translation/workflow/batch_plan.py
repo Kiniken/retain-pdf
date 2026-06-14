@@ -1,5 +1,5 @@
-from services.translation.workflow.batching.plan import TranslationBatchRunStats
-from services.translation.workflow.batching.plan import _allocate_translation_queue_workers
+from services.translation.workflow.scheduling.allocation import _allocate_translation_queue_workers
+from services.translation.workflow.scheduling.stats import TranslationBatchRunStats
 from services.translation.workflow.batching.plan import _build_translation_batches
 from services.translation.workflow.batching.plan import _classify_translation_batches
 from services.translation.workflow.batching.plan import _dedupe_pending_items

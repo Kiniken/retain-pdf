@@ -58,6 +58,20 @@ class RectIndex:
                 return True
         return False
 
+    def max_overlap_area(self, rect: RectTuple) -> float:
+        if self.bounds is None or not _rect_intersects(rect, self.bounds):
+            return 0.0
+        max_area = 0.0
+        limit = bisect_right(self.y0_sorted, rect[3])
+        for index in range(limit):
+            candidate = self.rects[index]
+            if candidate[3] < rect[1]:
+                continue
+            if not _rect_intersects(rect, candidate):
+                continue
+            max_area = max(max_area, _rect_area(_rect_intersection(rect, candidate)))
+        return max_area
+
     def contains_point_or_intersects(self, x: float, y: float, rect: RectTuple) -> bool:
         if self.bounds is None:
             return False

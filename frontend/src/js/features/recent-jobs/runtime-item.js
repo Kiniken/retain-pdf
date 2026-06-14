@@ -1,8 +1,8 @@
-import { firstNonEmpty, isTerminalStatus, numberOrNull } from "../../job-core.js";
+import { firstNonEmpty, isTerminalStatus, numberOrNull } from "../../job/core.js";
 import {
   summarizeStageDetail,
   summarizeStageKey,
-} from "../../job-status-summary.js";
+} from "../../job-status/job-status-summary.js";
 
 function progressFromJob(job = {}) {
   const progress = job?.progress && typeof job.progress === "object" ? job.progress : {};

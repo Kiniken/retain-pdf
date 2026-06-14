@@ -19,7 +19,9 @@ export function renderStageRetryAction(component, selected, action) {
     return;
   }
   if (!["ocr", "translate", "render"].includes(selected) || !action) {
-    container.classList.add("hidden");
+    container.classList.remove("hidden");
+    container.classList.add("is-empty");
+    container.setAttribute("aria-hidden", "true");
     container.replaceChildren();
     return;
   }
@@ -33,5 +35,6 @@ export function renderStageRetryAction(component, selected, action) {
     button.title = action.disabledReason;
   }
   container.replaceChildren(button);
-  container.classList.remove("hidden");
+  container.classList.remove("hidden", "is-empty");
+  container.setAttribute("aria-hidden", "false");
 }

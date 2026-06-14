@@ -344,9 +344,13 @@
     box-shadow: 0 24px 64px rgba(15, 23, 42, 0.16);
   }
 
+  .translation-workflow-dialog.is-status-mode {
+    --status-card-scale: 1;
+  }
+
   .translation-workflow-dialog.is-status-mode .translation-workflow-shell {
-    width: min(600px, calc(100vw - 24px));
-    height: min(530px, calc(100vh - 24px));
+    width: min(640px, calc(100vw - 24px));
+    height: min(520px, calc(100vh - 24px));
     max-height: calc(100vh - 24px);
   }
 
@@ -354,19 +358,70 @@
     display: grid;
     align-self: stretch;
     justify-self: stretch;
-    place-items: center;
+    place-items: stretch;
+    --status-card-width: 100%;
+    --status-body-gap: 11px;
+    --status-body-padding: 14px;
+    --status-head-height: 30px;
+    --status-button-height: 32px;
+    --status-button-padding: 13px;
+    --status-button-font-size: 12px;
+    --status-head-btn-height: var(--status-button-height);
+    --status-head-btn-padding: var(--status-button-padding);
+    --status-head-btn-font-size: var(--status-button-font-size);
+    --status-label-font-size: 12px;
+    --status-elapsed-font-size: 10px;
+    --status-stage-flow-gap: 7px;
+    --status-stage-step-height: 26px;
+    --status-stage-step-font-size: 11px;
+    --status-animation-column-width: 120px;
+    --status-animation-column-height: 88px;
+    --status-progress-hero-height: 156px;
+    --status-progress-hero-min-height: 156px;
+    --status-progress-hero-gap: 18px;
+    --status-progress-hero-row-gap: 10px;
+    --status-progress-hero-padding: 18px;
+    --status-progress-hero-inline-padding: 26px;
+    --status-ring-column-width: 108px;
+    --status-progress-ring-size: 80px;
+    --status-progress-ring-track-width: 7px;
+    --status-progress-ring-indicator-width: 7px;
+    --status-progress-ring-font-size: 15px;
+    --status-animation-size: 78px;
+    --status-lottie-size: 78px;
+    --status-spinner-size: 52px;
+    --status-progress-meta-font-size: 10px;
+    --status-value-max-width: 280px;
+    --status-value-font-size: 14px;
+    --status-detail-max-width: 300px;
+    --status-detail-font-size: 11px;
+    --status-substage-font-size: 10px;
+    --status-progress-min-height: 24px;
+    --status-progress-gap: 5px;
+    --status-progress-track-height: 5px;
+    --status-progress-text-font-size: 10px;
+    --status-retry-min-height: 24px;
+    --status-retry-slot-height: var(--status-button-height);
+    --status-retry-btn-min-height: var(--status-button-height);
+    --status-retry-btn-padding: var(--status-button-padding);
+    --status-retry-btn-font-size: var(--status-button-font-size);
+    --status-actions-gap: 7px;
+    --status-actions-min-height: 38px;
+    --status-action-btn-min-height: var(--status-button-height);
+    --status-action-btn-padding: var(--status-button-padding);
+    --status-action-btn-font-size: var(--status-button-font-size);
     width: 100%;
     height: 100%;
     min-height: 0;
     margin: 0;
-    padding: 10px 14px 12px;
+    padding: 0;
     overflow: hidden;
     background: #ffffff;
   }
 
   .translation-status-panel > job-status-card {
-    display: grid;
-    width: min(100%, 580px);
+    display: block;
+    width: 100%;
     height: 100%;
     min-height: 0;
     max-width: none;

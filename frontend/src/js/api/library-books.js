@@ -1,6 +1,6 @@
-import { buildApiHeaders, isMockMode } from "../config.js";
-import { unwrapEnvelope } from "../job.js";
-import { getMockJobList } from "../mock.js";
+import { buildApiHeaders, isMockMode } from "../config/runtime.js";
+import { unwrapEnvelope } from "../job/core.js";
+import { getMockJobList } from "../mock/index.js";
 import { buildApiEndpoint } from "./http.js";
 
 export async function fetchLibraryBookList(apiPrefix, { limit = 40, offset = 0, q = "" } = {}) {

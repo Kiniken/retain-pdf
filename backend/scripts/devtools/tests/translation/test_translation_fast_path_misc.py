@@ -16,6 +16,7 @@ from services.translation.llm.shared.orchestration.intentional_keep_origin impor
     keep_origin_payload_for_repeated_empty_translation,
 )
 from services.translation.core.payload.parts.apply import apply_translated_text_map
+from services.translation.services.policy import should_fast_path_keep_origin
 
 
 def test_citation_rich_body_text_still_forces_translation() -> None:
@@ -163,6 +164,83 @@ def test_repeated_empty_translation_degrades_to_keep_origin() -> None:
         payload["p001-b017"]["translation_diagnostics"]["degradation_reason"]
         == "empty_translation_repeated"
     )
+
+
+def test_special_long_contributor_list_fast_paths_keep_origin() -> None:
+    names = ", ".join(f"Contributor {index} $ ^{{{index}}} $" for index in range(1, 120))
+    item = {
+        "item_id": "p016-b005",
+        "block_type": "text",
+        "metadata": {"structure_role": "body"},
+        "protected_source_text": f"Data Contributors. {names}",
+        "translation_unit_protected_source_text": f"Data Contributors. {names}",
+        "should_translate": True,
+    }
+
+    should_skip, reason = should_fast_path_keep_origin(item)
+
+    assert should_skip is True
+    assert reason == "special_long_list_block"
+
+
+def test_special_long_numbered_affiliation_list_fast_paths_keep_origin() -> None:
+    affiliations = " ".join(
+        f"{index}. University of Example {index}, Department of Computer Science, Research Lab"
+        for index in range(1, 90)
+    )
+    item = {
+        "item_id": "p017-b001",
+        "block_type": "text",
+        "metadata": {"structure_role": "body"},
+        "protected_source_text": affiliations,
+        "translation_unit_protected_source_text": affiliations,
+        "should_translate": True,
+    }
+
+    should_skip, reason = should_fast_path_keep_origin(item)
+
+    assert should_skip is True
+    assert reason == "special_long_list_block"
+
+
+def test_special_long_author_name_list_fast_paths_keep_origin() -> None:
+    authors = ", ".join(
+        f"Firstname Lastname"
+        for index in range(1, 160)
+    )
+    item = {
+        "item_id": "p001-b014",
+        "block_type": "text",
+        "metadata": {"structure_role": "body"},
+        "protected_source_text": authors,
+        "translation_unit_protected_source_text": authors,
+        "should_translate": True,
+    }
+
+    should_skip, reason = should_fast_path_keep_origin(item)
+
+    assert should_skip is True
+    assert reason == "special_long_list_block"
+
+
+def test_long_normal_body_paragraph_does_not_fast_path_keep_origin() -> None:
+    paragraph = " ".join(
+        "This paragraph explains benchmark construction, evaluation design, and deployment implications in a continuous prose form."
+        for _ in range(70)
+    )
+    item = {
+        "item_id": "p020-b001",
+        "block_type": "text",
+        "metadata": {"structure_role": "body"},
+        "protected_source_text": paragraph,
+        "translation_unit_protected_source_text": paragraph,
+        "should_translate": True,
+    }
+
+    should_skip, reason = should_fast_path_keep_origin(item)
+
+    assert should_skip is False
+    assert reason == ""
 
 
 def test_translation_cache_prompt_hash_includes_plain_text_prompt_files() -> None:

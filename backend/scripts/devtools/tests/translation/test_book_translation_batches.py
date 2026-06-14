@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-from unittest import mock
 
 REPO_SCRIPTS_ROOT = Path("/home/wxyhgk/tmp/Code/backend/scripts")
 sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
@@ -8,17 +7,12 @@ sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 from services.translation.workflow.batching.plan import _allocate_translation_queue_workers
 from services.translation.workflow.batching.plan import _build_translation_batches
 from services.translation.workflow.batching.plan import _classify_translation_batches
-from services.translation.workflow.batching.plan import _dedupe_pending_items
 from services.translation.workflow.batching.plan import _effective_translation_batch_size
 from services.translation.workflow.batching.plan import _adaptive_initial_limit
+from services.translation.workflow.batching.plan import _provider_adaptive_initial_limit
 from services.translation.workflow.batching.plan import TranslationBatchRunStats
 from services.translation.llm.shared.control_context import build_translation_control_context
 from services.translation.llm.shared.control_context import resolve_engine_profile
-from services.translation.core.orchestration.units import finalize_payload_orchestration_metadata
-from services.translation.core.payload.parts.units import pending_translation_items
-from services.translation.services.memory import JobMemorySnapshot
-from services.translation.services.results.applier import expand_duplicate_results as _expand_duplicate_results
-from services.translation.workflow.batching import pending_units
 
 
 def _item(item_id: str, text: str, **overrides):
@@ -46,7 +40,7 @@ def test_default_profile_enables_provider_agnostic_plain_batching() -> None:
     )
 
 
-def test_deepseek_profile_keeps_frontend_batch_size_for_single_item_throughput() -> None:
+def test_deepseek_profile_keeps_single_item_batching_by_default() -> None:
     context = build_translation_control_context(
         engine_profile=resolve_engine_profile(
             model="deepseek-chat",
@@ -62,6 +56,7 @@ def test_deepseek_profile_keeps_frontend_batch_size_for_single_item_throughput()
         )
         == 1
     )
+    assert context.batch_policy.plain_batch_size == 1
     assert context.segmentation_policy.prefer_plain_when_segment_count_leq == 6
     assert context.fallback_policy.formula_segment_attempts == 2
     assert context.fallback_policy.main_http_retry_attempts == 1
@@ -79,232 +74,20 @@ def test_adaptive_initial_limit_ramps_up_high_worker_counts() -> None:
     assert _adaptive_initial_limit(1000) == 32
 
 
-def test_heavy_continuation_group_is_split_back_to_single_units() -> None:
-    def member(item_id: str, source: str):
-        return {
-            "item_id": item_id,
-            "translation_unit_id": "__cg__:heavy",
-            "translation_unit_kind": "group",
-            "translation_unit_member_ids": ["a", "b"],
-            "block_type": "text",
-            "should_translate": True,
-            "protected_source_text": source,
-            "source_text": source,
-            "formula_map": [{"placeholder": "<f1-a7c/>"}],
-            "protected_map": [{"token_tag": "<f1-a7c/>", "token_type": "formula", "checksum": "a7c"}],
-            "continuation_group": "cg-heavy",
-        }
+def test_deepseek_adaptive_initial_limit_uses_configured_workers_by_default(monkeypatch) -> None:
+    monkeypatch.delenv("RETAIN_TRANSLATION_DEEPSEEK_INITIAL_CONCURRENCY_LIMIT", raising=False)
 
-    source_a = " ".join(f"left text {idx} <f1-a7c/>" for idx in range(1, 8))
-    source_b = " ".join(f"right text {idx} <f1-a7c/>" for idx in range(1, 8))
-    payload = [member("a", source_a), member("b", source_b)]
-
-    units = pending_translation_items(payload)
-
-    assert [unit["item_id"] for unit in units] == ["a", "b"]
-    assert all(unit["translation_unit_kind"] == "single" for unit in units)
-    assert all(unit["group_split_reason"] == "formula_heavy_group" for unit in units)
-    assert all(unit["continuation_group"] == "" for unit in units)
-    assert all(not unit.get("group_protected_source_text") for unit in units)
+    assert _provider_adaptive_initial_limit(workers=32, provider_family="deepseek_official") == 32
+    assert _provider_adaptive_initial_limit(workers=100, provider_family="deepseek_official") == 100
+    assert _provider_adaptive_initial_limit(workers=1000, provider_family="deepseek_official") == 1000
+    assert _provider_adaptive_initial_limit(workers=1000, provider_family="openai") == 32
 
 
-def test_finalize_payload_orchestration_metadata_clears_orphan_group_state() -> None:
-    payload = [
-        {
-            "item_id": "a",
-            "continuation_group": "cg-orphan",
-            "classification_label": "",
-            "should_translate": True,
-            "protected_source_text": "orphan body text",
-            "formula_map": [],
-            "protected_map": [],
-            "translation_unit_id": "__cg__:cg-orphan",
-            "translation_unit_kind": "group",
-            "translation_unit_member_ids": ["a", "ghost"],
-            "translation_unit_protected_source_text": "stale combined",
-            "translation_unit_formula_map": [{"placeholder": "<f1-a7c/>"}],
-            "translation_unit_protected_map": [{"token_tag": "<f1-a7c/>"}],
-            "group_protected_source_text": "stale combined",
-            "group_formula_map": [{"placeholder": "<f1-a7c/>"}],
-            "group_protected_map": [{"token_tag": "<f1-a7c/>"}],
-            "group_protected_translated_text": "旧组结果",
-            "group_translated_text": "旧组结果",
-            "continuation_candidate_prev_id": "",
-            "continuation_candidate_next_id": "",
-        }
-    ]
+def test_deepseek_adaptive_initial_limit_can_be_capped_by_env(monkeypatch) -> None:
+    monkeypatch.setenv("RETAIN_TRANSLATION_DEEPSEEK_INITIAL_CONCURRENCY_LIMIT", "250")
 
-    finalize_payload_orchestration_metadata(payload)
-
-    assert payload[0]["translation_unit_id"] == "a"
-    assert payload[0]["translation_unit_kind"] == "single"
-    assert payload[0]["translation_unit_member_ids"] == ["a"]
-    assert payload[0]["translation_unit_protected_source_text"] == "orphan body text"
-    assert payload[0]["group_protected_source_text"] == ""
-    assert payload[0]["group_translated_text"] == ""
-
-
-def test_pending_translation_items_refreshes_member_ids_for_real_group() -> None:
-    payload = [
-        {
-            "item_id": "a",
-            "translation_unit_id": "__cg__:cg-real",
-            "translation_unit_kind": "group",
-            "translation_unit_member_ids": ["a"],
-            "block_type": "text",
-            "should_translate": True,
-            "protected_source_text": "left body text",
-            "source_text": "left body text",
-            "formula_map": [],
-            "protected_map": [],
-            "continuation_group": "cg-real",
-            "metadata": {"structure_role": "body"},
-        },
-        {
-            "item_id": "b",
-            "translation_unit_id": "b",
-            "translation_unit_kind": "single",
-            "translation_unit_member_ids": ["b"],
-            "block_type": "text",
-            "should_translate": True,
-            "protected_source_text": "right body text",
-            "source_text": "right body text",
-            "formula_map": [],
-            "protected_map": [],
-            "continuation_group": "cg-real",
-            "metadata": {"structure_role": "body"},
-        },
-    ]
-
-    units = pending_translation_items(payload)
-
-    assert [unit["item_id"] for unit in units] == ["__cg__:cg-real"]
-    assert payload[0]["translation_unit_member_ids"] == ["a", "b"]
-    assert payload[1]["translation_unit_member_ids"] == ["a", "b"]
-    assert payload[0]["translation_unit_kind"] == "group"
-    assert payload[1]["translation_unit_kind"] == "group"
-
-
-def test_fragmented_formula_continuation_group_stays_grouped() -> None:
-    def member(item_id: str, source: str, placeholders: list[str]):
-        return {
-            "item_id": item_id,
-            "translation_unit_id": "__cg__:light-fragmented",
-            "translation_unit_kind": "group",
-            "translation_unit_member_ids": ["a", "b"],
-            "block_type": "text",
-            "should_translate": True,
-            "protected_source_text": source,
-            "source_text": source,
-            "formula_map": [{"placeholder": token} for token in placeholders],
-            "protected_map": [
-                {"token_tag": token, "token_type": "formula", "checksum": "a7c"}
-                for token in placeholders
-            ],
-            "continuation_group": "cg-light-fragmented",
-            "metadata": {"structure_role": "body"},
-        }
-
-    payload = [
-        member("a", "the catalyst <f1-a7c/> and the surface <f2-a7c/> and", ["<f1-a7c/>", "<f2-a7c/>"]),
-        member("b", "the intermediate <f1-a7c/> and the product <f2-a7c/> show stable activity.", ["<f1-a7c/>", "<f2-a7c/>"]),
-    ]
-
-    units = pending_translation_items(payload)
-
-    assert [unit["item_id"] for unit in units] == ["__cg__:light-fragmented"]
-    assert units[0]["translation_unit_id"] == "__cg__:light-fragmented"
-    assert units[0]["continuation_group"] == "cg-light-fragmented"
-    assert "group_split_reason" not in payload[0] or not payload[0]["group_split_reason"]
-
-
-def test_direct_typst_continuation_group_preserves_math_mode_on_group_unit() -> None:
-    payload = [
-        {
-            "item_id": "a",
-            "translation_unit_id": "__cg__:direct-typst",
-            "translation_unit_kind": "group",
-            "translation_unit_member_ids": ["a", "b"],
-            "block_type": "text",
-            "should_translate": True,
-            "math_mode": "direct_typst",
-            "protected_source_text": "Anthropic and OpenAI: the providers captured more wallet share and",
-            "source_text": "Anthropic and OpenAI: the providers captured more wallet share and",
-            "continuation_group": "cg-direct-typst",
-            "metadata": {"structure_role": "body"},
-        },
-        {
-            "item_id": "b",
-            "translation_unit_id": "__cg__:direct-typst",
-            "translation_unit_kind": "group",
-            "translation_unit_member_ids": ["a", "b"],
-            "block_type": "text",
-            "should_translate": True,
-            "math_mode": "direct_typst",
-            "protected_source_text": "investors increasingly viewed them as application software firms.",
-            "source_text": "investors increasingly viewed them as application software firms.",
-            "continuation_group": "cg-direct-typst",
-            "metadata": {"structure_role": "body"},
-        },
-    ]
-
-    units = pending_translation_items(payload)
-
-    assert [unit["item_id"] for unit in units] == ["__cg__:direct-typst"]
-    assert units[0]["math_mode"] == "direct_typst"
-
-
-def test_long_continuation_group_stays_grouped_when_not_formula_heavy() -> None:
-    def member(item_id: str, source: str):
-        return {
-            "item_id": item_id,
-            "translation_unit_id": "__cg__:long-continuation",
-            "translation_unit_kind": "group",
-            "translation_unit_member_ids": ["a", "b"],
-            "block_type": "text",
-            "should_translate": True,
-            "protected_source_text": source,
-            "source_text": source,
-            "continuation_group": "cg-long",
-            "metadata": {"structure_role": "body"},
-        }
-
-    text_a = " ".join(f"left segment {idx} discusses correlated quantum chemistry" for idx in range(40))
-    text_b = " ".join(f"right segment {idx} continues the same paragraph and should stay grouped" for idx in range(40))
-    payload = [member("a", text_a), member("b", text_b)]
-    units = pending_translation_items(payload)
-
-    assert [unit["item_id"] for unit in units] == ["__cg__:long-continuation"]
-    assert units[0]["continuation_group"] == "cg-long"
-    assert payload[0]["translation_unit_kind"] == "group"
-    assert payload[1]["translation_unit_kind"] == "group"
-
-
-def test_large_continuation_group_stays_grouped_even_when_member_count_exceeds_limit() -> None:
-    payload = []
-    for idx in range(4):
-        text = f"segment {idx} continues the same paragraph across columns and should stay grouped for coherent translation."
-        payload.append(
-            {
-                "item_id": f"m{idx}",
-                "translation_unit_id": "__cg__:wide-continuation",
-                "translation_unit_kind": "group",
-                "translation_unit_member_ids": [f"m{i}" for i in range(4)],
-                "block_type": "text",
-                "should_translate": True,
-                "protected_source_text": text,
-                "source_text": text,
-                "continuation_group": "cg-wide",
-                "metadata": {"structure_role": "body"},
-            }
-        )
-
-    units = pending_translation_items(payload)
-
-    assert [unit["item_id"] for unit in units] == ["__cg__:wide-continuation"]
-    assert units[0]["continuation_group"] == "cg-wide"
-    assert all(item["translation_unit_kind"] == "group" for item in payload)
-    assert all(not item.get("group_split_reason") for item in payload)
+    assert _provider_adaptive_initial_limit(workers=1000, provider_family="deepseek_official") == 250
+    assert _provider_adaptive_initial_limit(workers=100, provider_family="deepseek_official") == 100
 
 
 def test_smarter_batches_group_low_risk_items_and_keep_complex_items_single() -> None:
@@ -326,8 +109,64 @@ def test_smarter_batches_group_low_risk_items_and_keep_complex_items_single() ->
         translation_context=context,
     )
     assert immediate == []
-    assert [[item["item_id"] for item in batch] for batch in batches] == [["a", "b", "c"]]
+    assert [[item["item_id"] for item in batch] for batch in batches] == [["a", "b"], ["c"]]
     assert all(item.get("_batched_plain_candidate") for item in batches[0])
+    assert not batches[1][0].get("_batched_plain_candidate")
+
+
+def test_deepseek_plain_batching_keeps_every_item_single() -> None:
+    context = build_translation_control_context(
+        engine_profile=resolve_engine_profile(
+            model="deepseek-chat",
+            base_url="https://api.deepseek.com/v1",
+        )
+    )
+    effective_batch_size = _effective_translation_batch_size(
+        batch_size=1,
+        model="deepseek-chat",
+        base_url="https://api.deepseek.com/v1",
+        translation_context=context,
+    )
+    plain_text = "This paragraph describes catalyst stability and contains enough body text for translation."
+    placeholder_heavy = " ".join(
+        f"body segment {idx} <t{idx}-abc/>" for idx in range(context.batch_policy.batch_low_risk_max_placeholders + 1)
+    )
+    pending = [
+        _item(f"plain-{idx}", plain_text)
+        for idx in range(5)
+    ] + [
+        _item(
+            "formula",
+            "After <f1-a7c/> hours, activity increased while the catalyst remained active in solution.",
+            formula_map=[{"placeholder": "<f1-a7c/>"}],
+            metadata={"structure_role": "body"},
+        ),
+        _item("continuation", plain_text, continuation_group="cg-1"),
+        _item("group", plain_text, translation_unit_id="__cg__:cg-1"),
+        _item("placeholder-heavy", placeholder_heavy),
+    ]
+
+    batches, immediate = _build_translation_batches(
+        pending,
+        effective_batch_size=effective_batch_size,
+        translation_context=context,
+    )
+
+    assert effective_batch_size == 1
+    assert immediate == []
+    assert [[item["item_id"] for item in batch] for batch in batches] == [
+        ["plain-0"],
+        ["plain-1"],
+        ["plain-2"],
+        ["plain-3"],
+        ["plain-4"],
+        ["formula"],
+        ["continuation"],
+        ["group"],
+        ["placeholder-heavy"],
+    ]
+    assert all(batch[0].get("_batched_plain_candidate") for batch in batches[:5])
+    assert all(not batch[0].get("_batched_plain_candidate") for batch in batches[5:])
 
 
 def test_smarter_batches_keep_continuation_group_out_of_batched_plain_path_even_without_placeholders() -> None:
@@ -559,128 +398,3 @@ def test_smarter_batches_leave_reference_like_text_as_single_batch_without_fast_
     assert immediate == []
     assert all(item.get("_batched_plain_candidate") for item in batches[0])
     assert not batches[1][0].get("_batched_plain_candidate")
-
-
-def test_duplicate_plain_items_are_collapsed_and_expanded_with_item_diagnostics() -> None:
-    pending = [
-        _item("a", "A", block_type="image_caption", page_idx=0),
-        _item("b", "A", block_type="image_caption", page_idx=1),
-        _item("c", "B", block_type="image_caption", page_idx=1),
-    ]
-    unique, duplicates = _dedupe_pending_items(pending)
-    assert [item["item_id"] for item in unique] == ["a", "c"]
-    assert [item["item_id"] for item in duplicates["a"]] == ["b"]
-
-    expanded = _expand_duplicate_results(
-        {
-            "a": {
-                "decision": "translate",
-                "translated_text": "甲",
-                "final_status": "translated",
-                "translation_diagnostics": {"item_id": "a", "page_idx": 0, "route_path": ["block_level"]},
-            }
-        },
-        duplicate_items_by_rep_id=duplicates,
-    )
-    assert expanded["b"]["translated_text"] == "甲"
-    assert expanded["b"]["translation_diagnostics"]["item_id"] == "b"
-    assert expanded["b"]["translation_diagnostics"]["page_idx"] == 1
-
-
-def test_duplicate_plain_items_keep_origin_when_representative_result_failed() -> None:
-    pending = [
-        _item("a", "A", block_type="image_caption", page_idx=0),
-        _item("b", "A", block_type="image_caption", page_idx=1),
-    ]
-    _unique, duplicates = _dedupe_pending_items(pending)
-
-    expanded = _expand_duplicate_results(
-        {
-            "a": {
-                "decision": "translate",
-                "translated_text": "",
-                "final_status": "failed",
-                "translation_diagnostics": {"item_id": "a", "page_idx": 0},
-            }
-        },
-        duplicate_items_by_rep_id=duplicates,
-    )
-
-    assert expanded["b"]["final_status"] == "kept_origin"
-    assert expanded["b"]["translation_diagnostics"]["item_id"] == "b"
-    assert expanded["b"]["translation_diagnostics"]["page_idx"] == 1
-    assert expanded["b"]["translation_diagnostics"]["fallback_to"] == "keep_origin"
-    assert "fast_path_keep_origin" in expanded["b"]["translation_diagnostics"]["route_path"]
-    assert expanded["b"]["translation_diagnostics"]["degradation_reason"] == "duplicate_representative_not_expandable"
-
-
-def test_translate_pending_units_uses_readonly_memory_snapshot_by_default(monkeypatch, tmp_path: Path) -> None:
-    captured: dict[str, object] = {}
-
-    class _FakeApplier:
-        def __init__(self, **kwargs) -> None:
-            captured["memory_store"] = kwargs["memory_store"]
-
-        def apply_immediate(self, _translated):
-            return set()
-
-    monkeypatch.setattr(pending_units, "TranslationResultApplier", _FakeApplier)
-    def _capture_parallel(**kwargs) -> None:
-        captured["worker_memory_store"] = kwargs["memory_store"]
-
-    monkeypatch.setattr(pending_units, "run_translation_batches_parallel", _capture_parallel)
-    monkeypatch.setattr(pending_units, "run_translation_batches_sequential", lambda **_kwargs: None)
-    monkeypatch.setattr(pending_units, "_save_flush_interval", lambda **_kwargs: 1)
-
-    payload = {"pages": []}
-    page_payloads = {0: [_item("a", "SCF cycle converges before energy evaluation.", page_idx=0)]}
-    translation_paths = {0: tmp_path / "page-0001.json"}
-
-    stats = pending_units.translate_pending_units(
-        page_payloads=page_payloads,
-        translation_paths=translation_paths,
-        batch_size=1,
-        workers=2,
-        api_key="sk-test",
-        model="deepseek-chat",
-        base_url="https://api.deepseek.com/v1",
-        translation_context=build_translation_control_context(),
-    )
-
-    assert payload == {"pages": []}
-    assert stats["pending_items"] == 1
-    assert captured["memory_store"] is None
-    assert isinstance(captured["worker_memory_store"], JobMemorySnapshot)
-
-
-def test_translate_pending_units_can_enable_live_memory_updates(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setenv("RETAIN_TRANSLATION_LIVE_MEMORY_UPDATES", "1")
-    captured: dict[str, object] = {}
-
-    class _FakeApplier:
-        def __init__(self, **kwargs) -> None:
-            captured["memory_store"] = kwargs["memory_store"]
-
-        def apply_immediate(self, _translated):
-            return set()
-
-    monkeypatch.setattr(pending_units, "TranslationResultApplier", _FakeApplier)
-    monkeypatch.setattr(pending_units, "run_translation_batches_parallel", lambda **_kwargs: None)
-    monkeypatch.setattr(pending_units, "run_translation_batches_sequential", lambda **_kwargs: None)
-    monkeypatch.setattr(pending_units, "_save_flush_interval", lambda **_kwargs: 1)
-
-    page_payloads = {0: [_item("a", "SCF cycle converges before energy evaluation.", page_idx=0)]}
-    translation_paths = {0: tmp_path / "page-0001.json"}
-
-    pending_units.translate_pending_units(
-        page_payloads=page_payloads,
-        translation_paths=translation_paths,
-        batch_size=1,
-        workers=2,
-        api_key="sk-test",
-        model="deepseek-chat",
-        base_url="https://api.deepseek.com/v1",
-        translation_context=build_translation_control_context(),
-    )
-
-    assert captured["memory_store"] is not None

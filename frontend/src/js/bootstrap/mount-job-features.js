@@ -29,7 +29,7 @@ import {
   setWorkflowSections,
   updateJobWarning,
 } from "../ui.js";
-import { setText } from "../main-helpers.js";
+import { setText } from "./main-helpers.js";
 
 export function mountJobFeatures(features) {
   features.statusDetailFeature = mountStatusDetailFeature({

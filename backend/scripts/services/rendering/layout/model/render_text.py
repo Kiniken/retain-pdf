@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import re
+from services.rendering.layout.text_analysis import analyze_text
 
-MATH_SOURCE_RE = re.compile(r"\$[^$]+\$|\\(?:begin|end|frac|lim|sum|int|mathrm|left|right|cdot|epsilon|forall|in)\b")
-DISPLAY_MATH_RE = re.compile(r"^\s*\$\$[\s\S]+?\$\$\s*(?:\$\$[\s\S]+?\$\$\s*)*$")
 MODEL_KEEP_ORIGIN_REASONS = {"skip_model_keep_origin"}
 
 
@@ -103,6 +101,38 @@ def get_render_protected_text(item: dict) -> str:
     )
 
 
+def get_render_translation_overlay_text(item: dict) -> str:
+    if should_skip_display_math_render(item):
+        return ""
+    if "render_protected_text" in item:
+        return restore_render_protected_text(str(item.get("render_protected_text", "") or "").strip(), item)
+    if not _should_use_unit_translation(item):
+        return restore_render_protected_text(
+            str(
+                item.get("protected_translated_text")
+                or item.get("translated_text")
+                or item.get("translation_unit_protected_translated_text")
+                or item.get("translation_unit_translated_text")
+                or ""
+            ).strip(),
+            item,
+        )
+    if (item.get("continuation_group") or item.get("continuation_group_id")) and _member_translation_text(item):
+        return restore_render_protected_text(_member_translation_text(item), item)
+    return restore_render_protected_text(
+        str(
+            item.get("translation_unit_protected_translated_text")
+            or item.get("group_protected_translated_text")
+            or item.get("protected_translated_text")
+            or item.get("translation_unit_translated_text")
+            or item.get("group_translated_text")
+            or item.get("translated_text")
+            or ""
+        ).strip(),
+        item,
+    )
+
+
 def get_render_formula_map(item: dict) -> list[dict]:
     formula_map = (
         item.get("render_formula_map")
@@ -144,7 +174,8 @@ def should_skip_display_math_render(item: dict) -> bool:
     skip_reason = _skip_reason(item)
     if block_kind == "formula" or sub_type == "display_formula":
         return True
-    if skip_reason in {"skip_display_formula", "skip_model_keep_origin"} and DISPLAY_MATH_RE.fullmatch(source_text):
+    analysis = analyze_text(source_text)
+    if skip_reason in {"skip_display_formula", "skip_model_keep_origin"} and analysis.has_display_math and not analysis.plain_text.strip():
         return True
     return False
 
@@ -161,7 +192,8 @@ def _should_render_source_block(item: dict) -> bool:
     sub_type = str(item.get("normalized_sub_type", "") or "").strip().lower()
     if block_kind == "formula" or sub_type in {"formula", "display_formula"}:
         return True
-    return bool(MATH_SOURCE_RE.search(source_text))
+    analysis = analyze_text(source_text)
+    return analysis.raw_math_count > 0 or "\\" in source_text
 
 
 def _skip_reason(item: dict) -> str:

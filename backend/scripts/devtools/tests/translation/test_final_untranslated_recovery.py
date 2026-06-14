@@ -10,6 +10,7 @@ sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 from services.translation.artifacts import blocking_untranslated_items
 from services.translation.services.finalization import recover_blocking_untranslated_items
 from services.translation.workflow import stages
+from services.translation.workflow.phases import repair as repair_phase
 
 
 def _failed_item(item_id: str, source_text: str) -> dict:
@@ -110,7 +111,7 @@ def test_final_untranslated_recovery_stage_saves_pages(monkeypatch, tmp_path: Pa
     payload = [_failed_item("p001-b003", "The matrix is diagonalized in the basis.")]
     path.write_text(json.dumps(payload), encoding="utf-8")
 
-    monkeypatch.setattr(stages, "request_chat_content", lambda *_args, **_kwargs: "该矩阵在基组中被对角化。")
+    monkeypatch.setattr(repair_phase, "request_chat_content", lambda *_args, **_kwargs: "该矩阵在基组中被对角化。")
     summary = stages.run_final_untranslated_recovery_stage(
         page_payloads={0: payload},
         translation_paths={0: path},
@@ -124,3 +125,43 @@ def test_final_untranslated_recovery_stage_saves_pages(monkeypatch, tmp_path: Pa
     saved = json.loads(path.read_text(encoding="utf-8"))
     assert summary["recovered_items"] == 1
     assert saved[0]["translated_text"] == "该矩阵在基组中被对角化。"
+
+
+def test_final_untranslated_recovery_respects_item_budget(monkeypatch) -> None:
+    payload = [
+        _failed_item("p001-b001", "The density functional is evaluated."),
+        _failed_item("p001-b002", "The basis set is optimized."),
+    ]
+    calls = 0
+
+    def _fake_request(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return "已翻译。"
+
+    monkeypatch.setenv("RETAIN_TRANSLATION_FINAL_RECOVERY_MAX_ITEMS", "1")
+    summary = recover_blocking_untranslated_items(
+        {0: payload},
+        api_key="sk-test",
+        model="demo-model",
+        base_url="https://example.com/v1",
+        request_chat_content_fn=_fake_request,
+    )
+
+    assert calls == 1
+    assert summary.attempted_items == 1
+    assert summary.skipped_by_budget == 1
+
+
+def test_final_recovery_limit_defaults_to_small_fast_budget(monkeypatch) -> None:
+    monkeypatch.delenv("RETAIN_TRANSLATION_REPAIR_PROFILE", raising=False)
+    monkeypatch.delenv("RETAIN_TRANSLATION_FINAL_RECOVERY_MAX_ITEMS", raising=False)
+
+    assert repair_phase._final_recovery_limit_from_env() == 4
+
+
+def test_final_recovery_limit_uses_quality_budget(monkeypatch) -> None:
+    monkeypatch.setenv("RETAIN_TRANSLATION_REPAIR_PROFILE", "quality")
+    monkeypatch.delenv("RETAIN_TRANSLATION_FINAL_RECOVERY_MAX_ITEMS", raising=False)
+
+    assert repair_phase._final_recovery_limit_from_env() == 64

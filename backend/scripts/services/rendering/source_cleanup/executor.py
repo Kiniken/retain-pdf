@@ -5,11 +5,13 @@ from pathlib import Path
 import time
 
 from foundation.config import layout
+from services.rendering.source_cleanup.execution_plan import build_bbox_text_strip_execution_plan
+from services.rendering.source_cleanup.execution_plan import empty_result_from_execution_plan
 from services.rendering.source_cleanup.types import BBoxTextStripCandidates
 from services.rendering.source_cleanup.types import BBoxTextStripResult
 from services.rendering.source_cleanup.contracts import SourceCleanupRequest
 from services.rendering.source_cleanup.contracts import SourceCleanupResult
-from services.rendering.source_cleanup.pdf.document import strip_bbox_text_rects_from_pdf_copy
+from services.rendering.source_cleanup.pdf.document import strip_bbox_text_execution_plan_from_pdf_copy
 from services.rendering.source_cleanup.planning.planner import plan_source_cleanup
 
 
@@ -71,51 +73,21 @@ def build_bbox_text_stripped_pdf_copy(
         skip_formula_pages=skip_formula_pages,
         skip_form_xobject_pages=skip_form_xobject_pages,
     )
-    page_rects = candidates.fitz_page_rects()
-    page_protected_rects = candidates.fitz_page_protected_rects()
-    skipped_complex = candidates.pages_skipped_complex
-    skipped_no_text_overlap = candidates.pages_skipped_no_text_overlap
-    skipped_visual_background = candidates.pages_skipped_visual_background
-    skipped_complex_page_indices = candidates.skipped_complex_page_indices
-    skipped_no_text_overlap_page_indices = candidates.skipped_no_text_overlap_page_indices
-    skipped_visual_background_page_indices = candidates.skipped_visual_background_page_indices
-    skipped_form_xobject_page_indices = candidates.skipped_form_xobject_page_indices
-    strip_no_effect_page_indices = candidates.strip_no_effect_page_indices
     candidate_elapsed = time.perf_counter() - candidate_started
-
-    if not page_rects:
-        return BBoxTextStripResult(
-            changed=False,
-            candidates=candidates,
-            pages_skipped_complex=skipped_complex,
-            pages_skipped_no_text_overlap=skipped_no_text_overlap,
-            pages_skipped_visual_background=skipped_visual_background,
-            pages_skipped_form_xobject=len(skipped_form_xobject_page_indices),
-            pages_strip_no_effect=len(strip_no_effect_page_indices),
-            skipped_complex_page_indices=frozenset(skipped_complex_page_indices),
-            skipped_no_text_overlap_page_indices=frozenset(skipped_no_text_overlap_page_indices),
-            skipped_visual_background_page_indices=frozenset(skipped_visual_background_page_indices),
-            skipped_form_xobject_page_indices=frozenset(skipped_form_xobject_page_indices),
-            strip_no_effect_page_indices=frozenset(strip_no_effect_page_indices),
-        )
-
-    result = strip_bbox_text_rects_from_pdf_copy(
+    execution_plan = build_bbox_text_strip_execution_plan(
         source_pdf_path=source_pdf_path,
         output_pdf_path=output_pdf_path,
-        page_rects=page_rects,
-        page_protected_rects=page_protected_rects,
+        candidates=candidates,
+        candidate_elapsed=candidate_elapsed,
+    )
+
+    if not execution_plan.has_work:
+        return empty_result_from_execution_plan(execution_plan)
+
+    result = strip_bbox_text_execution_plan_from_pdf_copy(
+        execution_plan=execution_plan,
         recurse_forms=recurse_forms,
         skip_form_xobject_pages=skip_form_xobject_pages,
-        skipped_complex=skipped_complex,
-        skipped_no_text_overlap=skipped_no_text_overlap,
-        skipped_visual_background=skipped_visual_background,
-        skipped_complex_page_indices=skipped_complex_page_indices,
-        skipped_no_text_overlap_page_indices=skipped_no_text_overlap_page_indices,
-        skipped_visual_background_page_indices=skipped_visual_background_page_indices,
-        pre_skipped_form_xobject_page_indices=skipped_form_xobject_page_indices,
-        pre_strip_no_effect_page_indices=strip_no_effect_page_indices,
-        candidate_elapsed=candidate_elapsed,
-        candidate_source=candidates.candidate_source,
         max_elapsed_seconds=max_elapsed_seconds,
     )
     return replace(result, candidates=_candidates_with_runtime_metadata(candidates, result))
