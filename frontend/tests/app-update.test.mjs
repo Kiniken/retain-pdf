@@ -1,11 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { isNewerVersion } from "../src/js/features/app-update/github-release.js";
 import {
   readUpdateCache,
   writeUpdateCache,
 } from "../src/js/features/app-update/state.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const frontendRoot = path.resolve(__dirname, "..");
+const generatedVersionPath = path.join(frontendRoot, "src/js/generated/app-version.js");
 
 function withLocalStorage(fn) {
   const store = new Map();
@@ -73,4 +82,24 @@ test("update cache treats future timestamps as stale", () => {
     assert.equal(cached.fresh, false);
     assert.equal(cached.info.latestVersion, "4.1.6-beta2");
   });
+});
+
+test("generate-app-version uses release version override", () => {
+  const before = fs.readFileSync(generatedVersionPath, "utf8");
+  try {
+    execFileSync("node", ["./scripts/generate-app-version.mjs"], {
+      cwd: frontendRoot,
+      env: {
+        ...process.env,
+        RETAIN_PDF_VERSION: "9.8.7-beta10",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    const generated = fs.readFileSync(generatedVersionPath, "utf8");
+
+    assert.match(generated, /export const APP_VERSION = "9\.8\.7-beta10";/);
+  } finally {
+    fs.writeFileSync(generatedVersionPath, before, "utf8");
+  }
 });
