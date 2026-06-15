@@ -54,13 +54,18 @@ def preserved_line_boxes_for_item(item: dict, translated_text: str) -> list[Rend
 def looks_like_structured_line_block(item: dict, lines: list[str] | None = None) -> bool:
     semantic_role = str(item.get("semantic_role") or item.get("layout_role") or "").strip().lower()
     structure_role = str(item.get("structure_role") or "").strip().lower()
+    explicit_preserve_lines = str(item.get("text_flow", "") or "").strip().lower() == TEXT_FLOW_PRESERVE_LINES
+    if explicit_preserve_lines and _has_line_contract(item):
+        return True
     if structure_role != "table_of_contents" and semantic_role in {"body", "abstract"}:
         return False
-    if str(item.get("text_flow", "") or "").strip().lower() == TEXT_FLOW_PRESERVE_LINES:
-        return True
     source_text = str(item.get("protected_source_text") or item.get("source_text") or "")
     del lines
     return classify_text_flow(text=source_text, lines=item.get("lines") or []) == TEXT_FLOW_PRESERVE_LINES
+
+
+def _has_line_contract(item: dict) -> bool:
+    return len(source_line_texts(item)) >= 2
 
 
 def _token_units(token: str) -> float:

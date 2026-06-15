@@ -5,12 +5,9 @@ from typing import Any
 from services.rendering.source_cleanup.contracts import SourceCleanupOptions
 from services.rendering.source_cleanup.contracts import SourceCleanupRequest
 from services.rendering.source_cleanup.contracts import SourceCleanupResult
-from services.rendering.source_cleanup.execution_plan import BBoxTextStripExecutionPlan
-from services.rendering.source_cleanup.execution_plan import build_bbox_text_strip_execution_plan
-from services.rendering.source_cleanup.planning.contracts import BBoxTextStripPagePlan
 from services.rendering.source_cleanup.types import BBoxTextStripCandidates
+from services.rendering.source_cleanup.types import BBoxTextStripPagePlan
 from services.rendering.source_cleanup.types import BBoxTextStripResult
-from services.rendering.source_cleanup.types import SourceCleanupDecision
 
 
 _LAZY_EXPORTS = {
@@ -42,10 +39,6 @@ _LAZY_EXPORTS = {
         "services.rendering.source_cleanup.pdf.document",
         "strip_bbox_text_rects_from_pdf_copy",
     ),
-    "strip_bbox_text_execution_plan_from_pdf_copy": (
-        "services.rendering.source_cleanup.pdf.document",
-        "strip_bbox_text_execution_plan_from_pdf_copy",
-    ),
     "strip_bbox_text_from_page": (
         "services.rendering.source_cleanup.pdf.stream_engine",
         "strip_bbox_text_from_page",
@@ -73,11 +66,8 @@ __all__ = [
     "SourceCleanupOptions",
     "SourceCleanupRequest",
     "SourceCleanupResult",
-    "BBoxTextStripExecutionPlan",
     "BBoxTextStripCandidates",
     "BBoxTextStripPagePlan",
     "BBoxTextStripResult",
-    "SourceCleanupDecision",
-    "build_bbox_text_strip_execution_plan",
     *sorted(_LAZY_EXPORTS),
 ]

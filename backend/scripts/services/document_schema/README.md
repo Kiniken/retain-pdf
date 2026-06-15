@@ -102,6 +102,19 @@
 - 默认翻译链不应再从 `type/sub_type/tags/derived/source.raw_*` 反推正文
 - `policy.translate` 是正文是否进入翻译链的正式入口
 
+`content` 内部的排版流字段：
+
+- `content.text`：块级文本，保留 provider 给出的必要换行
+- `content.line_texts`：块内行文本列表，来自 provider 显式换行或 adapter 构造的稳定行记录
+- `content.text_flow`：下游排版契约，目前取值为 `flow` 或 `preserve_lines`
+
+`text_flow` 的职责边界：
+
+- `flow` 表示普通正文，翻译和渲染可以按自然段流式处理，不应强制保留 OCR 视觉换行
+- `preserve_lines` 表示块内行结构有语义价值，例如目录、编号列表、项目列表、结构化短行块
+- `preserve_lines` 的判定必须在 normalize / adapter 层完成，渲染层只消费该契约，不应再用正则重新猜列表结构
+- Paddle 等 provider 如果只给出 `block_label=text`，但 `block_content` 已经有稳定显式换行，adapter 应把这些换行升级为 `line_texts + text_flow`，而不是把 provider 私有字段暴露给下游
+
 ### 2. 通用 trace 层
 
 这层不是主链路硬依赖，但多个 provider 都建议尽量往这套字段靠。

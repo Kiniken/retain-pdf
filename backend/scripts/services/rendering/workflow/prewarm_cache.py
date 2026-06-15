@@ -74,7 +74,6 @@ def build_full_sync_payload_prewarm(
     translated_pages: dict[int, list[dict]],
     effective_render_mode: str,
     source_cleanup_strategy: str,
-    protected_pages: dict[int, list[dict]] | None = None,
 ) -> dict[str, object]:
     if manifest_path is None:
         return sync_source_payload_prewarm(prepared)
@@ -85,7 +84,6 @@ def build_full_sync_payload_prewarm(
         effective_render_mode=effective_render_mode,
         source_cleanup_strategy=source_cleanup_strategy,
         bbox_text_strip_candidates=getattr(prepared, "bbox_text_strip_candidates", None),
-        protected_pages=protected_pages,
     )
 
 

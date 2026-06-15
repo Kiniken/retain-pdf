@@ -303,3 +303,48 @@ def test_paddle_content_label_becomes_translatable_toc() -> None:
     assert items[0].toc_entries
 
 
+def test_paddle_body_numbered_line_block_preserves_text_flow() -> None:
+    page_payload = {
+        "prunedResult": {
+            "width": 1200,
+            "height": 1600,
+            "parsing_res_list": [
+                {
+                    "block_label": "text",
+                    "block_content": (
+                        "1. University of California, Berkeley\n"
+                        "2. Independent Contributor\n"
+                        "3. Stanford University\n"
+                        "4. University of Michigan"
+                    ),
+                    "block_bbox": [100, 200, 360, 260],
+                },
+            ],
+            "layout_det_res": {"boxes": []},
+        },
+        "markdown": {"text": "", "images": {}},
+        "outputImages": {},
+        "inputImage": "",
+    }
+
+    document = build_paddle_document(
+        {
+            "layoutParsingResults": [page_payload],
+            "dataInfo": {"pages": [{"width": 1200, "height": 1600}]},
+            "preprocessedImages": [""],
+        },
+        document_id="numbered-lines-doc",
+        source_json_path=PADDLE_FIXTURE_JSON,
+        provider_version="PaddleOCR-VL",
+    )
+    block = document["pages"][0]["blocks"][0]
+
+    assert block["semantic_role"] == "body"
+    assert block["content"]["line_texts"] == [
+        "1. University of California, Berkeley",
+        "2. Independent Contributor",
+        "3. Stanford University",
+        "4. University of Michigan",
+    ]
+    assert block["content"]["text_flow"] == "preserve_lines"
+

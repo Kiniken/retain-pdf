@@ -8,6 +8,8 @@ TEXT_FLOW_FLOW = "flow"
 SENTENCE_END_RE = re.compile(r"[.!?。！？]\s*$")
 SOFT_CONTINUATION_END_RE = re.compile(r"(?:[-,，;；:]|(?:\b(?:and|or|of|for|to|in|on|with|the|a|an)\b))\s*$", re.IGNORECASE)
 WORD_RE = re.compile(r"[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*")
+ORDERED_MARKER_RE = re.compile(r"^\s*(?:\d{1,4}|[A-Za-z])\s*[\.)、]\s+\S+")
+BULLET_MARKER_RE = re.compile(r"^\s*(?:[-*•‣◦])\s+\S+")
 
 
 def line_text(line: object) -> str:
@@ -77,7 +79,7 @@ def looks_like_preserved_line_flow(*, text: str, lines: object) -> bool:
     if not source_text.strip():
         return False
     explicit_lines = [line.strip() for line in source_text.splitlines() if line.strip()]
-    if len(explicit_lines) >= 3:
+    if len(explicit_lines) >= 3 and _line_marked_ratio(explicit_lines) >= 0.6:
         return True
     line_texts = line_texts_from_lines(lines)
     if len(line_texts) < 6:
@@ -90,8 +92,26 @@ def looks_like_preserved_line_flow(*, text: str, lines: object) -> bool:
     return sentence_end_count <= max(1, len(line_texts) // 8) and soft_end_count <= max(3, len(line_texts) // 4) and avg_words <= 9.5
 
 
+def looks_like_structured_line_flow(*, text: str, lines: object) -> bool:
+    source_text = str(text or "")
+    explicit_lines = [line.strip() for line in source_text.splitlines() if line.strip()]
+    line_texts = explicit_lines if len(explicit_lines) >= 2 else line_texts_from_lines(lines)
+    if len(line_texts) < 3:
+        return False
+    if _line_marked_ratio(line_texts) >= 0.6:
+        return True
+    return looks_like_preserved_line_flow(text=text, lines=lines)
+
+
+def _line_marked_ratio(lines: list[str]) -> float:
+    if not lines:
+        return 0.0
+    marker_count = sum(1 for line in lines if ORDERED_MARKER_RE.match(line) or BULLET_MARKER_RE.match(line))
+    return marker_count / max(1, len(lines))
+
+
 def classify_text_flow(*, text: str, lines: object) -> str:
-    return TEXT_FLOW_PRESERVE_LINES if looks_like_preserved_line_flow(text=text, lines=lines) else TEXT_FLOW_FLOW
+    return TEXT_FLOW_PRESERVE_LINES if looks_like_structured_line_flow(text=text, lines=lines) else TEXT_FLOW_FLOW
 
 
 def classify_text_flow_for_role(*, text: str, lines: object, semantic_role: str = "", structure_role: str = "") -> str:
@@ -99,7 +119,7 @@ def classify_text_flow_for_role(*, text: str, lines: object, semantic_role: str 
     structure = str(structure_role or "").strip().lower()
     if structure == "table_of_contents":
         return TEXT_FLOW_PRESERVE_LINES
-    if role in {"body", "abstract"}:
+    if role in {"body", "abstract"} and not looks_like_structured_line_flow(text=text, lines=lines):
         return TEXT_FLOW_FLOW
     explicit_lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
     if len(explicit_lines) >= 3:
@@ -116,4 +136,5 @@ __all__ = [
     "line_text",
     "line_texts_from_lines",
     "looks_like_preserved_line_flow",
+    "looks_like_structured_line_flow",
 ]

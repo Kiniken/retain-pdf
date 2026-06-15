@@ -203,6 +203,52 @@ def test_structured_line_render_block_keeps_hard_line_breaks() -> None:
     assert blocks[0].preserved_line_boxes
 
 
+def test_body_preserve_lines_contract_keeps_numbered_list_breaks() -> None:
+    item = {
+        "item_id": "p017-b001",
+        "block_type": "text",
+        "block_kind": "text",
+        "semantic_role": "body",
+        "structure_role": "body",
+        "text_flow": "preserve_lines",
+        "source_text": "1. University of California, Berkeley\n2. Independent Contributor\n3. Stanford University",
+        "lines": [
+            {"bbox": [104.0, 104.5, 280.5, 113.989], "text": "1. University of California, Berkeley"},
+            {"bbox": [104.0, 113.989, 280.5, 123.477], "text": "2. Independent Contributor"},
+            {"bbox": [104.0, 123.477, 280.5, 132.966], "text": "3. Stanford University"},
+        ],
+    }
+    translated = "1. 加州大学伯克利分校\n2. 独立贡献者\n3. 斯坦福大学"
+
+    rendered = maybe_preserve_structured_line_breaks(item, translated)
+
+    assert rendered == translated
+    assert item["_render_preserve_line_breaks"] is True
+    assert item["_render_line_structure"] == "structured_lines"
+
+
+def test_body_without_preserve_lines_contract_still_flows_visual_lines() -> None:
+    item = {
+        "item_id": "p005-b001",
+        "block_type": "text",
+        "block_kind": "text",
+        "semantic_role": "body",
+        "structure_role": "body",
+        "source_text": "The first visual line\ncontinues into the same sentence\nand should flow.",
+        "lines": [
+            {"bbox": [104.0, 104.5, 280.5, 113.989], "text": "The first visual line"},
+            {"bbox": [104.0, 113.989, 280.5, 123.477], "text": "continues into the same sentence"},
+            {"bbox": [104.0, 123.477, 280.5, 132.966], "text": "and should flow."},
+        ],
+    }
+    translated = "第一行视觉文本\n继续同一句话\n因此应该流式排版。"
+
+    rendered = maybe_preserve_structured_line_breaks(item, translated)
+
+    assert rendered == "第一行视觉文本 继续同一句话 因此应该流式排版。"
+    assert "_render_preserve_line_breaks" not in item
+
+
 def test_structured_line_typst_uses_source_line_boxes() -> None:
     blocks = build_render_blocks(
         [
@@ -235,4 +281,3 @@ def test_structured_line_typst_uses_source_line_boxes() -> None:
     assert "dy: 221.367pt" in typst
     assert "dy: 233.408pt" in typst
     assert "dy: 245.449pt" in typst
-

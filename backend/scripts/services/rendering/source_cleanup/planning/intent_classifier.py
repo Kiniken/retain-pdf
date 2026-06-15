@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 
-from services.rendering.layout.payload.text_common import same_meaningful_render_text
 from services.rendering.source_cleanup.intents import CLEANUP_ACTION_NOOP
 from services.rendering.source_cleanup.intents import CLEANUP_ACTION_PROTECT_SOURCE
 from services.rendering.source_cleanup.intents import CLEANUP_ACTION_STRIP_TEXT
@@ -21,6 +20,7 @@ from services.rendering.source_cleanup.intents import TRANSLATION_STATE_TRANSLAT
 from services.rendering.source_cleanup.intents import TRANSLATION_STATE_UNKNOWN
 from services.rendering.source_cleanup.intents import SourceCleanupEvidence
 from services.rendering.source_cleanup.intents import SourceCleanupIntent
+from services.rendering.source_cleanup.planning.formula_classifier import formula_text_has_latin_words
 
 
 IntentPredicate = Callable[[SourceCleanupEvidence], bool]
@@ -36,19 +36,6 @@ class IntentRule:
 
 INTENT_RULES: tuple[IntentRule, ...] = (
     IntentRule(
-        name="marked_non_translated",
-        matches=lambda evidence: evidence.is_marked_non_translated,
-        build=lambda evidence: build_intent(
-            evidence,
-            source_role=SOURCE_ROLE_BODY_TEXT if evidence.block_kind == "text" else SOURCE_ROLE_UNKNOWN,
-            translation_state=TRANSLATION_STATE_KEPT_ORIGIN,
-            replacement_kind=REPLACEMENT_KIND_PRESERVE_SOURCE,
-            cleanup_action=CLEANUP_ACTION_NOOP,
-            confidence=0.96,
-            reason="marked_non_translated_preserve_source",
-        ),
-    ),
-    IntentRule(
         name="translated_force_strip_text",
         matches=lambda evidence: evidence.block_kind == "text"
         and evidence_has_text_overlay(evidence)
@@ -61,21 +48,6 @@ INTENT_RULES: tuple[IntentRule, ...] = (
             cleanup_action=CLEANUP_ACTION_STRIP_TEXT,
             confidence=0.98,
             reason="translated_force_strip_text_overlay",
-        ),
-    ),
-    IntentRule(
-        name="same_source_and_output_text",
-        matches=lambda evidence: bool(evidence.source_text)
-        and bool(evidence.output_text)
-        and same_meaningful_render_text(evidence.source_text, evidence.output_text),
-        build=lambda evidence: build_intent(
-            evidence,
-            source_role=SOURCE_ROLE_BODY_TEXT if evidence.block_kind == "text" else SOURCE_ROLE_UNKNOWN,
-            translation_state=TRANSLATION_STATE_KEPT_ORIGIN,
-            replacement_kind=REPLACEMENT_KIND_PRESERVE_SOURCE,
-            cleanup_action=CLEANUP_ACTION_NOOP,
-            confidence=0.94,
-            reason="same_source_and_output_preserve_source",
         ),
     ),
     IntentRule(
@@ -122,7 +94,7 @@ INTENT_RULES: tuple[IntentRule, ...] = (
     IntentRule(
         name="textual_formula_with_overlay",
         matches=lambda evidence: evidence.has_formula_region
-        and evidence.is_textual_formula
+        and formula_text_has_latin_words(evidence.item)
         and evidence_has_text_overlay(evidence),
         build=lambda evidence: build_intent(
             evidence,
@@ -136,7 +108,7 @@ INTENT_RULES: tuple[IntentRule, ...] = (
     ),
     IntentRule(
         name="textual_formula_without_overlay",
-        matches=lambda evidence: evidence.has_formula_region and evidence.is_textual_formula,
+        matches=lambda evidence: evidence.has_formula_region and formula_text_has_latin_words(evidence.item),
         build=lambda evidence: build_intent(
             evidence,
             source_role=SOURCE_ROLE_TEXTUAL_FORMULA,

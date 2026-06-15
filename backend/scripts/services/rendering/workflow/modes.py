@@ -138,7 +138,9 @@ def run_overlay_render(
         effective_inner_bbox_lookup=context.effective_inner_bbox_lookup,
         source_text_precleaned_page_indices=context.source_text_precleaned_page_indices,
         source_cleanup_strategy=context.source_cleanup_strategy,
+        prepared_overlay_pages=context.prepared_overlay_pages,
         precomputed_colors_by_item_id=context.render_colors_by_item_id,
+        prebuilt_source_path=context.overlay_source_path,
         visual_cover_page_indices=context.visual_cover_page_indices,
         request_chat_content_fn=request_chat_content,
     )

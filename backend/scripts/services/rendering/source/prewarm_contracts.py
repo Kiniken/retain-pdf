@@ -56,7 +56,9 @@ class RenderPayloadPrewarm:
     effective_inner_bbox_lookup: dict[str, list[float]]
     bbox_text_strip_candidates: BBoxTextStripCandidates | None = None
     background_render_page_specs: list[RenderPageSpec] | None = None
+    prepared_overlay_pages: dict[int, list[dict]] | None = None
     render_colors_by_item_id: dict[str, dict[str, tuple[float, float, float]]] | None = None
+    overlay_source_path: Path | None = None
     document_analysis: RenderDocumentAnalysis | None = None
 
 

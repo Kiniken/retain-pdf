@@ -6,7 +6,6 @@ from typing import Any
 
 from services.rendering.source_cleanup.types import BBOX_TEXT_STRIP_CANDIDATE_SOURCE_MANIFEST
 from services.rendering.source_cleanup.types import BBoxTextStripCandidates
-from services.rendering.source_cleanup.types import SourceCleanupDecision
 from services.rendering.contracts import RenderDocumentAnalysis
 from services.rendering.source.prewarm_color_profile import render_colors_from_manifest
 from services.rendering.source.prewarm_contracts import BBOX_TEXT_STRIP_ALGORITHM_ID
@@ -152,6 +151,7 @@ def try_load_render_payload_prewarm(
         payload = {
             "render_color_profile": payload.get("render_color_profile"),
         }
+    payload["_manifest_path"] = str(manifest_path)
     return render_payload_prewarm_from_manifest_payload(
         payload,
         document_analysis=document_analysis_from_manifest(manifest.get("document_analysis")),
@@ -177,13 +177,20 @@ def render_payload_prewarm_from_manifest_payload(
     background_render_page_specs = render_page_specs_from_manifest(
         payload.get("background_render_page_specs")
     )
+    prepared_overlay_pages = prepared_overlay_pages_from_manifest(payload.get("prepared_overlay_pages"))
     render_colors_by_item_id = render_colors_from_manifest(payload.get("render_color_profile"))
+    overlay_source_path = resolve_manifest_path(
+        Path(payload.get("_manifest_path", "")),
+        payload.get("overlay_source_path"),
+    ) if payload.get("_manifest_path") else None
     if (
         not first_line_indent_lookup
         and not effective_inner_bbox_lookup
         and bbox_candidates is None
         and background_render_page_specs is None
+        and prepared_overlay_pages is None
         and not render_colors_by_item_id
+        and overlay_source_path is None
         and document_analysis is None
     ):
         return None
@@ -201,9 +208,31 @@ def render_payload_prewarm_from_manifest_payload(
         effective_inner_bbox_lookup=effective_inner_bbox_lookup,
         bbox_text_strip_candidates=bbox_candidates,
         background_render_page_specs=background_render_page_specs,
+        prepared_overlay_pages=prepared_overlay_pages,
         render_colors_by_item_id=render_colors_by_item_id or None,
+        overlay_source_path=overlay_source_path if overlay_source_path and overlay_source_path.exists() else None,
         document_analysis=document_analysis,
     )
+
+
+def prepared_overlay_pages_from_manifest(value: object) -> dict[int, list[dict]] | None:
+    if not isinstance(value, dict):
+        return None
+    pages: dict[int, list[dict]] = {}
+    for page_key, raw_items in value.items():
+        try:
+            page_idx = int(page_key)
+        except Exception:
+            continue
+        if not isinstance(raw_items, list):
+            return None
+        items: list[dict] = []
+        for raw_item in raw_items:
+            if not isinstance(raw_item, dict):
+                return None
+            items.append(dict(raw_item))
+        pages[page_idx] = items
+    return pages or None
 
 
 def load_matching_manifest(
@@ -324,13 +353,6 @@ def bbox_candidates_to_manifest(candidates: BBoxTextStripCandidates) -> dict[str
             str(page_idx): [list(rect) for rect in rects]
             for page_idx, rects in sorted((candidates.page_protected_rects or {}).items())
         },
-        "decisions": [
-            decision.to_manifest()
-            for decision in sorted(
-                candidates.decisions,
-                key=lambda value: (value.page_idx, value.item_id, value.action, value.status),
-            )
-        ],
         "uncovered_unsafe_vector_item_ids": sorted(candidates.uncovered_unsafe_vector_item_ids),
         "pages_skipped_complex": candidates.pages_skipped_complex,
         "pages_skipped_no_text_overlap": candidates.pages_skipped_no_text_overlap,
@@ -379,9 +401,6 @@ def bbox_candidates_from_manifest(value: object) -> BBoxTextStripCandidates | No
                 rects.append(rect)
         if rects:
             page_protected_rects[page_idx] = tuple(rects)
-    decisions = decisions_from_manifest(payload.get("decisions"))
-    if page_rects and not decisions:
-        return None
     if (
         not page_rects
         and not payload.get("skipped_complex_page_indices")
@@ -394,7 +413,6 @@ def bbox_candidates_from_manifest(value: object) -> BBoxTextStripCandidates | No
     return BBoxTextStripCandidates(
         page_rects=page_rects,
         page_protected_rects=page_protected_rects,
-        decisions=decisions,
         uncovered_unsafe_vector_item_ids=frozenset(
             str(value)
             for value in list(payload.get("uncovered_unsafe_vector_item_ids") or [])
@@ -412,16 +430,6 @@ def bbox_candidates_from_manifest(value: object) -> BBoxTextStripCandidates | No
         skipped_form_xobject_page_indices=frozenset(int_list(payload.get("skipped_form_xobject_page_indices"))),
         strip_no_effect_page_indices=frozenset(int_list(payload.get("strip_no_effect_page_indices"))),
         page_features=page_features_from_manifest(payload.get("page_features")),
-    )
-
-
-def decisions_from_manifest(value: object) -> tuple[SourceCleanupDecision, ...]:
-    if not isinstance(value, list):
-        return ()
-    return tuple(
-        decision
-        for item in value
-        if (decision := SourceCleanupDecision.from_manifest(item)) is not None
     )
 
 

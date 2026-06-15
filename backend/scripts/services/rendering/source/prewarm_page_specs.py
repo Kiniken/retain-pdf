@@ -25,7 +25,6 @@ def build_background_render_page_specs_manifest(
     effective_inner_bbox_lookup: dict[str, list[float]],
     prepared_translated_pages: dict[int, list[dict]] | None = None,
     color_adapted_pages: dict[int, list[dict]] | None = None,
-    page_size_lookup: dict[int, tuple[float, float]] | None = None,
 ) -> dict[str, Any]:
     try:
         prepared = prepared_translated_pages or prepare_translated_pages_for_render(
@@ -39,7 +38,6 @@ def build_background_render_page_specs_manifest(
             source_pdf_path=source_pdf_path,
             translated_pages=adapted,
             prepared=True,
-            page_size_lookup=page_size_lookup,
         )
         return {
             "algorithm": BACKGROUND_RENDER_PAGE_SPECS_ALGORITHM_VERSION,

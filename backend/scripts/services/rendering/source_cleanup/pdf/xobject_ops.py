@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Callable
 
 import fitz
@@ -10,7 +11,6 @@ from pikepdf import Name
 from services.rendering.source_cleanup.pdf.pdf_math import PdfMatrix
 from services.rendering.source_cleanup.pdf.pdf_math import matrix_from_object
 from services.rendering.source_cleanup.pdf.pdf_math import mul_matrix
-from services.rendering.source_cleanup.execution_policy import PageCleanupExecutionPolicy
 
 
 StreamRewrite = Callable[
@@ -22,10 +22,12 @@ StreamRewrite = Callable[
         bool,
         PdfMatrix,
         set[tuple[int, int]],
-        PageCleanupExecutionPolicy | None,
     ],
     tuple[bytes | None, int, int],
 ]
+
+
+BBOX_TEXT_STRIP_FORM_RECURSE_MAX_RAW_BYTES = 1_000_000
 
 
 @dataclass(frozen=True)
@@ -56,7 +58,6 @@ def rewrite_xobject_do(
     ctm: PdfMatrix,
     visited_forms: set[tuple[int, int]] | None,
     rewrite_stream: StreamRewrite,
-    execution_policy: PageCleanupExecutionPolicy | None = None,
 ) -> XObjectRewriteResult:
     form_context = _form_context(
         operands=operands,
@@ -79,7 +80,6 @@ def rewrite_xobject_do(
             recurse_forms=recurse_forms,
             ctm=ctm,
             rewrite_stream=rewrite_stream,
-            execution_policy=execution_policy,
         )
     finally:
         active_forms.remove(form_context.form_key)
@@ -109,6 +109,8 @@ def _form_context(
     xobject = _lookup_xobject(xobjects, xobject_name)
     if xobject is None or not _is_form_xobject(xobject):
         return None
+    if _form_stream_too_large_for_rewrite(xobject):
+        return None
     form_key = _form_identity(xobject)
     active_forms = visited_forms if visited_forms is not None else set()
     if form_key in active_forms:
@@ -132,7 +134,6 @@ def _rewrite_form_context(
     recurse_forms: bool,
     ctm: PdfMatrix,
     rewrite_stream: StreamRewrite,
-    execution_policy: PageCleanupExecutionPolicy | None,
 ) -> XObjectRewriteResult:
     cloned_xobject = _clone_form_xobject(context.pdf, context.xobject)
     form_matrix = matrix_from_object(context.xobject.get(Name("/Matrix"), []))
@@ -144,7 +145,6 @@ def _rewrite_form_context(
         recurse_forms,
         mul_matrix(ctm, form_matrix),
         context.visited_forms,
-        execution_policy,
     )
     if not form_content or form_removed <= 0:
         return XObjectRewriteResult(
@@ -177,6 +177,32 @@ def _is_form_xobject(xobject: pikepdf.Object) -> bool:
         return str(xobject.get(Name("/Subtype"))) == "/Form"
     except Exception:
         return False
+
+
+def _form_stream_too_large_for_rewrite(xobject: pikepdf.Object) -> bool:
+    max_bytes = _form_recurse_max_raw_bytes()
+    if max_bytes <= 0:
+        return False
+    try:
+        length = int(xobject.get(Name("/Length")) or 0)
+        if length > max_bytes:
+            return True
+    except Exception:
+        pass
+    try:
+        return len(xobject.read_raw_bytes()) > max_bytes
+    except Exception:
+        return False
+
+
+def _form_recurse_max_raw_bytes() -> int:
+    raw = str(os.environ.get("RETAIN_BBOX_TEXT_STRIP_FORM_RECURSE_MAX_RAW_BYTES", "") or "").strip()
+    if raw:
+        try:
+            return max(0, int(raw))
+        except ValueError:
+            pass
+    return BBOX_TEXT_STRIP_FORM_RECURSE_MAX_RAW_BYTES
 
 
 def _form_identity(xobject: pikepdf.Object) -> tuple[int, int]:

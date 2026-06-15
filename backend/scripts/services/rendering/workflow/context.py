@@ -29,6 +29,8 @@ class RenderExecutionContext:
     source_text_precleaned_page_indices: frozenset[int] = frozenset()
     source_cleanup_strategy: str = "pikepdf_text_strip"
     background_render_page_specs: list[RenderPageSpec] | None = None
+    prepared_overlay_pages: dict[int, list[dict]] | None = None
     render_colors_by_item_id: dict[str, dict[str, tuple[float, float, float]]] | None = None
+    overlay_source_path: Path | None = None
     page_routes_by_index: dict[int, RenderPageAnalysis] | None = None
     visual_cover_page_indices: frozenset[int] = frozenset()

@@ -12,9 +12,6 @@ from services.rendering.source_cleanup.pdf.text_ops import estimated_user_text_g
 from services.rendering.source_cleanup.pdf.text_ops import text_operand_metrics
 
 
-MIN_WHOLE_TEXT_SHOW_REMOVAL_COVERAGE = 0.65
-
-
 @dataclass(frozen=True)
 class TextShowRewriteDecision:
     text_metrics: TextOperandMetrics
@@ -43,9 +40,6 @@ def decide_text_show_rewrite(
         user_point[0],
         user_point[1],
         text_rect,
-    ) and _strip_index_covers_text_rect(
-        strip_index,
-        text_rect,
     ) and not is_protected_text_op(
         user_point=user_point,
         text_rect=text_rect,
@@ -57,12 +51,3 @@ def decide_text_show_rewrite(
         text_rect=text_rect,
         remove=remove,
     )
-
-
-def _strip_index_covers_text_rect(strip_index: RectIndex, text_rect: RectTuple) -> bool:
-    text_area = max(_rect_area(text_rect), 0.001)
-    return strip_index.max_overlap_area(text_rect) / text_area >= MIN_WHOLE_TEXT_SHOW_REMOVAL_COVERAGE
-
-
-def _rect_area(rect: RectTuple) -> float:
-    return max(0.0, rect[2] - rect[0]) * max(0.0, rect[3] - rect[1])

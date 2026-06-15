@@ -141,7 +141,7 @@ def build_render_source_pdf(
                 | bbox_text_result.skipped_visual_background_page_indices
                 | bbox_text_result.skipped_form_xobject_page_indices
                 | bbox_text_result.strip_no_effect_page_indices
-            )
+            ) - bbox_text_result.changed_page_indices
             bbox_text_strip_candidates = bbox_text_result.candidates
             if bbox_text_result.changed and bbox_text_result.output_pdf_path is not None:
                 render_source_path = bbox_text_result.output_pdf_path

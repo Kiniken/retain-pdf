@@ -102,6 +102,7 @@ def overlay_translated_pages_on_doc(
     prebuilt_source_path: Path | None = None,
     source_base_pdf_path: Path | None = None,
     color_sample_pdf_path: Path | None = None,
+    prepared_overlay_pages: dict[int, list[dict]] | None = None,
     precomputed_colors_by_item_id: dict[str, dict[str, tuple[float, float, float]]] | None = None,
     pikepdf_output_pdf_path: Path | None = None,
     source_cleanup_strategy: str = "typst_fill",
@@ -109,13 +110,16 @@ def overlay_translated_pages_on_doc(
     request_chat_content_fn: TypstRepairRequestFn | None = None,
 ) -> dict[str, object]:
     prepare_started = time.perf_counter()
-    translated_pages = prepare_translated_pages_for_render(
-        source_pdf_path,
-        translated_pages,
-        first_line_indent_lookup=first_line_indent_lookup,
-        effective_inner_bbox_lookup=effective_inner_bbox_lookup,
-        skip_policy_page_indices=source_text_precleaned_page_indices,
-    )
+    if prepared_overlay_pages is not None:
+        translated_pages = prepared_overlay_pages
+    else:
+        translated_pages = prepare_translated_pages_for_render(
+            source_pdf_path,
+            translated_pages,
+            first_line_indent_lookup=first_line_indent_lookup,
+            effective_inner_bbox_lookup=effective_inner_bbox_lookup,
+            skip_policy_page_indices=source_text_precleaned_page_indices,
+        )
     ordered_page_indices, translated_pages = prepare_overlay_doc_pages(doc, translated_pages)
     cover_fallback_page_indices = frozenset(
         page_idx
@@ -142,7 +146,9 @@ def overlay_translated_pages_on_doc(
         }
 
     color_started = time.perf_counter()
-    if color_sample_pdf_path is not None:
+    if prepared_overlay_pages is not None:
+        color_elapsed = 0.0
+    elif color_sample_pdf_path is not None:
         sample_doc = fitz.open(color_sample_pdf_path)
         try:
             translated_pages = apply_overlay_page_colors(
@@ -160,7 +166,8 @@ def overlay_translated_pages_on_doc(
             translated_pages,
             precomputed_colors_by_item_id=precomputed_colors_by_item_id,
         )
-    color_elapsed = time.perf_counter() - color_started
+    if prepared_overlay_pages is None:
+        color_elapsed = time.perf_counter() - color_started
     specs_started = time.perf_counter()
     page_specs = build_overlay_page_specs(doc, ordered_page_indices, translated_pages, stem=stem)
     book_specs = [(page_width, page_height, items) for _, page_width, page_height, items, _ in page_specs]

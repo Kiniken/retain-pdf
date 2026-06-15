@@ -285,6 +285,32 @@ def test_body_text_flow_ignores_ocr_visual_line_breaks() -> None:
     )
 
 
+def test_body_numbered_line_block_preserves_line_flow() -> None:
+    text = "\n".join(
+        [
+            "1. University of California, Berkeley",
+            "2. Independent Contributor",
+            "3. Stanford University",
+            "4. University of Michigan",
+            "5. Northeastern University",
+        ]
+    )
+    lines = [
+        {"bbox": [104.0, 104.5 + index * 9.5, 280.5, 114.0 + index * 9.5], "text": line}
+        for index, line in enumerate(text.splitlines())
+    ]
+
+    assert (
+        classify_text_flow_for_role(
+            text=text,
+            lines=lines,
+            semantic_role="body",
+            structure_role="body",
+        )
+        == "preserve_lines"
+    )
+
+
 def test_body_translation_context_does_not_feed_visual_lines_to_prompt() -> None:
     context = build_item_context(
         {
