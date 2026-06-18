@@ -126,11 +126,16 @@ export function submitUploadRequest(url, form, onProgress) {
       const message = typeof xhr.response === "object" && xhr.response
         ? (xhr.response.message || JSON.stringify(xhr.response))
         : (xhr.responseText || "");
-      reject(new Error(`提交失败: ${xhr.status} ${message}`));
+      const error = new Error(`提交失败: ${xhr.status} ${message}`);
+      error.status = xhr.status;
+      error.url = url;
+      reject(error);
     });
 
     xhr.addEventListener("error", () => {
-      reject(new Error(`提交失败: 网络错误。当前 API Base 为 ${apiBase()}，上传地址为 ${url}。请确认本地服务已经启动。`));
+      const error = new Error(`提交失败: 网络错误。当前 API Base 为 ${apiBase()}，上传地址为 ${url}。请确认本地服务已经启动。`);
+      error.url = url;
+      reject(error);
     });
 
     xhr.send(form);

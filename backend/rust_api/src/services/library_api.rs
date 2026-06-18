@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::models::{
+use crate::models::api::{
     LibraryBatchDeleteInput, LibraryBatchDeleteResultView, LibraryBookDetailView,
     LibraryBookListView, LibraryDeleteResultView, ListJobsQuery,
 };

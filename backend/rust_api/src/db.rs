@@ -212,10 +212,10 @@ mod tests {
     use rusqlite::{params, Connection};
 
     use super::*;
-    use crate::models::{
-        now_iso, CreateJobInput, JobArtifacts, JobFailureInfo, JobSnapshot, JobStatusKind,
-        WorkflowKind,
+    use crate::models::domain::{
+        now_iso, JobArtifacts, JobFailureInfo, JobSnapshot, JobStatusKind, WorkflowKind,
     };
+    use crate::models::request::CreateJobInput;
 
     struct TestDbFs {
         root: PathBuf,

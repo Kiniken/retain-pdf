@@ -1,25 +1,14 @@
-import { API_PREFIX } from "../constants.js";
-import { mountGlossariesFeature } from "../features/glossaries/controller.js";
 import {
-  createGlossary,
-  deleteGlossary,
-  exportGlossaryCsv,
-  fetchGlossaries,
-  fetchGlossary,
-  parseGlossaryCsv,
-  updateGlossary,
-} from "../api/glossaries.js";
+  defaultGlossaryMountPorts,
+} from "./glossary-mount-ports.js";
+import { createWorkflowPorts } from "./feature-workflow-ports.js";
+import {
+  buildGlossaryFeatureMountPayload,
+} from "./glossary-feature-mount-payloads.js";
 
-export function mountGlossaryFeature(features) {
-  features.glossariesFeature = mountGlossariesFeature({
-    apiPrefix: API_PREFIX,
-    fetchGlossaries,
-    fetchGlossary,
-    createGlossary,
-    updateGlossary,
-    deleteGlossary,
-    exportGlossaryCsv,
-    parseGlossaryCsv,
-    refreshWorkflowGlossaries: (options) => features.workflowFeature?.loadGlossaryOptions(options),
-  });
+export function mountGlossaryFeature(features, ports = defaultGlossaryMountPorts) {
+  const workflowPorts = createWorkflowPorts(features);
+  features.glossariesFeature = ports.mountGlossariesFeature(
+    buildGlossaryFeatureMountPayload({ ports, workflowPorts }),
+  );
 }

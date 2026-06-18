@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use crate::models::JobSnapshot;
+use crate::models::domain::JobSnapshot;
 
 use super::artifact_fields::{artifact_field_from_key, ArtifactField, ARTIFACT_LABEL_RULES};
 use super::{job_artifacts_mut, ocr_provider_diagnostics_mut, parse_labeled_value};

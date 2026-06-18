@@ -2,7 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use std::path::Path;
 
 use crate::job_runner::{ocr_provider_diagnostics_mut, ProcessRuntimeDeps};
-use crate::models::{now_iso, JobRuntimeState};
+use crate::models::domain::{now_iso, JobRuntimeState};
 use crate::ocr_provider::mineru::{parse_extra_formats, MineruClient};
 
 use super::mineru_polling::{poll_remote_task_until_ready, poll_uploaded_batch_until_ready};

@@ -1,12 +1,8 @@
-import { buildFrontendPageUrl } from "../config.js";
 import {
-  hasReadyManifestArtifact,
-} from "../job/artifacts.js";
-import {
-  resolveJobActions,
-  resolveJobMarkdownBundleAction,
-  resolveJobSourcePdfAction,
-} from "../job.js";
+  buildReaderPageUrl,
+  isReaderActionEnabled,
+} from "../job/action-model.js";
+import { buildJobActionButtonsViewModel } from "./job-actions-view-model.js";
 import {
   clearFileInputValueView,
   resetUploadedFileView,
@@ -14,53 +10,30 @@ import {
   setActionLinkView,
   setLinearProgressView,
   setStatusCardCancelEnabled,
+  syncStatusCardPrimaryActionsView,
   setUploadProgressView,
 } from "./job-actions-view.js";
-import { resetUploadState } from "../state/actions.js";
-import { state } from "../state/store.js";
-import { clearCurrentJobTiming } from "../features/job-runtime/runtime-state.js";
+import { STATUS_CARD_IDS } from "../components/status/job-status-card-dom-contract.js";
+import { DOWNLOAD_ACTION_IDS } from "../contracts/download-action-contract.js";
+import { defaultJobActionsRuntime } from "./default-job-actions-runtime.js";
+
+const jobActionsRuntime = defaultJobActionsRuntime;
 
 export function setActionLink(id, url, enabled) {
   setActionLinkView(id, url, enabled);
 }
 
-export function buildReaderPageUrl(jobId) {
-  const normalizedJobId = `${jobId || ""}`.trim();
-  if (!normalizedJobId) {
-    return "";
-  }
-  return buildFrontendPageUrl("./reader.html", {
-    job_id: normalizedJobId,
-  });
-}
-
-export function isReaderActionEnabled(job, manifestPayload = null) {
-  const actions = resolveJobActions(job);
-  const sourcePdfAction = resolveJobSourcePdfAction(job, manifestPayload);
-  return Boolean(
-    job?.job_id
-    && sourcePdfAction.ready
-    && (hasReadyManifestArtifact(manifestPayload, "pdf")
-      || hasReadyManifestArtifact(manifestPayload, "translated_pdf")
-      || hasReadyManifestArtifact(manifestPayload, "result_pdf")
-      || actions.pdfEnabled),
-  );
-}
+export { buildReaderPageUrl, isReaderActionEnabled };
 
 export function updateActionButtons(job, manifestPayload = null) {
-  const actions = resolveJobActions(job);
-  setActionLink("download-btn", actions.bundle, actions.bundleEnabled && !!actions.bundle);
-  const markdownBundleAction = resolveJobMarkdownBundleAction(job, manifestPayload);
-  const sourcePdfAction = resolveJobSourcePdfAction(job, manifestPayload);
-  setActionLink("markdown-bundle-btn", markdownBundleAction.url, markdownBundleAction.ready && !!markdownBundleAction.url);
-  setActionLink("source-pdf-btn", sourcePdfAction.url, sourcePdfAction.ready && !!sourcePdfAction.url);
-  setActionLink("pdf-btn", actions.pdf, actions.pdfEnabled && !!actions.pdf);
-  setActionLink("markdown-btn", actions.markdownJson, actions.markdownJsonEnabled && !!actions.markdownJson);
-  setActionLink("markdown-raw-btn", actions.markdownRaw, actions.markdownRawEnabled && !!actions.markdownRaw);
-  const readerEnabled = isReaderActionEnabled(job, manifestPayload);
-  setActionLink("reader-btn", buildReaderPageUrl(job?.job_id), readerEnabled);
-  setActionLink("compare-reader-btn", buildReaderPageUrl(job?.job_id), readerEnabled);
-  setStatusCardCancelEnabled(actions.cancelEnabled && !!actions.cancel);
+  const viewModel = buildJobActionButtonsViewModel(job, manifestPayload);
+  setActionLink(STATUS_CARD_IDS.legacyBundleButton, viewModel.legacyBundle.url, viewModel.legacyBundle.enabled);
+  setActionLink(DOWNLOAD_ACTION_IDS.MARKDOWN_BUNDLE, viewModel.markdownBundle.url, viewModel.markdownBundle.enabled);
+  setActionLink(STATUS_CARD_IDS.legacyMarkdownJsonButton, viewModel.markdownJson.url, viewModel.markdownJson.enabled);
+  setActionLink(STATUS_CARD_IDS.legacyMarkdownRawButton, viewModel.markdownRaw.url, viewModel.markdownRaw.enabled);
+  setActionLink("compare-reader-btn", viewModel.compareReader.url, viewModel.compareReader.enabled);
+  syncStatusCardPrimaryActionsView(viewModel.statusCardPrimaryActions);
+  setStatusCardCancelEnabled(viewModel.statusCardTaskActions.cancelEnabled);
 }
 
 export function setLinearProgress(barId, textId, current, total, fallbackText = "-", percentOverride = null) {
@@ -80,8 +53,7 @@ export function clearFileInputValue() {
 }
 
 export function resetUploadedFile() {
-  resetUploadState(state, { includePageRange: false });
-  clearCurrentJobTiming(state);
+  jobActionsRuntime.resetUploadedFileState();
   resetUploadedFileView();
 }
 

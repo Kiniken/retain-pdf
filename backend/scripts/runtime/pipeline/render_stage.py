@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from foundation.config import fonts
@@ -11,6 +12,15 @@ from services.pipeline_shared.events import emit_stage_transition
 from services.pipeline_shared.events import reset_render_page_progress
 from services.rendering.source.prewarm import prewarm_manifest_path_from_translations_dir
 from services.rendering.workflow import render_translated_pages_map
+
+
+def render_no_cache_enabled() -> bool:
+    return str(os.environ.get("RETAINPDF_RENDER_NO_CACHE") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 def build_book_from_translations(
@@ -41,8 +51,12 @@ def build_book_from_translations(
         end_page=end_page,
         render_mode=render_mode,
     )
-    prewarm_manifest_path = render_prewarm_manifest_path or prewarm_manifest_path_from_translations_dir(
-        render_plan.render_inputs.translations_dir
+    prewarm_manifest_path = (
+        None
+        if render_no_cache_enabled()
+        else render_prewarm_manifest_path or prewarm_manifest_path_from_translations_dir(
+            render_plan.render_inputs.translations_dir
+        )
     )
     pages_rendered = execute_render_plan(
         render_plan=render_plan,
@@ -148,8 +162,12 @@ def run_render_stage(
         progress_total=render_plan.render_total,
         payload={"effective_render_mode": render_plan.effective_render_mode},
     )
-    prewarm_manifest_path = render_prewarm_manifest_path or prewarm_manifest_path_from_translations_dir(
-        render_plan.render_inputs.translations_dir
+    prewarm_manifest_path = (
+        None
+        if render_no_cache_enabled()
+        else render_prewarm_manifest_path or prewarm_manifest_path_from_translations_dir(
+            render_plan.render_inputs.translations_dir
+        )
     )
     pages_rendered = execute_render_plan(
         render_plan=render_plan,

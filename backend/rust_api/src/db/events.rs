@@ -2,7 +2,8 @@ use anyhow::Result;
 use rusqlite::params;
 use serde_json::Value;
 
-use crate::models::{event_progress_unit, job_user_stage, now_iso, JobEventRecord};
+use crate::models::api::JobEventRecord;
+use crate::models::domain::{event_progress_unit, job_user_stage, now_iso};
 
 use super::rows::row_to_job_event;
 use super::Db;

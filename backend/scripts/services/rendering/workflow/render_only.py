@@ -28,6 +28,7 @@ from services.pipeline_shared.events import emit_stage_transition
 from services.pipeline_shared.events import PipelineEventWriter
 from services.pipeline_shared.events import pipeline_event_writer_scope
 from services.pipeline_shared.io import save_json
+from services.rendering.source.prewarm import prewarm_manifest_path_from_artifacts_dir
 
 
 def parse_args() -> argparse.Namespace:
@@ -135,6 +136,7 @@ def main() -> None:
             typst_font_family=args.typst_font_family,
             pdf_compress_dpi=args.pdf_compress_dpi,
             source_cleanup_strategy=args.source_cleanup_strategy,
+            render_prewarm_manifest_path=prewarm_manifest_path_from_artifacts_dir(job_dirs.artifacts_dir),
         )
         elapsed = time.perf_counter() - started
         save_json(

@@ -1,0 +1,31 @@
+export function createSubmitFlowPorts({
+  workflowPorts = {},
+  uploadPorts = {},
+  credentialsPorts = {},
+  jobRuntimePorts = {},
+  libraryEventPort = null,
+  jobSnapshotPort = null,
+  openSetupDialog,
+  renderJob,
+  submitJobRequest,
+} = {}) {
+  return {
+    openSetupDialog,
+    renderJob,
+    submitJobRequest,
+    currentWorkflow: workflowPorts.currentWorkflow,
+    workflowNeedsCredentials: workflowPorts.workflowNeedsCredentials,
+    workflowNeedsUpload: workflowPorts.workflowNeedsUpload,
+    currentRenderSourceJobId: workflowPorts.currentRenderSourceJobId,
+    currentBudgetState: workflowPorts.currentBudgetState,
+    collectRunPayload: workflowPorts.collectRunPayload,
+    validateBeforeSubmit: uploadPorts.validatePageRanges,
+    ensureOcrCredentialsReady: credentialsPorts.ensureOcrCredentialsReady,
+    hasBrowserCredentials: credentialsPorts.hasBrowserCredentials,
+    openBrowserCredentialsDialog: credentialsPorts.openBrowserCredentialsDialog,
+    refreshDeepSeekBalance: credentialsPorts.refreshDeepSeekBalance,
+    startJobPolling: jobRuntimePorts.startJobPolling,
+    libraryEventPort,
+    jobSnapshotPort,
+  };
+}

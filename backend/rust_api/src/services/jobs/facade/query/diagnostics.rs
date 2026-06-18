@@ -1,6 +1,7 @@
 use crate::error::AppError;
 use crate::job_failure::classify_job_failure;
-use crate::models::{JobDiagnosticsView, JobFailureInfo, JobResumePlanView, JobSnapshot};
+use crate::models::api::{JobDiagnosticsView, JobResumePlanView};
+use crate::models::domain::{JobFailureInfo, JobSnapshot, JobStatusKind};
 use crate::services::jobs::stage_plan::resume_plan;
 use crate::storage_paths::resolve_pipeline_summary;
 
@@ -45,7 +46,7 @@ fn build_job_diagnostics_view(
         None => JobDiagnosticsView {
             failed_stage: job.stage.clone(),
             failed_substage: None,
-            summary: if matches!(job.status, crate::models::JobStatusKind::Failed) {
+            summary: if matches!(job.status, JobStatusKind::Failed) {
                 job.error
                     .clone()
                     .filter(|value| !value.trim().is_empty())

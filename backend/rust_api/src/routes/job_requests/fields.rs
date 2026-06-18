@@ -1,8 +1,9 @@
 use crate::error::AppError;
-use crate::models::CreateJobInput;
+use crate::models::request::CreateJobInput;
 
 use super::parsing::{
     parse_bool_like, parse_f64_like, parse_glossary_entries_field, parse_i64_like,
+    parse_json_object_field,
 };
 
 pub(super) fn apply_multipart_request_field(
@@ -64,6 +65,7 @@ pub(super) fn apply_multipart_request_field(
         "extra_formats" => request.ocr.extra_formats = value.to_string(),
         "poll_interval" => request.ocr.poll_interval = parse_i64_like(name, value)?,
         "poll_timeout" => request.ocr.poll_timeout = parse_i64_like(name, value)?,
+        "ocr_options" => request.ocr.options = parse_json_object_field(name, value)?,
         "timeout_seconds" => request.runtime.timeout_seconds = parse_i64_like(name, value)?,
         "body_font_size_factor" => {
             request.render.body_font_size_factor = parse_f64_like(name, value)?
@@ -137,6 +139,37 @@ mod tests {
         assert_eq!(request.translation.api_key, "sk-test");
         assert_eq!(request.render.render_mode, "auto");
         assert_eq!(request.runtime.timeout_seconds, 600);
+    }
+
+    #[test]
+    fn apply_multipart_request_field_parses_ocr_options() {
+        let mut request = CreateJobInput::default();
+        let mut developer_mode = false;
+
+        apply_multipart_request_field(
+            &mut request,
+            &mut developer_mode,
+            "ocr_options",
+            r#"{"command":"python local.py","raw_provider":"generic_flat_ocr"}"#,
+        )
+        .expect("ocr_options");
+
+        assert_eq!(
+            request
+                .ocr
+                .options
+                .get("command")
+                .and_then(|value| value.as_str()),
+            Some("python local.py")
+        );
+        assert_eq!(
+            request
+                .ocr
+                .options
+                .get("raw_provider")
+                .and_then(|value| value.as_str()),
+            Some("generic_flat_ocr")
+        );
     }
 
     #[test]

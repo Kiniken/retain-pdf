@@ -56,22 +56,34 @@ def _slow_worker_cap(workers: int, single_slow_count: int = 0) -> int:
     return min(single_slow_count, backlog_scaled)
 
 
-def _adaptive_floor_limit(workers: int) -> int:
+def adaptive_floor_limit(workers: int) -> int:
     return max(1, min(8, max(1, workers)))
 
 
-def _adaptive_initial_limit(workers: int) -> int:
+def adaptive_initial_limit(workers: int) -> int:
     worker_count = max(1, int(workers))
     if worker_count <= 32:
         return worker_count
     return min(worker_count, 32)
 
 
-def _provider_adaptive_initial_limit(*, workers: int, provider_family: str = "") -> int:
+def provider_adaptive_initial_limit(*, workers: int, provider_family: str = "") -> int:
     worker_count = max(1, int(workers))
     if provider_family == "deepseek_official":
         return min(worker_count, _env_int(DEEPSEEK_ADAPTIVE_INITIAL_LIMIT_ENV, worker_count))
-    return _adaptive_initial_limit(worker_count)
+    return adaptive_initial_limit(worker_count)
+
+
+def _adaptive_floor_limit(workers: int) -> int:
+    return adaptive_floor_limit(workers)
+
+
+def _adaptive_initial_limit(workers: int) -> int:
+    return adaptive_initial_limit(workers)
+
+
+def _provider_adaptive_initial_limit(*, workers: int, provider_family: str = "") -> int:
+    return provider_adaptive_initial_limit(workers=workers, provider_family=provider_family)
 
 
 def _fast_queue_targets(*, batched_fast_count: int, single_fast_count: int) -> list[tuple[str, int]]:
@@ -161,6 +173,9 @@ def _allocate_translation_queue_workers(
 
 
 __all__ = [
+    "adaptive_floor_limit",
+    "adaptive_initial_limit",
+    "provider_adaptive_initial_limit",
     "_adaptive_floor_limit",
     "_adaptive_initial_limit",
     "DEEPSEEK_ADAPTIVE_INITIAL_LIMIT_ENV",

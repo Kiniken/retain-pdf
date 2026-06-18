@@ -44,6 +44,13 @@ from services.ocr_provider.paddle_api import submit_local_file as submit_local_p
 from services.ocr_provider.paddle_api import submit_remote_url as submit_remote_paddle_url
 from services.pipeline_shared.contracts import PIPELINE_SUMMARY_FILE_NAME
 from services.pipeline_shared.contracts import STDOUT_LABEL_EVENTS_JSONL
+from services.pipeline_shared.contracts import STDOUT_LABEL_JOB_ROOT
+from services.pipeline_shared.contracts import STDOUT_LABEL_LAYOUT_JSON
+from services.pipeline_shared.contracts import STDOUT_LABEL_NORMALIZATION_REPORT_JSON
+from services.pipeline_shared.contracts import STDOUT_LABEL_NORMALIZED_DOCUMENT_JSON
+from services.pipeline_shared.contracts import STDOUT_LABEL_SOURCE_PDF
+from services.pipeline_shared.contracts import STDOUT_LABEL_SUMMARY
+from services.pipeline_shared.contracts import format_stdout_kv
 from services.pipeline_shared.events import emit_artifact_published
 from services.pipeline_shared.events import emit_stage_progress
 from services.pipeline_shared.events import emit_stage_transition
@@ -76,12 +83,14 @@ def _args_from_spec(spec: ProviderStageSpec) -> SimpleNamespace:
     job_dirs = spec.job_dirs
     provider = str(spec.ocr.provider or "mineru").strip().lower()
     provider_token = resolve_credential_ref(spec.ocr.credential_ref)
+    ocr_options = dict(spec.ocr.options or {})
     return SimpleNamespace(
         provider=provider,
         file_url=spec.source.file_url,
         file_path=str(spec.source.file_path or ""),
         mineru_token=provider_token if provider == "mineru" else "",
         paddle_token=provider_token if provider == "paddle" else "",
+        ocr_credential=provider_token,
         model_version=spec.ocr.model_version,
         paddle_api_url=spec.ocr.paddle_api_url,
         paddle_model=spec.ocr.paddle_model,
@@ -96,6 +105,9 @@ def _args_from_spec(spec: ProviderStageSpec) -> SimpleNamespace:
         extra_formats=spec.ocr.extra_formats,
         poll_interval=spec.ocr.poll_interval,
         poll_timeout=spec.ocr.poll_timeout,
+        local_ocr_command=str(ocr_options.get("command", "") or ""),
+        local_ocr_raw_provider=str(ocr_options.get("raw_provider", "") or ""),
+        ocr_provider_options=ocr_options,
         job_root=str(job_dirs.root),
         source_dir=str(job_dirs.source_dir),
         ocr_dir=str(job_dirs.ocr_dir),
@@ -219,12 +231,95 @@ def run_paddle_to_job_dir(args: SimpleNamespace) -> tuple[Path, Path, Path, Path
 
 def run_paddle_provider(args: SimpleNamespace) -> OcrProviderResult:
     _job_root, source_pdf_path, provider_result_json_path, normalized_json_path = run_paddle_to_job_dir(args)
+    normalized_report_json_path = normalized_json_path.with_name(DOCUMENT_SCHEMA_REPORT_FILE_NAME)
     return OcrProviderResult(
         job_dirs=job_dirs_from_explicit_args(args),
         source_pdf_path=source_pdf_path,
         provider_result_json_path=provider_result_json_path,
         normalized_json_path=normalized_json_path,
+        normalized_report_json_path=normalized_report_json_path,
+        provider_raw_dir=provider_result_json_path.parent / "paddle_raw",
+        raw_main_payload_path=provider_result_json_path,
     )
+
+
+def _finish_ocr_only_provider_job(
+    *,
+    job_dirs,
+    source_pdf_path: Path,
+    layout_json_path: Path,
+    normalized_json_path: Path,
+    normalization_report_path: Path,
+    event_writer: PipelineEventWriter,
+    provider: str,
+    stage_spec_schema_version: str,
+) -> None:
+    validation = validate_saved_document_path(normalized_json_path)
+    summary_path = job_dirs.artifacts_dir / PIPELINE_SUMMARY_FILE_NAME
+    save_json(
+        summary_path,
+        {
+            "job_root": str(job_dirs.root),
+            "source_pdf": str(source_pdf_path),
+            "layout_json": str(layout_json_path),
+            "normalized_document_json": str(normalized_json_path),
+            "normalization_report_json": str(normalization_report_path),
+            "schema_validation": validation,
+            "events_jsonl": str(event_writer.path),
+            "invocation": build_stage_invocation_metadata(
+                stage="provider",
+                stage_spec_schema_version=stage_spec_schema_version,
+            ),
+        },
+    )
+    emit_artifact_published(
+        artifact_key="source_pdf",
+        path=source_pdf_path,
+        stage="saving",
+        message="源 PDF 已登记",
+    )
+    emit_artifact_published(
+        artifact_key="layout_json",
+        path=layout_json_path,
+        stage="saving",
+        message="layout json 已发布",
+    )
+    emit_artifact_published(
+        artifact_key="normalized_document_json",
+        path=normalized_json_path,
+        stage="saving",
+        message="标准化文档已发布",
+    )
+    emit_artifact_published(
+        artifact_key="normalization_report_json",
+        path=normalization_report_path,
+        stage="saving",
+        message="标准化报告已发布",
+    )
+    emit_artifact_published(
+        artifact_key="pipeline_summary_json",
+        path=summary_path,
+        stage="saving",
+        message="已写出 OCR provider summary",
+    )
+    emit_artifact_published(
+        artifact_key="pipeline_events_jsonl",
+        path=event_writer.path,
+        stage="saving",
+        message="统一事件流已写出",
+    )
+    emit_stage_transition(
+        stage="finished",
+        message="OCR provider 流程完成",
+        provider=provider,
+    )
+    print(format_stdout_kv(STDOUT_LABEL_JOB_ROOT, job_dirs.root))
+    print(format_stdout_kv(STDOUT_LABEL_SOURCE_PDF, source_pdf_path))
+    print(format_stdout_kv(STDOUT_LABEL_LAYOUT_JSON, layout_json_path))
+    print(format_stdout_kv(STDOUT_LABEL_NORMALIZED_DOCUMENT_JSON, normalized_json_path))
+    print(format_stdout_kv(STDOUT_LABEL_NORMALIZATION_REPORT_JSON, normalization_report_path))
+    print(format_stdout_kv(STDOUT_LABEL_SUMMARY, summary_path))
+    print(format_stdout_kv(STDOUT_LABEL_EVENTS_JSONL, event_writer.path))
 
 
 def main() -> None:
@@ -271,6 +366,19 @@ def main() -> None:
         normalized_json_path = provider_result.normalized_json_path
 
         normalization_report_path = normalized_json_path.with_name(DOCUMENT_SCHEMA_REPORT_FILE_NAME)
+        if spec.job.workflow.strip().lower() == "ocr":
+            _finish_ocr_only_provider_job(
+                job_dirs=job_dirs,
+                source_pdf_path=source_pdf_path,
+                layout_json_path=layout_json_path,
+                normalized_json_path=normalized_json_path,
+                normalization_report_path=normalization_report_path,
+                event_writer=event_writer,
+                provider=provider,
+                stage_spec_schema_version=stage_spec_schema_version,
+            )
+            return
+
         translation_source_json_path = normalized_json_path
         translations_dir = job_dirs.translated_dir
         translated_pdf_name = args.translated_pdf_name.strip() or f"{source_pdf_path.stem}-translated.pdf"

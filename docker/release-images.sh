@@ -48,6 +48,7 @@ docker build \
 
 docker build \
   "${build_arg_flags[@]}" \
+  --build-arg "RETAIN_PDF_VERSION=${VERSION_TAG#v}" \
   -f "${ROOT_DIR}/docker/Dockerfile.web" \
   -t "${WEB_VERSION_IMAGE}" \
   "${ROOT_DIR}"

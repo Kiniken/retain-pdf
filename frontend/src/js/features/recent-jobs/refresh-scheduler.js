@@ -1,14 +1,15 @@
+import {
+  defaultRecentJobsRefreshEnvironment,
+} from "./refresh-environment.js";
+
 const LIBRARY_SEARCH_DEBOUNCE_MS = 260;
 const LIBRARY_REFRESH_MIN_INTERVAL_MS = 5000;
-
-function isTranslationWorkflowOpen() {
-  return document.getElementById("translation-workflow-dialog")?.dataset.open === "1";
-}
 
 export function createRecentJobsRefreshScheduler({
   loadRecentJobs,
   scheduleAutoLoadCheck,
   setDialogOpen,
+  environment = defaultRecentJobsRefreshEnvironment,
 }) {
   let refreshTimer = null;
   let searchTimer = null;
@@ -17,7 +18,7 @@ export function createRecentJobsRefreshScheduler({
   let lastRefreshAt = 0;
 
   function isSuspended() {
-    return suspended || isTranslationWorkflowOpen();
+    return suspended || environment.isWorkflowOpen();
   }
 
   function getQuery() {
@@ -28,25 +29,25 @@ export function createRecentJobsRefreshScheduler({
     suspended = Boolean(value);
   }
 
-  function scheduleRefresh({ delay = 600, force = false } = {}) {
+  function scheduleRefresh({ delay = 600, force = false, bypassThrottle = false } = {}) {
     if (!force && isSuspended()) {
       return;
     }
-    const now = Date.now();
-    if (!force && now - lastRefreshAt < LIBRARY_REFRESH_MIN_INTERVAL_MS) {
+    const now = environment.now();
+    if (!force && !bypassThrottle && now - lastRefreshAt < LIBRARY_REFRESH_MIN_INTERVAL_MS) {
       return;
     }
     lastRefreshAt = now;
-    window.clearTimeout(refreshTimer);
-    refreshTimer = window.setTimeout(() => {
+    environment.clearTimeout(refreshTimer);
+    refreshTimer = environment.setTimeout(() => {
       void loadRecentJobs({ reset: true, silent: true });
     }, delay);
   }
 
   function updateSearch(nextQuery) {
     query = `${nextQuery || ""}`.trim();
-    window.clearTimeout(searchTimer);
-    searchTimer = window.setTimeout(() => {
+    environment.clearTimeout(searchTimer);
+    searchTimer = environment.setTimeout(() => {
       void loadRecentJobs({ reset: true, query });
     }, LIBRARY_SEARCH_DEBOUNCE_MS);
   }

@@ -1,4 +1,12 @@
-import { $ } from "../../dom.js";
+import { $ } from "../../dom/query.js";
+import {
+  APP_EVENTS,
+} from "../../contracts/app-contract.js";
+import {
+  GLOSSARY_DATASET,
+  GLOSSARY_DOM_IDS,
+  GLOSSARY_SELECTORS,
+} from "./glossary-dom-contract.js";
 
 const ENTRY_LEVEL_OPTIONS = [
   ["preserve", "保留"],
@@ -13,7 +21,7 @@ const MATCH_MODE_OPTIONS = [
 ];
 
 export function openGlossaryDialogView() {
-  const dialog = $("glossary-manager-dialog");
+  const dialog = $(GLOSSARY_DOM_IDS.dialog);
   if (!dialog || dialog.open) {
     return;
   }
@@ -21,11 +29,11 @@ export function openGlossaryDialogView() {
 }
 
 export function closeGlossaryDialogView() {
-  $("glossary-manager-dialog")?.close();
+  $(GLOSSARY_DOM_IDS.dialog)?.close();
 }
 
 export function setGlossaryStatus(message = "", tone = "") {
-  const el = $("glossary-status");
+  const el = $(GLOSSARY_DOM_IDS.status);
   if (!el) {
     return;
   }
@@ -37,8 +45,8 @@ export function setGlossaryStatus(message = "", tone = "") {
 }
 
 export function renderGlossaryList(items = [], selectedId = "") {
-  const list = $("glossary-list");
-  const empty = $("glossary-list-empty");
+  const list = $(GLOSSARY_DOM_IDS.list);
+  const empty = $(GLOSSARY_DOM_IDS.listEmpty);
   if (!list || !empty) {
     return;
   }
@@ -52,8 +60,8 @@ export function renderGlossaryList(items = [], selectedId = "") {
     }
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "glossary-list-item";
-    button.dataset.glossaryId = glossaryId;
+    button.className = GLOSSARY_SELECTORS.listItem.slice(1);
+    button.dataset[GLOSSARY_DATASET.glossaryId] = glossaryId;
     button.classList.toggle("is-active", glossaryId === normalizedSelectedId);
     const name = document.createElement("strong");
     name.textContent = item.name || glossaryId;
@@ -91,9 +99,9 @@ function createTextInput(value, className, placeholder = "") {
 }
 
 export function renderGlossaryEditor({ name = "", entries = [] } = {}) {
-  const nameInput = $("glossary-name");
-  const tbody = $("glossary-entries");
-  const empty = $("glossary-entries-empty");
+  const nameInput = $(GLOSSARY_DOM_IDS.nameInput);
+  const tbody = $(GLOSSARY_DOM_IDS.entries);
+  const empty = $(GLOSSARY_DOM_IDS.entriesEmpty);
   if (nameInput) {
     nameInput.value = name;
   }
@@ -108,33 +116,33 @@ export function renderGlossaryEditor({ name = "", entries = [] } = {}) {
 }
 
 export function appendGlossaryEntryRow(entry = {}) {
-  const tbody = $("glossary-entries");
-  const empty = $("glossary-entries-empty");
+  const tbody = $(GLOSSARY_DOM_IDS.entries);
+  const empty = $(GLOSSARY_DOM_IDS.entriesEmpty);
   if (!tbody) {
     return;
   }
   const tr = document.createElement("tr");
-  tr.className = "glossary-entry-row";
+  tr.className = GLOSSARY_SELECTORS.entryRow.slice(1);
 
   const sourceCell = document.createElement("td");
-  sourceCell.append(createTextInput(entry.source, "glossary-entry-source", "Hartree-Fock"));
+  sourceCell.append(createTextInput(entry.source, GLOSSARY_SELECTORS.entrySource.slice(1), "Hartree-Fock"));
 
   const targetCell = document.createElement("td");
-  targetCell.append(createTextInput(entry.target, "glossary-entry-target", "可留空"));
+  targetCell.append(createTextInput(entry.target, GLOSSARY_SELECTORS.entryTarget.slice(1), "可留空"));
 
   const noteCell = document.createElement("td");
-  noteCell.append(createTextInput(entry.note, "glossary-entry-note", "可选"));
+  noteCell.append(createTextInput(entry.note, GLOSSARY_SELECTORS.entryNote.slice(1), "可选"));
 
   const levelCell = document.createElement("td");
-  levelCell.append(createSelect(ENTRY_LEVEL_OPTIONS, entry.level || "preserve", "glossary-entry-level"));
+  levelCell.append(createSelect(ENTRY_LEVEL_OPTIONS, entry.level || "preserve", GLOSSARY_SELECTORS.entryLevel.slice(1)));
 
   const matchCell = document.createElement("td");
-  matchCell.append(createSelect(MATCH_MODE_OPTIONS, entry.match_mode || "case_insensitive", "glossary-entry-match"));
+  matchCell.append(createSelect(MATCH_MODE_OPTIONS, entry.match_mode || "case_insensitive", GLOSSARY_SELECTORS.entryMatch.slice(1)));
 
   const actionCell = document.createElement("td");
   const removeButton = document.createElement("button");
   removeButton.type = "button";
-  removeButton.className = "glossary-entry-remove secondary";
+  removeButton.className = `${GLOSSARY_SELECTORS.entryRemove.slice(1)} secondary`;
   removeButton.setAttribute("aria-label", "删除词条");
   removeButton.textContent = "×";
   actionCell.append(removeButton);
@@ -147,13 +155,13 @@ export function appendGlossaryEntryRow(entry = {}) {
 export function readGlossaryEditorPayload() {
   const entries = [];
   const skippedMissingTarget = [];
-  $("glossary-entries")?.querySelectorAll(".glossary-entry-row").forEach((row) => {
-    const source = row.querySelector(".glossary-entry-source")?.value?.trim() || "";
+  $(GLOSSARY_DOM_IDS.entries)?.querySelectorAll(GLOSSARY_SELECTORS.entryRow).forEach((row) => {
+    const source = row.querySelector(GLOSSARY_SELECTORS.entrySource)?.value?.trim() || "";
     if (!source) {
       return;
     }
-    const level = row.querySelector(".glossary-entry-level")?.value || "preserve";
-    const typedTarget = row.querySelector(".glossary-entry-target")?.value?.trim() || "";
+    const level = row.querySelector(GLOSSARY_SELECTORS.entryLevel)?.value || "preserve";
+    const typedTarget = row.querySelector(GLOSSARY_SELECTORS.entryTarget)?.value?.trim() || "";
     const target = typedTarget || (level === "preserve" ? source : "");
     if (!target) {
       skippedMissingTarget.push(source);
@@ -163,29 +171,29 @@ export function readGlossaryEditorPayload() {
       source,
       target,
       level,
-      match_mode: row.querySelector(".glossary-entry-match")?.value || "case_insensitive",
+      match_mode: row.querySelector(GLOSSARY_SELECTORS.entryMatch)?.value || "case_insensitive",
       context: "",
-      note: row.querySelector(".glossary-entry-note")?.value?.trim() || "",
+      note: row.querySelector(GLOSSARY_SELECTORS.entryNote)?.value?.trim() || "",
     });
   });
   return {
-    name: $("glossary-name")?.value?.trim() || "未命名术语表",
+    name: $(GLOSSARY_DOM_IDS.nameInput)?.value?.trim() || "未命名术语表",
     entries,
     skippedMissingTarget,
   };
 }
 
 export function setGlossaryImportVisible(visible) {
-  $("glossary-import-panel")?.classList.toggle("hidden", !visible);
+  $(GLOSSARY_DOM_IDS.importPanel)?.classList.toggle("hidden", !visible);
 }
 
 export function readGlossaryCsvText() {
-  return $("glossary-csv-text")?.value || "";
+  return $(GLOSSARY_DOM_IDS.csvText)?.value || "";
 }
 
 export function clearGlossaryCsvText() {
-  if ($("glossary-csv-text")) {
-    $("glossary-csv-text").value = "";
+  if ($(GLOSSARY_DOM_IDS.csvText)) {
+    $(GLOSSARY_DOM_IDS.csvText).value = "";
   }
 }
 
@@ -203,30 +211,30 @@ export function bindGlossaryViewEvents({
   hideImport,
   applyImport,
 }) {
-  $("glossary-btn")?.addEventListener("click", open);
-  $("glossary-close-btn")?.addEventListener("click", close);
-  $("glossary-new-btn")?.addEventListener("click", createNew);
-  $("glossary-add-row-btn")?.addEventListener("click", addRow);
-  $("glossary-save-btn")?.addEventListener("click", save);
-  $("glossary-delete-btn")?.addEventListener("click", deleteCurrent);
-  $("glossary-export-btn")?.addEventListener("click", exportCurrent);
-  $("glossary-import-btn")?.addEventListener("click", showImport);
-  $("glossary-import-cancel-btn")?.addEventListener("click", hideImport);
-  $("glossary-import-apply-btn")?.addEventListener("click", applyImport);
-  $("glossary-list")?.addEventListener("click", (event) => {
-    const button = event.target?.closest?.(".glossary-list-item");
-    if (button?.dataset.glossaryId) {
-      selectGlossary(button.dataset.glossaryId);
+  $(GLOSSARY_DOM_IDS.triggerButton)?.addEventListener("click", open);
+  $(GLOSSARY_DOM_IDS.closeButton)?.addEventListener("click", close);
+  $(GLOSSARY_DOM_IDS.newButton)?.addEventListener("click", createNew);
+  $(GLOSSARY_DOM_IDS.addRowButton)?.addEventListener("click", addRow);
+  $(GLOSSARY_DOM_IDS.saveButton)?.addEventListener("click", save);
+  $(GLOSSARY_DOM_IDS.deleteButton)?.addEventListener("click", deleteCurrent);
+  $(GLOSSARY_DOM_IDS.exportButton)?.addEventListener("click", exportCurrent);
+  $(GLOSSARY_DOM_IDS.importButton)?.addEventListener("click", showImport);
+  $(GLOSSARY_DOM_IDS.importCancelButton)?.addEventListener("click", hideImport);
+  $(GLOSSARY_DOM_IDS.importApplyButton)?.addEventListener("click", applyImport);
+  $(GLOSSARY_DOM_IDS.list)?.addEventListener("click", (event) => {
+    const button = event.target?.closest?.(GLOSSARY_SELECTORS.listItem);
+    if (button?.dataset[GLOSSARY_DATASET.glossaryId]) {
+      selectGlossary(button.dataset[GLOSSARY_DATASET.glossaryId]);
     }
   });
-  $("glossary-entries")?.addEventListener("click", (event) => {
-    const button = event.target?.closest?.(".glossary-entry-remove");
+  $(GLOSSARY_DOM_IDS.entries)?.addEventListener("click", (event) => {
+    const button = event.target?.closest?.(GLOSSARY_SELECTORS.entryRemove);
     if (!button) {
       return;
     }
-    button.closest(".glossary-entry-row")?.remove();
-    const hasRows = Boolean($("glossary-entries")?.querySelector(".glossary-entry-row"));
-    $("glossary-entries-empty")?.classList.toggle("hidden", hasRows);
+    button.closest(GLOSSARY_SELECTORS.entryRow)?.remove();
+    const hasRows = Boolean($(GLOSSARY_DOM_IDS.entries)?.querySelector(GLOSSARY_SELECTORS.entryRow));
+    $(GLOSSARY_DOM_IDS.entriesEmpty)?.classList.toggle("hidden", hasRows);
   });
-  document.addEventListener("retainpdf:refresh-glossaries", () => reload?.());
+  document.addEventListener(APP_EVENTS.refreshGlossaries, () => reload?.());
 }

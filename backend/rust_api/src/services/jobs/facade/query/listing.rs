@@ -1,8 +1,9 @@
 use crate::error::AppError;
-use crate::models::{
+use crate::models::api::{
     ArtifactLinksView, JobArtifactManifestView, JobDetailView, JobEventListView, JobListView,
-    JobSnapshot, ListJobEventsQuery, ListJobsQuery,
+    ListJobEventsQuery, ListJobsQuery,
 };
+use crate::models::domain::JobSnapshot;
 
 use super::super::super::presentation::{
     build_job_artifact_links_view, build_job_artifact_manifest_view, build_job_detail_view,

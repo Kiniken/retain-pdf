@@ -2,14 +2,11 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use crate::models::JobRuntimeState;
-use crate::ocr_provider::OcrProviderKind;
+use crate::models::domain::JobRuntimeState;
+use crate::ocr_provider::{provider_artifact_layout, OcrProviderKind};
 use crate::storage_paths::{build_job_paths, JobPaths};
 
-use crate::job_runner::{
-    attach_job_paths, job_artifacts_mut, ocr_provider_diagnostics_mut, MINERU_BUNDLE_FILE_NAME,
-    MINERU_LAYOUT_JSON_FILE_NAME, MINERU_RESULT_FILE_NAME, MINERU_UNPACK_DIR_NAME,
-};
+use crate::job_runner::{attach_job_paths, job_artifacts_mut, ocr_provider_diagnostics_mut};
 
 pub(super) struct OcrWorkspace {
     pub(super) job_paths: JobPaths,
@@ -33,22 +30,13 @@ impl OcrWorkspace {
 
         let source_dir = job_paths.source_dir.clone();
         let ocr_dir = job_paths.ocr_dir.clone();
-        let provider_result_json_path = match provider_kind {
-            OcrProviderKind::Paddle => ocr_dir.join("paddle_result.json"),
-            _ => ocr_dir.join(MINERU_RESULT_FILE_NAME),
-        };
-        let provider_zip_path = match provider_kind {
-            OcrProviderKind::Paddle => ocr_dir.join("paddle_bundle.zip"),
-            _ => ocr_dir.join(MINERU_BUNDLE_FILE_NAME),
-        };
-        let provider_raw_dir = match provider_kind {
-            OcrProviderKind::Paddle => ocr_dir.join("paddle_raw"),
-            _ => ocr_dir.join(MINERU_UNPACK_DIR_NAME),
-        };
-        let layout_json_path = match provider_kind {
-            OcrProviderKind::Paddle => provider_result_json_path.clone(),
-            _ => provider_raw_dir.join(MINERU_LAYOUT_JSON_FILE_NAME),
-        };
+        let artifact_layout = provider_artifact_layout(provider_kind).unwrap_or_else(|| {
+            provider_artifact_layout(&OcrProviderKind::Mineru).expect("mineru artifact layout")
+        });
+        let provider_result_json_path = ocr_dir.join(&artifact_layout.provider_result_json);
+        let provider_zip_path = ocr_dir.join(&artifact_layout.provider_bundle_zip);
+        let provider_raw_dir = ocr_dir.join(&artifact_layout.provider_raw_dir);
+        let layout_json_path = ocr_dir.join(&artifact_layout.layout_json);
 
         std::fs::create_dir_all(&source_dir)?;
         std::fs::create_dir_all(&ocr_dir)?;

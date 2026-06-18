@@ -1,5 +1,6 @@
 use crate::error::AppError;
-use crate::models::{JobStatusKind, JobSubmissionView};
+use crate::models::api::JobSubmissionView;
+use crate::models::domain::JobStatusKind;
 
 use super::super::super::control::cancel_job as cancel_job_service;
 use super::super::super::query::load_job_or_404;

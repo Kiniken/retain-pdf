@@ -9,7 +9,7 @@ from foundation.config import fonts
 from services.rendering.output.typst.source_builder import build_typst_book_overlay_source
 
 
-PREBUILT_SOURCE_RENDER_VERSION = "overlay_cover_fill_title_color_v6_math_text_tags"
+PREBUILT_SOURCE_RENDER_VERSION = "overlay_cover_fill_title_color_v10_inline_math_compat"
 PAGE_SIZE_TOLERANCE_PT = 0.5
 TYPST_PAGE_SIZE_RE = re.compile(
     r"#set\s+page\(\s*width:\s*(?P<width>[0-9.]+)pt,\s*height:\s*(?P<height>[0-9.]+)pt",

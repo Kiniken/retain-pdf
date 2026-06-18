@@ -1,8 +1,7 @@
 import { resolveRecoverableJobId } from "./active-job-recovery.js";
-import {
-  getRecentJobsState,
-  setRecentJobsItems,
-} from "./state.js";
+import { createRecentJobsRuntimePort } from "./job-runtime-port.js";
+import { createRecentJobsReaderPort } from "./reader-port.js";
+import { createRecentJobsNavigationPort } from "./navigation-port.js";
 
 export function createRecentJobActions({
   apiPrefix,
@@ -10,10 +9,25 @@ export function createRecentJobActions({
   startPolling,
   openReader,
   currentJobId = () => "",
+  jobRuntimePort = createRecentJobsRuntimePort({
+    openJob: startPolling,
+    currentJobId,
+  }),
+  readerPort = createRecentJobsReaderPort({
+    openReader,
+  }),
   closeRecentJobsDialog,
+  activeJobRecoveryPort,
+  navigationPort = createRecentJobsNavigationPort({
+    closeDialog: closeRecentJobsDialog,
+    currentJobId,
+    jobRuntimePort,
+    readerPort,
+  }),
   renderCurrentRecentJobs,
   renderRecentJobsEmpty,
   renderRecentJobsError,
+  statePort,
 }) {
   let activeJobRecoveryAttempted = false;
 
@@ -23,9 +37,7 @@ export function createRecentJobActions({
       renderRecentJobsError("该任务缺少 job_id，无法打开。", { reset: false });
       return;
     }
-    closeRecentJobsDialog();
-    document.dispatchEvent(new CustomEvent("retainpdf:open-translation-workflow"));
-    startPolling(normalizedJobId);
+    navigationPort.openJob(normalizedJobId);
   }
 
   async function deleteJob(jobId) {
@@ -44,12 +56,8 @@ export function createRecentJobActions({
         return;
       }
     }
-    const rootJobId = normalizedJobId.replace(/-ocr$/, "");
-    const nextItems = getRecentJobsState().items.filter((item) => {
-      const itemJobId = `${item?.job_id || ""}`.trim();
-      return itemJobId !== rootJobId && itemJobId !== `${rootJobId}-ocr`;
-    });
-    setRecentJobsItems(nextItems);
+    statePort.removeJobFamily(normalizedJobId);
+    const nextItems = statePort.getSnapshot().items;
     if (nextItems.length === 0) {
       renderRecentJobsEmpty("暂无最近任务");
       return;
@@ -63,24 +71,23 @@ export function createRecentJobActions({
       renderRecentJobsError("该任务缺少 job_id，无法打开对照阅读。", { reset: false });
       return;
     }
-    closeRecentJobsDialog();
-    openReader?.(normalizedJobId);
+    navigationPort.openReader(normalizedJobId);
   }
 
   function recoverActiveJob(items = []) {
     if (activeJobRecoveryAttempted) {
       return;
     }
-    if (`${currentJobId?.() || ""}`.trim()) {
+    if (navigationPort.currentJobId()) {
       activeJobRecoveryAttempted = true;
       return;
     }
     activeJobRecoveryAttempted = true;
-    const jobId = resolveRecoverableJobId(items);
+    const jobId = resolveRecoverableJobId(items, activeJobRecoveryPort);
     if (!jobId) {
       return;
     }
-    startPolling(jobId);
+    navigationPort.recoverJob(jobId);
   }
 
   return {

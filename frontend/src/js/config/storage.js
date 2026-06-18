@@ -1,7 +1,7 @@
 import {
   BROWSER_CONFIG_STORAGE_KEY,
   DEVELOPER_CONFIG_STORAGE_KEY,
-} from "../constants.js";
+} from "./storage-keys.js";
 import { normalizeOcrProvider } from "./providers.js";
 
 export function isObject(value) {

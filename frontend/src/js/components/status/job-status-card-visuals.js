@@ -1,4 +1,7 @@
-import { STAGE_ANIMATIONS, STAGE_FLOW } from "./job-status-card-presets.js";
+import { STAGE_ANIMATIONS } from "./job-status-card-presets.js";
+import {
+  isSelectableStatusStage,
+} from "../../job-status/stage-flow-model.js";
 
 export function resolveVisualStageKeyForSnapshot(snapshot = null, selectedStageKey = "") {
   const stageKey = `${snapshot?.stageKey || ""}`.trim();
@@ -14,11 +17,6 @@ export function resolveAnimationPathForStage(stageKey = "") {
   return STAGE_ANIMATIONS[`${stageKey || ""}`.trim()] || "";
 }
 
-export function isSelectableStage(stageKey, currentStageKey, currentFlow = STAGE_FLOW) {
-  const selectedIndex = currentFlow.indexOf(stageKey);
-  const currentIndex = currentFlow.indexOf(currentStageKey);
-  if (selectedIndex < 0 || currentIndex < 0) {
-    return false;
-  }
-  return selectedIndex <= currentIndex;
+export function isSelectableStage(stageKey, currentStageKey) {
+  return isSelectableStatusStage(stageKey, currentStageKey);
 }

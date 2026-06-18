@@ -6,7 +6,7 @@ use tokio::process::Command;
 
 use crate::db::Db;
 use crate::error::AppError;
-use crate::models::{build_job_id, now_iso, UploadRecord};
+use crate::models::domain::{build_job_id, now_iso, UploadRecord};
 
 #[derive(Debug)]
 pub struct UploadedPdfInput {

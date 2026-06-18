@@ -2,113 +2,24 @@
 mod command_builder;
 #[path = "worker_command/entrypoints.rs"]
 mod entrypoints;
+#[path = "worker_command/legacy_ocr.rs"]
+mod legacy_ocr;
+#[path = "worker_command/stage_commands.rs"]
+mod stage_commands;
 #[path = "worker_command/stage_specs.rs"]
 pub(crate) mod stage_specs;
 
+#[cfg(test)]
+use crate::config::WorkerCommandRuntimeConfig;
+#[cfg(test)]
+use crate::models::domain::ResolvedJobSpec;
+#[cfg(test)]
+use crate::storage_paths::JobPaths;
+#[cfg(test)]
 use std::path::Path;
 
-use crate::config::WorkerCommandRuntimeConfig;
-use crate::models::ResolvedJobSpec;
-use crate::storage_paths::JobPaths;
-
-use self::command_builder::CommandBuilder;
-use self::entrypoints::{
-    normalize_ocr_command as build_normalize_entrypoint,
-    provider_ocr_command as build_provider_ocr_entrypoint,
-    render_only_command as build_render_only_entrypoint,
-    translate_only_command as build_translate_only_entrypoint,
-};
-use self::stage_specs::{
-    write_normalize_stage_spec, write_render_stage_spec, write_translate_stage_spec,
-};
-
-#[derive(Clone, Copy)]
-enum JobPathArg {
-    JobRoot,
-    SourceDir,
-    OcrDir,
-    TranslatedDir,
-    RenderedDir,
-    ArtifactsDir,
-    LogsDir,
-}
-
-#[derive(Clone, Copy)]
-enum OcrArg {
-    MineruToken,
-    ModelVersion,
-    IsOcr,
-    DisableFormula,
-    DisableTable,
-    Language,
-    PageRanges,
-    DataId,
-    NoCache,
-    CacheTolerance,
-    ExtraFormats,
-    PollInterval,
-    PollTimeout,
-}
-
-const JOB_PATH_ARGS: &[(&str, JobPathArg)] = &[
-    ("--job-root", JobPathArg::JobRoot),
-    ("--source-dir", JobPathArg::SourceDir),
-    ("--ocr-dir", JobPathArg::OcrDir),
-    ("--translated-dir", JobPathArg::TranslatedDir),
-    ("--rendered-dir", JobPathArg::RenderedDir),
-    ("--artifacts-dir", JobPathArg::ArtifactsDir),
-    ("--logs-dir", JobPathArg::LogsDir),
-];
-
-const OCR_ARGS: &[(&str, OcrArg)] = &[
-    ("--mineru-token", OcrArg::MineruToken),
-    ("--model-version", OcrArg::ModelVersion),
-    ("--is-ocr", OcrArg::IsOcr),
-    ("--disable-formula", OcrArg::DisableFormula),
-    ("--disable-table", OcrArg::DisableTable),
-    ("--language", OcrArg::Language),
-    ("--page-ranges", OcrArg::PageRanges),
-    ("--data-id", OcrArg::DataId),
-    ("--no-cache", OcrArg::NoCache),
-    ("--cache-tolerance", OcrArg::CacheTolerance),
-    ("--extra-formats", OcrArg::ExtraFormats),
-    ("--poll-interval", OcrArg::PollInterval),
-    ("--poll-timeout", OcrArg::PollTimeout),
-];
-
-fn push_job_path_args(cmd: &mut CommandBuilder, job_paths: &JobPaths) {
-    for (name, arg) in JOB_PATH_ARGS {
-        match arg {
-            JobPathArg::JobRoot => cmd.path_arg(name, &job_paths.root),
-            JobPathArg::SourceDir => cmd.path_arg(name, &job_paths.source_dir),
-            JobPathArg::OcrDir => cmd.path_arg(name, &job_paths.ocr_dir),
-            JobPathArg::TranslatedDir => cmd.path_arg(name, &job_paths.translated_dir),
-            JobPathArg::RenderedDir => cmd.path_arg(name, &job_paths.rendered_dir),
-            JobPathArg::ArtifactsDir => cmd.path_arg(name, &job_paths.artifacts_dir),
-            JobPathArg::LogsDir => cmd.path_arg(name, &job_paths.logs_dir),
-        }
-    }
-}
-
-fn push_ocr_args(cmd: &mut CommandBuilder, request: &ResolvedJobSpec) {
-    for (name, arg) in OCR_ARGS {
-        match arg {
-            OcrArg::MineruToken => cmd.arg(name, &request.ocr.mineru_token),
-            OcrArg::ModelVersion => cmd.arg(name, &request.ocr.model_version),
-            OcrArg::IsOcr => cmd.flag(name, request.ocr.is_ocr),
-            OcrArg::DisableFormula => cmd.flag(name, request.ocr.disable_formula),
-            OcrArg::DisableTable => cmd.flag(name, request.ocr.disable_table),
-            OcrArg::Language => cmd.arg(name, &request.ocr.language),
-            OcrArg::PageRanges => cmd.arg(name, &request.ocr.page_ranges),
-            OcrArg::DataId => cmd.arg(name, &request.ocr.data_id),
-            OcrArg::NoCache => cmd.flag(name, request.ocr.no_cache),
-            OcrArg::CacheTolerance => cmd.arg(name, request.ocr.cache_tolerance),
-            OcrArg::ExtraFormats => cmd.arg(name, &request.ocr.extra_formats),
-            OcrArg::PollInterval => cmd.arg(name, request.ocr.poll_interval),
-            OcrArg::PollTimeout => cmd.arg(name, request.ocr.poll_timeout),
-        }
-    }
-}
+pub(crate) use self::legacy_ocr::build_ocr_command;
+pub(crate) use self::stage_commands::{build_worker_stage_command, WorkerStageCommand};
 
 #[cfg(test)]
 fn build_legacy_provider_case_command(
@@ -120,78 +31,9 @@ fn build_legacy_provider_case_command(
     use self::entrypoints::provider_case_command as build_provider_case_entrypoint;
     use self::stage_specs::write_provider_stage_spec;
 
-    let spec_path = write_provider_stage_spec(request, job_paths, upload_path)
+    let spec_path = write_provider_stage_spec(request, job_paths, Some(upload_path))
         .expect("write provider stage spec");
     build_provider_case_entrypoint(config, &spec_path)
-}
-
-pub(crate) fn build_ocr_command(
-    config: &WorkerCommandRuntimeConfig<'_>,
-    upload_path: Option<&Path>,
-    request: &ResolvedJobSpec,
-    job_paths: &JobPaths,
-) -> Vec<String> {
-    build_provider_ocr_entrypoint(
-        config,
-        upload_path,
-        &request.source.source_url,
-        |cmd| push_ocr_args(cmd, request),
-        |cmd| push_job_path_args(cmd, job_paths),
-    )
-}
-
-pub(crate) fn build_translate_only_command(
-    config: &WorkerCommandRuntimeConfig<'_>,
-    request: &ResolvedJobSpec,
-    job_paths: &JobPaths,
-    source_json_path: &Path,
-    source_pdf_path: &Path,
-    layout_json_path: Option<&Path>,
-) -> Vec<String> {
-    let spec_path = write_translate_stage_spec(
-        request,
-        job_paths,
-        source_json_path,
-        source_pdf_path,
-        layout_json_path,
-    )
-    .expect("write translate stage spec");
-    build_translate_only_entrypoint(config, &spec_path)
-}
-
-pub(crate) fn build_render_only_command(
-    config: &WorkerCommandRuntimeConfig<'_>,
-    request: &ResolvedJobSpec,
-    job_paths: &JobPaths,
-    source_pdf_path: &Path,
-    translations_dir: &Path,
-) -> Vec<String> {
-    let spec_path = write_render_stage_spec(request, job_paths, source_pdf_path, translations_dir)
-        .expect("write render stage spec");
-    build_render_only_entrypoint(config, &spec_path)
-}
-
-pub(crate) fn build_normalize_ocr_command(
-    config: &WorkerCommandRuntimeConfig<'_>,
-    request: &ResolvedJobSpec,
-    job_paths: &JobPaths,
-    source_json_path: &Path,
-    source_pdf_path: &Path,
-    provider_result_json_path: &Path,
-    provider_zip_path: &Path,
-    provider_raw_dir: &Path,
-) -> Vec<String> {
-    let spec_path = write_normalize_stage_spec(
-        request,
-        job_paths,
-        source_json_path,
-        source_pdf_path,
-        provider_result_json_path,
-        provider_zip_path,
-        provider_raw_dir,
-    )
-    .expect("write normalize stage spec");
-    build_normalize_entrypoint(config, &spec_path)
 }
 
 #[cfg(test)]
@@ -199,7 +41,8 @@ mod tests {
     use self::stage_specs::TRANSLATION_API_KEY_ENV_NAME;
     use super::*;
     use crate::config::{AppConfig, PythonWorkerEntrypointMode};
-    use crate::models::{CreateJobInput, GlossaryEntryInput, OcrProviderKind, WorkflowKind};
+    use crate::models::domain::{OcrProviderKind, WorkflowKind};
+    use crate::models::request::{CreateJobInput, GlossaryEntryInput};
     use crate::ocr_provider::provider_token_env_name;
     use crate::storage_paths::JobPaths;
     use std::collections::HashSet;
@@ -291,6 +134,68 @@ mod tests {
         serde_json::from_str(&spec_json).expect("valid stage spec json")
     }
 
+    fn normalize_command(
+        config: &AppConfig,
+        request: &ResolvedJobSpec,
+        job_paths: &JobPaths,
+        source_json_path: &Path,
+        source_pdf_path: &Path,
+        provider_result_json_path: &Path,
+        provider_zip_path: &Path,
+        provider_raw_dir: &Path,
+    ) -> Vec<String> {
+        build_worker_stage_command(
+            &config.worker_command_runtime(),
+            request,
+            job_paths,
+            WorkerStageCommand::NormalizeOcr {
+                source_json_path,
+                source_pdf_path,
+                provider_result_json_path,
+                provider_zip_path,
+                provider_raw_dir,
+            },
+        )
+    }
+
+    fn translate_command(
+        config: &AppConfig,
+        request: &ResolvedJobSpec,
+        job_paths: &JobPaths,
+        source_json_path: &Path,
+        source_pdf_path: &Path,
+        layout_json_path: Option<&Path>,
+    ) -> Vec<String> {
+        build_worker_stage_command(
+            &config.worker_command_runtime(),
+            request,
+            job_paths,
+            WorkerStageCommand::Translate {
+                source_json_path,
+                source_pdf_path,
+                layout_json_path,
+            },
+        )
+    }
+
+    fn render_command(
+        config: &AppConfig,
+        request: &ResolvedJobSpec,
+        job_paths: &JobPaths,
+        source_pdf_path: &Path,
+        translations_dir: &Path,
+    ) -> Vec<String> {
+        build_worker_stage_command(
+            &config.worker_command_runtime(),
+            request,
+            job_paths,
+            WorkerStageCommand::Render {
+                source_pdf_path,
+                translations_dir,
+            },
+        )
+    }
+
     fn assert_object_has_keys(value: &serde_json::Value, keys: &[&str]) {
         let object = value.as_object().expect("stage spec section is object");
         for key in keys {
@@ -303,8 +208,8 @@ mod tests {
         let config = test_config();
         let request = build_request(WorkflowKind::Translate);
         let job_paths = build_paths(config.as_ref());
-        let cmd = build_translate_only_command(
-            &config.worker_command_runtime(),
+        let cmd = translate_command(
+            config.as_ref(),
             &request,
             &job_paths,
             Path::new("/tmp/document.v1.json"),
@@ -342,8 +247,8 @@ mod tests {
         let config = test_config();
         let request = build_request(WorkflowKind::Render);
         let job_paths = build_paths(config.as_ref());
-        let cmd = build_render_only_command(
-            &config.worker_command_runtime(),
+        let cmd = render_command(
+            config.as_ref(),
             &request,
             &job_paths,
             Path::new("/tmp/source.pdf"),
@@ -385,8 +290,8 @@ mod tests {
         request.ocr.provider = "mineru".to_string();
         request.ocr.model_version = "v1".to_string();
         let job_paths = build_paths(config.as_ref());
-        let cmd = build_normalize_ocr_command(
-            &config.worker_command_runtime(),
+        let cmd = normalize_command(
+            config.as_ref(),
             &request,
             &job_paths,
             Path::new("/tmp/layout.json"),
@@ -422,8 +327,8 @@ mod tests {
         let config = test_config_with_entrypoint_mode(PythonWorkerEntrypointMode::Console);
         let request = build_request(WorkflowKind::Render);
         let job_paths = build_paths(config.as_ref());
-        let cmd = build_render_only_command(
-            &config.worker_command_runtime(),
+        let cmd = render_command(
+            config.as_ref(),
             &request,
             &job_paths,
             Path::new("/tmp/source.pdf"),
@@ -524,7 +429,44 @@ mod tests {
             "https://paddle.example/api"
         );
         assert_eq!(payload["ocr"]["paddle_model"], "paddleocr-vl");
+        assert_eq!(
+            payload["ocr"]["options"]["paddle_model"],
+            "PaddleOCR-VL-1.6"
+        );
         assert!(!spec_json.contains("paddle-secret"));
+    }
+
+    #[test]
+    fn legacy_provider_case_command_writes_ocr_options_overrides() {
+        let config = test_config();
+        let mut request = build_request(WorkflowKind::Book);
+        request.job_id = "job-command-test".to_string();
+        request.ocr.provider = "paddle".to_string();
+        request.ocr.options.insert(
+            "paddle_model".to_string(),
+            serde_json::Value::String("PaddleOCR-VL-1.5".to_string()),
+        );
+        request.ocr.options.insert(
+            "custom_option".to_string(),
+            serde_json::Value::String("custom-value".to_string()),
+        );
+        let job_paths = build_paths(config.as_ref());
+        let cmd = build_legacy_provider_case_command(
+            &config.worker_command_runtime(),
+            Path::new("/tmp/source/job.pdf"),
+            &request,
+            &job_paths,
+        );
+        let spec_path = arg_value(&cmd, "--spec").expect("provider spec path");
+        let spec_json =
+            std::fs::read_to_string(spec_path).expect("provider stage spec should be written");
+        let payload: serde_json::Value = serde_json::from_str(&spec_json).expect("valid json");
+
+        assert_eq!(
+            payload["ocr"]["options"]["paddle_model"],
+            "PaddleOCR-VL-1.5"
+        );
+        assert_eq!(payload["ocr"]["options"]["custom_option"], "custom-value");
     }
 
     #[test]
@@ -543,13 +485,21 @@ mod tests {
             &cmd,
             &config.run_provider_ocr_script.to_string_lossy().to_string()
         ));
-        assert!(contains(&cmd, "--file-path"));
-        assert_eq!(arg_value(&cmd, "--file-path"), Some("/tmp/source.pdf"));
-        assert_eq!(arg_value(&cmd, "--mineru-token"), Some("mineru-token-test"));
+        assert!(contains(&cmd, "--spec"));
+        let spec_path = arg_value(&cmd, "--spec").expect("provider spec path");
+        let spec_json =
+            std::fs::read_to_string(spec_path).expect("provider stage spec should be written");
+        let payload: serde_json::Value = serde_json::from_str(&spec_json).expect("valid json");
+        assert_eq!(payload["schema_version"], "provider.stage.v1");
+        assert_eq!(payload["source"]["file_path"], "/tmp/source.pdf");
         assert_eq!(
-            arg_value(&cmd, "--job-root"),
-            Some(job_paths.root.to_string_lossy().as_ref())
+            payload["ocr"]["credential_ref"],
+            format!(
+                "env:{}",
+                provider_token_env_name(&OcrProviderKind::Mineru).expect("mineru token env")
+            )
         );
+        assert!(!spec_json.contains("mineru-token-test"));
     }
 
     #[test]
@@ -573,8 +523,8 @@ mod tests {
             context: String::new(),
         }];
         let job_paths = build_paths(config.as_ref());
-        let cmd = build_translate_only_command(
-            &config.worker_command_runtime(),
+        let cmd = translate_command(
+            config.as_ref(),
             &request,
             &job_paths,
             Path::new("/tmp/document.v1.json"),
@@ -693,8 +643,8 @@ mod tests {
             ],
         );
 
-        let normalize = read_spec_from_command(&build_normalize_ocr_command(
-            &config.worker_command_runtime(),
+        let normalize = read_spec_from_command(&normalize_command(
+            config.as_ref(),
             &request,
             &job_paths,
             Path::new("/tmp/layout.json"),
@@ -720,8 +670,8 @@ mod tests {
             ],
         );
 
-        let translate = read_spec_from_command(&build_translate_only_command(
-            &config.worker_command_runtime(),
+        let translate = read_spec_from_command(&translate_command(
+            config.as_ref(),
             &request,
             &job_paths,
             Path::new("/tmp/document.v1.json"),
@@ -764,8 +714,8 @@ mod tests {
             ],
         );
 
-        let render = read_spec_from_command(&build_render_only_command(
-            &config.worker_command_runtime(),
+        let render = read_spec_from_command(&render_command(
+            config.as_ref(),
             &request,
             &job_paths,
             Path::new("/tmp/source.pdf"),

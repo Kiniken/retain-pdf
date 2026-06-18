@@ -1,41 +1,28 @@
+import {
+  hasCanonicalEventContract,
+} from "./job-stage-event-contract.js";
 import { firstNumber } from "./job-stage-presentation-utils.js";
-
-function textProgressFromEvent(event = {}) {
-  const payload = event?.payload && typeof event.payload === "object" ? event.payload : {};
-  const text = [
-    event?.stage_detail,
-    event?.message,
-    payload.stage_detail,
-    payload.message,
-  ].map((value) => `${value || ""}`).join(" ");
-  const match = text.match(/\b(?:batch|batches|page|pages|step|steps)\s*(\d+)\s*[\/／]\s*(\d+)/i)
-    || text.match(/第\s*(\d+)\s*[\/／]\s*(\d+)\s*(?:页|批|步)/i);
-  if (!match) {
-    return {
-      current: null,
-      total: null,
-    };
-  }
-  return {
-    current: firstNumber(match[1]),
-    total: firstNumber(match[2]),
-  };
-}
+import {
+  publicProgressOf,
+} from "./job-stage-progress-adapter.js";
 
 export function progressFromEvent(event) {
   const payload = event?.payload && typeof event.payload === "object" ? event.payload : {};
-  const structuredCurrent = firstNumber(
-    event?.progress?.current,
-    payload.progress?.current,
-  );
-  const structuredTotal = firstNumber(
-    event?.progress?.total,
-    payload.progress?.total,
-  );
-  if (structuredCurrent !== null || structuredTotal !== null) {
+  const publicProgress = publicProgressOf({
+    ...payload,
+    ...event,
+    progress: event?.progress || payload.progress,
+  });
+  if (publicProgress.current !== null || publicProgress.total !== null) {
     return {
-      current: structuredCurrent,
-      total: structuredTotal,
+      current: publicProgress.current,
+      total: publicProgress.total,
+    };
+  }
+  if (hasCanonicalEventContract(event)) {
+    return {
+      current: null,
+      total: null,
     };
   }
   const current = firstNumber(
@@ -78,14 +65,26 @@ export function progressFromEvent(event) {
   if (current !== null || total !== null) {
     return { current, total };
   }
-  return textProgressFromEvent(event);
+  return {
+    current: null,
+    total: null,
+  };
 }
 
 export function progressPercentFromEvent(event) {
   const payload = event?.payload && typeof event.payload === "object" ? event.payload : {};
+  const publicProgress = publicProgressOf({
+    ...payload,
+    ...event,
+    progress: event?.progress || payload.progress,
+  });
+  if (publicProgress.percent !== null || publicProgress.current !== null || publicProgress.total !== null || publicProgress.unit) {
+    return publicProgress.percent;
+  }
+  if (hasCanonicalEventContract(event)) {
+    return null;
+  }
   return firstNumber(
-    event?.progress?.percent,
-    payload.progress?.percent,
     event?.progress_percent,
     payload.progress_percent,
     payload.render?.progress_percent,

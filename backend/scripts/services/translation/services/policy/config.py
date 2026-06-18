@@ -37,11 +37,21 @@ class TranslationPolicyConfig:
         return self.enable_reference_tail_skip
 
     @property
-    def domain_guidance(self) -> str:
+    def document_domain_guidance(self) -> str:
         parts = []
+        domain_summary = (self.domain_context.get("summary") or "").strip()
+        if domain_summary:
+            parts.append(f"Document domain summary:\n{domain_summary}")
         domain_guidance = (self.domain_context.get("translation_guidance") or "").strip()
         if domain_guidance:
             parts.append(domain_guidance)
+        return "\n\n".join(parts).strip()
+
+    @property
+    def domain_guidance(self) -> str:
+        parts = []
+        if self.document_domain_guidance:
+            parts.append(self.document_domain_guidance)
         if self.rule_profile_text.strip():
             parts.append(f"Rule profile ({self.rule_profile_name}):\n{self.rule_profile_text.strip()}")
         if self.custom_rules_text.strip():

@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::job_runner::ProcessRuntimeDeps;
-use crate::models::JobRuntimeState;
+use crate::models::domain::JobRuntimeState;
 use crate::ocr_provider::mineru::MineruClient;
 
 use super::mineru_retry::query_with_retry;

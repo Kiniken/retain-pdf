@@ -1,7 +1,27 @@
-import { $ } from "../../dom.js";
+import {
+  READER_DIALOG_COPY,
+  READER_DIALOG_ELEMENT,
+  readerDialogLinkOpenState,
+} from "./contract.js";
+import {
+  bindLegacyReaderDialogEvents,
+  closeLegacyReaderDialog,
+  getLegacyReaderFrameWindow,
+  getLegacyReaderToolbarButtonUrl,
+  hasLegacyReaderProgressTarget,
+  hasLegacyLoadedReaderFrame,
+  openLegacyReaderDialog,
+  restoreLegacyReaderButton,
+  setLegacyReaderButtonBusy,
+  setLegacyReaderFrameSource,
+  setLegacyReaderLoadingText,
+  setLegacyReaderLoadingVisible,
+  setLegacyReaderProgressWidth,
+  setLegacyReaderToolbarButtonState,
+} from "./legacy-dom-adapter.js";
 
-function readerDialogComponent() {
-  return document.querySelector("reader-dialog");
+export function getReaderDialogComponent() {
+  return document.querySelector(READER_DIALOG_ELEMENT.hostSelector);
 }
 
 function easeOutCubic(value) {
@@ -9,13 +29,12 @@ function easeOutCubic(value) {
 }
 
 export function animateReaderProgressValue(progressState, nextValue) {
-  const component = readerDialogComponent();
-  const barEl = $("reader-dialog-loading-bar");
-  const percentEl = $("reader-dialog-loading-percent");
+  const component = getReaderDialogComponent();
+  const useComponentProgress = typeof component?.setLoadingProgress === "function";
   const target = Math.max(0, Math.min(100, Number(nextValue) || 0));
   const from = Number(progressState.value) || 0;
 
-  if (!barEl && !percentEl && !component?.setLoadingProgress) {
+  if (!useComponentProgress && !hasLegacyReaderProgressTarget()) {
     progressState.value = target;
     progressState.target = target;
     return;
@@ -23,14 +42,10 @@ export function animateReaderProgressValue(progressState, nextValue) {
 
   const applyWidth = (value) => {
     const safeValue = Math.max(0, Math.min(100, Number(value) || 0));
-    if (barEl) {
-      barEl.style.width = `${safeValue}%`;
-    }
-    if (percentEl) {
-      percentEl.textContent = `${safeValue.toFixed(0)}%`;
-    }
-    if (component?.setLoadingProgress) {
+    if (useComponentProgress) {
       component.setLoadingProgress({ widthPercent: safeValue });
+    } else {
+      setLegacyReaderProgressWidth(safeValue);
     }
   };
 
@@ -69,143 +84,104 @@ export function animateReaderProgressValue(progressState, nextValue) {
 }
 
 export function setReaderToolbarButtonState(id, enabled, url = "") {
-  const component = readerDialogComponent();
+  const component = getReaderDialogComponent();
   if (component?.setToolbarButtonState) {
     component.setToolbarButtonState(id, { enabled, url });
     return;
   }
-  const button = $(id);
-  if (!button) {
-    return;
-  }
-  button.disabled = !enabled;
-  button.dataset.url = enabled ? url : "";
+  setLegacyReaderToolbarButtonState(id, enabled, url);
 }
 
 export function getReaderToolbarButtonUrl(id) {
-  const component = readerDialogComponent();
+  const component = getReaderDialogComponent();
   if (component?.getToolbarButtonUrl) {
     return component.getToolbarButtonUrl(id);
   }
-  return `${$(id)?.dataset?.url || ""}`.trim();
+  return getLegacyReaderToolbarButtonUrl(id);
 }
 
 export function setReaderLoadingVisible(loading) {
-  const component = readerDialogComponent();
+  const component = getReaderDialogComponent();
   if (component?.setLoadingVisible) {
     component.setLoadingVisible(loading);
     return;
   }
-  $("reader-dialog-loading")?.classList.toggle("hidden", !loading);
+  setLegacyReaderLoadingVisible(loading);
 }
 
-export function setReaderLoadingProgress(progressState, percent = 0, text = "正在准备对照阅读…") {
+export function setReaderLoadingProgress(progressState, percent = 0, text = READER_DIALOG_COPY.preparing) {
   const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
-  const component = readerDialogComponent();
-  const textEl = $("reader-dialog-loading-text");
-  if (textEl) {
-    textEl.textContent = text;
-  }
+  const component = getReaderDialogComponent();
   if (component?.setLoadingProgress) {
     component.setLoadingProgress({ text, percent: safePercent });
+  } else {
+    setLegacyReaderLoadingText(text);
   }
   animateReaderProgressValue(progressState, safePercent);
 }
 
 export function setReaderFrameSource(url = "about:blank") {
-  const component = readerDialogComponent();
+  const component = getReaderDialogComponent();
   if (component?.setFrameSource) {
     component.setFrameSource(url);
     return;
   }
-  const frame = $("reader-dialog-frame");
-  if (frame) {
-    const normalizedUrl = `${url || ""}`.trim();
-    if (!normalizedUrl || normalizedUrl === "about:blank") {
-      frame.removeAttribute("src");
-      frame.setAttribute("srcdoc", "<style>html,body{margin:0;min-height:100%;background:#f3f4f6;color:#1d1d1f}</style>");
-      return;
-    }
-    frame.removeAttribute("srcdoc");
-    frame.src = normalizedUrl;
-  }
+  setLegacyReaderFrameSource(url);
 }
 
 export function openReaderDialog() {
-  const component = readerDialogComponent();
+  const component = getReaderDialogComponent();
   if (component?.open) {
     component.open();
     return;
   }
-  $("reader-dialog")?.showModal();
+  openLegacyReaderDialog();
 }
 
 export function closeReaderDialog() {
-  const component = readerDialogComponent();
+  const component = getReaderDialogComponent();
   if (component?.close) {
     component.close();
     return;
   }
-  $("reader-dialog")?.close();
+  closeLegacyReaderDialog();
 }
 
 export function getReaderFrameWindow() {
-  const component = readerDialogComponent();
+  const component = getReaderDialogComponent();
   if (component?.getFrameWindow) {
     return component.getFrameWindow();
   }
-  return $("reader-dialog-frame")?.contentWindow || null;
+  return getLegacyReaderFrameWindow();
 }
 
 export function hasLoadedReaderFrame() {
-  const component = readerDialogComponent();
+  const component = getReaderDialogComponent();
   if (component?.hasLoadedFrame) {
     return component.hasLoadedFrame();
   }
-  const frame = $("reader-dialog-frame");
-  return Boolean(frame?.src && frame.src !== "about:blank");
+  return hasLegacyLoadedReaderFrame();
 }
 
 export function getReaderLinkOpenState(input) {
-  const link = input?.currentTarget;
-  return {
-    url: `${link?.dataset?.url || ""}`.trim(),
-    disabled: link?.classList?.contains("disabled") || link?.getAttribute?.("aria-disabled") === "true",
-  };
+  return readerDialogLinkOpenState(input);
 }
 
-export function setReaderButtonBusy(id, busy, label = "生成中…") {
-  const component = readerDialogComponent();
+export function setReaderButtonBusy(id, busy, label = READER_DIALOG_COPY.busyGenerating) {
+  const component = getReaderDialogComponent();
   if (component?.setButtonBusy) {
     return component.setButtonBusy(id, busy, label);
   }
-  const button = $(id);
-  if (!button) {
-    return "";
-  }
-  const previousMarkup = button.innerHTML;
-  if (!button.dataset.defaultMarkup) {
-    button.dataset.defaultMarkup = previousMarkup;
-  }
-  if (busy) {
-    button.disabled = true;
-    button.innerHTML = `<span>${label}</span>`;
-  } else {
-    button.innerHTML = button.dataset.defaultMarkup || previousMarkup;
-  }
-  return previousMarkup;
+  return setLegacyReaderButtonBusy(id, busy, label);
 }
 
 export function restoreReaderButton(id, markup) {
-  const component = readerDialogComponent();
+  const component = getReaderDialogComponent();
   if (component?.restoreButton) {
     component.restoreButton(id, markup);
     return;
   }
-  const button = $(id);
-  if (button && typeof markup === "string") {
-    button.innerHTML = markup;
-  }
+  restoreLegacyReaderButton(id, markup);
 }
 
 export function bindReaderDialogEvents({
@@ -215,7 +191,7 @@ export function bindReaderDialogEvents({
   onMergedDownload,
   onTranslatedDownload,
 } = {}) {
-  const component = readerDialogComponent();
+  const component = getReaderDialogComponent();
   if (component?.bindEvents) {
     component.bindEvents({
       onClose,
@@ -226,9 +202,11 @@ export function bindReaderDialogEvents({
     });
     return;
   }
-  $("reader-source-download-btn")?.addEventListener("click", () => onSourceDownload?.());
-  $("reader-merged-download-btn")?.addEventListener("click", () => onMergedDownload?.());
-  $("reader-translated-download-btn")?.addEventListener("click", () => onTranslatedDownload?.());
-  $("reader-dialog-close-btn")?.addEventListener("click", () => onClose?.());
-  $("reader-dialog-frame")?.addEventListener("load", () => onFrameLoad?.());
+  bindLegacyReaderDialogEvents({
+    onClose,
+    onFrameLoad,
+    onSourceDownload,
+    onMergedDownload,
+    onTranslatedDownload,
+  });
 }

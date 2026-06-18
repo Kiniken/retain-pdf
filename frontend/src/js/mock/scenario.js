@@ -8,7 +8,7 @@ export function currentMockScenario() {
     completed: "done",
   };
   const normalized = aliases[value] || value;
-  return ["upload", "ocr", "translate", "render", "done", "failed"].includes(normalized) ? normalized : "";
+  return ["upload", "ocr", "translate", "render", "done", "failed", "parallel"].includes(normalized) ? normalized : "";
 }
 
 export function isoOffsetMinutes(minutes) {

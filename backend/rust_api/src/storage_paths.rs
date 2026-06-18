@@ -45,7 +45,8 @@ mod tests {
     use std::path::Path;
 
     use super::*;
-    use crate::models::{CreateJobInput, JobArtifacts, JobSnapshot};
+    use crate::models::domain::{JobArtifacts, JobSnapshot};
+    use crate::models::request::CreateJobInput;
 
     #[test]
     fn normalize_rejects_parent_relative_paths() {

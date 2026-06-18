@@ -12,6 +12,7 @@ sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 from foundation.shared.job_dirs import ensure_job_dirs
 from foundation.shared.job_dirs import resolve_job_dirs
 from services.ocr_provider.local_command_driver import LOCAL_OCR_COMMAND_ENV
+from services.ocr_provider.local_command_driver import LOCAL_OCR_RAW_PROVIDER_ENV
 from services.ocr_provider.local_command_driver import run_local_command_ocr_to_job_dir
 
 
@@ -96,6 +97,185 @@ target.write_text(json.dumps({
     assert result.source_pdf_path == source_pdf
     assert result.normalized_json_path.exists()
     assert result.provider_result_json_path.exists()
+    assert result.artifact_manifest.normalized_json_path == result.normalized_json_path
     assert (job_dirs.ocr_dir / "normalized" / "document.v1.report.json").exists()
     normalized_payload = json.loads(result.normalized_json_path.read_text(encoding="utf-8"))
     assert normalized_payload["source"]["provider"] == "local"
+
+
+def test_local_command_ocr_driver_accepts_raw_generic_payload(tmp_path: Path, monkeypatch) -> None:
+    job_root = tmp_path / "20260616-local-ocr-raw"
+    job_dirs = resolve_job_dirs(job_root)
+    ensure_job_dirs(job_dirs)
+    source_pdf = job_dirs.source_dir / "book.pdf"
+    _write_source_pdf(source_pdf)
+    script_path = tmp_path / "fake_local_raw_ocr.py"
+    script_path.write_text(
+        """
+import json
+import os
+from pathlib import Path
+
+target = Path(os.environ["RETAIN_OCR_RAW_PAYLOAD_JSON"])
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_text(json.dumps({
+    "provider": "generic_flat_ocr",
+    "pages": [{
+        "width": 320,
+        "height": 480,
+        "unit": "pt",
+        "blocks": [{
+            "type": "text",
+            "sub_type": "body",
+            "bbox": [72.0, 60.0, 220.0, 90.0],
+            "text": "local raw ocr smoke",
+            "lines": [],
+            "segments": []
+        }]
+    }]
+}, ensure_ascii=False), encoding="utf-8")
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(LOCAL_OCR_COMMAND_ENV, f"{sys.executable} {script_path}")
+    monkeypatch.setenv(LOCAL_OCR_RAW_PROVIDER_ENV, "generic_flat_ocr")
+
+    result = run_local_command_ocr_to_job_dir(
+        SimpleNamespace(
+            file_path=str(source_pdf),
+            job_root=str(job_dirs.root),
+            source_dir=str(job_dirs.source_dir),
+            ocr_dir=str(job_dirs.ocr_dir),
+            translated_dir=str(job_dirs.translated_dir),
+            rendered_dir=str(job_dirs.rendered_dir),
+            artifacts_dir=str(job_dirs.artifacts_dir),
+            logs_dir=str(job_dirs.logs_dir),
+        )
+    )
+
+    assert result.source_pdf_path == source_pdf
+    assert result.normalized_json_path.exists()
+    assert result.provider_result_json_path.exists()
+    assert result.raw_main_payload_path == job_dirs.ocr_dir / "local_raw" / "payload.json"
+    assert result.artifact_manifest.provider_raw_dir == job_dirs.ocr_dir / "local_raw"
+    normalized_payload = json.loads(result.normalized_json_path.read_text(encoding="utf-8"))
+    assert normalized_payload["source"]["provider"] == "generic_flat_ocr"
+    assert normalized_payload["pages"][0]["blocks"][0]["text"] == "local raw ocr smoke"
+
+
+def test_local_command_ocr_driver_accepts_command_from_args(tmp_path: Path, monkeypatch) -> None:
+    job_root = tmp_path / "20260616-local-ocr-args"
+    job_dirs = resolve_job_dirs(job_root)
+    ensure_job_dirs(job_dirs)
+    source_pdf = job_dirs.source_dir / "book.pdf"
+    _write_source_pdf(source_pdf)
+    script_path = tmp_path / "fake_local_raw_ocr_args.py"
+    script_path.write_text(
+        """
+import json
+import os
+from pathlib import Path
+
+target = Path(os.environ["RETAIN_OCR_RAW_PAYLOAD_JSON"])
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_text(json.dumps({
+    "pages": [{
+        "width": 320,
+        "height": 480,
+        "blocks": [{
+            "type": "text",
+            "bbox": [72.0, 60.0, 220.0, 90.0],
+            "text": "local args ocr smoke"
+        }]
+    }]
+}, ensure_ascii=False), encoding="utf-8")
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv(LOCAL_OCR_COMMAND_ENV, raising=False)
+    monkeypatch.delenv(LOCAL_OCR_RAW_PROVIDER_ENV, raising=False)
+
+    result = run_local_command_ocr_to_job_dir(
+        SimpleNamespace(
+            provider="custom-local",
+            local_ocr_command=f"{sys.executable} {script_path}",
+            local_ocr_raw_provider="generic_flat_ocr",
+            file_path=str(source_pdf),
+            job_root=str(job_dirs.root),
+            source_dir=str(job_dirs.source_dir),
+            ocr_dir=str(job_dirs.ocr_dir),
+            translated_dir=str(job_dirs.translated_dir),
+            rendered_dir=str(job_dirs.rendered_dir),
+            artifacts_dir=str(job_dirs.artifacts_dir),
+            logs_dir=str(job_dirs.logs_dir),
+        )
+    )
+
+    normalized_payload = json.loads(result.normalized_json_path.read_text(encoding="utf-8"))
+    assert normalized_payload["source"]["provider"] == "generic_flat_ocr"
+    assert normalized_payload["pages"][0]["blocks"][0]["text"] == "local args ocr smoke"
+
+
+def test_command_ocr_driver_accepts_remote_source_url(tmp_path: Path, monkeypatch) -> None:
+    job_root = tmp_path / "20260616-remote-command-ocr"
+    job_dirs = resolve_job_dirs(job_root)
+    ensure_job_dirs(job_dirs)
+    script_path = tmp_path / "fake_remote_command_ocr.py"
+    script_path.write_text(
+        """
+import json
+import os
+from pathlib import Path
+
+assert os.environ["RETAIN_OCR_PROVIDER"] == "remote-fast"
+assert os.environ["RETAIN_OCR_PROVIDER_KIND"] == "remote_command"
+assert os.environ["RETAIN_OCR_SOURCE_PDF"] == ""
+assert os.environ["RETAIN_OCR_SOURCE_URL"] == "https://example.test/source.pdf"
+
+target = Path(os.environ["RETAIN_OCR_RAW_PAYLOAD_JSON"])
+target.parent.mkdir(parents=True, exist_ok=True)
+source_dir = Path(os.environ["RETAIN_OCR_SOURCE_DIR"])
+source_dir.mkdir(parents=True, exist_ok=True)
+(source_dir / "remote-source.pdf").write_bytes(b"%PDF-1.4\\n")
+target.write_text(json.dumps({
+    "provider": "generic_flat_ocr",
+    "pages": [{
+        "width": 320,
+        "height": 480,
+        "unit": "pt",
+        "blocks": [{
+            "type": "text",
+            "sub_type": "body",
+            "bbox": [72.0, 60.0, 220.0, 90.0],
+            "text": "remote command ocr smoke"
+        }]
+    }]
+}, ensure_ascii=False), encoding="utf-8")
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv(LOCAL_OCR_COMMAND_ENV, raising=False)
+    monkeypatch.delenv(LOCAL_OCR_RAW_PROVIDER_ENV, raising=False)
+
+    result = run_local_command_ocr_to_job_dir(
+        SimpleNamespace(
+            provider="remote-fast",
+            ocr_provider_kind="remote_command",
+            local_ocr_command=f"{sys.executable} {script_path}",
+            local_ocr_raw_provider="generic_flat_ocr",
+            file_path="",
+            file_url="https://example.test/source.pdf",
+            job_root=str(job_dirs.root),
+            source_dir=str(job_dirs.source_dir),
+            ocr_dir=str(job_dirs.ocr_dir),
+            translated_dir=str(job_dirs.translated_dir),
+            rendered_dir=str(job_dirs.rendered_dir),
+            artifacts_dir=str(job_dirs.artifacts_dir),
+            logs_dir=str(job_dirs.logs_dir),
+        )
+    )
+
+    assert result.source_pdf_path == job_dirs.source_dir / "remote-source.pdf"
+    normalized_payload = json.loads(result.normalized_json_path.read_text(encoding="utf-8"))
+    assert normalized_payload["source"]["provider"] == "generic_flat_ocr"
+    assert normalized_payload["pages"][0]["blocks"][0]["text"] == "remote command ocr smoke"

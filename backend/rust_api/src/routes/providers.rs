@@ -2,7 +2,8 @@ use axum::extract::State;
 use axum::Json;
 
 use crate::error::AppError;
-use crate::models::ApiResponse;
+use crate::models::api::ApiResponse;
+use crate::ocr_provider::{provider_public_definitions, OcrProviderPublicDefinition};
 use crate::routes::common::build_provider_route_deps;
 use crate::services::provider_probe::{
     query_deepseek_balance_view, validate_deepseek_token_view, validate_mineru_token_view,
@@ -10,6 +11,11 @@ use crate::services::provider_probe::{
     MineruTokenValidationRequest, MineruTokenValidationView, PaddleTokenValidationRequest,
 };
 use crate::AppState;
+
+pub async fn list_ocr_providers(
+) -> Result<Json<ApiResponse<Vec<OcrProviderPublicDefinition>>>, AppError> {
+    Ok(Json(ApiResponse::ok(provider_public_definitions())))
+}
 
 pub async fn validate_mineru_token(
     State(state): State<AppState>,

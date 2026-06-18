@@ -169,7 +169,31 @@ class TranslationRunDiagnosticsTests(unittest.TestCase):
             translation_batch_size=1,
         )
         run.set_workload(pending_items=66, total_batches=66)
-        run.set_translation_result_stats(applied_batches=66, apply_elapsed_ms=1234, max_result_drain_batch=32)
+        run.set_translation_queue_workers(
+            batched_fast_workers=20,
+            single_fast_workers=70,
+            single_slow_workers=10,
+            slow_worker_limit=10,
+            batched_fast_batches=8,
+            single_fast_batches=50,
+            single_slow_batches=8,
+        )
+        run.set_translation_result_stats(
+            applied_batches=66,
+            apply_elapsed_ms=1234,
+            max_result_drain_batch=32,
+            flush_count=4,
+            flushed_page_total=18,
+            flush_elapsed_ms=456,
+            max_flush_pages=7,
+            tail_retry_drains=2,
+            tail_retry_items=5,
+            tail_retry_completed=4,
+            tail_retry_failed=1,
+            tail_retry_elapsed_ms=789,
+            early_tail_retry_drains=1,
+            final_tail_retry_drains=1,
+        )
         run.mark_phase_start("translation_batches")
         time.sleep(0.002)
         run.mark_phase_end("translation_batches")
@@ -217,6 +241,14 @@ class TranslationRunDiagnosticsTests(unittest.TestCase):
         self.assertEqual(summary["pending_items"], 66)
         self.assertEqual(summary["result_apply"]["apply_elapsed_ms"], 1234)
         self.assertEqual(summary["result_apply"]["max_result_drain_batch"], 32)
+        self.assertEqual(summary["translation_queue_split"]["batched_fast_batches"], 8)
+        self.assertEqual(summary["translation_queue_split"]["fast_queue_batches"], 58)
+        self.assertEqual(summary["translation_queue_split"]["single_slow_workers"], 10)
+        self.assertEqual(summary["result_flush"]["flush_elapsed_ms"], 456)
+        self.assertEqual(summary["result_flush"]["max_flush_pages"], 7)
+        self.assertEqual(summary["tail_retry"]["tail_retry_items"], 5)
+        self.assertEqual(summary["tail_retry"]["tail_retry_failed"], 1)
+        self.assertEqual(summary["tail_retry"]["early_tail_retry_drains"], 1)
         self.assertEqual(summary["retry_summary"]["retrying_request_labels"], 1)
 
     def test_request_chat_content_records_retry_attempts(self):

@@ -193,12 +193,20 @@ def test_typst_cover_fallback_plan_marks_only_target_page_spec_blocks() -> None:
     assert fallback.skip_reason == "typst_item_cover_fallback"
 
 
-def test_pikepdf_text_strip_allows_book_overlay_pikepdf_merge() -> None:
-    assert _can_use_pikepdf_book_overlay(
+def test_pikepdf_text_strip_book_overlay_pikepdf_merge_requires_all_pages_precleaned() -> None:
+    assert not _can_use_pikepdf_book_overlay(
         apply_source_overlay=False,
         use_typst_overlay_fill_only=False,
         source_cleanup_strategy="pikepdf_text_strip",
         source_text_precleaned_page_indices=frozenset({0}),
+        ordered_page_indices=[0, 1, 2],
+        translated_pages={0: [{}], 1: [{}], 2: [{}]},
+    )
+    assert _can_use_pikepdf_book_overlay(
+        apply_source_overlay=False,
+        use_typst_overlay_fill_only=False,
+        source_cleanup_strategy="pikepdf_text_strip",
+        source_text_precleaned_page_indices=frozenset({0, 1, 2}),
         ordered_page_indices=[0, 1, 2],
         translated_pages={0: [{}], 1: [{}], 2: [{}]},
     )
@@ -219,11 +227,7 @@ def test_large_pikepdf_overlay_uses_chunked_typst_compile_when_enabled(monkeypat
 
         source_doc = fitz.open(source_pdf)
         try:
-            with mock.patch(
-                "services.rendering.output.typst.overlay_ops.compile_book_overlay_pdf",
-                side_effect=AssertionError("large pikepdf overlay should use chunked compile"),
-            ), mock.patch(
-                "services.rendering.output.typst.overlay_ops.compile_book_overlay_pdf_chunks",
+            chunk_compile_mock = mock.Mock(
                 return_value=OverlayChunkCompileResult(
                     chunk_pdf_paths=[root / "chunk-1.pdf", root / "chunk-2.pdf"],
                     chunk_source_page_indices=[list(range(128)), list(range(128, 256))],
@@ -231,7 +235,14 @@ def test_large_pikepdf_overlay_uses_chunked_typst_compile_when_enabled(monkeypat
                     chunk_page_count=128,
                     chunk_count=2,
                     workers=2,
-                ),
+                )
+            )
+            with mock.patch(
+                "services.rendering.output.typst.overlay_ops.compile_book_overlay_pdf",
+                side_effect=AssertionError("large pikepdf overlay should use chunked compile"),
+            ), mock.patch(
+                "services.rendering.output.typst.overlay_ops.compile_book_overlay_pdf_chunks",
+                chunk_compile_mock,
             ), mock.patch(
                 "services.rendering.output.typst.overlay_ops.overlay_pdf_chunks_with_pikepdf",
                 return_value=PikepdfOverlayResult(
@@ -268,9 +279,10 @@ def test_large_pikepdf_overlay_uses_chunked_typst_compile_when_enabled(monkeypat
         assert diagnostics["typst_chunk_count"] == 2
         assert diagnostics["typst_chunk_page_count"] == 128
         assert diagnostics["pikepdf_overlay_pages"] == 256
+        assert chunk_compile_mock.call_args.kwargs["include_cover_rect"] is True
 
 
-def test_overlay_does_not_promote_unprecleaned_pikepdf_pages_to_cover_fallback() -> None:
+def test_overlay_includes_cover_rect_without_promoting_unprecleaned_pages_to_fallback() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         source_pdf = root / "source.pdf"
@@ -324,7 +336,7 @@ def test_overlay_does_not_promote_unprecleaned_pikepdf_pages_to_cover_fallback()
         finally:
             source_doc.close()
 
-        assert compile_mock.call_args.kwargs["include_cover_rect"] is False
+        assert compile_mock.call_args.kwargs["include_cover_rect"] is True
         assert diagnostics["typst_cover_fallback_pages"] == []
 
 

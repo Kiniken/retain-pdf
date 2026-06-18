@@ -3,7 +3,6 @@ import {
   OCR_ANIMATION_PATH,
   RENDER_ANIMATION_PATH,
   STAGE_ANIMATIONS,
-  STAGE_LABELS,
   TRANSLATION_ANIMATION_PATH,
   UPLOAD_ANIMATION_PATH,
 } from "./job-status-card-presets.js";
@@ -18,48 +17,35 @@ import {
   syncPrimaryActions,
 } from "./job-status-card-rendering.js";
 import {
-  resolveSelectedStage,
   syncStageFlow,
 } from "./job-status-card-stage-flow.js";
 import {
-  buildProgressOptions,
-  shouldAnimateRenderPageProgress,
-} from "./job-status-card-progress.js";
+  createStatusCardStageSelectionController,
+} from "./job-status-card-selection.js";
+import {
+  createStatusCardProgressAnimation,
+} from "./job-status-card-progress-animation.js";
 import {
   bindStageRetryEvents,
   renderStageRetryAction,
 } from "./job-status-card-retry.js";
 import { normalizeStatusCardSnapshot } from "./job-status-card-snapshot.js";
+import { statusStageLabel } from "../../job-status/stage-flow-model.js";
 import {
-  effectiveFlowStageKey,
-  resolveSelectedStageContext,
-} from "./job-status-card-selection.js";
+  STATUS_CARD_IDS,
+  STATUS_CARD_SELECTORS,
+  statusCardElementById,
+} from "./job-status-card-dom-contract.js";
 import { syncStageSubstageStates } from "./job-status-card-substages.js";
 import { jobStatusCardTemplate } from "./job-status-card-template.js";
 
-function shortStageLabel(stageKey = "", fallback = "等待中") {
-  const normalized = `${stageKey || ""}`.trim();
-  if (STAGE_LABELS[normalized]) {
-    return STAGE_LABELS[normalized];
-  }
-  if (normalized === "failed") {
-    return "失败";
-  }
-  if (normalized === "canceled") {
-    return "已取消";
-  }
-  return fallback;
-}
-
 class JobStatusCard extends HTMLElement {
   #stageAnimationController = null;
-  #currentStageKey = "";
-  #selectedStageKey = "";
-  #manualStageSelection = false;
+  #stageSelection = createStatusCardStageSelectionController();
+  #progressAnimation = createStatusCardProgressAnimation({
+    renderProgress: (options) => this.setProgress(options),
+  });
   #lastSnapshot = null;
-  #currentJobId = "";
-  #progressAnimationTimer = null;
-  #displayedProgressByStage = {};
 
   connectedCallback() {
     if (this.dataset.hydrated === "1") {
@@ -76,58 +62,43 @@ class JobStatusCard extends HTMLElement {
       downloadAnimationPath: DOWNLOAD_ANIMATION_PATH,
       renderAnimationPath: RENDER_ANIMATION_PATH,
     });
-    this.querySelector("#status-stage-flow")?.addEventListener("click", (event) => {
+    statusCardElementById(this, STATUS_CARD_IDS.stageFlow)?.addEventListener("click", (event) => {
       const button = event.target?.closest?.(".status-stage-step");
       const stageKey = button?.dataset?.stageKey || "";
       if (!stageKey || button.disabled) {
         return;
       }
-      this.#manualStageSelection = true;
-      this.#selectedStageKey = stageKey;
+      this.#stageSelection.selectStage(stageKey);
       this.#renderSelectedStage();
     });
     bindStageRetryEvents(this);
   }
 
   disconnectedCallback() {
-    this.#clearProgressAnimation();
+    this.#progressAnimation.clear();
   }
 
   setStagePresentation({ label = "等待中", value = "准备中", stageKey = "" } = {}) {
-    const labelEl = this.querySelector("#status-ring-label");
-    const valueEl = this.querySelector("#status-ring-value");
-    const detailEl = this.querySelector("#status-stage-detail");
-    const previousCurrentStageKey = this.#currentStageKey;
-    this.#currentStageKey = `${stageKey || ""}`.trim();
-    if (previousCurrentStageKey && previousCurrentStageKey !== this.#currentStageKey) {
-      this.#manualStageSelection = false;
-    }
-    const selection = resolveSelectedStage({
-      currentStageKey: this.#currentStageKey,
-      selectedStageKey: this.#selectedStageKey,
-      manualStageSelection: this.#manualStageSelection,
-    });
-    this.#selectedStageKey = selection.selectedStageKey;
-    this.#manualStageSelection = selection.manualStageSelection;
-    this.setStageFlow(this.#currentStageKey, this.#selectedStageKey);
-    const selectedIsCurrent = !this.#selectedStageKey || this.#selectedStageKey === this.#currentStageKey;
-    const visualStageKey = selectedIsCurrent ? resolveVisualStageKeyForSnapshot(this.#lastSnapshot, this.#currentStageKey) : this.#selectedStageKey;
+    const labelEl = statusCardElementById(this, STATUS_CARD_IDS.ringLabel);
+    const valueEl = statusCardElementById(this, STATUS_CARD_IDS.ringValue);
+    const detailEl = statusCardElementById(this, STATUS_CARD_IDS.stageDetail);
+    const selection = this.#stageSelection.syncCurrentStage(stageKey);
+    this.setStageFlow(selection.currentStageKey, selection.selectedStageKey);
+    const selectedIsCurrent = this.#stageSelection.selectedIsCurrent();
+    const visualStageKey = selectedIsCurrent ? resolveVisualStageKeyForSnapshot(this.#lastSnapshot, selection.currentStageKey) : selection.selectedStageKey;
     this.#stageAnimationController?.setStageVisualMode(visualStageKey);
     if (labelEl) {
       labelEl.textContent = selectedIsCurrent
-        ? shortStageLabel(this.#currentStageKey, label)
-        : shortStageLabel(this.#selectedStageKey, "阶段");
+        ? statusStageLabel(selection.currentStageKey, label)
+        : statusStageLabel(selection.selectedStageKey, "阶段");
     }
     if (valueEl) {
       valueEl.textContent = value;
     }
     if (detailEl) {
-      detailEl.textContent = value;
+      detailEl.textContent = "";
+      detailEl.classList.add("hidden");
     }
-  }
-
-  #effectiveFlowStageKey(snapshot = this.#lastSnapshot) {
-    return effectiveFlowStageKey(snapshot);
   }
 
   setStageFlow(stageKey = "", selectedStageKey = "") {
@@ -140,19 +111,12 @@ class JobStatusCard extends HTMLElement {
 
   #syncStageSubstages(selectedStageKey, selectedIsCurrent, selectedProgress = null) {
     syncStageSubstageStates(
-      this.querySelector(".status-substage-flow"),
+      this.querySelector(STATUS_CARD_SELECTORS.substageFlow),
       selectedStageKey,
       selectedIsCurrent,
       this.#lastSnapshot,
       selectedProgress,
     );
-  }
-
-  #clearProgressAnimation() {
-    if (this.#progressAnimationTimer) {
-      clearTimeout(this.#progressAnimationTimer);
-      this.#progressAnimationTimer = null;
-    }
   }
 
   setElapsed(value = "-") {
@@ -169,14 +133,16 @@ class JobStatusCard extends HTMLElement {
 
   renderSnapshot(snapshotPayload = {}) {
     const snapshot = normalizeStatusCardSnapshot(snapshotPayload);
-    if (snapshot.jobId && snapshot.jobId !== this.#currentJobId) {
-      this.#currentJobId = snapshot.jobId;
-      this.#clearProgressAnimation();
-      this.#displayedProgressByStage = {};
-      this.#manualStageSelection = false;
-      this.#selectedStageKey = "";
+    const previousJobId = this.#stageSelection.snapshot().currentJobId;
+    const selection = this.#stageSelection.syncSnapshot({
+      jobId: snapshot.jobId,
+      stageKey: snapshot.stageKey,
+    });
+    if (selection.currentJobId && selection.currentJobId !== previousJobId) {
+      this.#progressAnimation.reset();
     }
     this.#lastSnapshot = snapshot;
+    this.dataset.status = `${snapshot.status || ""}`.trim();
     this.setStagePresentation({
       label: snapshot.label,
       value: snapshot.value,
@@ -192,104 +158,38 @@ class JobStatusCard extends HTMLElement {
     if (!snapshot) {
       return;
     }
-    const {
-      flowStageKey,
-      selected,
-      selectedHistoricalProgress,
-      selectedIsCurrent,
-      selectedProgress,
-    } = resolveSelectedStageContext({
-      snapshot,
-      selectedStageKey: this.#selectedStageKey,
-    });
-    this.setStageFlow(flowStageKey || snapshot.stageKey, selected);
+    const display = this.#stageSelection.buildDisplay(snapshot);
+    this.setStageFlow(snapshot.stageKey, display.selected);
     this.#stageAnimationController?.setStageVisualMode(
-      selectedHistoricalProgress?.visualStageKey || resolveVisualStageKeyForSnapshot(snapshot, selected),
+      display.visualStageKey || resolveVisualStageKeyForSnapshot(snapshot, display.selected),
     );
-    const errorSummaryEl = this.querySelector("#status-stage-error-summary");
-    const bodyEl = this.querySelector(".status-wa-body");
-    const errorText = `${snapshot.errorText || ""}`.trim();
-    const selectedIsError = snapshot.stageKey === "failed" || snapshot.stageKey === "canceled";
-    this.#syncStageSubstages(selected, selectedIsCurrent, selectedProgress);
+    const errorSummaryEl = statusCardElementById(this, STATUS_CARD_IDS.stageErrorSummary);
+    const detailEl = statusCardElementById(this, STATUS_CARD_IDS.stageDetail);
+    const bodyEl = this.querySelector(STATUS_CARD_SELECTORS.body);
+    this.#syncStageSubstages(display.selected, display.selectedIsCurrent, display.selectedProgress);
     this.#stageAnimationController?.syncProgressSpeed({
-      stageKey: selected,
-      current: selectedProgress?.current,
-      total: selectedProgress?.total,
-      progressUnit: selectedProgress?.progressUnit,
+      stageKey: display.selected,
+      current: display.selectedProgress?.current,
+      total: display.selectedProgress?.total,
+      progressUnit: display.selectedProgress?.progressUnit,
     });
     if (errorSummaryEl) {
-      errorSummaryEl.textContent = errorText;
-      errorSummaryEl.classList.toggle("hidden", !selectedIsError || !errorText);
+      errorSummaryEl.textContent = display.errorState.errorText;
+      errorSummaryEl.classList.toggle("hidden", !display.errorState.showError);
     }
-    bodyEl?.classList.toggle("has-error", Boolean(selectedIsError && errorText));
-    this.#setAnimatedProgress({
-      selected,
-      selectedIsCurrent,
+    bodyEl?.classList.toggle("has-error", display.errorState.bodyHasError);
+    this.#progressAnimation.render({
+      selected: display.selected,
+      selectedIsCurrent: display.selectedIsCurrent,
       snapshot,
-      selectedProgress,
+      selectedProgress: display.selectedProgress,
     });
-    this.syncPrimaryActions({
-      pdfReady: selected === "done" && snapshot.pdfReady,
-      pdfUrl: snapshot.pdfUrl,
-      markdownBundleReady: selected === "done" && snapshot.markdownBundleReady,
-      markdownBundleUrl: snapshot.markdownBundleUrl,
-      readerReady: selected === "done" && snapshot.readerReady,
-      readerUrl: snapshot.readerUrl,
-      sourcePdfReady: selected === "done" && snapshot.sourcePdfReady,
-      sourcePdfUrl: snapshot.sourcePdfUrl,
-    });
-    renderStageRetryAction(this, selected, snapshot.stageRetryActions?.[selected]);
-  }
-
-  #setAnimatedProgress({ selected, selectedIsCurrent, snapshot, selectedProgress }) {
-    const previous = this.#displayedProgressByStage[selected];
-    const {
-      previousCurrent,
-      shouldAnimate,
-      targetCurrent,
-      targetTotal,
-    } = shouldAnimateRenderPageProgress({
-      selected,
-      selectedIsCurrent,
-      snapshot,
-      selectedProgress,
-      previous,
-    });
-    if (!shouldAnimate) {
-      this.#clearProgressAnimation();
-      this.#displayedProgressByStage[selected] = {
-        current: Number.isFinite(targetCurrent) ? targetCurrent : null,
-        total: Number.isFinite(targetTotal) ? targetTotal : null,
-      };
-      this.setProgress(buildProgressOptions({
-        selected,
-        selectedIsCurrent,
-        snapshot,
-        selectedProgress,
-      }));
-      return;
+    if (detailEl) {
+      detailEl.textContent = display.detailText;
+      detailEl.classList.toggle("hidden", !display.showDetail);
     }
-
-    this.#clearProgressAnimation();
-    let displayedCurrent = previousCurrent;
-    const tick = () => {
-      displayedCurrent = Math.min(targetCurrent, displayedCurrent + 1);
-      this.#displayedProgressByStage[selected] = {
-        current: displayedCurrent,
-        total: targetTotal,
-      };
-      this.setProgress(buildProgressOptions({
-        selected,
-        selectedIsCurrent,
-        snapshot,
-        selectedProgress,
-        displayedCurrent,
-      }));
-      if (displayedCurrent < targetCurrent) {
-        this.#progressAnimationTimer = setTimeout(tick, 120);
-      }
-    };
-    tick();
+    this.syncPrimaryActions(display.primaryActions);
+    renderStageRetryAction(this, display.selected, display.retryAction);
   }
 
 }

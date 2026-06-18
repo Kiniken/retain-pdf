@@ -2,7 +2,7 @@ use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 
-use crate::models::{JobArtifacts, JobSnapshot};
+use crate::models::domain::{JobArtifacts, JobSnapshot};
 
 use super::constants::LEGACY_LAYOUT_DIR_NAMES;
 

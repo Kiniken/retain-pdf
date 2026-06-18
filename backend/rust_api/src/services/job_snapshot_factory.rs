@@ -2,10 +2,9 @@ use std::path::{Path, PathBuf};
 
 use crate::config::JobSnapshotRuntimeConfig;
 use crate::error::AppError;
-use crate::models::{JobSnapshot, ResolvedJobSpec, UploadRecord};
+use crate::models::domain::{JobSnapshot, ResolvedJobSpec, UploadRecord};
 use crate::ocr_provider::{ensure_provider_diagnostics, parse_provider_kind};
 use crate::storage_paths::{attach_job_paths, build_job_paths};
-use crate::worker_command::build_ocr_command;
 
 pub fn build_job_snapshot(
     config: &JobSnapshotRuntimeConfig<'_>,
@@ -99,24 +98,19 @@ fn build_ocr_trace_id(job_id: &str) -> String {
 }
 
 pub enum JobCommandKind {
-    Ocr { upload_path: Option<PathBuf> },
+    Ocr,
     Deferred { label: &'static str },
 }
 
 impl JobCommandKind {
     fn build(
         &self,
-        config: &JobSnapshotRuntimeConfig<'_>,
-        request: &ResolvedJobSpec,
-        job_paths: &crate::storage_paths::JobPaths,
+        _config: &JobSnapshotRuntimeConfig<'_>,
+        _request: &ResolvedJobSpec,
+        _job_paths: &crate::storage_paths::JobPaths,
     ) -> Vec<String> {
         match self {
-            JobCommandKind::Ocr { upload_path } => build_ocr_command(
-                &config.worker_command,
-                upload_path.as_deref(),
-                request,
-                job_paths,
-            ),
+            JobCommandKind::Ocr => vec!["ocr-workflow-pending-provider".to_string()],
             JobCommandKind::Deferred { label } => vec![(*label).to_string()],
         }
     }

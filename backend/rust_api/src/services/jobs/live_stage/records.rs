@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use crate::models::{JobEventRecord, JobSnapshot};
+use crate::models::api::JobEventRecord;
+use crate::models::domain::JobSnapshot;
 use crate::storage_paths::resolve_events_jsonl;
 
 use super::canonical_events::canonicalize_job_event;

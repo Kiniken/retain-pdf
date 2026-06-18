@@ -34,3 +34,7 @@ def test_translation_batch_flush_skips_full_unit_refresh(monkeypatch, tmp_path: 
     state.flush(label="test flush")
 
     assert calls == [{"page_indices": {1}, "refresh_units": False}]
+    assert state.stats()["flush_count"] == 1
+    assert state.stats()["flushed_page_total"] == 1
+    assert state.stats()["max_flush_pages"] == 1
+    assert state.stats()["flush_elapsed_ms"] >= 0

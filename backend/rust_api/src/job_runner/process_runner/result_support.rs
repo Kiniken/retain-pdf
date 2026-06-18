@@ -2,7 +2,7 @@ use std::path::Path;
 use std::process::ExitStatus;
 use std::time::Instant;
 
-use crate::models::{now_iso, JobRuntimeState, ProcessResult};
+use crate::models::domain::{now_iso, JobRuntimeState, ProcessResult};
 
 pub(super) fn attach_process_result(
     job: &mut JobRuntimeState,

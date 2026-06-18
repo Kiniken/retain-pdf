@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use crate::job_runner::{job_artifacts_mut, ocr_provider_diagnostics_mut};
-use crate::models::JobRuntimeState;
+use crate::models::domain::JobRuntimeState;
 
 pub(super) async fn persist_provider_result(
     job: &mut JobRuntimeState,

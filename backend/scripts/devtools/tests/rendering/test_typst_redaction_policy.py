@@ -145,11 +145,38 @@ def test_render_policy_keeps_formula_page_text_deletable() -> None:
 
     assert policy.page_has_formula_region is True
     assert policy.item_policy("p001-b001").cleanup_mode == "delete_text"
-    assert item_render_policy(patched[0]) == {}
-    assert item_uses_white_overlay_fill(patched[0]) is False
+    assert item_render_policy(patched[0])["reason"] == "default_text_overlay_cover_fill"
+    assert item_uses_white_overlay_fill(patched[0]) is True
 
 
-def test_precleaned_overlay_pages_do_not_get_formula_page_white_fill() -> None:
+def test_default_render_policy_adds_cover_fill_only_for_translated_text() -> None:
+    items = [
+        {
+            "item_id": "p001-b001",
+            "block_type": "text",
+            "block_kind": "text",
+            "bbox": [40.0, 40.0, 260.0, 70.0],
+            "translated_text": "译文",
+        },
+        {
+            "item_id": "p001-b002",
+            "block_type": "text",
+            "block_kind": "text",
+            "bbox": [40.0, 80.0, 260.0, 110.0],
+            "source_text": "kept source",
+            "translation_status": "keep_origin",
+        },
+    ]
+
+    patched = apply_render_page_policy_fields(items)
+
+    assert item_render_policy(patched[0])["cleanup_mode"] == "delete_text"
+    assert item_uses_white_overlay_fill(patched[0]) is True
+    assert item_render_policy(patched[1]) == {}
+    assert item_uses_white_overlay_fill(patched[1]) is False
+
+
+def test_precleaned_overlay_pages_still_get_cover_fill() -> None:
     pages = {
         0: [
             {
@@ -174,8 +201,8 @@ def test_precleaned_overlay_pages_do_not_get_formula_page_white_fill() -> None:
     prepared = prepare_translated_pages_for_render(None, pages, skip_policy_page_indices=frozenset({0}))
     source = build_typst_overlay_source(300.0, 400.0, prepared[0])
 
-    assert item_uses_white_overlay_fill(prepared[0][0]) is False
-    assert "fill: rgb(255, 255, 255)" not in source
+    assert item_uses_white_overlay_fill(prepared[0][0]) is True
+    assert "fill: rgb(255, 255, 255)" in source
 
 
 def test_display_formula_neighbors_stay_deletable() -> None:

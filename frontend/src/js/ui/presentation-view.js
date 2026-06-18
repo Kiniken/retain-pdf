@@ -1,8 +1,10 @@
-import { $ } from "../dom.js";
+import { $ } from "../dom/query.js";
 import {
   setStatusAreaVisible,
   statusCardElement,
 } from "./status-area-view.js";
+import { STATUS_CARD_IDS } from "../components/status/job-status-card-dom-contract.js";
+import { APP_DIALOG_IDS } from "../contracts/app-contract.js";
 
 export function setTextView(id, value) {
   const el = $(id);
@@ -34,11 +36,11 @@ export function setStatusView(status) {
 
 export function setStatusCardElapsed(value) {
   const statusCard = statusCardElement();
-  if (statusCard?.setElapsed && !statusCard?.renderSnapshot) {
+  if (statusCard?.setElapsed) {
     statusCard.setElapsed(value);
     return;
   }
-  setTextView("status-ring-elapsed", value);
+  setTextView(STATUS_CARD_IDS.ringElapsed, value);
 }
 
 export function setWorkflowSectionsView({ hasJob, processing }) {
@@ -59,29 +61,24 @@ export function renderStatusRingFallback({
   readerReady,
 }) {
   const statusCard = statusCardElement();
-  if (statusCard?.setStagePresentation && !statusCard?.renderSnapshot) {
+  if (statusCard?.setStagePresentation) {
     statusCard.setStagePresentation({ label, value, stageKey });
   } else {
-    setTextView("status-ring-label", label);
-    setTextView("status-ring-value", value);
+    setTextView(STATUS_CARD_IDS.ringLabel, label);
+    setTextView(STATUS_CARD_IDS.ringValue, value);
   }
 
-  if (statusCard?.syncPrimaryActions && !statusCard?.renderSnapshot) {
+  if (statusCard?.syncPrimaryActions) {
     statusCard.syncPrimaryActions({ pdfReady, readerReady });
     return;
   }
 
-  const pdfBtn = $("pdf-btn");
-  const readerBtn = $("reader-btn");
+  const pdfBtn = $(STATUS_CARD_IDS.pdfButton);
+  const readerBtn = $(STATUS_CARD_IDS.readerButton);
   const actionRow = document.querySelector(".status-ring-downloads");
   pdfBtn?.classList.toggle("hidden", !pdfReady);
   readerBtn?.classList.toggle("hidden", !readerReady);
   actionRow?.classList.remove("hidden");
-}
-
-export function statusActionReady(id) {
-  const el = $(id);
-  return Boolean(el && !el.classList.contains("disabled"));
 }
 
 export function renderStatusCardSnapshot(snapshot) {
@@ -94,7 +91,7 @@ export function renderStatusCardSnapshot(snapshot) {
 }
 
 export function renderStatusDetailSnapshotView(snapshot) {
-  const statusDetailDialog = document.querySelector("status-detail-dialog");
+  const statusDetailDialog = document.querySelector(APP_DIALOG_IDS.statusDetail);
   if (!statusDetailDialog?.renderSnapshot) {
     return false;
   }

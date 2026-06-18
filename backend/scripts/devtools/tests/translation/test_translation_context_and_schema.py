@@ -478,8 +478,10 @@ def test_translation_control_context_caches_repeated_term_scope(monkeypatch) -> 
 def test_build_translation_context_from_policy_uses_policy_guidance() -> None:
     class _Policy:
         mode = "sci"
-        domain_context = {"translation_guidance": "domain-guidance"}
+        domain_context = {"summary": "domain-summary", "translation_guidance": "domain-guidance"}
+        document_domain_guidance = "Document domain summary:\ndomain-summary\n\ndomain-guidance"
         rule_guidance = "rule-guidance"
+        math_mode = "placeholder"
 
     context = session_context.build_translation_context_from_policy(
         _Policy(),
@@ -487,6 +489,7 @@ def test_build_translation_context_from_policy_uses_policy_guidance() -> None:
         retrieval_entries=[session_context.RetrievalEvidence(source="rag", content="snippet")],
     )
     assert context.mode == "sci"
+    assert "domain-summary" in context.merged_guidance
     assert "domain-guidance" in context.merged_guidance
     assert "rule-guidance" in context.merged_guidance
     assert "extra-guidance" in context.merged_guidance
@@ -499,7 +502,9 @@ def test_build_translation_context_uses_model_profile_overrides() -> None:
     class _Policy:
         mode = "sci"
         domain_context = {"translation_guidance": "domain-guidance"}
+        document_domain_guidance = "domain-guidance"
         rule_guidance = "rule-guidance"
+        math_mode = "placeholder"
 
     context = session_context.build_translation_context_from_policy(
         _Policy(),

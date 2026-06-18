@@ -1,14 +1,12 @@
 use anyhow::Result;
 
-use crate::models::{
+use crate::models::domain::{
     job_stage_detail, job_stage_str, now_iso, JobRuntimeState, JobStage, JobStatusKind,
 };
 
 use super::render_flow_artifacts::prepare_render_job_from_artifacts;
-use super::{
-    build_render_only_command, clear_job_failure, execute_process_job, sync_runtime_state,
-    ProcessRuntimeDeps,
-};
+use super::{clear_job_failure, execute_process_job, sync_runtime_state, ProcessRuntimeDeps};
+use crate::worker_command::{build_worker_stage_command, WorkerStageCommand};
 
 pub(super) async fn run_render_job_from_artifacts(
     deps: ProcessRuntimeDeps,
@@ -17,12 +15,14 @@ pub(super) async fn run_render_job_from_artifacts(
     let (mut job, render_inputs) = prepare_render_job_from_artifacts(&deps, job)?;
     let job_paths = crate::storage_paths::build_job_paths(&deps.persist.output_root, &job.job_id)?;
 
-    job.command = build_render_only_command(
+    job.command = build_worker_stage_command(
         &deps.worker_command_runtime(),
         &job.request_payload,
         &job_paths,
-        &render_inputs.source_pdf_path,
-        &render_inputs.translations_dir,
+        WorkerStageCommand::Render {
+            source_pdf_path: &render_inputs.source_pdf_path,
+            translations_dir: &render_inputs.translations_dir,
+        },
     );
     job.status = JobStatusKind::Running;
     job.started_at = Some(now_iso());

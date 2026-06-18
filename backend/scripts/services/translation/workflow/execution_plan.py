@@ -13,9 +13,10 @@ from services.translation.services.policy import build_book_translation_policy_c
 from services.translation.services.context.session_context import build_translation_context_from_policy
 from services.translation.services.terms import GlossaryEntry
 from services.translation.services.terms import normalize_glossary_entries
-from services.translation.workflow.scheduling.allocation import _adaptive_floor_limit
-from services.translation.workflow.scheduling.allocation import _provider_adaptive_initial_limit
+from services.translation.workflow.scheduling.allocation import adaptive_floor_limit
+from services.translation.workflow.scheduling.allocation import provider_adaptive_initial_limit
 from services.translation.workflow.page_range import resolve_page_range
+from services.translation.workflow.batching.plan import effective_translation_batch_size
 
 if TYPE_CHECKING:
     from services.translation.workflow.execution import TranslationExecutionRequest
@@ -81,22 +82,24 @@ def build_translation_execution_plan(request: TranslationExecutionRequest) -> Tr
         configured_classify_batch_size=max(1, request.classify_batch_size),
     )
     effective_workers = max(1, request.workers)
-    initial_concurrency_limit = _provider_adaptive_initial_limit(
+    initial_concurrency_limit = provider_adaptive_initial_limit(
         workers=effective_workers,
         provider_family=provider_family,
     )
     run_diagnostics.configure_adaptive_concurrency(
         initial_limit=initial_concurrency_limit,
-        floor_limit=_adaptive_floor_limit(effective_workers),
+        floor_limit=adaptive_floor_limit(effective_workers),
     )
     run_diagnostics.set_effective_settings(
         translation_workers=effective_workers,
         policy_workers=effective_workers,
         continuation_workers=min(effective_workers, 8),
         mixed_split_workers=min(effective_workers, 4),
-        translation_batch_size=max(
-            1,
-            min(max(1, request.batch_size), translation_context.batch_policy.plain_batch_size),
+        translation_batch_size=effective_translation_batch_size(
+            batch_size=request.batch_size,
+            model=request.model,
+            base_url=request.base_url,
+            translation_context=translation_context,
         ),
     )
     return TranslationExecutionPlan(

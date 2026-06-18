@@ -1,5 +1,6 @@
 pub mod artifacts;
 pub(crate) mod book_projection;
+pub(crate) mod derived_artifacts;
 pub mod glossaries;
 pub mod glossary_api;
 pub mod job_launcher;

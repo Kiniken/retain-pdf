@@ -49,11 +49,24 @@ async fn job_events_route_keeps_rendering_page_progress_events() {
         .expect("detail response");
     assert_eq!(detail_response.status(), StatusCode::OK);
     let detail_json = read_json(detail_response).await;
-    assert_eq!(detail_json["data"]["stage"], "rendering");
-    assert_eq!(detail_json["data"]["stage_detail"], "正在渲染第 1/3 页");
-    assert_eq!(detail_json["data"]["progress"]["current"], 1);
-    assert_eq!(detail_json["data"]["progress"]["total"], 3);
-    assert_eq!(detail_json["data"]["progress"]["unit"], "page");
+    assert!(detail_json["data"].get("stage").is_none());
+    assert_eq!(detail_json["data"]["stage_snapshot"]["stage"], "rendering");
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["stage_detail"],
+        "正在渲染第 1/3 页"
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["progress"]["current"],
+        1
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["progress"]["total"],
+        3
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["progress"]["unit"],
+        "page"
+    );
 
     let events_response = app
         .oneshot(

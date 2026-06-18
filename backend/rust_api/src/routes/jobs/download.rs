@@ -1,8 +1,6 @@
 use crate::error::AppError;
-use crate::models::{ArtifactDownloadQuery, MarkdownQuery, PagePreviewQuery};
-use crate::storage_paths::{
-    resolve_normalization_report, resolve_normalized_document, resolve_output_pdf,
-};
+use crate::models::api::{ArtifactDownloadQuery, MarkdownQuery, PagePreviewQuery};
+use crate::services::jobs::DocumentDownloadKind;
 use crate::AppState;
 use axum::extract::{Path as AxumPath, Query, State};
 use axum::http::HeaderMap;
@@ -12,7 +10,7 @@ use crate::routes::common::build_jobs_route_deps;
 use crate::routes::download_response::{
     bundle_response, cover_response, download_document_response, markdown_document_response,
     markdown_image_response, markdown_response, page_preview_response,
-    registered_artifact_response, thumbnail_response,
+    registered_artifact_response, side_by_side_pdf_response, thumbnail_response,
 };
 
 pub async fn download_pdf(
@@ -25,11 +23,17 @@ pub async fn download_pdf(
         &headers,
         &job_id,
         false,
-        resolve_output_pdf,
-        "pdf not ready",
-        "application/pdf",
+        DocumentDownloadKind::OutputPdf,
     )
     .await
+}
+
+pub async fn download_side_by_side_pdf(
+    State(state): State<AppState>,
+    AxumPath(job_id): AxumPath<String>,
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
+    side_by_side_pdf_response(&build_jobs_route_deps(&state), &headers, &job_id).await
 }
 
 pub async fn download_cover(
@@ -108,9 +112,7 @@ pub async fn download_normalized_document(
         &headers,
         &job_id,
         false,
-        resolve_normalized_document,
-        "normalized document not ready",
-        "application/json",
+        DocumentDownloadKind::NormalizedDocument,
     )
     .await
 }
@@ -125,9 +127,7 @@ pub async fn download_ocr_normalized_document(
         &headers,
         &job_id,
         true,
-        resolve_normalized_document,
-        "normalized document not ready",
-        "application/json",
+        DocumentDownloadKind::NormalizedDocument,
     )
     .await
 }
@@ -142,9 +142,7 @@ pub async fn download_normalization_report(
         &headers,
         &job_id,
         false,
-        resolve_normalization_report,
-        "normalization report not ready",
-        "application/json",
+        DocumentDownloadKind::NormalizationReport,
     )
     .await
 }
@@ -159,9 +157,7 @@ pub async fn download_ocr_normalization_report(
         &headers,
         &job_id,
         true,
-        resolve_normalization_report,
-        "normalization report not ready",
-        "application/json",
+        DocumentDownloadKind::NormalizationReport,
     )
     .await
 }

@@ -1,4 +1,9 @@
-import { $ } from "../../dom.js";
+import { $ } from "../../dom/query.js";
+import {
+  setUploadTileReady,
+  setUploadTileText,
+} from "./tile-view.js";
+import { APP_DIALOG_IDS } from "../../contracts/app-contract.js";
 
 export function readPageRangeInputs() {
   return {
@@ -33,7 +38,7 @@ export function openPageRangeDialogView({ applied = "", maxPage = 0 } = {}) {
     $("page-range-start")?.setAttribute("max", String(maxPage));
     $("page-range-end")?.setAttribute("max", String(maxPage));
   }
-  $("page-range-dialog")?.showModal();
+  $(APP_DIALOG_IDS.professionalTranslation)?.showModal();
 }
 
 export function writePageRangeInputs({ start = "", end = "" } = {}) {
@@ -46,7 +51,7 @@ export function writePageRangeInputs({ start = "", end = "" } = {}) {
 }
 
 export function closePageRangeDialog() {
-  $("page-range-dialog")?.close();
+  $(APP_DIALOG_IDS.professionalTranslation)?.close();
 }
 
 export function clearPageRangeInputs() {
@@ -58,25 +63,19 @@ export function selectedUploadFile() {
 }
 
 export function setFileLabel(file, defaultFileLabel) {
-  const label = $("file-label");
-  if (!label) {
-    return;
-  }
-  label.textContent = file ? file.name : defaultFileLabel;
-  label.title = file ? file.name : "";
+  setUploadTileText({
+    label: file ? file.name : defaultFileLabel,
+    labelTitle: file ? file.name : "",
+  });
 }
 
 export function showUploadStatus(message) {
-  const status = $("upload-status");
-  if (!status) {
-    return;
-  }
-  status.textContent = message;
-  status.classList.remove("hidden");
+  setUploadTileText({
+    status: message,
+    statusVisible: true,
+  });
 }
 
 export function markUploadReady(ready) {
-  const tile = $("file")?.closest(".upload-tile");
-  tile?.classList.toggle("is-ready", !!ready);
-  tile?.classList.remove("is-uploading");
+  setUploadTileReady(ready);
 }

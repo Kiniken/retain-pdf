@@ -1,27 +1,12 @@
-import { $ } from "../../dom.js";
 import { withTimeout } from "../../utils/async-timeout.js";
-import { buildApiUrl } from "../../config.js";
-import {
-  clearAppliedPageRange,
-  setAppliedPageRange,
-  setUploadState,
-} from "../../state/actions.js";
-import { getUploadState } from "../../state/upload-state.js";
-import {
-  clearPageRangeInputs,
-  closePageRangeDialog,
-  markUploadReady,
-  openPageRangeDialogView,
-  readPageRangeInputs,
-  selectedUploadFile,
-  setFileLabel,
-  setInlinePageRangeVisible,
-  showUploadStatus,
-  writePageRangeInputs,
-} from "./view.js";
+import { buildErrorDiagnostic } from "../../utils/error-diagnostics.js";
+import { createUploadStatePort } from "./state.js";
+import { defaultUploadConfigPort } from "./config-port.js";
+import { createUploadViewPort } from "./upload-view-port.js";
 
 export function mountUploadFeature({
   state,
+  uploadStatePort,
   apiBase,
   apiPrefix,
   frontMaxBytes,
@@ -39,8 +24,39 @@ export function mountUploadFeature({
   refreshSubmitControls,
   refreshDeepSeekBalance,
   workflowNeedsUpload,
+  configPort = defaultUploadConfigPort,
+  viewPort = createUploadViewPort(),
 }) {
   const BALANCE_CHECK_TIMEOUT_MS = 12000;
+  const uploadState = uploadStatePort || createUploadStatePort(state);
+
+  function readUploadState() {
+    return uploadState.getSnapshot?.() || {};
+  }
+
+  function updateUploadState(payload = {}) {
+    return uploadState.setUpload?.(payload) || readUploadState();
+  }
+
+  function updateAppliedPageRange(value = "") {
+    return uploadState.setAppliedPageRange?.(value) || readUploadState();
+  }
+
+  function resetAppliedPageRange() {
+    return uploadState.clearAppliedPageRange?.() || readUploadState();
+  }
+
+  function resetUploadSession() {
+    const snapshot = uploadState.reset?.() || readUploadState();
+    resetUploadedFile?.();
+    resetUploadProgress?.();
+    clearFileInputValue?.();
+    viewPort.clearPageRanges();
+    viewPort.markUploadReady(false);
+    renderPageRangeSummary();
+    refreshSubmitControls();
+    return snapshot;
+  }
 
   function formatByteLimit(bytes) {
     const mb = Number(bytes) / (1024 * 1024);
@@ -60,16 +76,65 @@ export function mountUploadFeature({
   }
 
   function currentPageRanges() {
-    const { start, end } = readPageRangeInputs();
+    const { start, end } = viewPort.readPageRanges();
     return normalizePageRangeValue(start, end);
   }
 
+  function pageRangeLimit() {
+    const snapshot = readUploadState();
+    return Number(snapshot.uploadedPageCount || 0) || frontMaxPageCount || 0;
+  }
+
+  function normalizePageNumberInput(value) {
+    const text = `${value ?? ""}`.trim();
+    if (!text) {
+      return "";
+    }
+    const page = Number(text);
+    if (!Number.isFinite(page)) {
+      return "";
+    }
+    return Math.max(1, Math.trunc(page));
+  }
+
+  function constrainPageRanges({ source = "" } = {}) {
+    const { start: rawStart, end: rawEnd } = viewPort.readPageRanges();
+    const maxPage = pageRangeLimit();
+    let start = normalizePageNumberInput(rawStart);
+    let end = normalizePageNumberInput(rawEnd);
+
+    if (maxPage > 0) {
+      if (start !== "") {
+        start = Math.min(start, maxPage);
+      }
+      if (end !== "") {
+        end = Math.min(end, maxPage);
+      }
+    }
+
+    if (start !== "" && end !== "" && start > end) {
+      if (source === "end") {
+        end = start;
+      } else {
+        start = end;
+      }
+    }
+
+    const next = {
+      start: start === "" ? "" : `${start}`,
+      end: end === "" ? "" : `${end}`,
+    };
+    viewPort.writePageRanges(next);
+    updateAppliedPageRange(normalizePageRangeValue(next.start, next.end));
+    refreshSubmitControls();
+    return { ...next, maxPage };
+  }
+
   function validatePageRanges() {
-    const { start: rawStart, end: rawEnd } = readPageRangeInputs();
+    const { start: rawStart, end: rawEnd } = viewPort.readPageRanges();
     const start = rawStart.trim();
     const end = rawEnd.trim();
-    const uploadState = getUploadState(state);
-    const maxPage = Number(uploadState.uploadedPageCount || 0) || frontMaxPageCount;
+    const maxPage = pageRangeLimit();
     if ((start && Number(start) < 1) || (end && Number(end) < 1)) {
       setText("error-box", "页码必须从 1 开始");
       return false;
@@ -86,80 +151,87 @@ export function mountUploadFeature({
       setText("error-box", `页码区间不能超过 ${maxPage} 页`);
       return false;
     }
-    setAppliedPageRange(state, normalizePageRangeValue(start, end));
+    updateAppliedPageRange(normalizePageRangeValue(start, end));
     return true;
   }
 
   function renderPageRangeSummary() {
-    const uploadState = getUploadState(state);
-    setInlinePageRangeVisible(workflowNeedsUpload() && Boolean(uploadState.uploadId));
+    const snapshot = readUploadState();
+    viewPort.setInlinePageRangeVisible(workflowNeedsUpload() && Boolean(snapshot.uploadId));
   }
 
   function openPageRangeDialog() {
-    const uploadState = getUploadState(state);
-    openPageRangeDialogView({
-      applied: uploadState.appliedPageRange || "",
-      maxPage: frontMaxPageCount || 0,
+    const snapshot = readUploadState();
+    viewPort.openPageRangeDialog({
+      applied: snapshot.appliedPageRange || "",
+      maxPage: pageRangeLimit(),
     });
   }
 
   function applyPageRanges() {
-    closePageRangeDialog();
+    viewPort.closePageRangeDialog();
   }
 
   function clearPageRanges() {
-    clearPageRangeInputs();
-    clearAppliedPageRange(state);
+    viewPort.clearPageRanges();
+    resetAppliedPageRange();
     renderPageRangeSummary();
     refreshSubmitControls();
-    closePageRangeDialog();
+    viewPort.closePageRangeDialog();
   }
 
   async function handleFileSelected() {
-    const file = selectedUploadFile();
+    const file = viewPort.selectedFile();
+    uploadState.reset?.();
     resetUploadedFile();
     resetUploadProgress();
-    clearAppliedPageRange(state);
-    clearPageRangeInputs();
+    viewPort.clearPageRanges();
     renderPageRangeSummary();
     applyWorkflowMode();
-    setFileLabel(file, defaultFileLabel);
+    viewPort.setFileLabel(file, defaultFileLabel);
     if (!file) {
       return;
     }
     if (file.size > frontMaxBytes) {
       setText("error-box", `当前前端限制为 ${formatByteLimit(frontMaxBytes)} 以内 PDF`);
-      showUploadStatus("文件超出大小限制");
+      viewPort.showUploadStatus("文件超出大小限制");
       return;
     }
     if (frontMaxPageCount && countPdfPages) {
-      showUploadStatus("正在校验页数…");
+      viewPort.showUploadStatus("正在校验页数…");
       try {
         const localPageCount = await countPdfPages(file);
         if (!Number.isFinite(localPageCount) || localPageCount <= 0) {
           setText("error-box", "PDF 解析失败，请检查文件是否损坏或可访问性异常。");
-          showUploadStatus("文件校验失败");
+          viewPort.showUploadStatus("文件校验失败");
           clearFileInputValue();
           return;
         }
         if (localPageCount > frontMaxPageCount) {
           setText("error-box", `PDF 页数超过限制：最多 ${frontMaxPageCount} 页`);
-          showUploadStatus("文件超出页数限制");
+          viewPort.showUploadStatus("文件超出页数限制");
           clearFileInputValue();
           return;
         }
       } catch (err) {
-        setText("error-box", err?.message || "PDF 解析失败，请稍后重试。");
-        showUploadStatus("文件校验失败");
+        setText("error-box", buildErrorDiagnostic(err, {
+          operation: "校验 PDF 文件",
+          details: {
+            file_name: file.name,
+            file_size: file.size,
+            max_pages: frontMaxPageCount,
+          },
+        }));
+        viewPort.showUploadStatus("文件校验失败");
         clearFileInputValue();
         return;
       }
     }
     setText("error-box", "-");
-    showUploadStatus("正在上传…");
+    viewPort.showUploadStatus("正在上传…");
 
+    const uploadUrl = configPort.buildUploadUrl(apiPrefix);
     try {
-      const uploadUrl = buildApiUrl(apiPrefix, "uploads");
       const payload = await submitUploadRequest(
         uploadUrl,
         collectUploadFormData(file),
@@ -168,29 +240,29 @@ export function mountUploadFeature({
       const uploadedPageCount = Number(payload.page_count || 0);
       if (frontMaxPageCount > 0 && uploadedPageCount > frontMaxPageCount) {
         setText("error-box", `PDF 页数超过限制：最多 ${frontMaxPageCount} 页`);
-        showUploadStatus("文件超出页数限制");
+        viewPort.showUploadStatus("文件超出页数限制");
         clearFileInputValue();
         resetUploadedFile();
         return;
       }
-      setUploadState(state, {
+      const snapshot = updateUploadState({
         uploadId: payload.upload_id || "",
         uploadedFileName: payload.filename || file.name,
         uploadedPageCount,
         uploadedBytes: Number(payload.bytes || file.size || 0),
       });
-      writePageRangeInputs({
+      viewPort.writePageRanges({
         start: uploadedPageCount > 0 ? "1" : "",
         end: uploadedPageCount > 0 ? `${uploadedPageCount}` : "",
       });
-      setAppliedPageRange(state, currentPageRanges());
-      markUploadReady(!!getUploadState(state).uploadId);
-      showUploadStatus("上传完成，可以开始任务。");
+      updateAppliedPageRange(currentPageRanges());
+      viewPort.markUploadReady(!!snapshot.uploadId);
+      viewPort.showUploadStatus("上传完成，可以开始任务。");
       clearFileInputValue();
       renderPageRangeSummary();
       refreshSubmitControls();
       if (refreshDeepSeekBalance) {
-        showUploadStatus("上传完成，正在检测余额…");
+        viewPort.showUploadStatus("上传完成，正在检测余额…");
         void withTimeout(
           refreshDeepSeekBalance({ silent: true }),
           BALANCE_CHECK_TIMEOUT_MS,
@@ -199,13 +271,13 @@ export function mountUploadFeature({
           .then((result) => {
             const status = `${result?.status || ""}`;
             if (status === "network_error" || status === "missing_key") {
-              showUploadStatus("上传完成，余额未确认，提交前会再次检测。");
+              viewPort.showUploadStatus("上传完成，余额未确认，提交前会再次检测。");
               return;
             }
-            showUploadStatus("上传完成，可以开始任务。");
+            viewPort.showUploadStatus("上传完成，可以开始任务。");
           })
           .catch(() => {
-            showUploadStatus("上传完成，余额未确认，提交前会再次检测。");
+            viewPort.showUploadStatus("上传完成，余额未确认，提交前会再次检测。");
           })
           .finally(() => {
             refreshSubmitControls();
@@ -214,8 +286,16 @@ export function mountUploadFeature({
     } catch (err) {
       resetUploadedFile();
       clearFileInputValue();
-      setText("error-box", err.message);
-      showUploadStatus("上传失败");
+      setText("error-box", buildErrorDiagnostic(err, {
+        operation: "上传 PDF 文件",
+        url: uploadUrl,
+        details: {
+          file_name: file.name,
+          file_size: file.size,
+          max_pages: frontMaxPageCount,
+        },
+      }));
+      viewPort.showUploadStatus("上传失败");
       applyWorkflowMode();
     }
   }
@@ -223,11 +303,13 @@ export function mountUploadFeature({
   return {
     applyPageRanges,
     clearPageRanges,
+    constrainPageRanges,
     currentPageRanges,
     handleFileSelected,
     normalizePageRangeValue,
     openPageRangeDialog,
     renderPageRangeSummary,
+    resetUploadSession,
     validatePageRanges,
   };
 }

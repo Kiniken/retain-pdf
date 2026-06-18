@@ -1,8 +1,10 @@
 use anyhow::Result;
 
 #[cfg(test)]
-use crate::models::JobSnapshot;
-use crate::models::{job_stage_detail, job_stage_str, JobRuntimeState, JobStage, JobStatusKind};
+use crate::models::domain::JobSnapshot;
+use crate::models::domain::{
+    job_stage_detail, job_stage_str, JobRuntimeState, JobStage, JobStatusKind,
+};
 
 use crate::job_runner::{clear_job_failure, refresh_job_failure, sync_runtime_state};
 
@@ -43,7 +45,7 @@ pub(super) fn finalize_parent_after_ocr(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::CreateJobInput;
+    use crate::models::request::CreateJobInput;
 
     fn build_job() -> JobRuntimeState {
         JobSnapshot::new(

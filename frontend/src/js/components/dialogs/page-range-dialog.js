@@ -20,8 +20,8 @@ class PageRangeDialog extends HTMLElement {
               </select>
             </label>
             <div class="actions">
-              <button id="page-range-clear-btn" type="button" class="secondary">不使用</button>
-              <button id="page-range-apply-btn" type="button">完成</button>
+              <button id="page-range-clear-btn" type="button" class="app-button secondary">不使用</button>
+              <button id="page-range-apply-btn" type="button" class="app-button">完成</button>
             </div>
           </div>
         </form>

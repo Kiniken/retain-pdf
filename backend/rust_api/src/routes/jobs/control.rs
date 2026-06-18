@@ -1,5 +1,5 @@
 use crate::error::AppError;
-use crate::models::{ApiResponse, JobSubmissionView};
+use crate::models::api::{ApiResponse, JobSubmissionView};
 use crate::AppState;
 use axum::extract::{Path as AxumPath, State};
 use axum::http::HeaderMap;

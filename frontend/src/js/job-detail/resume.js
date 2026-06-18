@@ -1,4 +1,4 @@
-import { $ } from "../dom.js";
+import { $ } from "../dom/query.js";
 import { firstJobIdFromPayload, firstNonEmptyText, buildDetailPageUrl } from "./routing.js";
 
 export function summarizeResumePlan(plan) {
@@ -24,9 +24,7 @@ export function summarizeResumePlan(plan) {
 export function bindRerunButton({
   detailPageState,
   getJobId,
-  rerunJob,
-  resumeJob,
-  apiPrefix,
+  resumePort,
   setText,
 }) {
   $("detail-rerun-btn")?.addEventListener("click", async () => {
@@ -40,7 +38,7 @@ export function bindRerunButton({
     button.disabled = true;
     setText("detail-rerun-status", "正在提交恢复任务...");
     try {
-      const payload = jobId ? await resumeJob(jobId, apiPrefix) : await rerunJob(actionUrl);
+      const payload = await resumePort.submit({ actionUrl, jobId });
       const nextJobId = firstJobIdFromPayload(payload);
       if (!nextJobId) {
         setText("detail-rerun-status", "恢复任务已提交，但响应中没有 job_id。");

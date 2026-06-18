@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::models::{JobRuntimeState, JobStatusKind};
+use crate::models::domain::{JobRuntimeState, JobStatusKind, WorkflowKind};
 
 use crate::job_runner::{
     attach_job_provider_failure, clear_canceled_runtime_artifacts, clear_job_failure,
@@ -114,7 +114,7 @@ pub(super) fn should_treat_shutdown_noise_as_success(
         .map(Path::new)
         .is_some_and(Path::exists);
     match job.workflow {
-        crate::models::WorkflowKind::Translate => translations_ready && summary_ready,
+        WorkflowKind::Translate => translations_ready && summary_ready,
         _ => output_pdf_ready && summary_ready,
     }
 }

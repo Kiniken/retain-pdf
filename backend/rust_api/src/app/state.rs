@@ -51,7 +51,8 @@ mod tests {
     use rusqlite::{params, Connection};
 
     use super::*;
-    use crate::models::{now_iso, CreateJobInput, JobStatusKind};
+    use crate::models::domain::{now_iso, JobSnapshot, JobStatusKind, WorkflowKind};
+    use crate::models::request::CreateJobInput;
 
     struct TestStateFs {
         root: PathBuf,
@@ -141,8 +142,8 @@ mod tests {
         }
     }
 
-    fn sample_running_job(job_id: &str, pid: Option<u32>) -> crate::models::JobSnapshot {
-        let mut job = crate::models::JobSnapshot::new(
+    fn sample_running_job(job_id: &str, pid: Option<u32>) -> JobSnapshot {
+        let mut job = JobSnapshot::new(
             job_id.to_string(),
             CreateJobInput::default(),
             vec!["python".to_string()],
@@ -234,7 +235,7 @@ mod tests {
             "#,
             params![
                 "job-malformed-running",
-                serde_json::to_string(&crate::models::WorkflowKind::Book).expect("workflow json"),
+                serde_json::to_string(&WorkflowKind::Book).expect("workflow json"),
                 serde_json::to_string(&JobStatusKind::Running).expect("status json"),
                 "2026-04-02T00:00:00Z",
                 "2026-04-02T00:10:00Z",

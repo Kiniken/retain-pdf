@@ -1,4 +1,4 @@
-use crate::models::{JobRuntimeState, JobSnapshot};
+use crate::models::domain::{JobRuntimeState, JobSnapshot};
 
 mod artifact_requirements;
 mod cancel_registry;
@@ -17,7 +17,6 @@ mod stdout_parser;
 mod translation_flow;
 mod worker_process;
 
-pub(crate) use crate::worker_command::{build_normalize_ocr_command, build_render_only_command};
 pub(crate) use cancel_registry::request_cancel_with_registry;
 pub(crate) use lifecycle::spawn_job;
 pub(crate) use process_runner::execute_process_job;
@@ -29,11 +28,6 @@ pub(crate) use runtime_state::{
 };
 pub use worker_process::terminate_job_process_tree;
 pub(crate) use worker_process::worker_process_exists;
-
-const MINERU_RESULT_FILE_NAME: &str = "mineru_result.json";
-const MINERU_BUNDLE_FILE_NAME: &str = "mineru_bundle.zip";
-const MINERU_UNPACK_DIR_NAME: &str = "unpacked";
-const MINERU_LAYOUT_JSON_FILE_NAME: &str = "layout.json";
 
 pub(crate) fn format_error_chain(err: &anyhow::Error) -> String {
     let causes: Vec<String> = err

@@ -1,4 +1,4 @@
-import { $ } from "../dom.js";
+import { $ } from "../dom/query.js";
 
 let lastPageIndicatorText = "";
 

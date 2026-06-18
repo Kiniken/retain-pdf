@@ -1,93 +1,51 @@
-import { $ } from "../../dom.js";
-import { hydrateRecentJobImages } from "../../components/dialogs/recent-jobs-dialog-rendering.js";
+import { $ } from "../../dom/query.js";
+import { APP_DIALOG_IDS } from "../../contracts/app-contract.js";
+import { RECENT_JOBS_IDS, RECENT_JOBS_SELECTORS } from "./dom-contract.js";
+import {
+  resolveRecentJobsHost,
+} from "./host.js";
+import {
+  recentJobsEventTarget,
+} from "./event-target.js";
+import {
+  buildRecentJobsListMarkup,
+  renderRecentJobCardElements,
+  renderRecentJobsMarkupList,
+  replaceRecentJobCardElement,
+} from "./list-rendering.js";
 import { bindRecentJobsListEvents } from "./list-events.js";
-import { buildRecentJobsMarkup } from "./card-markup.js";
-import { recentJobCardMarkup } from "./card-template.js";
-
-function byId(root, id) {
-  return root?.querySelector?.(`#${id}`);
-}
-
-function recentJobsRoot() {
-  return document.querySelector("#library-view") || document;
-}
-
-function recentJobsDialogComponent() {
-  if (isLibraryMainViewMounted()) {
-    return null;
-  }
-  return document.querySelector("recent-jobs-dialog");
-}
-
-function isLibraryMainViewMounted() {
-  return Boolean(document.querySelector("#library-view #recent-jobs-list"));
-}
-
-function recentJobCardElement(item) {
-  const card = document.createElement("recent-job-card");
-  card.item = item;
-  return card;
-}
-
-function bindRecentJobCardEvents(list, { onSelect, onDelete, onReader } = {}) {
-  list.__retainPdfRecentJobSelect = onSelect;
-  list.__retainPdfRecentJobDelete = onDelete;
-  list.__retainPdfRecentJobReader = onReader;
-  if (list.__retainPdfRecentJobCardBound) {
-    return;
-  }
-  list.__retainPdfRecentJobCardBound = true;
-  list.addEventListener("recent-job-select", (event) => {
-    list.__retainPdfRecentJobSelect?.(event.detail?.jobId || "");
-  });
-  list.addEventListener("recent-job-delete", (event) => {
-    list.__retainPdfRecentJobDelete?.(event.detail?.jobId || "");
-  });
-  list.addEventListener("recent-job-reader", (event) => {
-    list.__retainPdfRecentJobReader?.(event.detail?.jobId || "");
-  });
-}
-
-function renderRecentJobCards(list, items, { reset = false, onSelect, onDelete, onReader } = {}) {
-  bindRecentJobCardEvents(list, { onSelect, onDelete, onReader });
-  if (reset) {
-    list.replaceChildren();
-  }
-  const fragment = document.createDocumentFragment();
-  for (const item of Array.isArray(items) ? items : []) {
-    fragment.append(recentJobCardElement(item));
-  }
-  list.append(fragment);
-}
+import { hydrateRecentJobImages } from "./image-hydration.js";
+import {
+  recentJobsRenderTarget,
+} from "./render-target.js";
+import {
+  recentJobsViewStateTarget,
+} from "./view-state-target.js";
+import {
+  scheduleRecentJobsAutoLoadHostCheck,
+  setRecentJobsDialogHostOpen,
+} from "./host-actions.js";
+import {
+  applyRecentJobsEmptyState,
+  applyRecentJobsErrorState,
+  applyRecentJobsListState,
+  applyRecentJobsLoadMoreLoadingState,
+  applyRecentJobsLoadingState,
+} from "./view-state.js";
+import { buildRecentJobsSummaryViewModel } from "./summary-view-model.js";
 
 export function hasRecentJobsView() {
-  if (isLibraryMainViewMounted()) {
-    return true;
-  }
-  const component = recentJobsDialogComponent();
-  if (component) {
-    return true;
-  }
-  const root = recentJobsRoot();
-  return Boolean(byId(root, "recent-jobs-list") && byId(root, "recent-jobs-empty") && byId(root, "load-more-jobs-btn"));
+  return resolveRecentJobsHost().hasView;
 }
 
 export function setRecentJobsDialogOpen(open) {
-  const component = recentJobsDialogComponent();
-  if (component?.setOpen) {
-    component.setOpen(open);
-  } else {
-    const dialog = $("query-dialog");
-    if (!dialog) {
-      return;
-    }
-    if (open) {
-      dialog.showModal();
-    } else {
-      dialog.close();
-    }
-  }
-  $("open-query-btn")?.setAttribute("aria-expanded", open ? "true" : "false");
+  const host = resolveRecentJobsHost();
+  setRecentJobsDialogHostOpen({
+    component: host.component,
+    dialog: $(APP_DIALOG_IDS.recentJobs),
+    openButton: $(RECENT_JOBS_IDS.openButton),
+    open,
+  });
 }
 
 export function bindRecentJobsEvents({
@@ -96,146 +54,91 @@ export function bindRecentJobsEvents({
   onSearch,
   isSuspended = () => false,
 } = {}) {
-  $("open-query-btn")?.addEventListener("click", () => onOpen?.());
-  $("library-search-input")?.addEventListener("input", (event) => {
+  $(RECENT_JOBS_IDS.openButton)?.addEventListener("click", () => onOpen?.());
+  $(RECENT_JOBS_IDS.searchInput)?.addEventListener("input", (event) => {
     onSearch?.(event.target?.value || "");
   });
-  byId(recentJobsRoot(), "recent-jobs-scroll-body")?.addEventListener("scroll", () => {
+  const host = resolveRecentJobsHost();
+  const target = recentJobsEventTarget({
+    component: host.component,
+    elements: host.elements,
+    libraryMounted: host.libraryMounted,
+  });
+  target.scrollBody?.addEventListener("scroll", () => {
     if (isSuspended?.()) {
       return;
     }
     scheduleRecentJobsAutoLoadCheck();
   }, { passive: true });
 
-  const component = recentJobsDialogComponent();
-  if (component?.bindEvents && !isLibraryMainViewMounted()) {
-    component.bindEvents({ onLoadMore });
+  if (target.bindComponentEvents({ onLoadMore })) {
     return;
   }
 
-  byId(recentJobsRoot(), "load-more-jobs-btn")?.addEventListener("click", () => onLoadMore?.());
+  target.loadMoreButton?.addEventListener("click", () => onLoadMore?.());
 }
 
 export function scheduleRecentJobsAutoLoadCheck({ isSuspended = () => false } = {}) {
-  const component = recentJobsDialogComponent();
-  if (component?.scheduleAutoLoadCheck) {
-    component.scheduleAutoLoadCheck();
-    return;
-  }
-  window.requestAnimationFrame(() => {
-    if (isSuspended?.()) {
-      return;
-    }
-    const root = recentJobsRoot();
-    const body = byId(root, "recent-jobs-scroll-body");
-    const loadMoreButton = byId(root, "load-more-jobs-btn");
-    if (!body || !loadMoreButton || loadMoreButton.classList.contains("hidden") || loadMoreButton.disabled) {
-      return;
-    }
-    const remaining = body.scrollHeight - body.scrollTop - body.clientHeight;
-    if (remaining < Math.max(260, body.clientHeight * 0.35)) {
-      loadMoreButton.click();
-    }
+  const host = resolveRecentJobsHost();
+  scheduleRecentJobsAutoLoadHostCheck({
+    component: host.component,
+    elements: host.elements,
+    requestAnimationFrame: window.requestAnimationFrame?.bind(window),
+    isSuspended,
   });
 }
 
-function summarizeInvocationCounts(items) {
-  let stageSpecCount = 0;
-  let unknownCount = 0;
-  for (const item of Array.isArray(items) ? items : []) {
-    const protocol = `${item?.invocation?.input_protocol || ""}`.trim();
-    if (protocol === "stage_spec") {
-      stageSpecCount += 1;
-    } else {
-      unknownCount += 1;
-    }
-  }
-  return { stageSpecCount, unknownCount };
-}
-
 export function renderRecentJobsSummary(invocationSummary, items) {
-  const stageSpecCountValue = Number(invocationSummary?.stage_spec_count);
-  const unknownCountValue = Number(invocationSummary?.unknown_count);
-  const counts = Number.isFinite(stageSpecCountValue) && Number.isFinite(unknownCountValue)
-    ? { stageSpecCount: stageSpecCountValue, unknownCount: unknownCountValue }
-    : summarizeInvocationCounts(items);
-  const text = `Stage Spec ${counts.stageSpecCount} · Unknown ${counts.unknownCount}`;
-  const component = recentJobsDialogComponent();
-  if (component?.renderSummary) {
-    component.renderSummary(text);
+  const { text } = buildRecentJobsSummaryViewModel(invocationSummary, items);
+  const host = resolveRecentJobsHost();
+  if (host.component?.renderSummary) {
+    host.component.renderSummary(text);
     return;
   }
-  const summaryEl = byId(recentJobsRoot(), "recent-jobs-summary");
+  const summaryEl = host.elements.summary;
   if (summaryEl) {
     summaryEl.textContent = text;
   }
 }
 
 export function renderRecentJobsLoading() {
-  const component = recentJobsDialogComponent();
-  if (component?.renderLoading) {
-    component.renderLoading();
+  const host = resolveRecentJobsHost();
+  const target = recentJobsViewStateTarget({
+    component: host.component,
+    elements: host.elements,
+  });
+  if (target.applyComponentState("renderLoading")) {
     return;
   }
-  const root = recentJobsRoot();
-  const list = byId(root, "recent-jobs-list");
-  const empty = byId(root, "recent-jobs-empty");
-  const loadMoreButton = byId(root, "load-more-jobs-btn");
-  if (!list || !empty || !loadMoreButton) {
-    return;
-  }
-  empty.classList.add("hidden");
-  list.classList.remove("hidden");
-  list.innerHTML = '<div class="events-empty">正在加载最近任务…</div>';
-  loadMoreButton.classList.add("hidden");
+  applyRecentJobsLoadingState(target);
 }
 
 export function renderRecentJobsEmpty(message, invocationSummary = null) {
-  const component = recentJobsDialogComponent();
-  const root = recentJobsRoot();
-  const list = byId(root, "recent-jobs-list");
-  const empty = byId(root, "recent-jobs-empty");
-  const loadMoreButton = byId(root, "load-more-jobs-btn");
-  if (!component?.renderEmpty && (!list || !empty || !loadMoreButton)) {
+  const host = resolveRecentJobsHost();
+  const target = recentJobsViewStateTarget({
+    component: host.component,
+    elements: host.elements,
+  });
+  if (!target.component?.renderEmpty && !target.canApplyDomState) {
     return;
   }
   renderRecentJobsSummary(invocationSummary, []);
-  if (component?.renderEmpty) {
-    component.renderEmpty(message);
+  if (target.applyComponentState("renderEmpty", message)) {
     return;
   }
-  list.innerHTML = "";
-  list.classList.add("hidden");
-  empty.textContent = message || "暂无最近任务";
-  empty.classList.remove("hidden");
-  loadMoreButton.classList.add("hidden");
-  loadMoreButton.disabled = false;
-  loadMoreButton.textContent = "更多";
+  applyRecentJobsEmptyState(target, message);
 }
 
 export function renderRecentJobsError(message, { reset = false } = {}) {
-  const component = recentJobsDialogComponent();
-  if (component?.renderError) {
-    component.renderError(message, { reset });
+  const host = resolveRecentJobsHost();
+  const target = recentJobsViewStateTarget({
+    component: host.component,
+    elements: host.elements,
+  });
+  if (target.applyComponentState("renderError", message, { reset })) {
     return;
   }
-  const root = recentJobsRoot();
-  const list = byId(root, "recent-jobs-list");
-  const empty = byId(root, "recent-jobs-empty");
-  const loadMoreButton = byId(root, "load-more-jobs-btn");
-  if (!list || !empty || !loadMoreButton) {
-    return;
-  }
-  if (reset) {
-    list.innerHTML = "";
-    list.classList.add("hidden");
-    empty.textContent = message || "读取最近任务失败";
-    empty.classList.remove("hidden");
-  } else {
-    loadMoreButton.classList.add("hidden");
-  }
-  loadMoreButton.disabled = false;
-  loadMoreButton.textContent = "更多";
+  applyRecentJobsErrorState(target, message, { reset });
 }
 
 export function renderRecentJobsList({
@@ -248,35 +151,37 @@ export function renderRecentJobsList({
   onDelete,
   onReader,
 }) {
-  const component = recentJobsDialogComponent();
-  const root = recentJobsRoot();
-  const list = byId(root, "recent-jobs-list");
-  const empty = byId(root, "recent-jobs-empty");
-  const loadMoreButton = byId(root, "load-more-jobs-btn");
-  if (!component?.renderList && (!list || !empty || !loadMoreButton)) {
+  const host = resolveRecentJobsHost();
+  const target = recentJobsRenderTarget({
+    component: host.component,
+    elements: host.elements,
+    libraryMounted: host.libraryMounted,
+  });
+  if (!target.canRenderList) {
     return;
   }
   renderRecentJobsSummary(invocationSummary, allItems);
-  const markup = buildRecentJobsMarkup(items);
-  if (component?.renderList) {
-    component.renderList(markup, { reset, hasMore, onSelect, onDelete, onReader });
+  if (target.useComponent) {
+    const markup = buildRecentJobsListMarkup(items);
+    target.component.renderList(markup, {
+      reset,
+      hasMore,
+      onSelect,
+      onDelete,
+      onReader,
+      bindListEvents: bindRecentJobsListEvents,
+      hydrateImages: hydrateRecentJobImages,
+    });
     return;
   }
-  list.classList.remove("hidden");
-  empty.classList.add("hidden");
-  if (isLibraryMainViewMounted()) {
-    renderRecentJobCards(list, items, { reset, onSelect, onDelete, onReader });
-  } else {
-    list.__retainPdfRecentJobSelect = onSelect;
-    list.__retainPdfRecentJobDelete = onDelete;
-    list.__retainPdfRecentJobReader = onReader;
-    bindRecentJobsListEvents(list);
-    list.innerHTML = reset ? markup : `${list.innerHTML}${markup}`;
-    hydrateRecentJobImages(list);
+  if (!applyRecentJobsListState(target, { hasMore })) {
+    return;
   }
-  loadMoreButton.classList.toggle("hidden", !hasMore);
-  loadMoreButton.disabled = false;
-  loadMoreButton.textContent = "更多";
+  if (target.useCardElements) {
+    renderRecentJobCardElements(target.list, items, { reset, onSelect, onDelete, onReader });
+  } else {
+    renderRecentJobsMarkupList(target.list, items, { reset, onSelect, onDelete, onReader });
+  }
 }
 
 export function replaceRecentJobCard(item) {
@@ -284,40 +189,30 @@ export function replaceRecentJobCard(item) {
   if (!jobId) {
     return false;
   }
-  const root = recentJobsRoot();
-  const list = byId(root, "recent-jobs-list");
-  const previous = Array.from(list?.querySelectorAll?.(".recent-job-item") || [])
+  const host = resolveRecentJobsHost();
+  const target = recentJobsRenderTarget({
+    component: host.component,
+    elements: host.elements,
+    libraryMounted: host.libraryMounted,
+  });
+  const previous = Array.from(target.list?.querySelectorAll?.(RECENT_JOBS_SELECTORS.item) || [])
     .find((node) => `${node.dataset?.jobId || ""}`.trim() === jobId);
-  if (!list || !previous) {
+  if (!target.canReplaceCard || !previous) {
     return false;
   }
-  const next = isLibraryMainViewMounted()
-    ? recentJobCardElement(item)
-    : (() => {
-      const template = document.createElement("template");
-      template.innerHTML = recentJobCardMarkup(item).trim();
-      return template.content.firstElementChild;
-    })();
-  if (!next) {
-    return false;
-  }
-  previous.replaceWith(next);
-  if (!isLibraryMainViewMounted()) {
-    hydrateRecentJobImages(next);
-  }
-  return true;
+  return replaceRecentJobCardElement(previous, item, {
+    useCardElement: target.useCardElements,
+  });
 }
 
 export function setRecentJobsLoadMoreLoading() {
-  const component = recentJobsDialogComponent();
-  if (component?.setLoadMoreLoading) {
-    component.setLoadMoreLoading();
+  const host = resolveRecentJobsHost();
+  const target = recentJobsViewStateTarget({
+    component: host.component,
+    elements: host.elements,
+  });
+  if (target.applyComponentState("setLoadMoreLoading")) {
     return;
   }
-  const loadMoreButton = byId(recentJobsRoot(), "load-more-jobs-btn");
-  if (!loadMoreButton) {
-    return;
-  }
-  loadMoreButton.disabled = true;
-  loadMoreButton.textContent = "加载中…";
+  applyRecentJobsLoadMoreLoadingState(target);
 }

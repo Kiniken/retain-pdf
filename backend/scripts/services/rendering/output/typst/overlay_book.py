@@ -64,6 +64,7 @@ def overlay_pages_via_page_fallback(
     redaction_strategy: str | None = None,
     source_base_pdf_path: Path | None = None,
     pikepdf_output_pdf_path: Path | None = None,
+    visual_profile_path: Path | None = None,
     request_chat_content_fn: TypstRepairRequestFn | None = None,
 ) -> dict[str, object]:
     overlay_paths, page_compile_diagnostics, compile_elapsed = compile_overlay_page_specs(
@@ -145,6 +146,7 @@ def overlay_pages_via_page_fallback(
                 translated_pages[page_idx],
                 cover_only=cover_only,
                 redaction_strategy=redaction_strategy,
+                visual_profile_path=visual_profile_path,
             )
             apply_redaction_diagnostics(diagnostics, page_diag, redaction)
         overlay_doc = fitz.open(overlay_paths[page_idx])

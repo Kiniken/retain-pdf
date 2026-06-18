@@ -1,4 +1,6 @@
 use serde::Serialize;
+use serde_json::Value;
+use std::collections::BTreeMap;
 
 use super::common::WorkflowKind;
 use super::input::{
@@ -37,6 +39,7 @@ pub struct PublicOcrInput {
     pub extra_formats: String,
     pub poll_interval: i64,
     pub poll_timeout: i64,
+    pub options: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -91,6 +94,7 @@ pub fn public_request_payload(spec: &ResolvedJobSpec) -> PublicResolvedJobSpec {
             extra_formats: spec.ocr.extra_formats.clone(),
             poll_interval: spec.ocr.poll_interval,
             poll_timeout: spec.ocr.poll_timeout,
+            options: spec.ocr.options.clone(),
         },
         translation: PublicTranslationInput {
             mode: spec.translation.mode.clone(),

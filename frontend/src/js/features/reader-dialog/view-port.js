@@ -1,0 +1,47 @@
+import {
+  bindReaderDialogEvents,
+  closeReaderDialog,
+  getReaderFrameWindow,
+  getReaderLinkOpenState,
+  getReaderToolbarButtonUrl,
+  hasLoadedReaderFrame,
+  openReaderDialog,
+  restoreReaderButton,
+  setReaderButtonBusy,
+  setReaderFrameSource,
+  setReaderLoadingProgress,
+  setReaderLoadingVisible,
+  setReaderToolbarButtonState,
+} from "./view.js";
+
+export function createReaderDialogViewPort({
+  bindEvents = bindReaderDialogEvents,
+  closeDialog = closeReaderDialog,
+  frameWindow = getReaderFrameWindow,
+  linkOpenState = getReaderLinkOpenState,
+  loadedFrame = hasLoadedReaderFrame,
+  openDialog = openReaderDialog,
+  restoreButton = restoreReaderButton,
+  setButtonBusy = setReaderButtonBusy,
+  setFrameSource = setReaderFrameSource,
+  setLoadingProgress = setReaderLoadingProgress,
+  setLoadingVisible = setReaderLoadingVisible,
+  setToolbarButtonState = setReaderToolbarButtonState,
+  toolbarButtonUrl = getReaderToolbarButtonUrl,
+} = {}) {
+  return {
+    bindEvents,
+    closeDialog,
+    frameWindow,
+    linkOpenState,
+    loadedFrame,
+    openDialog,
+    restoreButton,
+    setButtonBusy,
+    setFrameSource,
+    setLoadingProgress,
+    setLoadingVisible,
+    setToolbarButtonState,
+    toolbarButtonUrl,
+  };
+}

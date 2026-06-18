@@ -1,4 +1,8 @@
-import { $ } from "../../dom.js";
+import { $ } from "../../dom/query.js";
+import {
+  APP_DIALOG_IDS,
+  APP_EVENTS,
+} from "../../contracts/app-contract.js";
 
 export function bindDialogBackdropClose(id) {
   const dialog = $(id);
@@ -70,13 +74,13 @@ export function resetEventsList() {
 }
 
 export function closeRuntimeDialogs() {
-  $("status-detail-dialog")?.close();
-  $("page-range-dialog")?.close();
-  document.dispatchEvent(new CustomEvent("retainpdf:close-translation-workflow"));
+  $(APP_DIALOG_IDS.statusDetail)?.close();
+  $(APP_DIALOG_IDS.professionalTranslation)?.close();
+  document.dispatchEvent(new CustomEvent(APP_EVENTS.closeTranslationWorkflow));
 }
 
 export function isReaderDialogOpen() {
-  return Boolean($("reader-dialog")?.open);
+  return Boolean($(APP_DIALOG_IDS.reader)?.open);
 }
 
 export function setCancelButtonDisabled(disabled) {

@@ -1,3 +1,7 @@
+import {
+  RECENT_JOBS_PRIVATE_KEYS,
+} from "./dom-contract.js";
+
 function closeDeletePopovers(list, exceptItem = null) {
   list.querySelectorAll(".recent-job-item.is-confirming-delete").forEach((node) => {
     if (node !== exceptItem) {
@@ -6,11 +10,17 @@ function closeDeletePopovers(list, exceptItem = null) {
   });
 }
 
-export function bindRecentJobsListEvents(list) {
-  if (!list || list.__retainPdfRecentJobBound) {
+export function bindRecentJobsListEvents(list, { onSelect, onDelete, onReader } = {}) {
+  if (!list) {
     return;
   }
-  list.__retainPdfRecentJobBound = true;
+  list[RECENT_JOBS_PRIVATE_KEYS.select] = onSelect;
+  list[RECENT_JOBS_PRIVATE_KEYS.delete] = onDelete;
+  list[RECENT_JOBS_PRIVATE_KEYS.reader] = onReader;
+  if (list[RECENT_JOBS_PRIVATE_KEYS.listBound]) {
+    return;
+  }
+  list[RECENT_JOBS_PRIVATE_KEYS.listBound] = true;
   list.addEventListener("click", (event) => {
     const cancelButton = event.target?.closest?.(".recent-job-delete-cancel");
     if (cancelButton && list.contains(cancelButton)) {
@@ -25,7 +35,7 @@ export function bindRecentJobsListEvents(list) {
       event.stopPropagation();
       const item = confirmButton.closest(".recent-job-item");
       item?.classList.remove("is-confirming-delete");
-      list.__retainPdfRecentJobDelete?.(item?.dataset.jobId || "");
+      list[RECENT_JOBS_PRIVATE_KEYS.delete]?.(item?.dataset.jobId || "");
       return;
     }
     const deleteButton = event.target?.closest?.(".recent-job-delete");
@@ -42,7 +52,7 @@ export function bindRecentJobsListEvents(list) {
       event.preventDefault();
       event.stopPropagation();
       const item = readerButton.closest(".recent-job-item");
-      list.__retainPdfRecentJobReader?.(item?.dataset.jobId || "");
+      list[RECENT_JOBS_PRIVATE_KEYS.reader]?.(item?.dataset.jobId || "");
       return;
     }
     const button = event.target?.closest?.(".recent-job-item");
@@ -52,7 +62,7 @@ export function bindRecentJobsListEvents(list) {
     }
     event.preventDefault();
     closeDeletePopovers(list);
-    list.__retainPdfRecentJobSelect?.(button.dataset.jobId || "");
+    list[RECENT_JOBS_PRIVATE_KEYS.select]?.(button.dataset.jobId || "");
   });
   list.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") {
@@ -63,6 +73,6 @@ export function bindRecentJobsListEvents(list) {
       return;
     }
     event.preventDefault();
-    list.__retainPdfRecentJobSelect?.(item.dataset.jobId || "");
+    list[RECENT_JOBS_PRIVATE_KEYS.select]?.(item.dataset.jobId || "");
   });
 }

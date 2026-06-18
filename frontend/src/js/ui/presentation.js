@@ -4,35 +4,45 @@ import {
   setLinearProgress,
   updateActionButtons,
 } from "./job-actions.js";
-import { resolveRenderStagePresentation } from "../job-status/job-render-stage-presentation.js";
-import { renderJobStatusCard } from "../job-status/job-status-card-renderer.js";
-import { renderStatusDetails } from "../status-detail/renderer.js";
-import {
-  startElapsedTicker,
-  stopElapsedTicker,
-} from "../job/elapsed-renderer.js";
-import { renderJobStatusSummary } from "../job-status/job-status-summary-renderer.js";
 import {
   setStatusView,
 } from "./presentation-view.js";
-import { syncJobRenderCache } from "../job/render-cache.js";
 import {
   setWorkflowSections as setWorkflowSectionsVisibility,
   updateJobWarning,
-} from "../job/workflow-visibility.js";
-import { state } from "../state/store.js";
+} from "./workflow-visibility-presenter.js";
+import { defaultPresentationRuntime } from "./default-presentation-runtime.js";
+import { createConnectedJobStatusCard } from "../components/status/connected-job-status-card.js";
 import {
-  isTerminalStatus,
-} from "../job.js";
+  renderJobMainStatusSurfaces,
+  renderJobSecondaryStatusPatch,
+} from "./status-surfaces-presenter.js";
+
+const presentationRuntime = defaultPresentationRuntime;
+const runtimeStatusCardSource = presentationRuntime.createStatusCardSource();
+const runtimeStatusCard = createConnectedJobStatusCard({
+  snapshotSource: runtimeStatusCardSource,
+});
+
+function refreshRuntimeStatusCard({
+  publicErrorText = "",
+  stagePresentation = null,
+} = {}) {
+  runtimeStatusCardSource.setPresentationOverride?.({
+    publicErrorText,
+    stagePresentation,
+  });
+  return runtimeStatusCard.refresh();
+}
 
 export function setStatus(status) {
   setStatusView(status);
-  startElapsedTicker(state);
+  presentationRuntime.startElapsed();
 }
 
 export function setWorkflowSections(job = null) {
   setWorkflowSectionsVisibility(job, {
-    onClear: () => stopElapsedTicker(state),
+    onClear: () => presentationRuntime.stopElapsed(),
   });
 }
 
@@ -46,40 +56,90 @@ export {
 } from "./job-actions.js";
 
 export function resetUploadedFile() {
-  stopElapsedTicker(state);
+  presentationRuntime.stopElapsed();
   resetUploadedFilePresentation();
 }
 
 export { updateJobWarning };
 
-export function renderJob(payload, eventsPayload = null, manifestPayload = null, stageActionsPayload = null) {
-  const { job, jobId, events, manifest, stageActions } = syncJobRenderCache({
-    state,
-    payload,
-    eventsPayload,
-    manifestPayload,
-    stageActionsPayload,
-  });
-  const stagePresentation = resolveRenderStagePresentation({
-    state,
+function renderJobMainSurfaces({
+  job,
+  jobId,
+  events,
+  manifest,
+  stageActions,
+}) {
+  renderJobMainStatusSurfaces({
+    runtime: presentationRuntime,
     job,
     jobId,
-    events,
-  });
-  setWorkflowSections(job);
-  setStatus(job.status || "idle");
-  const { publicErrorText } = renderJobStatusSummary(job, stagePresentation);
-  updateActionButtons(job, manifest);
-  renderJobStatusCard({
-    job,
-    jobId,
-    stagePresentation,
     events,
     manifest,
     stageActions,
-    publicErrorText,
+    refreshStatusCard: refreshRuntimeStatusCard,
+    setStatus,
+    setWorkflowSections,
+    updateJobWarning,
   });
-  renderStatusDetails(job, events);
-  startElapsedTicker(state);
-  updateJobWarning(job.status || "idle");
+}
+
+function isJobRenderContext(value) {
+  return Boolean(value?.job && Object.prototype.hasOwnProperty.call(value, "jobId"));
+}
+
+export function renderJob(payload, eventsPayload = null, manifestPayload = null, stageActionsPayload = null) {
+  const { job, jobId, events, manifest, stageActions } = isJobRenderContext(payload)
+    ? payload
+    : presentationRuntime.applySnapshot({
+      payload,
+      eventsPayload,
+      manifestPayload,
+      stageActionsPayload,
+    });
+  renderJobMainSurfaces({
+    job,
+    jobId,
+    events,
+    manifest,
+    stageActions,
+  });
+}
+
+export function renderJobSecondaryPatch({
+  context = null,
+  jobId,
+  eventsPayload = null,
+  manifestPayload = null,
+  stageActionsPayload = null,
+  source = "",
+} = {}) {
+  let renderContext = null;
+  if (isJobRenderContext(context)) {
+    renderContext = context;
+  } else if (isJobRenderContext(jobId)) {
+    renderContext = jobId;
+  } else {
+    renderContext = presentationRuntime.applySecondary({
+      jobId,
+      eventsPayload,
+      manifestPayload,
+      stageActionsPayload,
+    });
+  }
+  const { job, events, manifest, stageActions } = renderContext;
+  if (!job) {
+    return;
+  }
+  renderJobSecondaryStatusPatch({
+    runtime: presentationRuntime,
+    renderContext: {
+      ...renderContext,
+      job,
+      events,
+      manifest,
+      stageActions,
+    },
+    source,
+    refreshStatusCard: refreshRuntimeStatusCard,
+  });
 }

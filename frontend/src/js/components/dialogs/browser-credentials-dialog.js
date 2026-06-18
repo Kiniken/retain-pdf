@@ -1,4 +1,4 @@
-import { OCR_PROVIDER_DEFINITIONS, TRANSLATION_PROVIDER_DEFINITION } from "../../provider-config.js";
+import { OCR_PROVIDER_DEFINITIONS, TRANSLATION_PROVIDER_DEFINITION } from "../../config/providers.js";
 
 class BrowserCredentialsDialog extends HTMLElement {
   connectedCallback() {
@@ -24,7 +24,7 @@ class BrowserCredentialsDialog extends HTMLElement {
           </span>
         </label>
         <div class="credential-card-actions">
-          ${provider.supportsValidation ? `<button id="browser-${provider.id}-validate-btn" type="button" class="secondary">${provider.validationButtonLabel}</button>` : ""}
+          ${provider.supportsValidation ? `<button id="browser-${provider.id}-validate-btn" type="button" class="app-button secondary">${provider.validationButtonLabel}</button>` : ""}
           <span id="browser-${provider.id}-validation" class="token-inline-status hidden">${provider.validationIdleMessage}</span>
         </div>
       </section>
@@ -70,7 +70,7 @@ class BrowserCredentialsDialog extends HTMLElement {
                       </span>
                     </label>
                     <div class="credential-card-actions">
-                      <button id="browser-deepseek-validate-btn" type="button" class="secondary">${TRANSLATION_PROVIDER_DEFINITION.validationButtonLabel}</button>
+                      <button id="browser-deepseek-validate-btn" type="button" class="app-button secondary">${TRANSLATION_PROVIDER_DEFINITION.validationButtonLabel}</button>
                       <span id="browser-deepseek-validation" class="token-inline-status hidden">${TRANSLATION_PROVIDER_DEFINITION.validationIdleMessage}</span>
                       <a id="browser-deepseek-top-up-link" class="credential-top-up-link hidden" href="https://platform.deepseek.com/top_up" target="_blank" rel="noopener noreferrer">充值</a>
                     </div>
@@ -99,7 +99,7 @@ class BrowserCredentialsDialog extends HTMLElement {
             </div>
             <div class="actions credential-dialog-actions">
               <span id="browser-credentials-status" class="upload-status hidden"></span>
-              <button id="browser-credentials-save-btn" type="button">保存</button>
+              <button id="browser-credentials-save-btn" type="button" class="app-button">保存</button>
             </div>
           </div>
         </form>

@@ -71,6 +71,7 @@ from services.rendering.layout.inline_content.core.markdown import build_direct_
 from devtools.tests.rendering_support.page_specs import sample_page_spec as _page_spec
 from services.rendering.layout.model.models import RenderBlock
 from services.rendering.layout.payload.formula_safety import formula_safety_insets_pt
+from services.rendering.layout.payload.formula_safety import has_long_inline_math_layout_risk
 
 
 def test_text_heavy_inline_math_demotes_latex_text_to_plain_text() -> None:
@@ -173,6 +174,17 @@ def test_formula_safety_insets_reserve_more_bottom_space_for_subscripts() -> Non
     assert insets.bottom_pt >= 1.0
 
 
+def test_long_inline_chemical_formula_is_layout_risk() -> None:
+    text = (
+        r"例如，Zheng团队开发了巨型POM，"
+        r"$[Sb_{15}Tb_{7}W_{3}O_{29}(OH)_{3}(DMF)(H_{2}O)_{6}(SbW_{8}O_{30})(SbW_{9}O_{33})_{5}]^{27-}$ "
+        r"$[Sb_{21}Tb_{7}W_{56})$，具有优异的水溶性。"
+    )
+
+    assert has_long_inline_math_layout_risk(text, [], font_size_pt=11.0, box_width_pt=255.0)
+    assert not has_long_inline_math_layout_risk("短公式 $x_i$ 正文", [], font_size_pt=11.0, box_width_pt=255.0)
+
+
 def test_typst_block_adds_formula_safety_padding_without_shrinking_outer_fill() -> None:
     block = RenderBlock(
         block_id="b1",
@@ -199,6 +211,36 @@ def test_typst_block_adds_formula_safety_padding_without_shrinking_outer_fill() 
     assert "pad(top:" in typst
     assert "bottom:" in typst
     assert "fit_height: 22.0pt" not in typst
+
+
+def test_typst_block_relaxes_justification_for_long_inline_math() -> None:
+    formula = (
+        r"$[Sb_{15}Tb_{7}W_{3}O_{29}(OH)_{3}(DMF)(H_{2}O)_{6}"
+        r"(SbW_{8}O_{30})(SbW_{9}O_{33})_{5}]^{27-}$"
+    )
+    block = RenderBlock(
+        block_id="b1",
+        bbox=[34.0, 622.0, 290.0, 739.0],
+        cover_bbox=[34.0, 622.0, 290.0, 739.0],
+        inner_bbox=[34.0, 622.0, 290.0, 739.0],
+        markdown_text=f"除了与特定生物分子相互作用外，巨型POM {formula} 具有优异的水溶性和稳定性。",
+        plain_text="除了与特定生物分子相互作用外，巨型POM具有优异的水溶性和稳定性。",
+        render_kind="markdown",
+        font_size_pt=11.0,
+        leading_em=0.58,
+        fit_to_box=True,
+        fit_min_font_size_pt=10.2,
+        fit_min_leading_em=0.36,
+        fit_max_height_pt=117.0,
+        justify_text=True,
+        math_map=[],
+    )
+
+    typst = build_typst_block("long_inline_formula", block, include_fill=True)
+
+    assert "justify: false" in typst
+    assert "min_size: 7.92pt" in typst
+    assert "min_leading: 0.58em" in typst
 
 
 def test_toc_entries_render_with_typst_style_rows() -> None:

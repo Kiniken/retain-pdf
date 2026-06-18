@@ -2,7 +2,8 @@ use axum::extract::{Multipart, State};
 use axum::Json;
 
 use crate::error::AppError;
-use crate::models::{ApiResponse, UploadRecord};
+use crate::models::api::ApiResponse;
+use crate::models::domain::UploadRecord;
 use crate::routes::common::{build_upload_route_deps, ok_json, UploadRouteDeps};
 use crate::services::upload_api::{store_upload as store_upload_service, store_upload_view};
 use crate::AppState;

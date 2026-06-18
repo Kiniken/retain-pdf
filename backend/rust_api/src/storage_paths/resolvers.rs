@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::models::{JobArtifactRecord, JobSnapshot};
+use crate::models::domain::{JobArtifactRecord, JobSnapshot};
 
 use super::constants::{
     OUTPUT_ARTIFACTS_DIR_NAME, OUTPUT_LOGS_DIR_NAME, OUTPUT_MARKDOWN_DIR_NAME,

@@ -4,7 +4,7 @@ use axum::response::Response;
 use axum::Json;
 
 use crate::error::AppError;
-use crate::models::{
+use crate::models::api::{
     ApiResponse, LibraryBatchDeleteInput, LibraryBatchDeleteResultView, LibraryBookDetailView,
     LibraryBookListView, LibraryDeleteQuery, LibraryDeleteResultView, ListJobsQuery,
 };

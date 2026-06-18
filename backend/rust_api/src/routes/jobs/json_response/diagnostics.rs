@@ -1,7 +1,7 @@
 use axum::Json;
 
 use crate::error::AppError;
-use crate::models::{ApiResponse, JobDiagnosticsView, JobResumePlanView};
+use crate::models::api::{ApiResponse, JobDiagnosticsView, JobResumePlanView};
 
 use crate::routes::common::{jobs_facade, ok_json, JobsRouteDeps};
 

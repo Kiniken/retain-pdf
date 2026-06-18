@@ -1,34 +1,13 @@
-use crate::models::{job_stage_rank, JobEventRecord};
+use crate::models::api::JobEventRecord;
+use crate::models::domain::{job_stage_rank, JobStatusKind};
 
 use super::LiveStageSnapshot;
 
-pub(super) fn select_live_stage_snapshot(items: &[JobEventRecord]) -> Option<LiveStageSnapshot> {
-    let selected = items
-        .iter()
-        .filter(|item| {
-            if item.lane.as_deref().map(str::trim).unwrap_or("") != "main" {
-                return false;
-            }
-            let raw_event_type = item
-                .raw_event_type
-                .as_deref()
-                .or(item.event_type.as_deref())
-                .map(str::trim)
-                .unwrap_or("");
-            let stage = item
-                .stage
-                .as_deref()
-                .map(str::trim)
-                .unwrap_or("")
-                .to_string();
-            raw_event_type != "artifact_published" && !stage.is_empty()
-        })
-        .max_by(|left, right| {
-            job_stage_rank(left.stage.as_deref())
-                .cmp(&job_stage_rank(right.stage.as_deref()))
-                .then_with(|| left.ts.cmp(&right.ts))
-                .then_with(|| left.seq.cmp(&right.seq))
-        })?;
+pub(super) fn select_live_stage_snapshot(
+    items: &[JobEventRecord],
+    status: &JobStatusKind,
+) -> Option<LiveStageSnapshot> {
+    let selected = select_main_stage_event(items, status)?;
     let page_progress = latest_render_page_progress(items);
     let fallback_progress = latest_progress(items);
     let selected_stage = selected
@@ -44,10 +23,25 @@ pub(super) fn select_live_stage_snapshot(items: &[JobEventRecord]) -> Option<Liv
         && !progress_stage.trim().is_empty();
     let progress_event = display_progress_event(selected, page_progress);
     Some(LiveStageSnapshot {
+        display_stage: if should_keep_progress_stage {
+            fallback_progress.and_then(|item| item.display_stage.clone())
+        } else {
+            selected.display_stage.clone()
+        },
         stage: if should_keep_progress_stage {
             fallback_progress.and_then(|item| item.stage.clone())
         } else {
             selected.stage.clone()
+        },
+        substage: if should_keep_progress_stage {
+            fallback_progress.and_then(|item| item.substage.clone())
+        } else {
+            selected.substage.clone()
+        },
+        lane: if should_keep_progress_stage {
+            fallback_progress.and_then(|item| item.lane.clone())
+        } else {
+            selected.lane.clone()
         },
         stage_detail: if should_keep_progress_stage {
             fallback_progress.and_then(|item| item.stage_detail.clone())
@@ -63,7 +57,121 @@ pub(super) fn select_live_stage_snapshot(items: &[JobEventRecord]) -> Option<Liv
         progress_unit: progress_event
             .and_then(progress_unit)
             .or_else(|| fallback_progress.and_then(progress_unit)),
+        background_stages: latest_background_stages(items),
     })
+}
+
+fn select_main_stage_event<'a>(
+    items: &'a [JobEventRecord],
+    status: &JobStatusKind,
+) -> Option<&'a JobEventRecord> {
+    let mut candidates: Vec<&JobEventRecord> = items
+        .iter()
+        .filter(|item| item_is_selectable_main_stage(item))
+        .collect();
+    if matches!(status, JobStatusKind::Running | JobStatusKind::Queued) {
+        let non_terminal: Vec<&JobEventRecord> = candidates
+            .iter()
+            .copied()
+            .filter(|item| !item_is_terminal_done_stage(item))
+            .collect();
+        if !non_terminal.is_empty() {
+            candidates = non_terminal;
+        }
+    }
+    candidates.into_iter().max_by(|left, right| {
+        job_stage_rank(left.stage.as_deref())
+            .cmp(&job_stage_rank(right.stage.as_deref()))
+            .then_with(|| left.ts.cmp(&right.ts))
+            .then_with(|| left.seq.cmp(&right.seq))
+    })
+}
+
+fn item_is_selectable_main_stage(item: &JobEventRecord) -> bool {
+    if item.lane.as_deref().map(str::trim).unwrap_or("") != "main" {
+        return false;
+    }
+    let raw_event_type = item
+        .raw_event_type
+        .as_deref()
+        .or(item.event_type.as_deref())
+        .map(str::trim)
+        .unwrap_or("");
+    let stage = item.stage.as_deref().map(str::trim).unwrap_or("");
+    raw_event_type != "artifact_published" && !stage.is_empty()
+}
+
+fn item_is_terminal_done_stage(item: &JobEventRecord) -> bool {
+    let display_stage = item.display_stage.as_deref().map(str::trim).unwrap_or("");
+    let stage = item.stage.as_deref().map(str::trim).unwrap_or("");
+    let raw_event_type = item
+        .raw_event_type
+        .as_deref()
+        .or(item.event_type.as_deref())
+        .map(str::trim)
+        .unwrap_or("");
+    display_stage == "done"
+        || matches!(
+            stage,
+            "finished" | "done" | "succeeded" | "failed" | "canceled"
+        )
+        || raw_event_type == "job_terminal"
+}
+
+fn latest_background_stages(items: &[JobEventRecord]) -> Vec<LiveStageSnapshot> {
+    let mut selected: Vec<&JobEventRecord> = Vec::new();
+    for item in items.iter().filter(|item| {
+        item.lane.as_deref().map(str::trim).unwrap_or("") == "background"
+            && item.display_stage.as_deref().map(str::trim).is_some()
+            && item.substage.as_deref().map(str::trim).is_some()
+    }) {
+        let key = background_key(item);
+        if let Some(existing_index) = selected
+            .iter()
+            .position(|existing| background_key(existing) == key)
+        {
+            let existing = selected[existing_index];
+            if event_is_newer(item, existing) {
+                selected[existing_index] = item;
+            }
+        } else {
+            selected.push(item);
+        }
+    }
+    selected
+        .into_iter()
+        .map(snapshot_from_background_event)
+        .collect()
+}
+
+fn background_key(item: &JobEventRecord) -> String {
+    format!(
+        "{}\u{1f}{}\u{1f}{}",
+        item.display_stage.as_deref().map(str::trim).unwrap_or(""),
+        item.stage.as_deref().map(str::trim).unwrap_or(""),
+        item.substage.as_deref().map(str::trim).unwrap_or("")
+    )
+}
+
+fn event_is_newer(left: &JobEventRecord, right: &JobEventRecord) -> bool {
+    left.ts
+        .cmp(&right.ts)
+        .then_with(|| left.seq.cmp(&right.seq))
+        .is_gt()
+}
+
+fn snapshot_from_background_event(item: &JobEventRecord) -> LiveStageSnapshot {
+    LiveStageSnapshot {
+        display_stage: item.display_stage.clone(),
+        stage: item.stage.clone(),
+        substage: item.substage.clone(),
+        lane: item.lane.clone(),
+        stage_detail: item.stage_detail.clone(),
+        progress_current: progress_current(item),
+        progress_total: progress_total(item),
+        progress_unit: progress_unit(item),
+        background_stages: Vec::new(),
+    }
 }
 
 fn latest_render_page_progress(items: &[JobEventRecord]) -> Option<&JobEventRecord> {

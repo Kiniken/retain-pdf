@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
-use crate::models::{now_iso, JobArtifactRecord, JobSnapshot};
+use crate::models::domain::{now_iso, JobArtifactRecord, JobSnapshot};
 
 use super::constants::{
     ARTIFACT_GROUP_DEBUG, ARTIFACT_GROUP_JSON, ARTIFACT_GROUP_MARKDOWN, ARTIFACT_GROUP_PROVIDER,

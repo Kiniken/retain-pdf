@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 
 use crate::job_runner::ProcessRuntimeDeps;
-use crate::models::{now_iso, JobRuntimeState};
+use crate::models::domain::{now_iso, JobRuntimeState};
 use crate::ocr_provider::mineru::{
     client::MineruTrace, find_extract_result_in_batch, map_task_status, MineruClient,
 };

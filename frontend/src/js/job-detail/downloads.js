@@ -9,7 +9,7 @@ import {
   showDownloadPreparing,
   updateDownloadProgress,
 } from "../utils/download-feedback.js";
-import { $ } from "../dom.js";
+import { $ } from "../dom/query.js";
 
 export function bindProtectedDownloadLink({
   id,
@@ -60,5 +60,39 @@ export function bindProtectedDownloadLink({
       setText("detail-head-note", error.message || "下载失败");
       failDownloadToast(error.message || "下载失败");
     }
+  });
+}
+
+const DETAIL_PROTECTED_DOWNLOADS = [
+  {
+    id: "detail-pdf-btn",
+    fallbackNameFactory: (jobId) => `${jobId}.pdf`,
+  },
+  {
+    id: "detail-markdown-raw-btn",
+    fallbackNameFactory: (jobId) => `${jobId}.md`,
+  },
+  {
+    id: "detail-markdown-json-btn",
+    fallbackNameFactory: (jobId) => `${jobId}-markdown.json`,
+  },
+];
+
+export function resolveJobDetailProtectedDownloadBindings() {
+  return DETAIL_PROTECTED_DOWNLOADS.map((config) => ({ ...config }));
+}
+
+export function bindJobDetailProtectedDownloads({
+  detailPageState,
+  fetchProtected,
+  setText,
+} = {}) {
+  resolveJobDetailProtectedDownloadBindings().forEach((config) => {
+    bindProtectedDownloadLink({
+      ...config,
+      detailPageState,
+      fetchProtected,
+      setText,
+    });
   });
 }

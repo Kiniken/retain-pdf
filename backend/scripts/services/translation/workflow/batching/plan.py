@@ -36,6 +36,21 @@ def _build_translation_batches(
     )
 
 
+def effective_translation_batch_size(
+    *,
+    batch_size: int,
+    model: str,
+    base_url: str,
+    translation_context,
+) -> int:
+    return _effective_translation_batch_size(
+        batch_size=batch_size,
+        model=model,
+        base_url=base_url,
+        translation_context=translation_context,
+    )
+
+
 __all__ = [
     "chunked",
     "TranslationBatchRunStats",
@@ -47,6 +62,7 @@ __all__ = [
     "_classify_translation_batches",
     "_dedupe_pending_items",
     "_dedupe_signature",
+    "effective_translation_batch_size",
     "_effective_translation_batch_size",
     "_fast_path_keep_origin_result",
     "_is_fast_path_keep_origin_item",

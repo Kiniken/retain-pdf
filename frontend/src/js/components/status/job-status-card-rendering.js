@@ -1,3 +1,13 @@
+import {
+  STATUS_CARD_ACTION_IDS,
+  STATUS_CARD_IDS,
+  STATUS_CARD_SELECTORS,
+  statusCardElementById,
+} from "./job-status-card-dom-contract.js";
+import {
+  renderProgressModel,
+} from "./job-status-card-progress-renderer.js";
+
 function setActionLinkState(link, { ready = false, url = "" } = {}) {
   if (!link) {
     return;
@@ -11,32 +21,145 @@ function setActionLinkState(link, { ready = false, url = "" } = {}) {
   link.dataset.url = enabled ? url : "";
 }
 
-function setProgressComponents(host, {
-  percent = 0,
-  text = "",
+function progressRenderPercent(value) {
+  if (value === null || value === undefined || value === "") {
+    return NaN;
+  }
+  const numericValue = Number(value);
+  return Math.max(0, Math.min(100, Number.isFinite(numericValue) ? numericValue : 0));
+}
+
+function capRunningRenderPercent(percent, stageKey = "", status = "") {
+  const normalizedStageKey = `${stageKey || ""}`.trim();
+  const normalizedStatus = `${status || ""}`.trim();
+  if (
+    normalizedStatus === "running"
+    && ["ocr", "translate", "render"].includes(normalizedStageKey)
+    && Number(percent) >= 100
+  ) {
+    return 99;
+  }
+  return percent;
+}
+
+export function buildProgressRenderModel({
+  current = NaN,
+  total = NaN,
+  fallbackText = "-",
+  displayPercent = null,
+  percent = NaN,
+  progressText = "",
+  progressUnit = "",
+  stageKey = "",
+  status = "",
+  forceVisible = null,
   indeterminate = false,
 } = {}) {
-  const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
-  const roundedPercent = Math.round(safePercent);
-  const ring = host.querySelector("#status-progress-ring");
-  const ringMeta = host.querySelector("#status-progress-ring-meta");
-  const progressBar = host.querySelector("#status-progress-bar");
-  const progressPercent = host.querySelector("#status-progress-percent");
-  if (ring) {
-    ring.value = safePercent;
-    ring.setAttribute("value", `${safePercent}`);
-    ring.textContent = indeterminate ? "..." : `${roundedPercent}%`;
+  const normalizedStageKey = `${stageKey || ""}`.trim();
+  const visible = forceVisible ?? ["ocr", "translate", "render"].includes(normalizedStageKey);
+  if (!visible) {
+    return {
+      visible: false,
+      percent: 0,
+      text: "",
+      componentText: "-",
+      indeterminate: false,
+      legacyIndeterminate: false,
+    };
   }
-  if (ringMeta) {
-    ringMeta.textContent = text || (indeterminate ? "处理中" : `${roundedPercent}%`);
+
+  const numericCurrent = Number(current);
+  const numericTotal = Number(total);
+  const numericDisplayPercent = progressRenderPercent(displayPercent);
+  const numericPercent = Number(percent);
+  const normalizedProgressUnit = `${progressUnit || ""}`.trim();
+  const textFallback = progressText || fallbackText;
+
+  if (indeterminate) {
+    return {
+      visible: true,
+      percent: 42,
+      text: textFallback,
+      componentText: textFallback,
+      indeterminate: true,
+      legacyIndeterminate: true,
+    };
   }
-  if (progressPercent) {
-    progressPercent.textContent = indeterminate ? "处理中" : `${roundedPercent}%`;
+
+  if (Number.isFinite(numericDisplayPercent)) {
+    const safePercent = capRunningRenderPercent(numericDisplayPercent, normalizedStageKey, status);
+    const text = progressText || `进度 ${safePercent.toFixed(0)}%`;
+    return {
+      visible: true,
+      percent: safePercent,
+      text,
+      componentText: text,
+      indeterminate: false,
+      legacyIndeterminate: false,
+    };
   }
-  if (progressBar) {
-    progressBar.value = safePercent;
-    progressBar.setAttribute("value", `${safePercent}`);
-    progressBar.toggleAttribute("indeterminate", Boolean(indeterminate));
+
+  const hasNumbers = Number.isFinite(numericCurrent) && Number.isFinite(numericTotal) && numericTotal > 0;
+  if (hasNumbers && normalizedProgressUnit === "percent") {
+    const safePercent = capRunningRenderPercent(
+      progressRenderPercent((numericCurrent / numericTotal) * 100),
+      normalizedStageKey,
+      status,
+    );
+    const text = progressText || `进度 ${safePercent.toFixed(0)}%`;
+    return {
+      visible: true,
+      percent: safePercent,
+      text,
+      componentText: text,
+      indeterminate: false,
+      legacyIndeterminate: false,
+    };
+  }
+
+  if (hasNumbers) {
+    const safePercent = capRunningRenderPercent(
+      progressRenderPercent((numericCurrent / numericTotal) * 100),
+      normalizedStageKey,
+      status,
+    );
+    const text = progressText || `${numericCurrent} / ${numericTotal} (${safePercent.toFixed(0)}%)`;
+    return {
+      visible: true,
+      percent: safePercent,
+      text,
+      componentText: text,
+      indeterminate: false,
+      legacyIndeterminate: false,
+    };
+  }
+
+  if (!hasNumbers) {
+    if (Number.isFinite(numericPercent)) {
+      const safePercent = capRunningRenderPercent(
+        progressRenderPercent(numericPercent),
+        normalizedStageKey,
+        status,
+      );
+      const text = progressText || `进度 ${safePercent.toFixed(0)}%`;
+      return {
+        visible: true,
+        percent: safePercent,
+        text,
+        componentText: text,
+        indeterminate: false,
+        legacyIndeterminate: false,
+      };
+    }
+    const text = progressText || fallbackText;
+    return {
+      visible: true,
+      percent: 0,
+      text,
+      componentText: text,
+      indeterminate: false,
+      legacyIndeterminate: false,
+    };
   }
 }
 
@@ -50,12 +173,12 @@ export function syncPrimaryActions(host, {
   sourcePdfReady = false,
   sourcePdfUrl = "",
 } = {}) {
-  const pdfBtn = host.querySelector("#pdf-btn");
-  const readerBtn = host.querySelector("#reader-btn");
-  const markdownBundleBtn = host.querySelector("#status-markdown-bundle-btn");
-  const sourcePdfBtn = host.querySelector("#source-pdf-btn");
-  const actionRow = host.querySelector(".status-result-actions");
-  const body = host.querySelector(".status-wa-body");
+  const pdfBtn = statusCardElementById(host, STATUS_CARD_ACTION_IDS.pdf);
+  const readerBtn = statusCardElementById(host, STATUS_CARD_ACTION_IDS.reader);
+  const markdownBundleBtn = statusCardElementById(host, STATUS_CARD_ACTION_IDS.markdownBundle);
+  const sourcePdfBtn = statusCardElementById(host, STATUS_CARD_ACTION_IDS.sourcePdf);
+  const actionRow = host.querySelector(STATUS_CARD_SELECTORS.resultActions);
+  const body = host.querySelector(STATUS_CARD_SELECTORS.body);
   const hasActions = markdownBundleReady || pdfReady || readerReady || sourcePdfReady;
   setActionLinkState(markdownBundleBtn, { ready: markdownBundleReady, url: markdownBundleUrl });
   setActionLinkState(pdfBtn, { ready: pdfReady, url: pdfUrl });
@@ -66,100 +189,18 @@ export function syncPrimaryActions(host, {
 }
 
 export function setElapsed(host, value = "-") {
-  const elapsed = host.querySelector("#status-ring-elapsed");
+  const elapsed = statusCardElementById(host, STATUS_CARD_IDS.ringElapsed);
   if (elapsed) {
     elapsed.textContent = value;
   }
 }
 
-export function setProgress(host, {
-  current = NaN,
-  total = NaN,
-  fallbackText = "-",
-  percent = NaN,
-  progressText = "",
-  progressUnit = "",
-  stageKey = "",
-  forceVisible = null,
-  indeterminate = false,
-} = {}) {
-  const normalizedStageKey = `${stageKey || ""}`.trim();
-  const shouldShowProgress = forceVisible ?? ["ocr", "translate", "render"].includes(normalizedStageKey);
-  const block = host.querySelector(".status-progress-block");
-  const bar = host.querySelector("#job-progress-bar");
-  const text = host.querySelector("#job-progress-text");
-  if (!bar || !text) {
-    return;
-  }
-  block?.classList.toggle("hidden", !shouldShowProgress);
-  if (!shouldShowProgress) {
-    bar.style.width = "0%";
-    bar.classList.remove("is-indeterminate");
-    text.textContent = "";
-    setProgressComponents(host, { percent: 0, text: "-", indeterminate: false });
-    return;
-  }
-  const numericCurrent = Number(current);
-  const numericTotal = Number(total);
-  const numericPercent = Number(percent);
-  const normalizedProgressUnit = `${progressUnit || ""}`.trim();
-  bar.classList.toggle("is-indeterminate", Boolean(indeterminate));
-  if (indeterminate) {
-    bar.style.width = "42%";
-    text.textContent = progressText || fallbackText;
-    setProgressComponents(host, {
-      percent: 42,
-      text: progressText || fallbackText,
-      indeterminate: true,
-    });
-    return;
-  }
-  const hasNumbers = Number.isFinite(numericCurrent) && Number.isFinite(numericTotal) && numericTotal > 0;
-  if (hasNumbers && normalizedProgressUnit === "percent") {
-    const safePercent = Math.max(0, Math.min(100, (numericCurrent / numericTotal) * 100));
-    bar.style.width = `${safePercent}%`;
-    text.textContent = progressText || `进度 ${safePercent.toFixed(0)}%`;
-    setProgressComponents(host, {
-      percent: safePercent,
-      text: text.textContent,
-      indeterminate: false,
-    });
-    return;
-  }
-  if (!hasNumbers) {
-    if (Number.isFinite(numericPercent)) {
-      const safePercent = Math.max(0, Math.min(100, numericPercent));
-      bar.style.width = `${safePercent}%`;
-      text.textContent = progressText || `进度 ${safePercent.toFixed(0)}%`;
-      setProgressComponents(host, {
-        percent: safePercent,
-        text: text.textContent,
-        indeterminate: false,
-      });
-      return;
-    }
-    bar.style.width = "0%";
-    text.textContent = progressText || fallbackText;
-    setProgressComponents(host, {
-      percent: 0,
-      text: text.textContent,
-      indeterminate: false,
-    });
-    return;
-  }
-  const computedPercent = (numericCurrent / numericTotal) * 100;
-  const safePercent = Math.max(0, Math.min(100, computedPercent));
-  bar.style.width = `${safePercent}%`;
-  text.textContent = progressText || `${numericCurrent} / ${numericTotal} (${safePercent.toFixed(0)}%)`;
-  setProgressComponents(host, {
-    percent: safePercent,
-    text: text.textContent,
-    indeterminate: false,
-  });
+export function setProgress(host, options = {}) {
+  renderProgressModel(host, buildProgressRenderModel(options));
 }
 
 export function setCancelEnabled(host, enabled) {
-  const button = host.querySelector("#cancel-btn");
+  const button = statusCardElementById(host, STATUS_CARD_IDS.cancelButton);
   if (button) {
     button.disabled = !enabled;
   }

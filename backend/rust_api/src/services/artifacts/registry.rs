@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::db::Db;
 use crate::error::AppError;
-use crate::models::{JobArtifactRecord, JobSnapshot};
+use crate::models::domain::{JobArtifactRecord, JobSnapshot};
 use crate::storage_paths::{collect_job_artifact_entries, resolve_registered_artifact_path};
 
 pub fn list_registry_for_job(

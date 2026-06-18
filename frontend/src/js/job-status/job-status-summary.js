@@ -2,26 +2,22 @@ import {
   firstNonEmpty,
   looksLikeProviderPercentProgress,
   numberOrNull,
-  progressFromText,
 } from "./job-status-summary-helpers.js";
 import {
-  DETAIL_TEXT_MAP,
   USER_STAGE_FLOW,
   USER_STAGE_TOTAL,
   detailForPayload,
   normalizedStageText,
-  rawStageOf,
+  publicStageKeyOf,
   stageFlowForKey,
   stageKeyOf,
   stageSubtypeOf,
-  userStageFlowIndex,
   userStageFor,
   userStageLabel,
 } from "./job-status-summary-stage.js";
 import { summarizeStageProgressText } from "./job-status-summary-progress.js";
 
 export {
-  DETAIL_TEXT_MAP,
   USER_STAGE_FLOW,
   USER_STAGE_TOTAL,
   detailForPayload,
@@ -29,13 +25,11 @@ export {
   looksLikeProviderPercentProgress,
   normalizedStageText,
   numberOrNull,
-  progressFromText,
-  rawStageOf,
+  publicStageKeyOf,
   stageFlowForKey,
   stageKeyOf,
   stageSubtypeOf,
   summarizeStageProgressText,
-  userStageFlowIndex,
   userStageFor,
   userStageLabel,
 };

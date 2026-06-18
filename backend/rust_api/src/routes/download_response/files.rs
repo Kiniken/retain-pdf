@@ -1,11 +1,9 @@
 use axum::http::{HeaderMap, HeaderValue};
 use axum::response::Response;
-use std::path::{Path, PathBuf};
 
 use crate::error::AppError;
-use crate::models::JobSnapshot;
 use crate::routes::job_helpers::stream_file;
-use crate::services::jobs::FileDownload;
+use crate::services::jobs::{DocumentDownloadKind, FileDownload};
 
 use crate::routes::common::JobsRouteDeps;
 
@@ -20,18 +18,10 @@ pub async fn download_document_response(
     headers: &HeaderMap,
     job_id: &str,
     ocr_only: bool,
-    resolve_path: impl Fn(&JobSnapshot, &Path) -> Option<PathBuf>,
-    not_ready_label: &str,
-    content_type: &str,
+    kind: DocumentDownloadKind,
 ) -> Result<Response, AppError> {
     file_download_response(
-        jobs_facade_ref(deps).download_job_document(
-            job_id,
-            ocr_only,
-            resolve_path,
-            not_ready_label,
-            content_type,
-        )?,
+        jobs_facade_ref(deps).download_job_document(job_id, ocr_only, kind)?,
         headers,
     )
     .await
@@ -64,6 +54,20 @@ pub async fn thumbnail_response(
     job_id: &str,
 ) -> Result<Response, AppError> {
     file_download_response(jobs_facade_ref(deps).thumbnail_download(job_id)?, headers).await
+}
+
+pub async fn side_by_side_pdf_response(
+    deps: &JobsRouteDeps<'_>,
+    headers: &HeaderMap,
+    job_id: &str,
+) -> Result<Response, AppError> {
+    file_download_response(
+        jobs_facade_ref(deps)
+            .side_by_side_pdf_download(job_id)
+            .await?,
+        headers,
+    )
+    .await
 }
 
 pub async fn bundle_response(

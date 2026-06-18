@@ -1,20 +1,3 @@
-import { $ } from "../../dom.js";
-import { DEFAULT_FILE_LABEL } from "../../constants.js";
-import {
-  applyMockUploadView,
-  applyWorkflowUploadView,
-  closeDeveloperDialog,
-  readDeveloperDialogValues,
-  readDeveloperWorkflowValue,
-  readModelApiKey,
-  readOcrProviderValue,
-  readOcrTokenValue,
-  renderTranslationBudgetNote,
-  setDeveloperDialogValues,
-  setDeveloperGlossaryOptions,
-  setDeveloperWorkflowFormState,
-  setSubmitControls,
-} from "./view.js";
 import {
   buildDeveloperConfigWithDefaults,
   workflowHeadline as resolveWorkflowHeadline,
@@ -34,21 +17,20 @@ import {
   buildDeveloperConfigFromDialog,
   defaultDeveloperDialogReadOptions,
 } from "./developer-dialog.js";
-import {
-  resetDeveloperConfig,
-  setDeveloperConfig,
-} from "../../state/actions.js";
-import { getDeepSeekBalanceState } from "../../state/credential-state.js";
-import { getDeveloperConfig } from "../../state/developer-state.js";
-import { isDesktopMode } from "../../state/desktop-state.js";
-import { getUploadState } from "../../state/upload-state.js";
 import { resolveSubmitControlState } from "./submit-controls.js";
 import { resolveTranslationBudgetState } from "./budget.js";
+import { defaultWorkflowConfigPort } from "./config-port.js";
+import { createWorkflowViewPort } from "./workflow-view-port.js";
 
 export function mountWorkflowFeature({
-  state,
-  isMockMode,
+  configPort = defaultWorkflowConfigPort,
   saveDeveloperStoredConfig,
+  getDeepSeekBalanceState,
+  getDeveloperConfig,
+  getUploadState,
+  isDesktopMode,
+  resetDeveloperConfig,
+  setDeveloperConfig,
   defaultModelName,
   defaultModelBaseUrl,
   defaultMineruToken,
@@ -56,12 +38,16 @@ export function mountWorkflowFeature({
   defaultPaddleToken,
   defaultOcrProvider,
   defaultModelApiKey,
+  defaultFileLabel = "选择 PDF",
   normalizeWorkflow,
   normalizeMathMode,
   constants,
   currentPageRanges,
+  viewPort = createWorkflowViewPort(),
+  readSubmitValues = viewPort.readSubmitValues,
   renderPageRangeSummary,
-  getBrowserCredentialsFeature,
+  hasBrowserCredentials,
+  updateCredentialGate: updateCredentialGatePort,
   fetchGlossaries,
   apiPrefix,
   setText,
@@ -82,14 +68,14 @@ export function mountWorkflowFeature({
   const glossaryOptionsLoader = createGlossaryOptionsLoader({
     fetchGlossaries,
     apiPrefix,
-    setDeveloperGlossaryOptions,
+    setDeveloperGlossaryOptions: viewPort.setDeveloperGlossaryOptions,
     setText,
     getDefaultSelectedId: () => developerConfigWithDefaults().glossaryId,
   });
 
   function developerConfigWithDefaults() {
     return buildDeveloperConfigWithDefaults({
-      saved: getDeveloperConfig(state),
+      saved: getDeveloperConfig(),
       normalizeWorkflow,
       normalizeMathMode,
       defaults: {
@@ -107,7 +93,7 @@ export function mountWorkflowFeature({
   function syncDeveloperDialogFromState() {
     const config = developerConfigWithDefaults();
     glossaryOptionsLoader.applyOptions(config.glossaryId);
-    setDeveloperDialogValues(config);
+    viewPort.setDeveloperDialog(config);
     updateDeveloperWorkflowFormState();
     void loadGlossaryOptions();
   }
@@ -145,8 +131,8 @@ export function mountWorkflowFeature({
   }
 
   function updateDeveloperWorkflowFormState() {
-    const workflow = normalizeWorkflow(readDeveloperWorkflowValue());
-    setDeveloperWorkflowFormState({
+    const workflow = normalizeWorkflow(viewPort.readDeveloperWorkflow());
+    viewPort.setDeveloperWorkflowFormState({
       workflow,
       workflowRender: WORKFLOW_RENDER,
       workflowTranslate: WORKFLOW_TRANSLATE,
@@ -155,29 +141,27 @@ export function mountWorkflowFeature({
 
   function refreshSubmitControls() {
     const workflow = currentWorkflow();
-    const uploadState = getUploadState(state);
+    const uploadState = getUploadState();
+    const budget = currentBudgetState(workflow);
     const submitState = resolveSubmitControlState({
       workflow,
-      isMock: isMockMode(),
-      desktopMode: isDesktopMode(state),
+      isMock: configPort.isMock(),
+      desktopMode: isDesktopMode(),
       uploadId: uploadState.uploadId,
       renderSourceJobId: currentRenderSourceJobId(),
-      hasBrowserCredentials: Boolean(getBrowserCredentialsFeature()?.hasBrowserCredentials()),
+      hasBrowserCredentials: Boolean(hasBrowserCredentials?.()),
+      budgetBlocking: budget.blocking,
       workflowNeedsUpload,
       workflowNeedsCredentials,
       workflowSubmitLabel,
     });
-    const budget = currentBudgetState(workflow);
-    renderTranslationBudgetNote(budget);
-    setSubmitControls({
-      ...submitState,
-      disabled: submitState.disabled || budget.blocking,
-    });
+    viewPort.renderBudgetNote(budget);
+    viewPort.setSubmitControls(submitState);
   }
 
   function currentBudgetState(workflow = currentWorkflow()) {
-    const uploadState = getUploadState(state);
-    const balanceState = getDeepSeekBalanceState(state);
+    const uploadState = getUploadState();
+    const balanceState = getDeepSeekBalanceState();
     return resolveTranslationBudgetState({
       pageRanges: currentPageRanges(),
       uploadedPageCount: uploadState.uploadedPageCount,
@@ -188,10 +172,10 @@ export function mountWorkflowFeature({
   }
 
   function updateCredentialGate() {
-    if (isMockMode()) {
+    if (configPort.isMock()) {
       return;
     }
-    getBrowserCredentialsFeature()?.updateCredentialGate({
+    updateCredentialGatePort?.({
       workflowNeedsCredentials: () => workflowNeedsCredentials(currentWorkflow()),
       workflowNeedsUpload: () => workflowNeedsUpload(currentWorkflow()),
       refreshSubmitControls,
@@ -202,9 +186,9 @@ export function mountWorkflowFeature({
     const workflow = currentWorkflow();
     const needsUpload = workflowNeedsUpload(workflow);
     const showPageRangeButton = workflowNeedsUpload(workflow);
-    if (isMockMode()) {
-      applyMockUploadView({
-        mockScenario: new URLSearchParams(window.location.search).get("mock") || "running",
+    if (configPort.isMock()) {
+      viewPort.applyMockUpload({
+        mockScenario: configPort.mockScenario(),
         submitLabel: workflowSubmitLabel(workflow),
         showPageRangeButton,
       });
@@ -212,11 +196,11 @@ export function mountWorkflowFeature({
       updateCredentialGate();
       return;
     }
-    const uploadState = getUploadState(state);
-    applyWorkflowUploadView({
+    const uploadState = getUploadState();
+    viewPort.applyWorkflowUpload({
       needsUpload,
       uploadReady: Boolean(uploadState.uploadId),
-      defaultFileLabel: DEFAULT_FILE_LABEL,
+      defaultFileLabel,
       headline: workflowHeadline(workflow),
       renderSourceJobId: currentRenderSourceJobId(),
     });
@@ -228,7 +212,7 @@ export function mountWorkflowFeature({
 
   function saveDeveloperDialog() {
     const currentConfig = developerConfigWithDefaults();
-    const values = readDeveloperDialogValues(defaultDeveloperDialogReadOptions({
+    const values = viewPort.readDeveloperDialog(defaultDeveloperDialogReadOptions({
       defaultModelName,
       defaultModelBaseUrl,
       defaults: {
@@ -239,42 +223,48 @@ export function mountWorkflowFeature({
         timeoutSeconds: DEFAULT_TIMEOUT_SECONDS,
       },
     }));
-    setDeveloperConfig(state, buildDeveloperConfigFromDialog({
+    setDeveloperConfig(buildDeveloperConfigFromDialog({
       currentConfig,
       values,
       normalizeWorkflow,
     }));
-    setDeveloperDialogValues(developerConfigWithDefaults());
-    void saveDeveloperStoredConfig(getDeveloperConfig(state));
+    viewPort.setDeveloperDialog(developerConfigWithDefaults());
+    void saveDeveloperStoredConfig(getDeveloperConfig());
     applyWorkflowMode();
-    closeDeveloperDialog();
+    viewPort.closeDeveloperDialog();
   }
 
   function resetDeveloperDialog() {
-    resetDeveloperConfig(state);
+    resetDeveloperConfig();
     void saveDeveloperStoredConfig({});
     syncDeveloperDialogFromState();
     applyWorkflowMode();
   }
 
-  function buildOcrPayload(pageRanges) {
+  function currentWorkflowSubmitValues() {
+    return readSubmitValues({
+      defaultOcrProvider: defaultOcrProvider(),
+      defaultPaddleToken: defaultPaddleToken(),
+      defaultMineruToken: defaultMineruToken(),
+      defaultModelApiKey: defaultModelApiKey(),
+    });
+  }
+
+  function buildOcrPayload(pageRanges, submitValues = currentWorkflowSubmitValues()) {
     return buildOcrPayloadRequest({
       pageRanges,
-      readOcrProviderValue,
-      readOcrTokenValue,
-      defaultOcrProvider,
-      defaultPaddleToken,
-      defaultMineruToken,
+      ocrProvider: submitValues.ocrProvider,
+      ocrToken: submitValues.ocrToken,
       defaultPaddleApiUrl,
       constants,
     });
   }
 
-  function buildTranslationPayload(developerConfig) {
+  function buildTranslationPayload(developerConfig, submitValues = currentWorkflowSubmitValues()) {
     return buildTranslationPayloadRequest({
       developerConfig,
-      readModelApiKey,
-      defaultModelApiKey,
+      modelApiKey: submitValues.modelApiKey,
+      selectedGlossaryId: submitValues.selectedGlossaryId,
       constants,
     });
   }
@@ -294,7 +284,8 @@ export function mountWorkflowFeature({
     const pageRanges = currentPageRanges();
     const developerConfig = developerConfigWithDefaults();
     const workflow = developerConfig.workflow;
-    const uploadState = getUploadState(state);
+    const uploadState = getUploadState();
+    const submitValues = currentWorkflowSubmitValues();
     const payload = {
       workflow,
       source: buildSourcePayloadRequest({
@@ -309,8 +300,8 @@ export function mountWorkflowFeature({
       },
     };
     if (workflow === WORKFLOW_BOOK || workflow === WORKFLOW_TRANSLATE) {
-      payload.ocr = buildOcrPayload(pageRanges);
-      payload.translation = buildTranslationPayload(developerConfig);
+      payload.ocr = buildOcrPayload(pageRanges, submitValues);
+      payload.translation = buildTranslationPayload(developerConfig, submitValues);
     }
     if (workflowUsesRenderStage(workflow)) {
       payload.render = buildRenderPayload(developerConfig);

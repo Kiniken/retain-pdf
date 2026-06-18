@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::db::Db;
 use crate::error::AppError;
 use crate::job_events::persist_job_with_resources;
-use crate::models::JobSnapshot;
+use crate::models::domain::JobSnapshot;
 
 use super::runtime_gateway::JobRuntimeLauncher;
 

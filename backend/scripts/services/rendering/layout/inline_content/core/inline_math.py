@@ -20,6 +20,12 @@ MARKDOWN_EMPHASIS_RE = re.compile(
 )
 TEXT_HEAVY_INLINE_MATH_MIN_TEXT_CHARS = 10
 TEXT_HEAVY_INLINE_MATH_MIN_TEXT_BLOCKS = 2
+ANGLE_EXPECTATION_RE = re.compile(
+    r"\\langle\s*(?P<body>[^$]+?)\s*\\rangle(?P<script>_\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})"
+)
+BARE_ANGLE_EXPECTATION_RE = re.compile(
+    r"\\langle\s*(?P<body>[^$]+?)\s*\\rangle"
+)
 
 
 def apply_to_non_math_segments(text: str, replacer) -> str:
@@ -221,6 +227,17 @@ def demote_text_heavy_inline_math(text: str) -> str:
     return "".join(chunks)
 
 
+def normalize_angle_bracket_expectation_for_mitex(expr: str) -> str:
+    normalized = ANGLE_EXPECTATION_RE.sub(
+        lambda match: f"⟨{match.group('body').strip()}⟩{match.group('script')}",
+        expr or "",
+    )
+    return BARE_ANGLE_EXPECTATION_RE.sub(
+        lambda match: f"⟨{match.group('body').strip()}⟩",
+        normalized,
+    )
+
+
 def sanitize_direct_typst_inline_math(text: str) -> str:
     from services.rendering.layout.inline_content.fallback.latex_normalizer import (
         normalize_formula_for_latex_math,
@@ -240,6 +257,12 @@ def sanitize_direct_typst_inline_math(text: str) -> str:
         expr = re.sub(r"\\langlen\b", r"\\langle n", expr)
         expr = re.sub(r"\\angle(?=[A-Za-z])", r"\\angle ", expr)
         expr = re.sub(r"\\mathscr\b", r"\\mathcal", expr)
+        expr = re.sub(r"\\varPhi(?=[^A-Za-z]|$)", r"\\Phi", expr)
+        expr = re.sub(r"\\hbar\b", "hbar", expr)
+        expr = re.sub(r"\\partial\b", "∂", expr)
+        expr = normalize_angle_bracket_expectation_for_mitex(expr)
+        expr = re.sub(r"\\langle\b", "⟨", expr)
+        expr = re.sub(r"\\rangle\b", "⟩", expr)
         expr = re.sub(r"\\circled\s*\{\s*\\times\s*\}", r"\\otimes", expr)
         expr = re.sub(r"\\circled\s*\{\s*\\parallel\s*\}", r"\\circ", expr)
         expr = re.sub(r"\\circled\s*\{\s*([^{}]+?)\s*\}", r"\1", expr)

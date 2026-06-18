@@ -28,6 +28,7 @@ def apply_source_page_overlay(
     *,
     cover_only: bool = False,
     redaction_strategy: str | None = None,
+    visual_profile_path: Path | None = None,
 ) -> dict[str, object]:
     redaction_items = redaction_items_from_render_blocks(
         translated_items,
@@ -40,6 +41,7 @@ def apply_source_page_overlay(
         cover_only=cover_only,
         redaction_strategy=redaction_strategy,
         redaction_items=redaction_items,
+        visual_profile_path=visual_profile_path,
     )
 
 
@@ -57,6 +59,7 @@ def overlay_pages_from_single_pdf(
     skip_visual_cover: bool = False,
     source_base_pdf_path: Path | None = None,
     pikepdf_output_pdf_path: Path | None = None,
+    visual_profile_path: Path | None = None,
 ) -> dict[str, object]:
     redaction_pages: dict[int, list[dict]] | None = None
     if apply_source_overlay or remove_source_text_by_bbox or not skip_visual_cover:
@@ -82,6 +85,7 @@ def overlay_pages_from_single_pdf(
         skip_visual_cover=skip_visual_cover,
         source_base_pdf_path=source_base_pdf_path,
         pikepdf_output_pdf_path=pikepdf_output_pdf_path,
+        visual_profile_path=visual_profile_path,
     )
 
 

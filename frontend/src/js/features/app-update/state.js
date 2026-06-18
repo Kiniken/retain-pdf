@@ -28,39 +28,59 @@ function normalizeCachedInfo(value) {
   };
 }
 
-export function readUpdateCache(now = Date.now()) {
-  try {
-    const cached = normalizeCachedInfo(JSON.parse(window.localStorage.getItem(CACHE_KEY) || "null"));
-    if (!cached) {
+export function createUpdateCachePort({
+  storage = globalThis.window?.localStorage,
+  now = () => Date.now(),
+} = {}) {
+  function read() {
+    try {
+      const cached = normalizeCachedInfo(JSON.parse(storage?.getItem(CACHE_KEY) || "null"));
+      if (!cached) {
+        return { info: null, fresh: false };
+      }
+      const ageMs = now() - cached.checkedAt;
+      return {
+        info: cached,
+        fresh: ageMs >= 0 && ageMs < CACHE_TTL_MS,
+      };
+    } catch {
       return { info: null, fresh: false };
     }
-    const ageMs = now - cached.checkedAt;
-    return {
-      info: cached,
-      fresh: ageMs >= 0 && ageMs < CACHE_TTL_MS,
-    };
-  } catch {
-    return { info: null, fresh: false };
   }
+
+  function write(info) {
+    if (!info) {
+      return;
+    }
+    try {
+      const cached = {
+        checkedAt: now(),
+        currentVersion: info.currentVersion || APP_VERSION,
+        latestVersion: info.latestVersion || "",
+        hasUpdate: Boolean(info.hasUpdate),
+        title: info.title || "",
+        body: info.body || "",
+        htmlUrl: info.htmlUrl || "",
+        publishedAt: info.publishedAt || "",
+      };
+      storage?.setItem(CACHE_KEY, JSON.stringify(cached));
+    } catch {
+      // Cache failures should never affect update checks.
+    }
+  }
+
+  return Object.freeze({
+    read,
+    write,
+  });
+}
+
+export const defaultUpdateCachePort = createUpdateCachePort();
+
+export function readUpdateCache(now = Date.now()) {
+  return createUpdateCachePort({ now: () => now }).read();
 }
 
 export function writeUpdateCache(info, now = Date.now()) {
-  if (!info) {
-    return;
-  }
-  try {
-    const cached = {
-      checkedAt: now,
-      currentVersion: info.currentVersion || APP_VERSION,
-      latestVersion: info.latestVersion || "",
-      hasUpdate: Boolean(info.hasUpdate),
-      title: info.title || "",
-      body: info.body || "",
-      htmlUrl: info.htmlUrl || "",
-      publishedAt: info.publishedAt || "",
-    };
-    window.localStorage.setItem(CACHE_KEY, JSON.stringify(cached));
-  } catch {
-    // Cache failures should never affect update checks.
-  }
+  createUpdateCachePort({ now: () => now }).write(info);
 }

@@ -1,6 +1,6 @@
 use crate::job_events::record_custom_runtime_event_with_resources;
 use crate::job_runner::{register_job_retry, ProcessRuntimeDeps};
-use crate::models::JobRuntimeState;
+use crate::models::domain::{now_iso, JobRuntimeState};
 
 pub(super) struct BundleRetryEvent<'a> {
     pub(super) scope: &'a str,
@@ -16,7 +16,7 @@ pub(super) struct BundleRetryEvent<'a> {
 pub(super) fn mark_ocr_result_ready(job: &mut JobRuntimeState, stage_detail: String) {
     job.stage = Some("ocr_result_ready".to_string());
     job.stage_detail = Some(stage_detail);
-    job.updated_at = crate::models::now_iso();
+    job.updated_at = now_iso();
 }
 
 pub(super) fn record_bundle_retry_scheduled(

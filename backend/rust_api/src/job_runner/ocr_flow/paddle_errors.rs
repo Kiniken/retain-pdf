@@ -1,5 +1,5 @@
 use crate::job_runner::{job_artifacts_mut, ocr_provider_diagnostics_mut};
-use crate::models::JobRuntimeState;
+use crate::models::domain::JobRuntimeState;
 use crate::ocr_provider::paddle::PaddleProviderError;
 use crate::ocr_provider::{OcrErrorCategory, OcrProviderErrorInfo};
 

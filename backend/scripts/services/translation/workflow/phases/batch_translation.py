@@ -71,11 +71,25 @@ def run_translation_batch_stage(
             single_fast_workers=batch_summary.get("single_fast_workers", 0),
             single_slow_workers=batch_summary.get("single_slow_workers", 0),
             slow_worker_limit=batch_summary.get("slow_worker_limit", 0),
+            batched_fast_batches=batch_summary.get("batched_fast_batches", 0),
+            single_fast_batches=batch_summary.get("single_fast_batches", 0),
+            single_slow_batches=batch_summary.get("single_slow_batches", 0),
         )
         run_diagnostics.set_translation_result_stats(
-            applied_batches=batch_summary.get("total_batches", 0),
+            applied_batches=batch_summary.get("applied_batches", batch_summary.get("total_batches", 0)),
             apply_elapsed_ms=batch_summary.get("apply_elapsed_ms", 0),
             max_result_drain_batch=batch_summary.get("max_result_drain_batch", 0),
+            flush_count=batch_summary.get("flush_count", 0),
+            flushed_page_total=batch_summary.get("flushed_page_total", 0),
+            flush_elapsed_ms=batch_summary.get("flush_elapsed_ms", 0),
+            max_flush_pages=batch_summary.get("max_flush_pages", 0),
+            tail_retry_drains=batch_summary.get("tail_retry_drains", 0),
+            tail_retry_items=batch_summary.get("tail_retry_items", 0),
+            tail_retry_completed=batch_summary.get("tail_retry_completed", 0),
+            tail_retry_failed=batch_summary.get("tail_retry_failed", 0),
+            tail_retry_elapsed_ms=batch_summary.get("tail_retry_elapsed_ms", 0),
+            early_tail_retry_drains=batch_summary.get("early_tail_retry_drains", 0),
+            final_tail_retry_drains=batch_summary.get("final_tail_retry_drains", 0),
         )
     emit_stage_progress(
         stage="translating",
@@ -91,6 +105,8 @@ def run_translation_batch_stage(
             "fast_queue_workers": batch_summary.get("fast_queue_workers", 0),
             "apply_elapsed_ms": batch_summary.get("apply_elapsed_ms", 0),
             "max_result_drain_batch": batch_summary.get("max_result_drain_batch", 0),
+            "tail_retry_items": batch_summary.get("tail_retry_items", 0),
+            "flush_elapsed_ms": batch_summary.get("flush_elapsed_ms", 0),
         },
     )
     print(f"book: translation batches in {time.perf_counter() - translate_started:.2f}s", flush=True)

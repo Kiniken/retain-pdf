@@ -8,7 +8,6 @@ const __dirname = path.dirname(__filename);
 const frontendRoot = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(frontendRoot, "..");
 const desktopPackagePath = path.resolve(frontendRoot, "../desktop/package.json");
-const versionFilePath = path.resolve(repoRoot, "VERSION");
 const outputPath = path.join(frontendRoot, "src/js/generated/app-version.js");
 
 function repoFromHomepage(homepage = "") {
@@ -21,9 +20,28 @@ function normalizeGitVersion(value = "") {
   if (!text) {
     return "";
   }
+  const dirty = /-dirty$/i.test(text);
   const withoutDirty = text.replace(/-dirty$/i, "");
-  const match = withoutDirty.match(/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/);
-  return match ? match[0].replace(/^v/i, "") : "";
+  const described = withoutDirty.match(/^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)-(\d+)-g([0-9a-f]+)$/i);
+  if (described) {
+    const [, base, commits, sha] = described;
+    return `${base}+${commits}.g${sha}${dirty ? ".dirty" : ""}`;
+  }
+  const exact = withoutDirty.match(/^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/i);
+  if (exact) {
+    return `${exact[1]}${dirty ? "+dirty" : ""}`;
+  }
+  const prefix = withoutDirty.match(/^v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/);
+  return prefix ? prefix[1] : "";
+}
+
+function readGithubRefVersion() {
+  const refName = `${process.env.GITHUB_REF_NAME || ""}`.trim();
+  const refType = `${process.env.GITHUB_REF_TYPE || ""}`.trim();
+  if (refType === "tag") {
+    return normalizeGitVersion(refName);
+  }
+  return normalizeGitVersion(refName);
 }
 
 function readGitVersion() {
@@ -39,21 +57,11 @@ function readGitVersion() {
   }
 }
 
-function readVersionFile() {
-  try {
-    return fs.readFileSync(versionFilePath, "utf8").trim();
-  } catch (_err) {
-    return "";
-  }
-}
-
 const desktopPackage = JSON.parse(fs.readFileSync(desktopPackagePath, "utf8"));
-const packageVersion = `${desktopPackage.version || ""}`.trim();
 const appVersion = (process.env.RETAIN_PDF_VERSION || "").trim()
-  || packageVersion
+  || readGithubRefVersion()
   || readGitVersion()
-  || readVersionFile()
-  || "0.0.0";
+  || "0.0.0+unknown";
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 fs.writeFileSync(
   outputPath,

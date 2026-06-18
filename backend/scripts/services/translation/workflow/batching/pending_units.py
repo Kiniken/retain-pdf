@@ -78,11 +78,35 @@ def translate_pending_units(
 ) -> dict[str, int]:
     apply_elapsed_s = 0.0
     max_result_drain_batch = 0
+    total_applied_batches = 0
+    tail_retry_stats: dict[str, int] = {}
+    flush_stats: dict[str, int] = {}
 
-    def _apply_stats_callback(*, batch_count: int, elapsed_s: float) -> None:
-        nonlocal apply_elapsed_s, max_result_drain_batch
+    def _apply_stats_callback(
+        *,
+        batch_count: int,
+        elapsed_s: float,
+        reported_applied_batches: int | None = None,
+        reported_apply_elapsed_s: float | None = None,
+        reported_max_result_drain_batch: int | None = None,
+    ) -> None:
+        nonlocal apply_elapsed_s
+        nonlocal total_applied_batches
+        nonlocal max_result_drain_batch
+        if reported_applied_batches is not None:
+            total_applied_batches = max(0, int(reported_applied_batches))
+            apply_elapsed_s = max(0.0, float(reported_apply_elapsed_s or 0.0))
+            max_result_drain_batch = max(0, int(reported_max_result_drain_batch or 0))
+            return
         apply_elapsed_s += max(0.0, elapsed_s)
+        total_applied_batches += max(0, batch_count)
         max_result_drain_batch = max(max_result_drain_batch, max(0, batch_count))
+
+    def _tail_retry_stats_callback(**stats: int) -> None:
+        tail_retry_stats.update({key: int(value) for key, value in stats.items()})
+
+    def _flush_stats_callback(**stats: int) -> None:
+        flush_stats.update({key: int(value) for key, value in stats.items()})
 
     flat_payload: list[dict] = []
     item_to_page: dict[str, int] = {}
@@ -195,6 +219,8 @@ def translate_pending_units(
         )
         run_stats_payload["apply_elapsed_ms"] = int(round(max(0.0, time.perf_counter() - sequential_started) * 1000))
         run_stats_payload["max_result_drain_batch"] = 1 if batches else 0
+        run_stats_payload["applied_batches"] = len(batches)
+        run_stats_payload.update(flush_state.stats())
         return run_stats_payload
 
     run_translation_batches_parallel(
@@ -212,9 +238,14 @@ def translate_pending_units(
         result_applier=result_applier,
         flush_state=flush_state,
         apply_stats_callback=_apply_stats_callback,
+        tail_retry_stats_callback=_tail_retry_stats_callback,
+        flush_stats_callback=_flush_stats_callback,
     )
     run_stats_payload["apply_elapsed_ms"] = int(round(apply_elapsed_s * 1000))
     run_stats_payload["max_result_drain_batch"] = max_result_drain_batch
+    run_stats_payload["applied_batches"] = total_applied_batches
+    run_stats_payload.update(tail_retry_stats)
+    run_stats_payload.update(flush_stats)
     return run_stats_payload
 
 

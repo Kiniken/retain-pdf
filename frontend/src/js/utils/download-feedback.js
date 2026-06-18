@@ -1,4 +1,4 @@
-import { $ } from "../dom.js";
+import { $ } from "../dom/query.js";
 import { formatTransferSize } from "./downloads.js";
 
 let hideTimer = 0;

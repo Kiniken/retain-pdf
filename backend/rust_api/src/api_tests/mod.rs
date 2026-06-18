@@ -11,4 +11,5 @@ mod jobs_markdown;
 mod jobs_reader;
 mod jobs_retry;
 mod jobs_security;
+mod providers;
 mod translation_debug;

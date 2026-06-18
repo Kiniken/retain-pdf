@@ -2,7 +2,8 @@ use std::path::Path;
 
 use crate::db::Db;
 use crate::error::AppError;
-use crate::models::{JobSnapshot, ListJobsQuery, WorkflowKind};
+use crate::models::api::ListJobsQuery;
+use crate::models::domain::{JobSnapshot, WorkflowKind};
 use crate::storage_paths::{
     job_uses_legacy_output_layout, job_uses_legacy_path_storage, LEGACY_JOB_UNSUPPORTED_MESSAGE,
 };

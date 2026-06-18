@@ -1,3 +1,5 @@
+import { APP_EVENTS } from "../../contracts/app-contract.js";
+
 export function bindStageRetryEvents(component) {
   component.addEventListener("click", (event) => {
     const button = event.target?.closest?.(".status-stage-retry-btn");
@@ -5,7 +7,7 @@ export function bindStageRetryEvents(component) {
     if (!stage || button.disabled) {
       return;
     }
-    component.dispatchEvent(new CustomEvent("retainpdf:retry-stage", {
+    component.dispatchEvent(new CustomEvent(APP_EVENTS.retryStage, {
       bubbles: true,
       composed: true,
       detail: { stage },

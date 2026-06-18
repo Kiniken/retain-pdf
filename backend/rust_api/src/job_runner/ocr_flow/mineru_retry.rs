@@ -5,7 +5,7 @@ use tokio::time::{sleep, Duration};
 
 use crate::job_events::record_custom_runtime_event_with_resources;
 use crate::job_runner::{register_job_retry, ProcessRuntimeDeps};
-use crate::models::{now_iso, JobRuntimeState};
+use crate::models::domain::{now_iso, JobRuntimeState};
 use crate::ocr_provider::mineru::{client::MineruUploadTarget, MineruClient};
 
 use super::save_ocr_job;

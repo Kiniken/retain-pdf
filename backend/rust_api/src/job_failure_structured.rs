@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::models::{JobFailureInfo, JobSnapshot};
+use crate::models::domain::{JobFailureInfo, JobSnapshot};
 use crate::ocr_provider::{OcrErrorCategory, OcrProviderDiagnostics};
 
 use super::job_failure_support::{

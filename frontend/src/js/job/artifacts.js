@@ -1,9 +1,5 @@
-import { apiBase } from "../config.js";
-import {
-  currentJobManifest,
-  currentJobSnapshot,
-} from "../features/job-runtime/runtime-state.js";
-import { getUploadState } from "../state/upload-state.js";
+import { defaultArtifactRuntimePort } from "./artifact-runtime-port.js";
+import { defaultArtifactUrlConfigPort } from "./artifact-url-config.js";
 
 function trimString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -25,13 +21,17 @@ function sanitizeFilenamePart(value) {
   return `${value || ""}`.replace(/[\\/:*?"<>|]+/g, "_").trim();
 }
 
-function basenameFromUrlLike(value) {
+function defaultBaseHref() {
+  return globalThis.window?.location?.href || "http://localhost/";
+}
+
+function basenameFromUrlLike(value, { baseHref = defaultBaseHref() } = {}) {
   const raw = trimString(value);
   if (!raw) {
     return "";
   }
   try {
-    const parsed = new URL(raw, window.location.href);
+    const parsed = new URL(raw, baseHref);
     const pathname = parsed.pathname || "";
     const candidate = pathname.split("/").filter(Boolean).pop() || "";
     return decodeURIComponent(candidate);
@@ -42,11 +42,15 @@ function basenameFromUrlLike(value) {
 }
 
 export function resolveOriginalPdfBaseName(state = {}) {
-  const snapshot = currentJobSnapshot(state) || {};
-  const uploadState = getUploadState(state);
+  const snapshot = defaultArtifactRuntimePort.currentJobSnapshot(state) || {};
+  const jobId = `${snapshot.job_id || state.currentJobId || ""}`.trim();
+  const uploadState = defaultArtifactRuntimePort.uploadSnapshot(state) || {};
   const requestPayload = snapshot.request_payload || {};
   const rawResponse = snapshot.raw_response || {};
-  const sourceArtifact = findReadyManifestArtifact(currentJobManifest(state), "source_pdf");
+  const sourceArtifact = findReadyManifestArtifact(
+    defaultArtifactRuntimePort.cachedManifestFor(state, jobId),
+    "source_pdf",
+  );
   const candidates = [
     uploadState.uploadedFileName,
     rawResponse.filename,
@@ -91,18 +95,72 @@ function ensureTrailingSlash(value) {
   return trimmed.endsWith("/") ? trimmed : `${trimmed}/`;
 }
 
+function normalizedApiBase(resolveApiBase) {
+  return trimString(resolveApiBase?.())
+    .replace(/\/+$/, "")
+    .replace(/\/api\/v1$/i, "");
+}
+
 export function toAbsoluteApiUrl(value) {
-  const trimmed = trimString(value);
-  if (!trimmed) {
+  return resolveResourceUrl(value);
+}
+
+export function appendResourceQuery(url, query = {}) {
+  const normalized = trimString(url);
+  if (!normalized) {
     return "";
   }
-  if (/^[a-z][a-z\d+\-.]*:/i.test(trimmed)) {
-    return trimmed;
+  const entries = Object.entries(query)
+    .filter(([, value]) => value !== undefined && value !== null && `${value}` !== "");
+  if (!entries.length) {
+    return normalized;
   }
-  if (trimmed.startsWith("/")) {
-    return `${apiBase()}${trimmed}`;
+  let nextUrl = normalized;
+  entries.forEach(([key, value]) => {
+    const encodedKey = encodeURIComponent(key);
+    if (new RegExp(`(?:[?&])${encodedKey}=`).test(nextUrl)) {
+      return;
+    }
+    const separator = nextUrl.includes("?") ? "&" : "?";
+    nextUrl = `${nextUrl}${separator}${encodedKey}=${encodeURIComponent(`${value}`)}`;
+  });
+  return nextUrl;
+}
+
+export function createArtifactUrlResolver({
+  resolveApiBase = defaultArtifactUrlConfigPort.resolveApiBase,
+} = {}) {
+  function resolve(value, { query = null } = {}) {
+    const trimmed = trimString(value);
+    if (!trimmed) {
+      return "";
+    }
+    let absolute = "";
+    const base = normalizedApiBase(resolveApiBase);
+    if (/^[a-z][a-z\d+\-.]*:/i.test(trimmed)) {
+      absolute = trimmed;
+    } else if (trimmed.startsWith("/")) {
+      absolute = `${base}${trimmed}`;
+    } else {
+      absolute = `${base}/${trimmed.replace(/^\.?\//, "")}`;
+    }
+    return query ? appendResourceQuery(absolute, query) : absolute;
   }
-  return `${apiBase()}/${trimmed.replace(/^\.?\//, "")}`;
+
+  return Object.freeze({
+    resolve,
+    toAbsolute: resolve,
+  });
+}
+
+export const defaultArtifactUrlResolver = createArtifactUrlResolver();
+
+export function resolveResourceUrl(value, options = {}) {
+  const { resolver = defaultArtifactUrlResolver, ...resolveOptions } = options || {};
+  if (resolver?.resolve) {
+    return resolver.resolve(value, resolveOptions);
+  }
+  return defaultArtifactUrlResolver.resolve(value, resolveOptions);
 }
 
 export function findReadyManifestArtifact(manifestPayload, artifactKey) {
@@ -124,12 +182,11 @@ export function resolveManifestArtifactUrl(
   if (!raw) {
     return "";
   }
-  const absolute = toAbsoluteApiUrl(raw);
-  if (!includeJobDir || artifactKey !== "markdown_bundle_zip") {
-    return absolute;
-  }
-  const separator = absolute.includes("?") ? "&" : "?";
-  return `${absolute}${separator}include_job_dir=true`;
+  return resolveResourceUrl(raw, {
+    query: includeJobDir && artifactKey === "markdown_bundle_zip"
+      ? { include_job_dir: "true" }
+      : null,
+  });
 }
 
 export function resolveJobMarkdownContract(job) {
@@ -145,9 +202,9 @@ export function resolveJobMarkdownContract(job) {
   );
   return {
     ready,
-    jsonUrl: toAbsoluteApiUrl(markdown.json_url || markdown.json_path || actions.open_markdown?.url || actions.open_markdown?.path),
-    rawUrl: toAbsoluteApiUrl(markdown.raw_url || markdown.raw_path || actions.open_markdown_raw?.url || actions.open_markdown_raw?.path),
-    imagesBaseUrl: ensureTrailingSlash(toAbsoluteApiUrl(
+    jsonUrl: resolveResourceUrl(markdown.json_url || markdown.json_path || actions.open_markdown?.url || actions.open_markdown?.path),
+    rawUrl: resolveResourceUrl(markdown.raw_url || markdown.raw_path || actions.open_markdown_raw?.url || actions.open_markdown_raw?.path),
+    imagesBaseUrl: ensureTrailingSlash(resolveResourceUrl(
       markdown.images_base_url || markdown.images_base_path || artifacts.markdown_images_base_url
     )),
     fileName: trimString(markdown.file_name),
@@ -164,7 +221,7 @@ export function resolveMarkdownAssetUrl(imagesBaseUrl, relativePath) {
     return target;
   }
   if (target.startsWith("/")) {
-    return toAbsoluteApiUrl(target);
+    return resolveResourceUrl(target);
   }
   const base = ensureTrailingSlash(imagesBaseUrl);
   if (!base) {

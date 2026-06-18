@@ -1,6 +1,6 @@
 import {
   firstNonEmpty,
-  isTerminalStatus,
+  isJobTerminal,
 } from "./core.js";
 
 function formatDurationMs(ms) {
@@ -50,7 +50,7 @@ export function formatEventTimestamp(value) {
 }
 
 export function formatJobFinishedAt(payload) {
-  if (!payload || !isTerminalStatus(payload.status)) {
+  if (!payload || !isJobTerminal(payload)) {
     return "-";
   }
   const rawValue = (payload.finished_at || payload.updated_at || "").trim();
@@ -75,7 +75,7 @@ export function formatJobFinishedAt(payload) {
 }
 
 export function formatJobDuration(payload) {
-  if (!payload || !isTerminalStatus(payload.status)) {
+  if (!payload || !isJobTerminal(payload)) {
     return "-";
   }
   const startedRaw = (payload.started_at || "").trim();
@@ -101,4 +101,18 @@ export function formatJobDuration(payload) {
     return `${minutes}分 ${seconds}秒`;
   }
   return `${seconds}秒`;
+}
+
+export function summarizeInvocationProtocol(payload) {
+  const invocation = payload?.invocation || {};
+  const inputProtocol = firstNonEmpty(invocation.input_protocol);
+  if (inputProtocol === "stage_spec") {
+    return "Stage Spec";
+  }
+  return "-";
+}
+
+export function summarizeInvocationSchemaVersion(payload) {
+  const invocation = payload?.invocation || {};
+  return firstNonEmpty(invocation.stage_spec_schema_version) || "-";
 }

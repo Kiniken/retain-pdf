@@ -184,6 +184,26 @@ def test_direct_typst_passthrough_keeps_existing_inline_math_latex_shape() -> No
     assert markdown.startswith(r"$\mathbf{f}_{\alpha}^{IJ}(\mathbf{R})$ 是理解")
 
 
+def test_direct_typst_passthrough_normalizes_angle_expectation_for_mitex() -> None:
+    markdown = build_direct_typst_passthrough_text(
+        r"其中 $ \langle S^{2}\rangle_{T_{1}} $ 和 $ \langle S^{2}\rangle_{BS} $ 分别是 $ T_{1} $ 态。"
+    )
+
+    assert r"$⟨S^{2}⟩_{T_{1}}$" in markdown
+    assert r"$⟨S^{2}⟩_{BS}$" in markdown
+    assert r"$T_{1}$" in markdown
+
+
+def test_direct_typst_passthrough_normalizes_bare_angle_expectation_for_mitex() -> None:
+    markdown = build_direct_typst_passthrough_text(
+        r"表1. $ \langle\Delta E_{ST}\rangle $（单位：eV）。"
+    )
+
+    assert r"$⟨\Delta E_{ST}⟩$" in markdown
+    assert r"\langle" not in markdown
+    assert r"\rangle" not in markdown
+
+
 def test_direct_typst_passthrough_separates_adjacent_inline_math_blocks() -> None:
     markdown = build_direct_typst_passthrough_text(
         r"该阻尼函数相关。$^{86}$$a_{n}$ 是调整后的全局参数。"
@@ -237,6 +257,26 @@ def test_direct_typst_sanitizer_normalizes_double_backslash_math_commands() -> N
 def test_direct_typst_sanitizer_rewrites_unsupported_circled_command() -> None:
     markdown = sanitize_direct_typst_inline_math(r"路径 $\circled{\times}$ 与 $\circled{A}$ 保持")
     assert markdown == r"路径 $\otimes$ 与 $A$ 保持"
+
+
+def test_direct_typst_sanitizer_rewrites_hbar_for_mitex_compatibility() -> None:
+    markdown = sanitize_direct_typst_inline_math(r"动量算符 $-i\hbar d/dq_k$ 和 $i\hbar d/dp_j$。")
+    assert markdown == r"动量算符 $-ihbar d/dq_k$ 和 $ihbar d/dp_j$。"
+
+
+def test_direct_typst_sanitizer_rewrites_partial_for_mitex_compatibility() -> None:
+    markdown = sanitize_direct_typst_inline_math(r"导数 $\partial E/\partial N = \mu$ 保持。")
+    assert markdown == r"导数 $∂ E/∂ N = \mu$ 保持。"
+
+
+def test_direct_typst_sanitizer_rewrites_bra_ket_rangle_for_mitex_compatibility() -> None:
+    markdown = sanitize_direct_typst_inline_math(r"态 $|k\rangle$ 与 $|0\rangle$ 保持。")
+    assert markdown == r"态 $|k⟩$ 与 $|0⟩$ 保持。"
+
+
+def test_direct_typst_sanitizer_rewrites_varphi_for_mitex_compatibility() -> None:
+    markdown = sanitize_direct_typst_inline_math(r"基态 $\left|\varPhi_{0}\right\rangle$ 保持。")
+    assert markdown == r"基态 $\left|\Phi_{0}\right⟩$ 保持。"
 
 
 def test_direct_typst_sanitizer_restores_spreadsheet_cell_pseudo_math() -> None:

@@ -191,7 +191,7 @@ def _batch_sampler_clip_rect(page: fitz.Page, rects: list[fitz.Rect]) -> fitz.Re
         clip = expanded if clip is None else clip | expanded
     if clip is None or clip.is_empty:
         return None
-    if clip.get_area() / max(page_rect.get_area(), 1.0) > BACKGROUND_CLIP_SAMPLER_MAX_PAGE_AREA_RATIO:
+    if rect_area(clip) / max(rect_area(page_rect), 1.0) > BACKGROUND_CLIP_SAMPLER_MAX_PAGE_AREA_RATIO:
         return None
     return clip
 
@@ -205,7 +205,7 @@ def _coord_to_pixel(value: float, origin: float, span: float, pixels: int, *, ce
 
 def _rect_contains(container: fitz.Rect, rect: fitz.Rect) -> bool:
     clipped = fitz.Rect(rect) & container
-    return not clipped.is_empty and abs(clipped.get_area() - fitz.Rect(rect).get_area()) <= 0.01
+    return not clipped.is_empty and abs(rect_area(clipped) - rect_area(fitz.Rect(rect))) <= 0.01
 
 
 def _clip_pixmap(page: fitz.Page, clip: fitz.Rect) -> fitz.Pixmap | None:

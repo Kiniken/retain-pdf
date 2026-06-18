@@ -1,4 +1,5 @@
-use crate::models::{JobArtifacts, JobSnapshot, JobStatusKind, RetryStageKind, WorkflowKind};
+use crate::models::api::RetryStageKind;
+use crate::models::domain::{JobArtifacts, JobSnapshot, JobStatusKind, WorkflowKind};
 
 #[derive(Debug, Clone)]
 pub(crate) struct JobStagePlan {

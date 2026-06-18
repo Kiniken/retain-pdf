@@ -5,15 +5,14 @@ use anyhow::Result;
 use crate::job_events::{
     persist_runtime_job_with_resources, record_custom_runtime_event_with_resources,
 };
-use crate::models::{
+use crate::models::domain::{
     job_stage_detail, job_stage_str, now_iso, JobRuntimeState, JobStage, JobStatusKind,
 };
 use crate::storage_paths::JobPaths;
-use crate::worker_command::build_translate_only_command;
+use crate::worker_command::{build_worker_stage_command, WorkerStageCommand};
 
 use crate::job_runner::{
-    build_render_only_command, clear_job_failure, execute_process_job, sync_runtime_state,
-    ProcessRuntimeDeps,
+    clear_job_failure, execute_process_job, sync_runtime_state, ProcessRuntimeDeps,
 };
 
 use crate::job_runner::stage_contract::{
@@ -82,13 +81,15 @@ fn prepare_translation_stage(
     source_pdf_path: &Path,
     layout_json_path: Option<&Path>,
 ) -> Result<()> {
-    parent_job.command = build_translate_only_command(
+    parent_job.command = build_worker_stage_command(
         &deps.worker_command_runtime(),
         &parent_job.request_payload,
         parent_job_paths,
-        normalized_path,
-        source_pdf_path,
-        layout_json_path,
+        WorkerStageCommand::Translate {
+            source_json_path: normalized_path,
+            source_pdf_path,
+            layout_json_path,
+        },
     );
     parent_job.stage = Some(job_stage_str(JobStage::Translating).to_string());
     parent_job.stage_detail = Some(job_stage_detail(JobStage::Translating).to_string());
@@ -113,12 +114,14 @@ pub(super) async fn run_render_stage_after_translation(
     source_pdf_path: &Path,
 ) -> Result<JobRuntimeState> {
     ensure_translations_dir_ready(&job_paths.translated_dir, &job.job_id)?;
-    job.command = build_render_only_command(
+    job.command = build_worker_stage_command(
         &deps.worker_command_runtime(),
         &job.request_payload,
         job_paths,
-        source_pdf_path,
-        &job_paths.translated_dir,
+        WorkerStageCommand::Render {
+            source_pdf_path,
+            translations_dir: &job_paths.translated_dir,
+        },
     );
     job.status = JobStatusKind::Running;
     job.stage = Some(job_stage_str(JobStage::Rendering).to_string());

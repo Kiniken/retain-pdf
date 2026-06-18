@@ -1,4 +1,4 @@
-use crate::models::JobSnapshot;
+use crate::models::domain::JobSnapshot;
 use crate::ocr_provider::mineru::{
     classify_runtime_failure, extract_provider_error_code, extract_provider_message,
     extract_provider_trace_id,

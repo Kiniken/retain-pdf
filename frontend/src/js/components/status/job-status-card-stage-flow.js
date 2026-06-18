@@ -1,17 +1,21 @@
-import { STAGE_FLOW } from "./job-status-card-presets.js";
-import { isSelectableStage } from "./job-status-card-visuals.js";
+import {
+  isSelectableStatusStage,
+  resolveSelectedStatusStage,
+  STATUS_STAGE_FLOW,
+  statusStageIndex,
+} from "../../job-status/stage-flow-model.js";
 
 export function syncStageFlow(host, stageKey = "", selectedStageKey = "") {
   const normalized = `${stageKey || ""}`.trim();
   const selected = `${selectedStageKey || ""}`.trim();
-  const activeIndex = STAGE_FLOW.indexOf(normalized);
+  const activeIndex = statusStageIndex(normalized);
   host.querySelectorAll(".status-stage-step").forEach((step) => {
     const stepKey = step.dataset.stageKey || "";
-    const stepIndex = STAGE_FLOW.indexOf(stepKey);
+    const stepIndex = statusStageIndex(stepKey);
     const isDone = activeIndex >= 0 && stepIndex >= 0 && stepIndex < activeIndex;
     const isActive = activeIndex >= 0 && stepIndex === activeIndex;
     const isSelected = selected && stepKey === selected;
-    const selectable = isSelectableStage(stepKey, normalized);
+    const selectable = isSelectableStatusStage(stepKey, normalized);
     step.disabled = !selectable;
     step.setAttribute("aria-selected", isSelected ? "true" : "false");
     step.classList.toggle("is-done", isDone);
@@ -26,16 +30,11 @@ export function resolveSelectedStage({
   selectedStageKey = "",
   manualStageSelection = false,
 } = {}) {
-  const current = `${currentStageKey || ""}`.trim();
-  const selected = `${selectedStageKey || ""}`.trim();
-  if (manualStageSelection && isSelectableStage(selected, current)) {
-    return {
-      selectedStageKey: selected,
-      manualStageSelection: true,
-    };
-  }
-  return {
-    selectedStageKey: STAGE_FLOW.includes(current) ? current : "",
-    manualStageSelection: false,
-  };
+  return resolveSelectedStatusStage({
+    currentStageKey,
+    selectedStageKey,
+    manualStageSelection,
+  });
 }
+
+export const STAGE_FLOW = STATUS_STAGE_FLOW;

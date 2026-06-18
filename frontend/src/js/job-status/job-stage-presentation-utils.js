@@ -1,3 +1,35 @@
+import {
+  eventIdentity,
+  eventLaneOf,
+  eventPayloadOf,
+  hasCanonicalEventContract,
+  hasStructuredProgress,
+  hasStructuredPublicStage,
+  isMainLaneEvent,
+  isPublicStageKey,
+  normalizeDisplayStage,
+  normalizeEventStage,
+  normalizeUserStage,
+  progressUnitOf,
+  structuredPublicStageOf,
+} from "./job-stage-event-contract.js";
+
+export {
+  eventIdentity,
+  eventLaneOf,
+  eventPayloadOf,
+  hasCanonicalEventContract,
+  hasStructuredProgress,
+  hasStructuredPublicStage,
+  isMainLaneEvent,
+  isPublicStageKey,
+  normalizeDisplayStage,
+  normalizeEventStage,
+  normalizeUserStage,
+  progressUnitOf,
+  structuredPublicStageOf,
+};
+
 export function stageRank(stageKey) {
   return {
     queued: 0,
@@ -37,94 +69,27 @@ export function progressUnitPriority(unit = "") {
   }
 }
 
-export function eventIdentity(item = {}) {
-  const seq = Number(item.seq);
-  const ts = Date.parse(item.ts || item.created_at || "");
-  return {
-    seq: Number.isFinite(seq) ? seq : null,
-    ts: Number.isFinite(ts) ? ts : null,
-  };
-}
-
-export function eventLaneOf(item = {}) {
-  const payload = item?.payload && typeof item.payload === "object" ? item.payload : {};
-  return `${item?.lane || payload.lane || ""}`.trim().toLowerCase();
-}
-
-export function isMainLaneEvent(item = {}) {
-  const lane = eventLaneOf(item);
-  return !lane || lane === "main";
-}
-
-export function normalizeUserStage(value = "") {
-  const stage = `${value || ""}`.trim().toLowerCase();
-  return stage === "translation" ? "translate" : stage;
-}
-
-export function isPublicStageKey(value = "") {
-  return ["ocr", "translate", "render", "done"].includes(normalizeUserStage(value));
-}
-
-function normalizeDisplayStage(value = "") {
-  const stage = normalizeUserStage(value);
-  return stage === "translating" ? "translate" : stage;
-}
-
 export function publicStageOf(payload = {}) {
-  const nestedPayload = payload?.payload && typeof payload.payload === "object" ? payload.payload : {};
-  const explicitCandidates = [
-    payload.display_stage,
-    nestedPayload.display_stage,
-    payload.user_stage,
-    nestedPayload.user_stage,
-  ];
-  for (const candidate of explicitCandidates) {
-    const normalized = normalizeDisplayStage(candidate);
-    if (["ocr", "translate", "render", "done"].includes(normalized)) {
-      return normalized;
-    }
+  const structuredPublicStage = structuredPublicStageOf(payload);
+  if (structuredPublicStage) {
+    return structuredPublicStage;
   }
-  const stageCandidates = [
-    payload.stage,
-    nestedPayload.stage,
-  ];
-  for (const candidate of stageCandidates) {
-    const normalized = normalizeUserStage(candidate);
-    if (isPublicStageKey(normalized)) {
-      return normalized;
-    }
+  const snapshotPublicStage = normalizeDisplayStage(payload.stage_snapshot?.publicStage);
+  if (isPublicStageKey(snapshotPublicStage)) {
+    return snapshotPublicStage;
+  }
+  if (hasCanonicalEventContract(payload)) {
+    return "";
   }
   return "";
 }
 
 export function canonicalStageOf(payload = {}) {
-  const nestedPayload = payload?.payload && typeof payload.payload === "object" ? payload.payload : {};
   const publicStage = publicStageOf(payload);
   if (publicStage) {
     return publicStage;
   }
-  // Legacy fallback only. New /events uses display_stage/user_stage for public
-  // workflow stage and keeps stage as a machine-readable internal substage.
-  const candidates = [
-    payload.stage,
-    nestedPayload.stage,
-  ];
-  for (let index = 0; index < candidates.length; index += 1) {
-    const normalized = normalizeUserStage(candidates[index]);
-    if (["ocr", "translate", "render", "done"].includes(normalized)) {
-      return normalized;
-    }
-  }
   return "";
-}
-
-export function progressUnitOf(payload = {}) {
-  const nestedPayload = payload?.payload && typeof payload.payload === "object" ? payload.payload : {};
-  return `${payload?.progress?.unit
-    || nestedPayload.progress?.unit
-    || payload?.progress_unit
-    || nestedPayload.progress_unit
-    || ""}`.trim().toLowerCase();
 }
 
 export function compareProgressEventOrder(previous, next) {

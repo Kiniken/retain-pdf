@@ -2,7 +2,8 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::models::{JobSnapshot, NormalizationSummaryView};
+use crate::models::api::NormalizationSummaryView;
+use crate::models::domain::JobSnapshot;
 use crate::storage_paths::resolve_normalization_report;
 
 use super::shared::read_json_value;

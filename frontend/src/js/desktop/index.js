@@ -1,10 +1,12 @@
-import { $ } from "../dom.js";
+import { $ } from "../dom/query.js";
 import {
-  applyKeyInputs,
   loadPersistedConfig,
   savePersistedDesktopConfig,
-  savePersistedBrowserStoredConfig,
-} from "../config.js";
+} from "../config/desktop-persistence.js";
+import { savePersistedBrowserStoredConfig } from "../config/persisted-config.js";
+import {
+  applyDefaultCredentialInputs,
+} from "../features/credentials/default-state-port.js";
 import { state } from "../state/store.js";
 import {
   setDesktopConfigured,
@@ -13,6 +15,10 @@ import {
 } from "../state/actions.js";
 import { getDeveloperConfig } from "../state/developer-state.js";
 import { isDesktopConfigured } from "../state/desktop-state.js";
+import {
+  APP_DIALOG_IDS,
+  APP_EVENTS,
+} from "../contracts/app-contract.js";
 
 export function showDesktopUi() {
   $("open-output-btn").classList.remove("hidden");
@@ -36,13 +42,13 @@ export function setDesktopBusy(message = "") {
 }
 
 export function openSetupDialog() {
-  document.dispatchEvent(new CustomEvent("retainpdf:open-browser-credentials", {
+  document.dispatchEvent(new CustomEvent(APP_EVENTS.openBrowserCredentials, {
     detail: { setupMode: true },
   }));
 }
 
 export function closeSetupDialog() {
-  const dialog = $("browser-credentials-dialog");
+  const dialog = $(APP_DIALOG_IDS.browserCredentials);
   if (dialog?.open && dialog.dataset.setupMode === "1") {
     dialog.close();
   }
@@ -53,7 +59,7 @@ export async function bootstrapDesktop(initialConfig = null) {
   showDesktopUi();
   const payload = initialConfig || await loadPersistedConfig();
   setDeveloperConfig(state, payload.developerConfig || {});
-  applyKeyInputs(payload.browserConfig || {});
+  applyDefaultCredentialInputs(payload.browserConfig || {});
   setDesktopConfigured(state, payload.firstRunCompleted);
   if (!isDesktopConfigured(state)) {
     openSetupDialog();
@@ -81,11 +87,11 @@ export async function saveDesktopConfig(mineruToken, modelApiKey, afterSave, ext
     ...nextBrowserConfig,
   });
   setDeveloperConfig(state, persisted.developerConfig || getDeveloperConfig(state));
-  applyKeyInputs(persisted.browserConfig || {});
+  applyDefaultCredentialInputs(persisted.browserConfig || {});
   if (markConfigured && !persisted.firstRunCompleted) {
     persisted = await savePersistedDesktopConfig({ firstRunCompleted: true });
     setDeveloperConfig(state, persisted.developerConfig || getDeveloperConfig(state));
-    applyKeyInputs(persisted.browserConfig || {});
+    applyDefaultCredentialInputs(persisted.browserConfig || {});
   }
   setDesktopConfigured(state, persisted.firstRunCompleted);
   if (isDesktopConfigured(state)) {
@@ -108,6 +114,6 @@ export async function saveDesktopConfig(mineruToken, modelApiKey, afterSave, ext
     }
   }
   setDeveloperConfig(state, persisted.developerConfig || getDeveloperConfig(state));
-  applyKeyInputs(persisted.browserConfig || {});
+  applyDefaultCredentialInputs(persisted.browserConfig || {});
   return persisted;
 }

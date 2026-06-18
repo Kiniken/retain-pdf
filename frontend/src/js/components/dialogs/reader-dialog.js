@@ -12,13 +12,18 @@ import {
   setReaderDialogToolbarButtonState,
 } from "./reader-dialog-rendering.js";
 import { readerDialogTemplate } from "./reader-dialog-template.js";
+import {
+  READER_DIALOG_DATASETS,
+  READER_DIALOG_DATASET_VALUES,
+  READER_DIALOG_ELEMENT,
+} from "./reader-dialog-contract.js";
 
 class ReaderDialog extends HTMLElement {
   connectedCallback() {
-    if (this.dataset.hydrated === "1") {
+    if (this.dataset[READER_DIALOG_DATASETS.hydrated] === READER_DIALOG_DATASET_VALUES.hydrated) {
       return;
     }
-    this.dataset.hydrated = "1";
+    this.dataset[READER_DIALOG_DATASETS.hydrated] = READER_DIALOG_DATASET_VALUES.hydrated;
     this.innerHTML = readerDialogTemplate();
   }
 
@@ -80,6 +85,6 @@ class ReaderDialog extends HTMLElement {
   }
 }
 
-if (!customElements.get("reader-dialog")) {
-  customElements.define("reader-dialog", ReaderDialog);
+if (!customElements.get(READER_DIALOG_ELEMENT.tagName)) {
+  customElements.define(READER_DIALOG_ELEMENT.tagName, ReaderDialog);
 }

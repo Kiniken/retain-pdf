@@ -1,4 +1,5 @@
-import { $ } from "../dom.js";
+import { $ } from "../dom/query.js";
+import { APP_EVENTS } from "../contracts/app-contract.js";
 
 export function statusAreaElement() {
   return $("status-section");
@@ -15,10 +16,10 @@ export function isStatusAreaVisible() {
 export function setStatusAreaVisible(visible) {
   statusAreaElement()?.classList.toggle("hidden", !visible);
   statusCardElement()?.classList.toggle("hidden", !visible);
-  document.dispatchEvent(new CustomEvent("retainpdf:status-area-visibility-changed"));
+  document.dispatchEvent(new CustomEvent(APP_EVENTS.statusAreaVisibilityChanged));
 }
 
 export function dispatchReturnHomeFromStatusArea() {
   const target = statusCardElement() || statusAreaElement();
-  target?.dispatchEvent(new CustomEvent("retainpdf:return-home", { bubbles: true }));
+  target?.dispatchEvent(new CustomEvent(APP_EVENTS.returnHome, { bubbles: true }));
 }

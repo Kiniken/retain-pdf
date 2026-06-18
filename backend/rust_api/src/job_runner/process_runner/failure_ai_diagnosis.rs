@@ -6,23 +6,25 @@ use tokio::process::Command;
 use tokio::time::{timeout, Duration};
 
 use crate::job_events::record_custom_runtime_event_with_resources;
-use crate::models::{
-    now_iso, public_request_payload, JobAiDiagnostic, JobRuntimeState, JobStatusKind,
+use crate::models::api::{public_request_payload, PublicResolvedJobSpec};
+use crate::models::domain::{
+    now_iso, JobAiDiagnostic, JobFailureInfo, JobRuntimeInfo, JobRuntimeState, JobStatusKind,
+    WorkflowKind,
 };
 use crate::storage_paths::resolve_data_path;
 
 #[derive(Debug, Serialize)]
 struct FailureAiDiagnosisRequest<'a> {
     job_id: &'a str,
-    workflow: &'a crate::models::WorkflowKind,
+    workflow: &'a WorkflowKind,
     status: &'a JobStatusKind,
     stage: Option<&'a str>,
     stage_detail: Option<&'a str>,
-    failure: &'a crate::models::JobFailureInfo,
+    failure: &'a JobFailureInfo,
     error: Option<&'a str>,
     log_tail: &'a [String],
-    request_payload: &'a crate::models::PublicResolvedJobSpec,
-    runtime: Option<&'a crate::models::JobRuntimeInfo>,
+    request_payload: &'a PublicResolvedJobSpec,
+    runtime: Option<&'a JobRuntimeInfo>,
     ocr_provider_diagnostics: Option<&'a crate::ocr_provider::OcrProviderDiagnostics>,
 }
 

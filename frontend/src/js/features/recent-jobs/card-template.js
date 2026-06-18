@@ -28,7 +28,7 @@ function activeOverlayMarkup(item) {
 
 function hoverActionsMarkup(item) {
   return `
-    <div class="recent-job-hover-actions" aria-hidden="true">
+    <div class="recent-job-hover-actions">
       <button type="button" class="recent-job-hover-btn recent-job-reader" title="对照阅读" aria-label="对照阅读">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M2.8 12s3.4-5.8 9.2-5.8S21.2 12 21.2 12s-3.4 5.8-9.2 5.8S2.8 12 2.8 12Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
@@ -62,7 +62,7 @@ export function recentJobCardMarkup(item) {
   const pageCount = item.page_count || "-";
   const updatedAt = item.updated_at || "-";
   return `
-    <article class="recent-job-item ${active ? "is-active-job" : ""}" role="button" tabindex="0" data-job-id="${escapeAttribute(item.job_id || "")}">
+    <article class="recent-job-item ${active ? "is-active-job" : ""}" role="button" tabindex="0" data-job-id="${escapeAttribute(item.job_id || "")}" data-status="${escapeAttribute(item.status || "")}" data-updated-at="${escapeAttribute(item.updated_at || "")}" data-display-stage="${escapeAttribute(item.display_stage || "")}" data-substage="${escapeAttribute(item.substage || "")}">
       <div class="recent-job-cover-wrap">
         <div class="recent-job-cover" data-image-url="${recentJobImageUrl(item)}">
           <span class="recent-job-cover-fallback">${escapeHtml(title.slice(0, 1))}</span>

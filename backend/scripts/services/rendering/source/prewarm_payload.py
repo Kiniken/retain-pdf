@@ -16,14 +16,23 @@ from services.rendering.layout.payload.first_line_indent import is_first_line_in
 from services.rendering.layout.payload.render_item import get_render_first_line_indent_pt
 from services.rendering.layout.payload.render_item import seed_render_fields
 from services.rendering.output.typst.book_support import prepare_translated_pages_for_render
+from services.rendering.pdf_structure_profile.contracts import PdfStructureDocumentProfile
+from services.rendering.pdf_structure_profile.io import pdf_structure_profile_path_from_prewarm_manifest
+from services.rendering.pdf_structure_profile.io import read_pdf_structure_profile
+from services.rendering.pdf_structure_profile.io import write_pdf_structure_profile
+from services.rendering.pdf_structure_profile.sampler import build_pdf_structure_profile
 from services.rendering.source_cleanup.types import BBoxTextStripCandidates
 from services.rendering.source_cleanup import plan_source_cleanup
+from services.rendering.source.prewarm_color_profile import apply_page_color_adapt_for_prewarm
 from services.rendering.source.prewarm_color_profile import build_render_color_profile_manifest
 from services.rendering.source.prewarm_contracts import FIRST_LINE_INDENT_ALGORITHM_VERSION
 from services.rendering.source.prewarm_contracts import GEOMETRY_ADJUSTMENT_ALGORITHM_VERSION
 from services.rendering.source.prewarm_contracts import PAYLOAD_RENDER_ALGORITHM_VERSION
 from services.rendering.source.prewarm_manifest_io import bbox_candidates_to_manifest
 from services.rendering.source.prewarm_page_specs import build_background_render_page_specs_manifest
+from services.rendering.visual_profile import build_document_visual_profile
+from services.rendering.visual_profile import visual_profile_path_from_prewarm_manifest
+from services.rendering.visual_profile import write_document_visual_profile
 
 
 def build_payload_prewarm(
@@ -66,6 +75,13 @@ def build_payload_prewarm(
                 stats=indent_stats,
             )
     timings["geometry_indent"] = time.perf_counter() - geometry_started
+    structure_started = time.perf_counter()
+    pdf_structure_profile_path, pdf_structure_profile = ensure_pdf_structure_profile(
+        source_pdf_path=source_pdf_path,
+        translated_pages=prepared_pages,
+        manifest_path=manifest_path,
+    )
+    timings["pdf_structure_profile"] = time.perf_counter() - structure_started
     mode = str(effective_render_mode or "").strip()
     if layout.use_bbox_text_strip_cleanup(source_cleanup_strategy):
         try:
@@ -76,6 +92,7 @@ def build_payload_prewarm(
                     source_pdf_path=source_pdf_path,
                     translated_pages=translated_pages,
                     skip_formula_pages=False,
+                    pdf_structure_profile=pdf_structure_profile,
                 )
             )
             bbox_payload = bbox_candidates_to_manifest(bbox_candidates)
@@ -90,6 +107,7 @@ def build_payload_prewarm(
     should_build_background_specs = mode in {"typst", "typst_visual"}
     prepared_for_render = None
     color_adapted_pages = None
+    visual_profile = None
     try:
         visual_started = time.perf_counter()
         prepared_for_render = prepare_translated_pages_for_render(
@@ -105,9 +123,14 @@ def build_payload_prewarm(
     if prepared_for_render is not None:
         try:
             color_adapt_started = time.perf_counter()
-            from services.rendering.source.prewarm_color_profile import apply_page_color_adapt_for_prewarm
-
-            color_adapted_pages = apply_page_color_adapt_for_prewarm(source_pdf_path, prepared_for_render)
+            visual_profile = build_document_visual_profile(source_pdf_path, prepared_for_render)
+            visual_profile_path = visual_profile_path_from_prewarm_manifest(manifest_path)
+            write_document_visual_profile(visual_profile_path, visual_profile)
+            color_adapted_pages = apply_page_color_adapt_for_prewarm(
+                source_pdf_path,
+                prepared_for_render,
+                visual_profile=visual_profile,
+            )
             timings["color_adapt"] = time.perf_counter() - color_adapt_started
         except Exception as exc:
             print(f"render payload prewarm: color adapt failed {type(exc).__name__}: {exc}", flush=True)
@@ -120,6 +143,9 @@ def build_payload_prewarm(
         effective_inner_bbox_lookup=effective_inner_bbox_by_item_id,
         prepared_translated_pages=prepared_for_render,
         color_adapted_pages=color_adapted_pages,
+        visual_profile=visual_profile,
+        visual_profile_path=visual_profile_path_from_prewarm_manifest(manifest_path) if visual_profile is not None else None,
+        manifest_path=manifest_path,
     )
     timings["color_profile_manifest"] = time.perf_counter() - color_profile_started
     background_specs_started = time.perf_counter()
@@ -175,11 +201,41 @@ def build_payload_prewarm(
         "effective_render_mode": mode,
         "effective_inner_bbox_by_item_id": effective_inner_bbox_by_item_id,
         "bbox_text_strip_candidates": bbox_payload,
+        "pdf_structure_profile_path": (
+            "pdf_structure_profile.v1.json"
+            if pdf_structure_profile_path is not None
+            else ""
+        ),
+        "visual_profile_path": (
+            "visual_profile.v1.json"
+            if visual_profile is not None
+            else ""
+        ),
         "render_color_profile": render_color_profile,
         "background_render_page_specs": background_render_page_specs,
         "prepared_overlay_pages": prepared_overlay_pages_to_manifest(color_adapted_pages or {}),
         "overlay_source_path": "",
     }
+
+
+def ensure_pdf_structure_profile(
+    *,
+    source_pdf_path: Path,
+    translated_pages: dict[int, list[dict]],
+    manifest_path: Path,
+) -> tuple[Path | None, PdfStructureDocumentProfile | None]:
+    pdf_structure_profile_path = pdf_structure_profile_path_from_prewarm_manifest(manifest_path)
+    if pdf_structure_profile_path.exists():
+        profile = read_pdf_structure_profile(pdf_structure_profile_path)
+        if profile is not None:
+            return pdf_structure_profile_path, profile
+    try:
+        profile = build_pdf_structure_profile(source_pdf_path, translated_pages)
+        write_pdf_structure_profile(pdf_structure_profile_path, profile)
+        return pdf_structure_profile_path, profile
+    except Exception as exc:
+        print(f"render payload prewarm: pdf structure profile failed {type(exc).__name__}: {exc}", flush=True)
+        return None, None
 
 
 def prepared_overlay_pages_to_manifest(pages: dict[int, list[dict]]) -> dict[str, list[dict]]:
@@ -237,9 +293,10 @@ def collect_first_line_indent_lookup(
             if stats is not None:
                 stats["line_hits"] = int(stats.get("line_hits", 0)) + 1
             continue
-        if stats is not None:
-            stats["pixmap_candidates"] = int(stats.get("pixmap_candidates", 0)) + 1
-        candidates.append((item, font_size_pt))
+        if _enable_pixmap_first_line_indent_detection():
+            if stats is not None:
+                stats["pixmap_candidates"] = int(stats.get("pixmap_candidates", 0)) + 1
+            candidates.append((item, font_size_pt))
     if not candidates:
         return
     displaylist = source_doc[page_idx].get_displaylist()
@@ -294,6 +351,17 @@ def page_widths_by_index(source_pdf_path: Path) -> dict[int, float]:
             return {index: float(page.rect.width) for index, page in enumerate(doc)}
     except Exception:
         return {}
+
+
+def _enable_pixmap_first_line_indent_detection() -> bool:
+    import os
+
+    return str(os.environ.get("RETAIN_RENDER_PIXMAP_INDENT", "") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 __all__ = [

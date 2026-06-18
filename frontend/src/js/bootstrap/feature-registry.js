@@ -1,20 +1,21 @@
 import { checkApiConnectivity } from "./api-connectivity.js";
-import { bindFeatureEvents } from "./bind-feature-events.js";
 import { createFeatureSlots } from "./feature-slots.js";
-import { mountCredentialAndActionFeatures } from "./mount-credential-action-features.js";
-import { mountGlossaryFeature } from "./mount-glossary-feature.js";
-import { mountCoreFeatures } from "./mount-core-features.js";
-import { mountJobFeatures } from "./mount-job-features.js";
-import { mountUploadWorkflowFeatures } from "./mount-upload-workflow-features.js";
+import {
+  defaultFeatureRegistryPorts,
+} from "./feature-registry-ports.js";
 
-export function mountApplicationFeatures() {
+export function mountApplicationFeatures({
+  ports = defaultFeatureRegistryPorts,
+  state,
+} = {}) {
   const features = createFeatureSlots();
-  mountCoreFeatures(features);
-  mountUploadWorkflowFeatures(features);
-  mountGlossaryFeature(features);
-  mountCredentialAndActionFeatures(features);
-  mountJobFeatures(features);
-  bindFeatureEvents(features);
+  features.libraryEventPort = ports.createLibraryEventPort();
+  ports.mountCoreFeatures(features, { state });
+  ports.mountUploadWorkflowFeatures(features);
+  ports.mountGlossaryFeature(features);
+  ports.mountCredentialAndActionFeatures(features);
+  ports.mountJobFeatures(features);
+  ports.bindFeatureEvents(features);
   return {
     ...features,
     checkApiConnectivity: () => checkApiConnectivity(features),

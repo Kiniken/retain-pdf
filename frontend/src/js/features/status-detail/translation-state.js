@@ -1,11 +1,3 @@
-import {
-  renderTranslationEmpty as renderTranslationEmptyView,
-  renderTranslationItemDetail as renderTranslationItemDetailView,
-  renderTranslationItems as renderTranslationItemsView,
-  renderTranslationReplay as renderTranslationReplayView,
-  renderTranslationSummary as renderTranslationSummaryView,
-} from "./translation-presenter.js";
-
 export function createTranslationState() {
   return {
     jobId: "",
@@ -34,30 +26,4 @@ export function resetTranslationState(translationState, jobId = "") {
   translationState.selectedItemId = "";
   translationState.selectedItem = null;
   translationState.replay = null;
-}
-
-export function renderTranslationEmpty(message) {
-  renderTranslationEmptyView(message);
-}
-
-export function renderTranslationSummary(translationState) {
-  renderTranslationSummaryView(translationState);
-}
-
-export function renderTranslationItems(
-  translationState,
-  { loading = false, emptyText = "没有匹配的翻译 item" } = {},
-) {
-  renderTranslationItemsView(translationState, { loading, emptyText });
-}
-
-export function renderTranslationItemDetail(
-  translationState,
-  { loading = false, emptyText = "请选择左侧 item" } = {},
-) {
-  renderTranslationItemDetailView(translationState, { loading, emptyText });
-}
-
-export function renderTranslationReplay(translationState) {
-  renderTranslationReplayView(translationState);
 }

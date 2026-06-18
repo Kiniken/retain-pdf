@@ -9,19 +9,7 @@ import {
   prepareDownloadTarget,
   saveResponseDownload,
 } from "../../utils/downloads.js";
-import {
-  appendGlossaryEntryRow,
-  bindGlossaryViewEvents,
-  clearGlossaryCsvText,
-  closeGlossaryDialogView,
-  openGlossaryDialogView,
-  readGlossaryCsvText,
-  readGlossaryEditorPayload,
-  renderGlossaryEditor,
-  renderGlossaryList,
-  setGlossaryImportVisible,
-  setGlossaryStatus,
-} from "./view.js";
+import { createGlossaryViewPort } from "./glossary-view-port.js";
 
 export function mountGlossariesFeature({
   apiPrefix,
@@ -33,6 +21,8 @@ export function mountGlossariesFeature({
   exportGlossaryCsv,
   parseGlossaryCsv,
   refreshWorkflowGlossaries,
+  view = {},
+  viewPort = createGlossaryViewPort(view),
 }) {
   const state = {
     items: [],
@@ -42,7 +32,7 @@ export function mountGlossariesFeature({
   };
 
   function renderList() {
-    renderGlossaryList(state.items, state.selectedId);
+    viewPort.renderList(state.items, state.selectedId);
   }
 
   function renderDraft(detail = {}) {
@@ -51,7 +41,7 @@ export function mountGlossariesFeature({
       name: detail.name || "",
       entries: Array.isArray(detail.entries) ? detail.entries : [],
     };
-    renderGlossaryEditor(state.currentDetail);
+    viewPort.renderEditor(state.currentDetail);
   }
 
   async function reloadGlossaries({ keepSelection = true } = {}) {
@@ -78,29 +68,29 @@ export function mountGlossariesFeature({
     state.selectedId = normalizedGlossaryId;
     state.draftOnly = false;
     renderList();
-    setGlossaryStatus("正在读取术语表...");
+    viewPort.setStatus("正在读取术语表...");
     try {
       const detail = await fetchGlossary(normalizedGlossaryId, apiPrefix);
       renderDraft(detail);
-      setGlossaryStatus("");
+      viewPort.setStatus("");
     } catch (err) {
-      setGlossaryStatus(err.message || String(err), "error");
+      viewPort.setStatus(err.message || String(err), "error");
     }
   }
 
   async function open() {
-    openGlossaryDialogView();
-    setGlossaryStatus("正在读取术语表...");
+    viewPort.openDialog();
+    viewPort.setStatus("正在读取术语表...");
     try {
       await reloadGlossaries();
-      setGlossaryStatus("");
+      viewPort.setStatus("");
     } catch (err) {
-      setGlossaryStatus(err.message || String(err), "error");
+      viewPort.setStatus(err.message || String(err), "error");
     }
   }
 
   function close() {
-    closeGlossaryDialogView();
+    viewPort.closeDialog();
   }
 
   function createNew() {
@@ -111,22 +101,22 @@ export function mountGlossariesFeature({
       name: "未命名术语表",
       entries: [],
     });
-    appendGlossaryEntryRow();
-    setGlossaryStatus("新术语表尚未保存。");
+    viewPort.addEntryRow();
+    viewPort.setStatus("新术语表尚未保存。");
   }
 
   async function save() {
-    const payload = readGlossaryEditorPayload();
+    const payload = viewPort.readEditorPayload();
     if (!payload.name.trim()) {
-      setGlossaryStatus("请填写术语表名称。", "error");
+      viewPort.setStatus("请填写术语表名称。", "error");
       return;
     }
     if (payload.skippedMissingTarget?.length > 0) {
-      setGlossaryStatus("固定译法/偏好译法需要填写译文。", "error");
+      viewPort.setStatus("固定译法/偏好译法需要填写译文。", "error");
       return;
     }
     delete payload.skippedMissingTarget;
-    setGlossaryStatus("正在保存...");
+    viewPort.setStatus("正在保存...");
     try {
       const saved = state.selectedId && !state.draftOnly
         ? await updateGlossary(apiPrefix, state.selectedId, payload)
@@ -135,13 +125,9 @@ export function mountGlossariesFeature({
       state.draftOnly = false;
       await reloadGlossaries();
       await refreshWorkflowGlossaries?.({ force: true, selectedId: state.selectedId });
-      const select = document.getElementById("developer-glossary-id");
-      if (select && state.selectedId) {
-        select.value = state.selectedId;
-      }
-      setGlossaryStatus("已保存。", "valid");
+      viewPort.setStatus("已保存。", "valid");
     } catch (err) {
-      setGlossaryStatus(err.message || String(err), "error");
+      viewPort.setStatus(err.message || String(err), "error");
     }
   }
 
@@ -149,28 +135,28 @@ export function mountGlossariesFeature({
     if (!state.selectedId || state.draftOnly) {
       renderDraft({ name: "", entries: [] });
       state.draftOnly = false;
-      setGlossaryStatus("");
+      viewPort.setStatus("");
       return;
     }
-    setGlossaryStatus("正在删除...");
+    viewPort.setStatus("正在删除...");
     try {
       await deleteGlossary(apiPrefix, state.selectedId);
       state.selectedId = "";
       await reloadGlossaries({ keepSelection: false });
       await refreshWorkflowGlossaries?.({ force: true, selectedId: "" });
-      setGlossaryStatus("已删除。", "valid");
+      viewPort.setStatus("已删除。", "valid");
     } catch (err) {
-      setGlossaryStatus(err.message || String(err), "error");
+      viewPort.setStatus(err.message || String(err), "error");
     }
   }
 
   async function exportCurrent() {
     if (!state.selectedId || state.draftOnly) {
-      setGlossaryStatus("请先保存术语表再导出。", "error");
+      viewPort.setStatus("请先保存术语表再导出。", "error");
       return;
     }
     if (typeof exportGlossaryCsv !== "function") {
-      setGlossaryStatus("当前环境未接入术语表导出。", "error");
+      viewPort.setStatus("当前环境未接入术语表导出。", "error");
       return;
     }
     const fallbackName = `${state.currentDetail?.name || state.selectedId || "glossary"}.csv`;
@@ -178,7 +164,7 @@ export function mountGlossariesFeature({
     if (downloadTarget.kind === "aborted") {
       return;
     }
-    setGlossaryStatus("正在导出 CSV...");
+    viewPort.setStatus("正在导出 CSV...");
     try {
       showDownloadPreparing(fallbackName);
       const resp = await exportGlossaryCsv(apiPrefix, state.selectedId);
@@ -195,48 +181,48 @@ export function mountGlossariesFeature({
           updateDownloadProgress({ filename, receivedBytes, totalBytes, percent });
         },
       });
-      setGlossaryStatus(`已导出 ${filename}。`, "valid");
+      viewPort.setStatus(`已导出 ${filename}。`, "valid");
     } catch (err) {
       const message = err.message || String(err);
-      setGlossaryStatus(message, "error");
+      viewPort.setStatus(message, "error");
       failDownloadToast(message);
     }
   }
 
   async function applyImport() {
-    const csvText = readGlossaryCsvText();
+    const csvText = viewPort.readCsvText();
     if (!csvText.trim()) {
-      setGlossaryStatus("请先粘贴 CSV 内容。", "error");
+      viewPort.setStatus("请先粘贴 CSV 内容。", "error");
       return;
     }
-    setGlossaryStatus("正在解析 CSV...");
+    viewPort.setStatus("正在解析 CSV...");
     try {
       const payload = await parseGlossaryCsv(apiPrefix, csvText);
       renderDraft({
-        ...readGlossaryEditorPayload(),
+        ...viewPort.readEditorPayload(),
         entries: Array.isArray(payload?.entries) ? payload.entries : [],
       });
-      clearGlossaryCsvText();
-      setGlossaryImportVisible(false);
-      setGlossaryStatus(`已解析 ${Number(payload?.entry_count) || 0} 条。`, "valid");
+      viewPort.clearCsvText();
+      viewPort.setImportVisible(false);
+      viewPort.setStatus(`已解析 ${Number(payload?.entry_count) || 0} 条。`, "valid");
     } catch (err) {
-      setGlossaryStatus(err.message || String(err), "error");
+      viewPort.setStatus(err.message || String(err), "error");
     }
   }
 
   function bindEvents() {
-    bindGlossaryViewEvents({
+    viewPort.bindEvents({
       open,
       close,
-      reload: () => reloadGlossaries().catch((err) => setGlossaryStatus(err.message || String(err), "error")),
+      reload: () => reloadGlossaries().catch((err) => viewPort.setStatus(err.message || String(err), "error")),
       selectGlossary,
       createNew,
-      addRow: () => appendGlossaryEntryRow(),
+      addRow: () => viewPort.addEntryRow(),
       save,
       deleteCurrent,
       exportCurrent,
-      showImport: () => setGlossaryImportVisible(true),
-      hideImport: () => setGlossaryImportVisible(false),
+      showImport: () => viewPort.setImportVisible(true),
+      hideImport: () => viewPort.setImportVisible(false),
       applyImport,
     });
   }
@@ -245,5 +231,6 @@ export function mountGlossariesFeature({
     bindEvents,
     open,
     reloadGlossaries,
+    save,
   };
 }

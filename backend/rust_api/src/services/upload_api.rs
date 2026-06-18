@@ -2,7 +2,8 @@ use std::path::Path;
 
 use crate::db::Db;
 use crate::error::AppError;
-use crate::models::{upload_to_response, UploadRecord, UploadView};
+use crate::models::api::{upload_to_response, UploadView};
+use crate::models::domain::UploadRecord;
 use crate::services::jobs::{store_pdf_upload, UploadedPdfInput};
 
 pub async fn store_upload(

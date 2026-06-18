@@ -6,7 +6,7 @@ use tokio::sync::{OwnedSemaphorePermit, RwLock, Semaphore, TryAcquireError};
 use tokio::time::{sleep, Duration};
 
 use crate::db::Db;
-use crate::models::JobStatusKind;
+use crate::models::domain::JobStatusKind;
 
 use super::cancel_registry::{
     clear_cancel_request_with_registry, is_cancel_requested_with_registry,

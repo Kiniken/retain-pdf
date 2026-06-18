@@ -2,8 +2,8 @@ use axum::extract::State;
 use axum::Json;
 use serde::Serialize;
 
-use crate::models::ApiResponse;
-use crate::models::JobStatusKind;
+use crate::models::api::ApiResponse;
+use crate::models::domain::{now_iso, JobStatusKind};
 use crate::ocr_provider::supported_provider_keys;
 use crate::routes::common::{build_health_route_deps, HealthRouteDeps};
 use crate::AppState;
@@ -14,7 +14,7 @@ pub struct HealthView {
     pub db: &'static str,
     pub queue_depth: i64,
     pub running_jobs: i64,
-    pub provider_backends: Vec<&'static str>,
+    pub provider_backends: Vec<String>,
     pub time: String,
 }
 
@@ -34,7 +34,7 @@ fn build_health_view(deps: HealthRouteDeps<'_>) -> HealthView {
         queue_depth: queued,
         running_jobs: running,
         provider_backends: supported_provider_keys(),
-        time: crate::models::now_iso(),
+        time: now_iso(),
     }
 }
 

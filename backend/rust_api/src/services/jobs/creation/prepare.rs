@@ -1,9 +1,7 @@
-use std::path::PathBuf;
-
 use crate::error::AppError;
-use crate::models::{CreateJobInput, ResolvedJobSpec, UploadRecord, WorkflowKind};
+use crate::models::domain::{JobSnapshot, ResolvedJobSpec, UploadRecord, WorkflowKind};
+use crate::models::request::CreateJobInput;
 use crate::services::glossaries::resolve_task_glossary_request;
-use crate::services::job_snapshot_factory::require_upload_path;
 use crate::services::job_validation::{
     validate_mineru_upload_limits, validate_ocr_provider_request, validate_provider_credentials,
     validate_render_options, validate_translation_credentials,
@@ -27,7 +25,6 @@ pub(super) struct PreparedRenderInput {
 
 pub(super) struct PreparedOcrInput {
     pub(super) spec: ResolvedJobSpec,
-    pub(super) upload_path: Option<PathBuf>,
 }
 
 pub(super) fn prepare_full_pipeline_input(
@@ -107,11 +104,7 @@ pub(super) fn prepare_ocr_input(
         resolved.source.upload_id = upload.upload_id.clone();
         validate_mineru_upload_limits(input, upload, ctx.config.provider_limits)?;
     }
-    let upload_path = upload.map(require_upload_path).transpose()?;
-    Ok(PreparedOcrInput {
-        spec: resolved,
-        upload_path,
-    })
+    Ok(PreparedOcrInput { spec: resolved })
 }
 
 fn require_translation_upload(
@@ -131,7 +124,7 @@ fn require_translation_upload(
 fn load_artifact_job(
     ctx: &SnapshotBuildDeps<'_>,
     artifact_job_id: &str,
-) -> Result<crate::models::JobSnapshot, AppError> {
+) -> Result<JobSnapshot, AppError> {
     ctx.db
         .get_job(artifact_job_id)
         .map_err(|_| AppError::not_found(format!("artifact job not found: {artifact_job_id}")))
@@ -139,7 +132,7 @@ fn load_artifact_job(
 
 fn ensure_ocr_artifacts_ready_for_translation(
     ctx: &SnapshotBuildDeps<'_>,
-    source_job: &crate::models::JobSnapshot,
+    source_job: &JobSnapshot,
 ) -> Result<(), AppError> {
     let source_label = &source_job.job_id;
     let artifacts = source_job.artifacts.as_ref().ok_or_else(|| {

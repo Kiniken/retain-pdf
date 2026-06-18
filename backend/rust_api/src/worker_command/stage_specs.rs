@@ -4,16 +4,18 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde_json::json;
 
-use crate::models::ResolvedJobSpec;
-use crate::ocr_provider::{provider_model_version, require_supported_provider};
-#[cfg(test)]
+use crate::models::domain::ResolvedJobSpec;
+use crate::ocr_provider::provider_public_definitions;
+use crate::ocr_provider::{
+    configured_provider_credential_env, is_configured_command_provider, provider_model_version,
+    require_supported_provider,
+};
 use crate::ocr_provider::{provider_token, provider_token_env_name};
 use crate::storage_paths::JobPaths;
 
 const NORMALIZE_STAGE_SCHEMA_VERSION: &str = "normalize.stage.v1";
 const TRANSLATE_STAGE_SCHEMA_VERSION: &str = "translate.stage.v1";
 const RENDER_STAGE_SCHEMA_VERSION: &str = "render.stage.v1";
-#[cfg(test)]
 const PROVIDER_STAGE_SCHEMA_VERSION: &str = "provider.stage.v1";
 pub(crate) const TRANSLATION_API_KEY_ENV_NAME: &str = "RETAIN_TRANSLATION_API_KEY";
 
@@ -29,7 +31,6 @@ fn render_stage_spec_path(job_paths: &JobPaths) -> PathBuf {
     job_paths.specs_dir.join("render.spec.json")
 }
 
-#[cfg(test)]
 fn provider_stage_spec_path(job_paths: &JobPaths) -> PathBuf {
     job_paths.specs_dir.join("provider.spec.json")
 }
@@ -189,23 +190,17 @@ pub(crate) fn write_render_stage_spec(
     Ok(spec_path)
 }
 
-#[cfg(test)]
 pub(crate) fn write_provider_stage_spec(
     request: &ResolvedJobSpec,
     job_paths: &JobPaths,
-    upload_path: &Path,
+    upload_path: Option<&Path>,
 ) -> Result<PathBuf> {
     ensure_specs_dir(job_paths)?;
     let spec_path = provider_stage_spec_path(job_paths);
     let provider_kind = require_supported_provider(&request.ocr.provider)
         .context("resolve OCR provider for provider stage spec")?;
-    let provider_credential_ref = if provider_token(&provider_kind, &request.ocr).is_empty() {
-        String::new()
-    } else {
-        let env_name = provider_token_env_name(&provider_kind)
-            .context("resolve OCR provider token env for provider stage spec")?;
-        format!("env:{env_name}")
-    };
+    let provider_credential_ref =
+        provider_credential_ref_for_stage(&request.ocr.provider, &provider_kind, &request.ocr)?;
     let translation_credential_ref = if request.translation.api_key.trim().is_empty() {
         String::new()
     } else {
@@ -240,6 +235,7 @@ pub(crate) fn write_provider_stage_spec(
             "extra_formats": request.ocr.extra_formats,
             "poll_interval": request.ocr.poll_interval,
             "poll_timeout": request.ocr.poll_timeout,
+            "options": provider_options_for_stage(&request.ocr.provider, &request.ocr.options),
         },
         "translation": {
             "start_page": request.translation.start_page,
@@ -285,4 +281,45 @@ pub(crate) fn write_provider_stage_spec(
     fs::write(&spec_path, content)
         .with_context(|| format!("write provider stage spec: {}", spec_path.display()))?;
     Ok(spec_path)
+}
+
+fn provider_credential_ref_for_stage(
+    provider: &str,
+    provider_kind: &crate::ocr_provider::OcrProviderKind,
+    ocr: &crate::models::request::OcrInput,
+) -> Result<String> {
+    if is_configured_command_provider(provider) {
+        return Ok(configured_provider_credential_env(provider)
+            .map(|env_name| format!("env:{env_name}"))
+            .unwrap_or_default());
+    }
+    if provider_token(provider_kind, ocr).is_empty() {
+        return Ok(String::new());
+    }
+    let env_name = provider_token_env_name(provider_kind)
+        .context("resolve OCR provider token env for provider stage spec")?;
+    Ok(format!("env:{env_name}"))
+}
+
+fn provider_options_for_stage(
+    provider: &str,
+    overrides: &std::collections::BTreeMap<String, serde_json::Value>,
+) -> serde_json::Value {
+    let mut options = provider_public_definitions()
+        .into_iter()
+        .find(|definition| definition.key == provider.trim().to_ascii_lowercase())
+        .map(|definition| {
+            let mut options = serde_json::Map::new();
+            for (key, spec) in definition.options {
+                if !spec.default.is_null() {
+                    options.insert(key, spec.default);
+                }
+            }
+            options
+        })
+        .unwrap_or_default();
+    for (key, value) in overrides {
+        options.insert(key.clone(), value.clone());
+    }
+    serde_json::Value::Object(options)
 }

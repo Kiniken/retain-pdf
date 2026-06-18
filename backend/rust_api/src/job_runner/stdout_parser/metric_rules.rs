@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::models::JobSnapshot;
+use crate::models::domain::JobSnapshot;
 
 use super::job_artifacts_mut;
 

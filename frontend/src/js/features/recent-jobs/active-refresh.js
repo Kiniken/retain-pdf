@@ -1,4 +1,7 @@
 import { isRecentJobActive } from "./card-presenter.js";
+import {
+  defaultRecentJobsRefreshEnvironment,
+} from "./refresh-environment.js";
 
 export const LIBRARY_ACTIVE_REFRESH_MS = 2500;
 
@@ -6,18 +9,30 @@ export function hasActiveRecentJobs(items = []) {
   return (Array.isArray(items) ? items : []).some(isRecentJobActive);
 }
 
+export function recentJobsEligibleForActiveRefresh(items = [], currentJobId = "") {
+  const activeJobId = `${currentJobId || ""}`.trim();
+  return (Array.isArray(items) ? items : [])
+    .filter(isRecentJobActive)
+    .filter((item) => {
+      const jobId = `${item?.job_id || ""}`.trim();
+      return jobId && jobId !== activeJobId;
+    });
+}
+
 export function createActiveLibraryRefreshLoop({
   getItems,
+  currentJobId = () => "",
   fetchJobPayload,
   apiPrefix,
   updateFromRuntime,
   loadRecentJobs,
   isRecentJobsLoading,
+  environment = defaultRecentJobsRefreshEnvironment,
 }) {
   let activeLibraryRefreshTimer = null;
 
   function stop() {
-    window.clearTimeout(activeLibraryRefreshTimer);
+    environment.clearTimeout(activeLibraryRefreshTimer);
     activeLibraryRefreshTimer = null;
   }
 
@@ -25,7 +40,7 @@ export function createActiveLibraryRefreshLoop({
     if (!fetchJobPayload) {
       return;
     }
-    const activeItems = getItems().filter(isRecentJobActive).slice(0, 6);
+    const activeItems = recentJobsEligibleForActiveRefresh(getItems(), currentJobId()).slice(0, 6);
     await Promise.allSettled(activeItems.map(async (item) => {
       const jobId = `${item?.job_id || ""}`.trim();
       if (!jobId) {
@@ -43,10 +58,10 @@ export function createActiveLibraryRefreshLoop({
     if (activeLibraryRefreshTimer) {
       return;
     }
-    if (!hasActiveRecentJobs(getItems())) {
+    if (!recentJobsEligibleForActiveRefresh(getItems(), currentJobId()).length) {
       return;
     }
-    activeLibraryRefreshTimer = window.setTimeout(() => {
+    activeLibraryRefreshTimer = environment.setTimeout(() => {
       activeLibraryRefreshTimer = null;
       if (isRecentJobsLoading()) {
         schedule();

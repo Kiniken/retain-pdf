@@ -5,7 +5,7 @@ use crate::config::AppConfig;
 use crate::db::Db;
 use crate::job_events::persist_job_with_resources;
 use crate::job_runner::worker_process_exists;
-use crate::models::{now_iso, JobFailureInfo, JobStatusKind};
+use crate::models::domain::{now_iso, JobFailureInfo, JobStatusKind};
 
 pub(super) fn reconcile_stale_running_jobs(config: &AppConfig, db: &Db) -> Result<usize> {
     let running_jobs = db.list_job_process_records_with_status(&JobStatusKind::Running)?;

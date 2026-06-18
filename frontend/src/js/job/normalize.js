@@ -1,14 +1,23 @@
 import {
   arrayOrEmpty,
   firstNonEmpty,
+  isJobTerminal,
   isTerminalStatus,
   numberOrNull,
   objectOrNull,
   unwrapEnvelope,
 } from "./core.js";
+import {
+  adaptJobStageSnapshot,
+} from "../job-status/job-stage-contract-adapter.js";
+import { flattenStageSnapshot } from "./stage-snapshot-flatten.js";
+
+function buildStageSnapshot(normalized = {}) {
+  return adaptJobStageSnapshot(normalized);
+}
 
 export function normalizeJobPayload(payload) {
-  const unwrapped = unwrapEnvelope(payload) || {};
+  const unwrapped = flattenStageSnapshot(unwrapEnvelope(payload) || {});
   const timestamps = unwrapped.timestamps || {};
   const progress = unwrapped.progress || {};
   const artifacts = unwrapped.artifacts || {};
@@ -20,7 +29,11 @@ export function normalizeJobPayload(payload) {
   let progressTotal = numberOrNull(progress.total ?? unwrapped.progress_total);
   let progressPercent = numberOrNull(progress.percent);
 
-  if (isTerminalStatus(status)) {
+  const terminal = isJobTerminal({
+    ...unwrapped,
+    status,
+  });
+  if (terminal) {
     if (progressTotal !== null) {
       progressCurrent = progressTotal;
     }
@@ -32,7 +45,7 @@ export function normalizeJobPayload(payload) {
     }
   }
 
-  return {
+  const normalized = {
     raw_response: unwrapped,
     request_payload: unwrapped.request_payload || null,
     request_payload_page_ranges: firstNonEmpty(unwrapped.request_payload?.ocr?.page_ranges),
@@ -45,7 +58,14 @@ export function normalizeJobPayload(payload) {
     user_stage: unwrapped.user_stage || "",
     stage: unwrapped.stage || "",
     substage: unwrapped.substage || "",
+    lane: unwrapped.lane || "",
     stage_detail: unwrapped.stage_detail || "",
+    progress: {
+      current: progressCurrent,
+      total: progressTotal,
+      percent: progressPercent,
+      unit: progress.unit || unwrapped.progress_unit || "",
+    },
     progress_current: progressCurrent,
     progress_total: progressTotal,
     progress_percent: progressPercent,
@@ -58,6 +78,7 @@ export function normalizeJobPayload(payload) {
     links: unwrapped.links || {},
     actions: unwrapped.actions || {},
     artifacts,
+    background_stages: arrayOrEmpty(unwrapped.background_stages),
     artifacts_display: arrayOrEmpty(unwrapped.artifacts_display),
     output_pdf_ready: Boolean(unwrapped.output_pdf_ready),
     source_pdf_ready: Boolean(unwrapped.source_pdf_ready),
@@ -92,5 +113,9 @@ export function normalizeJobPayload(payload) {
     pdf_ready: Boolean(unwrapped.output_pdf_ready ?? artifacts.pdf_ready ?? artifacts.pdf?.ready),
     markdown_ready: Boolean(unwrapped.markdown_ready ?? artifacts.markdown_ready ?? artifacts.markdown?.ready),
     bundle_ready: Boolean(unwrapped.bundle_ready ?? artifacts.bundle_ready ?? artifacts.bundle?.ready),
+  };
+  return {
+    ...normalized,
+    stage_snapshot: buildStageSnapshot(normalized),
   };
 }

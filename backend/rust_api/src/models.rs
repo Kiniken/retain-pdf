@@ -1,7 +1,11 @@
+#[path = "models/api.rs"]
+pub mod api;
 #[path = "models/common.rs"]
 mod common;
 #[path = "models/defaults.rs"]
 mod defaults;
+#[path = "models/domain.rs"]
+pub mod domain;
 #[path = "models/glossary.rs"]
 mod glossary;
 #[path = "models/input.rs"]
@@ -14,6 +18,8 @@ mod ocr;
 mod public_contract;
 #[path = "models/redaction.rs"]
 mod redaction;
+#[path = "models/request.rs"]
+pub mod request;
 #[path = "models/view.rs"]
 mod view;
 
@@ -40,8 +46,9 @@ pub use job::{
     TranslationArtifacts,
 };
 pub use ocr::{
-    OcrArtifactSet, OcrErrorCategory, OcrProviderCapabilities, OcrProviderDiagnostics,
-    OcrProviderErrorInfo, OcrProviderKind, OcrTaskHandle, OcrTaskState, OcrTaskStatus,
+    OcrArtifactSet, OcrErrorCategory, OcrProviderArtifactLayout, OcrProviderCapabilities,
+    OcrProviderCredentialSpec, OcrProviderDiagnostics, OcrProviderErrorInfo, OcrProviderKind,
+    OcrProviderOptionSpec, OcrProviderPublicDefinition, OcrTaskHandle, OcrTaskState, OcrTaskStatus,
 };
 pub use public_contract::{
     public_request_payload, PublicOcrInput, PublicResolvedJobSpec, PublicTranslationInput,
@@ -56,7 +63,8 @@ pub use view::{
     JobDiagnosticsView, JobEventListView, JobEventProgressView, JobEventRawView, JobEventRecord,
     JobFailureDiagnosticView, JobLinksView, JobListInvocationSummaryView, JobListItemView,
     JobListView, JobProgressView, JobResumePlanView, JobStageContractArtifactView,
-    JobStageContractView, JobSubmissionView, JobTimestampsView, LibraryBatchDeleteInput,
+    JobStageContractView, JobStageRuntimeView, JobStageSnapshotView, JobStageStateView,
+    JobStagesView, JobSubmissionView, JobTimestampsView, LibraryBatchDeleteInput,
     LibraryBatchDeleteResultView, LibraryBookDetailView, LibraryBookListItemView,
     LibraryBookListView, LibraryDeleteQuery, LibraryDeleteResultView, ListGlossariesQuery,
     ListJobEventsQuery, ListJobsQuery, ListTranslationItemsQuery, MarkdownArtifactView,

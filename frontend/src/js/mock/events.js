@@ -33,19 +33,57 @@ export function buildMockEvents(scenario = currentMockScenario()) {
       payload: { origin: "mock" },
     });
   }
-  if (["translate", "render", "done", "failed"].includes(scenario)) {
+  if (["translate", "parallel", "render", "done", "failed"].includes(scenario)) {
+    const current = scenario === "parallel" ? 120 : scenario === "translate" ? 18 : 55;
+    const total = scenario === "parallel" ? 900 : 55;
     items.push({
       seq: 3,
       ts: isoOffsetMinutes(-6),
       level: "info",
+      lane: "main",
+      display_stage: "translation",
       stage: "translating",
+      substage: "translation_batches",
       stage_detail: "正在翻译正文与公式，第 18/55 批",
-      event_type: "stage_progress",
+      event_type: "progress",
       event: "stage_progress",
       message: "正在翻译正文与公式，第 18/55 批",
-      progress_current: scenario === "translate" ? 18 : 55,
-      progress_total: 55,
+      progress_current: current,
+      progress_total: total,
+      progress_unit: "batch",
+      progress: {
+        unit: "batch",
+        current,
+        total,
+      },
       payload: { origin: "mock" },
+    });
+  }
+  if (scenario === "parallel") {
+    items.push({
+      seq: 4,
+      ts: isoOffsetMinutes(-5),
+      level: "info",
+      lane: "background",
+      display_stage: "render",
+      stage: "render_preprocess",
+      substage: "render_prewarm",
+      stage_detail: "后台预热渲染资源",
+      event_type: "progress",
+      event: "stage_progress",
+      message: "render payload prewarm: ready indents=333 geometry=836 elapsed=1.58s",
+      progress_current: 2,
+      progress_total: 3,
+      progress_unit: "step",
+      progress: {
+        unit: "step",
+        current: 2,
+        total: 3,
+      },
+      payload: {
+        origin: "mock",
+        lane: "background",
+      },
     });
   }
   if (["render", "done", "failed"].includes(scenario)) {

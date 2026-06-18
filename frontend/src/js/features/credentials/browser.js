@@ -1,41 +1,36 @@
-import { $ } from "../../dom.js";
 import {
   getOcrProviderDefinition,
   normalizeOcrProvider,
   TRANSLATION_PROVIDER_DEFINITION,
-} from "../../provider-config.js";
-import { resetDeepSeekBalanceState } from "../../state/actions.js";
-import { hasValidOcrValidationCache } from "../../state/credential-state.js";
-import { isDesktopMode } from "../../state/desktop-state.js";
-import { getUploadState } from "../../state/upload-state.js";
-import {
-  activateCredentialTabView,
-  bindCredentialViewEvents,
-  browserCredentialElements,
-  closeCredentialDialog,
-  credentialDialog,
-  openCredentialDialog,
-  setCredentialDialogModeView,
-  setDeepSeekTopUpVisible,
-  setDeepSeekValidationMessage,
-  setDialogStatus,
-  setOcrValidationMessage,
-  syncOcrProviderControlsView,
-  updateCredentialGateView,
-} from "./view.js";
+} from "../../config/providers.js";
 import {
   resetOcrValidationCache,
   runOcrTokenValidation,
 } from "./validation.js";
 import { handleBrowserDeepSeekValidate as runBrowserDeepSeekValidate } from "./deepseek-flow.js";
 import {
+  ocrTokenFromDialogValues,
+  readCredentialDialogValues,
+} from "./dialog-values.js";
+import {
+  defaultCredentialsStatePort,
+} from "./default-state-port.js";
+import { syncCredentialDialogFields } from "./dialog-sync.js";
+import { ensureOcrCredentialValidationReady } from "./ocr-readiness-flow.js";
+import {
   persistBrowserCredentialsFromDialog as persistBrowserCredentials,
   persistDesktopCredentialsFromDialog as persistDesktopCredentials,
 } from "./persistence.js";
+import { createBrowserCredentialViewPort } from "./browser-view-port.js";
+import { createCredentialDialogElementsPort } from "./dialog-elements-port.js";
+import { createCredentialRuntimeEnvPort } from "./runtime-env-port.js";
+import { createCredentialBalanceStatePort } from "./balance-state-port.js";
+import { createCredentialUploadReadinessPort } from "./upload-readiness-port.js";
 
 export function mountBrowserCredentialsFeature({
+  apiPrefix,
   state,
-  applyKeyInputs,
+  applyHiddenCredentialInputs,
   defaultMineruToken,
   defaultPaddleToken,
   defaultModelApiKey,
@@ -43,111 +38,117 @@ export function mountBrowserCredentialsFeature({
   getTaskOptions,
   saveTaskOptions,
   saveBrowserStoredConfig,
+  readHiddenCredentialInputs,
   saveDesktopConfig,
   checkApiConnectivity,
   validateOcrToken,
   validateDeepSeekToken,
   queryDeepSeekBalance,
   onCredentialStateChange,
+  uploadStatePort,
+  credentialsStatePort = defaultCredentialsStatePort,
+  runtimeEnvPort,
+  balanceStatePort,
+  legacyRuntimePort,
+  legacyValidationCachePort,
+  viewPort = createBrowserCredentialViewPort(),
+  dialogElementsPort = createCredentialDialogElementsPort(),
+  deepSeekViewPort = {
+    elements: dialogElementsPort.elements,
+    setTopUpVisible: viewPort.setDeepSeekTopUpVisible,
+    setValidationMessage: viewPort.setDeepSeekValidationMessage,
+  },
+  setupModePort = {
+    currentSetupMode: () => Boolean(viewPort.dialogElements()?.dialog?.dataset?.setupMode === "1"),
+  },
 }) {
+  const uploadState = uploadStatePort || createCredentialUploadReadinessPort(state);
+  const runtimeEnv = runtimeEnvPort || createCredentialRuntimeEnvPort(state);
+  const balanceState = balanceStatePort || createCredentialBalanceStatePort(state, credentialsStatePort);
+
+  function readUploadState() {
+    return uploadState.getSnapshot?.() || {};
+  }
+
   function setCredentialDialogMode(setupMode = false) {
-    setCredentialDialogModeView({ setupMode, activateCredentialTab });
+    viewPort.setDialogMode({ setupMode, activateCredentialTab });
   }
 
   function activateCredentialTab(tabName = "api") {
-    activateCredentialTabView(tabName);
+    viewPort.activateTab(tabName);
   }
 
   function currentOcrProvider() {
-    return normalizeOcrProvider($("ocr_provider")?.value);
+    return normalizeOcrProvider(credentialsStatePort.getCredentials?.().ocrProvider);
   }
 
   function syncOcrProviderControls(providerId = currentOcrProvider()) {
     const activeProvider = normalizeOcrProvider(providerId);
-    syncOcrProviderControlsView(activeProvider);
+    viewPort.syncOcrProviderControls(activeProvider);
   }
 
-  function syncBrowserDialogFromHiddenInputs() {
-    const {
-      mineruInput,
-      paddleInput,
-      apiKeyInput,
-      modelBaseUrlInput,
-      modelNameInput,
-      mathModeSelect,
-    } = browserCredentialElements();
-    const taskOptions = getTaskOptions?.() || {};
-    if (mineruInput) {
-      mineruInput.value = $("mineru_token").value || "";
-    }
-    if (paddleInput) {
-      paddleInput.value = $("paddle_token").value || "";
-    }
-    if (apiKeyInput) {
-      apiKeyInput.value = $("api_key").value || "";
-    }
-    if (modelBaseUrlInput) {
-      modelBaseUrlInput.value = taskOptions.baseUrl || defaultModelBaseUrl();
-    }
-    if (modelNameInput) {
-      modelNameInput.value = taskOptions.model || "";
-    }
-    syncOcrProviderControls(currentOcrProvider());
-    if (mathModeSelect) {
-      mathModeSelect.value = taskOptions.mathMode === "placeholder" ? "placeholder" : "direct_typst";
-    }
-    setOcrValidationMessage("", "", "mineru");
-    setOcrValidationMessage("", "", "paddle");
-    setDeepSeekValidationMessage("", "");
-    setDeepSeekTopUpVisible(false);
-    resetDeepSeekBalanceState(state);
-    setDialogStatus("", "");
+  function readCurrentCredentials() {
+    return credentialsStatePort.getCredentials?.() || readHiddenCredentialInputs();
+  }
+
+  function syncBrowserDialogFromCredentialState() {
+    syncCredentialDialogFields({
+      credentials: readCurrentCredentials(),
+      taskOptions: getTaskOptions?.() || {},
+      defaultModelBaseUrl,
+      elementsPort: dialogElementsPort,
+    });
+    viewPort.setOcrValidationMessage("", "", "mineru");
+    viewPort.setOcrValidationMessage("", "", "paddle");
+    viewPort.setDeepSeekValidationMessage("", "");
+    viewPort.setDeepSeekTopUpVisible(false);
+    balanceState.resetDeepSeekBalance();
+    viewPort.setDialogStatus("", "");
   }
 
   function hasBrowserCredentials() {
-    const definition = getOcrProviderDefinition(currentOcrProvider());
-    return Boolean(($(`${definition.tokenField}`)?.value || "").trim() && ($("api_key").value || "").trim());
+    return Boolean(credentialsStatePort.hasComplete?.({
+      defaultPaddleToken,
+      defaultMineruToken,
+    }));
   }
 
   function openBrowserCredentialsDialog(options = {}) {
-    const { dialog } = browserCredentialElements();
+    const { dialog } = viewPort.dialogElements();
     if (!dialog) {
       return;
     }
-    syncBrowserDialogFromHiddenInputs();
+    syncBrowserDialogFromCredentialState();
     setCredentialDialogMode(!!options.setupMode);
     activateCredentialTab("api");
-    openCredentialDialog();
+    viewPort.openDialog();
   }
 
   async function ensureOcrCredentialsReady({ onMissingToken, onInvalidToken } = {}) {
     const provider = currentOcrProvider();
-    const definition = getOcrProviderDefinition(provider);
-    const fallbackToken = definition.id === "paddle" ? defaultPaddleToken() : defaultMineruToken();
-    const token = ($(`${definition.tokenField}`)?.value || fallbackToken).trim();
-    if (!token) {
+    const readiness = await ensureOcrCredentialValidationReady({
+      apiPrefix,
+      state,
+      providerId: provider,
+      credentials: readCurrentCredentials(),
+      defaultPaddleToken,
+      defaultMineruToken,
+      validateOcrToken,
+      setOcrValidationMessage: viewPort.setOcrValidationMessage,
+      showResult: !runtimeEnv.isDesktopMode(),
+      credentialsStatePort,
+      legacyRuntimePort,
+      legacyValidationCachePort,
+    });
+    if (readiness.status === "missing_token") {
       onMissingToken?.();
-      setOcrValidationMessage(definition.validationMissingMessage, "error", definition.id);
+      viewPort.setOcrValidationMessage(readiness.definition.validationMissingMessage, "error", readiness.definition.id);
       return false;
     }
-    if (hasValidOcrValidationCache(state, {
-      provider: definition.id,
-      token,
-    })) {
+    if (readiness.ok) {
       return true;
     }
-    const result = await runOcrTokenValidation({
-      state,
-      providerId: definition.id,
-      token,
-      validateOcrToken,
-      setOcrValidationMessage,
-      showResult: !isDesktopMode(state),
-    });
-    if (result.ok) {
-      return true;
-    }
-    onInvalidToken?.(result);
+    onInvalidToken?.(readiness.result);
     return false;
   }
 
@@ -157,14 +158,14 @@ export function mountBrowserCredentialsFeature({
     refreshSubmitControls,
   }) {
     const uploadEnabled = workflowNeedsUpload();
-    const desktopMode = isDesktopMode(state);
-    const uploadState = getUploadState(state);
+    const desktopMode = runtimeEnv.isDesktopMode();
+    const uploadSnapshot = readUploadState();
     if (desktopMode) {
-      if (!updateCredentialGateView({
+      if (!viewPort.updateCredentialGate({
         desktopMode: true,
         show: false,
         uploadEnabled,
-        uploadReady: !!uploadState.uploadId,
+        uploadReady: !!uploadSnapshot.uploadId,
       })) {
         return;
       }
@@ -172,81 +173,91 @@ export function mountBrowserCredentialsFeature({
       return;
     }
     const show = workflowNeedsCredentials() && !hasBrowserCredentials();
-    if (!updateCredentialGateView({
+    if (!viewPort.updateCredentialGate({
       desktopMode: false,
       show,
       uploadEnabled,
-      uploadReady: !!uploadState.uploadId,
+      uploadReady: !!uploadSnapshot.uploadId,
     })) {
       return;
     }
     refreshSubmitControls();
   }
 
-  function currentProviderInputValue() {
-    const { mineruInput, paddleInput } = browserCredentialElements();
-    return currentOcrProvider() === "paddle" ? paddleInput?.value || "" : mineruInput?.value || "";
-  }
-
   async function handleBrowserOcrValidate() {
+    const provider = currentOcrProvider();
     await runOcrTokenValidation({
+      apiPrefix,
       state,
-      providerId: currentOcrProvider(),
-      token: currentProviderInputValue(),
+      providerId: provider,
+      token: ocrTokenFromDialogValues(readCredentialDialogValues({ elementsPort: dialogElementsPort }), provider),
       validateOcrToken,
-      setOcrValidationMessage,
+      setOcrValidationMessage: viewPort.setOcrValidationMessage,
       showResult: true,
+      credentialsStatePort,
+      legacyRuntimePort,
     });
   }
 
   async function handleBrowserDeepSeekValidate() {
     await runBrowserDeepSeekValidate({
+      apiPrefix,
       state,
       defaultModelApiKey,
       validateDeepSeekToken,
       queryDeepSeekBalance,
       onBalanceChange: onCredentialStateChange,
+      credentialsStatePort,
+      legacyRuntimePort,
+      viewPort: deepSeekViewPort,
     });
   }
 
   async function refreshDeepSeekBalance({ silent = true } = {}) {
     return runBrowserDeepSeekValidate({
+      apiPrefix,
       state,
       defaultModelApiKey,
       validateDeepSeekToken,
       queryDeepSeekBalance,
       onBalanceChange: onCredentialStateChange,
       silent,
+      credentialsStatePort,
+      legacyRuntimePort,
+      viewPort: deepSeekViewPort,
     });
   }
 
   async function handleBrowserCredentialSave() {
     const definition = getOcrProviderDefinition(currentOcrProvider());
-    const { mineruInput, paddleInput, apiKeyInput } = browserCredentialElements();
-    const ocrToken = (definition.id === "paddle" ? paddleInput?.value : mineruInput?.value)?.trim() || "";
-    const modelApiKey = apiKeyInput?.value?.trim() || "";
+    const values = readCredentialDialogValues({ elementsPort: dialogElementsPort });
+    const ocrToken = ocrTokenFromDialogValues(values, definition.id);
+    const modelApiKey = values.modelApiKey;
     if (!ocrToken || !modelApiKey) {
       if (!ocrToken) {
-        setOcrValidationMessage(definition.validationMissingMessage, "error", definition.id);
+        viewPort.setOcrValidationMessage(definition.validationMissingMessage, "error", definition.id);
       }
       if (!modelApiKey) {
-        setDeepSeekValidationMessage(TRANSLATION_PROVIDER_DEFINITION.validationMissingMessage, "error");
+        viewPort.setDeepSeekValidationMessage(TRANSLATION_PROVIDER_DEFINITION.validationMissingMessage, "error");
       }
       return;
     }
     const validation = await runOcrTokenValidation({
+      apiPrefix,
       state,
       providerId: definition.id,
       token: ocrToken,
       validateOcrToken,
-      setOcrValidationMessage,
+      setOcrValidationMessage: viewPort.setOcrValidationMessage,
       showResult: true,
+      credentialsStatePort,
+      legacyRuntimePort,
     });
     if (!validation.ok) {
       return;
     }
     try {
-      if (isDesktopMode(state)) {
+      if (runtimeEnv.isDesktopMode()) {
         await persistDesktopCredentials({
           currentOcrProvider,
           defaultModelApiKey,
@@ -254,40 +265,47 @@ export function mountBrowserCredentialsFeature({
           saveTaskOptions,
           saveDesktopConfig,
           checkApiConnectivity,
+          values,
+          setupModePort,
         });
       } else {
         persistBrowserCredentials({
-          applyKeyInputs,
+          applyCredentialInputs: applyHiddenCredentialInputs,
           currentOcrProvider,
           defaultModelApiKey,
           defaultModelBaseUrl,
+          readCredentialInputs: readCurrentCredentials,
           saveTaskOptions,
           saveBrowserStoredConfig,
+          values,
         });
+        credentialsStatePort.setCredentials?.(readCurrentCredentials());
       }
     } catch (error) {
-      setDialogStatus(error?.message || String(error), "error");
-      setDeepSeekValidationMessage(error?.message || String(error), "error");
+      viewPort.setDialogStatus(error?.message || String(error), "error");
+      viewPort.setDeepSeekValidationMessage(error?.message || String(error), "error");
       return;
     }
     onCredentialStateChange?.();
-    setDialogStatus("", "");
-    closeCredentialDialog();
+    viewPort.setDialogStatus("", "");
+    viewPort.closeDialog();
   }
 
-  bindCredentialViewEvents({
+  viewPort.bindEvents({
     resetMineruValidation: () => {
       resetOcrValidationCache(state);
-      setOcrValidationMessage("", "", "mineru");
+      credentialsStatePort.resetOcrValidationCache?.();
+      viewPort.setOcrValidationMessage("", "", "mineru");
     },
     resetPaddleValidation: () => {
       resetOcrValidationCache(state);
-      setOcrValidationMessage("", "", "paddle");
+      credentialsStatePort.resetOcrValidationCache?.();
+      viewPort.setOcrValidationMessage("", "", "paddle");
     },
     resetDeepSeekValidation: () => {
-      setDeepSeekValidationMessage("", "");
-      setDeepSeekTopUpVisible(false);
-      resetDeepSeekBalanceState(state);
+      viewPort.setDeepSeekValidationMessage("", "");
+      viewPort.setDeepSeekTopUpVisible(false);
+      balanceState.resetDeepSeekBalance();
       onCredentialStateChange?.();
     },
     validateOcr: handleBrowserOcrValidate,
@@ -297,7 +315,8 @@ export function mountBrowserCredentialsFeature({
     activateCredentialTab,
     changeProvider: (event) => {
       const provider = normalizeOcrProvider(event.currentTarget?.value);
-      $("ocr_provider").value = provider;
+      credentialsStatePort.patchCredentials?.({ ocrProvider: provider });
+      viewPort.setHiddenOcrProvider(provider);
       syncOcrProviderControls(provider);
     },
   });
@@ -308,7 +327,7 @@ export function mountBrowserCredentialsFeature({
     hasBrowserCredentials,
     openBrowserCredentialsDialog,
     refreshDeepSeekBalance,
-    setDialogStatus,
+    setDialogStatus: viewPort.setDialogStatus,
     updateCredentialGate,
   };
 }

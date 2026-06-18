@@ -5,7 +5,8 @@ use serde_json::Value;
 use tracing::warn;
 
 use crate::db::Db;
-use crate::models::{JobEventRecord, JobRuntimeState, JobSnapshot};
+use crate::models::api::JobEventRecord;
+use crate::models::domain::{JobRuntimeState, JobSnapshot};
 mod derivation;
 mod jsonl;
 

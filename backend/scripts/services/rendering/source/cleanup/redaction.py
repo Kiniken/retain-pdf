@@ -4,6 +4,7 @@ import fitz
 
 from services.rendering.source.cleanup.redaction_flow import execute_redaction_flow
 from services.rendering.source.cleanup.text_matching import item_has_removable_text
+from services.rendering.visual_profile import VisualProfileRuntime
 
 
 def redact_translated_text_areas(
@@ -13,6 +14,7 @@ def redact_translated_text_areas(
     cover_only: bool = False,
     strategy: str | None = None,
     diagnostics: dict[str, object] | None = None,
+    visual_profile: VisualProfileRuntime | None = None,
 ) -> dict[str, object]:
     result = execute_redaction_flow(
         page,
@@ -20,6 +22,7 @@ def redact_translated_text_areas(
         fill_background=fill_background,
         cover_only=cover_only,
         strategy=strategy,
+        visual_profile=visual_profile,
     )
     if diagnostics is not None:
         diagnostics.update(result)

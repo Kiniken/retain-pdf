@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::{anyhow, Result};
 
-use crate::models::JobRuntimeState;
+use crate::models::domain::JobRuntimeState;
 use crate::storage_paths::JobPaths;
 
 use super::super::pipeline_plan::{PipelinePlan, PipelineStage};

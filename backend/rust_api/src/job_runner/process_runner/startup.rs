@@ -5,7 +5,7 @@ use tokio::sync::RwLock;
 use tracing::info;
 
 use crate::job_events::persist_runtime_job_with_resources;
-use crate::models::{
+use crate::models::domain::{
     job_stage_detail, job_stage_str, now_iso, JobRuntimeState, JobStage, JobStatusKind,
 };
 

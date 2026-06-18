@@ -198,3 +198,46 @@ def test_provider_stage_spec_loads_paddle_provider_fields(tmp_path: Path, monkey
     default_spec = ProviderStageSpec.load(default_spec_path)
     assert default_spec.ocr.paddle_model == "PaddleOCR-VL-1.6"
 
+
+def test_provider_stage_spec_loads_ocr_options(tmp_path: Path) -> None:
+    job_root = tmp_path / "20260616-provider-options"
+    source_dir = job_root / "source"
+    ensure_job_dirs(resolve_job_dirs(job_root))
+    source_pdf = source_dir / "book.pdf"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    source_pdf.write_bytes(b"%PDF-1.4\n")
+    spec_path = job_root / "specs" / "provider.spec.json"
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
+    spec_path.write_text(
+        json.dumps(
+            {
+                "schema_version": PROVIDER_STAGE_SCHEMA_VERSION,
+                "stage": "provider",
+                "job": {
+                    "job_id": job_root.name,
+                    "job_root": str(job_root),
+                    "workflow": "book",
+                },
+                "source": {"file_url": "", "file_path": str(source_pdf)},
+                "ocr": {
+                    "provider": "local-fast",
+                    "credential_ref": "",
+                    "options": {
+                        "command": "python /tmp/local-fast.py",
+                        "raw_provider": "generic_flat_ocr",
+                    },
+                },
+                "translation": {"credential_ref": "", "glossary_entries": []},
+                "render": {},
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    spec = ProviderStageSpec.load(spec_path)
+
+    assert spec.ocr.provider == "local-fast"
+    assert spec.ocr.options["command"] == "python /tmp/local-fast.py"
+    assert spec.ocr.options["raw_provider"] == "generic_flat_ocr"

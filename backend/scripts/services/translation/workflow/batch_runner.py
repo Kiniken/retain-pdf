@@ -31,6 +31,32 @@ AppliedTranslationResult = tuple[list[dict], dict[str, dict[str, str]]]
 RESULT_DRAIN_BATCH_SIZE = 64
 
 
+def _empty_tail_retry_stats() -> dict[str, int]:
+    return {
+        "tail_retry_drains": 0,
+        "tail_retry_items": 0,
+        "tail_retry_completed": 0,
+        "tail_retry_failed": 0,
+        "tail_retry_elapsed_ms": 0,
+        "early_tail_retry_drains": 0,
+        "final_tail_retry_drains": 0,
+    }
+
+
+def _merge_tail_retry_stats(target: dict[str, int], stats: dict | None, *, early: bool) -> None:
+    if not stats or int(stats.get("items", 0) or 0) <= 0:
+        return
+    target["tail_retry_drains"] += 1
+    target["tail_retry_items"] += int(stats.get("items", 0) or 0)
+    target["tail_retry_completed"] += int(stats.get("completed", 0) or 0)
+    target["tail_retry_failed"] += int(stats.get("failed", 0) or 0)
+    target["tail_retry_elapsed_ms"] += int(stats.get("elapsed_ms", 0) or 0)
+    if early:
+        target["early_tail_retry_drains"] += 1
+    else:
+        target["final_tail_retry_drains"] += 1
+
+
 def run_translation_batches_sequential(
     batches: list[list[dict]],
     *,
@@ -197,6 +223,8 @@ def run_translation_batches_parallel(
     result_applier: TranslationResultApplier,
     flush_state: TranslationFlushState,
     apply_stats_callback: Callable[..., None] | None = None,
+    tail_retry_stats_callback: Callable[..., None] | None = None,
+    flush_stats_callback: Callable[..., None] | None = None,
 ) -> None:
     executors: list[ThreadPoolExecutor] = []
     worker_futures = []
@@ -246,6 +274,10 @@ def run_translation_batches_parallel(
         executors.append(executor)
         worker_futures.extend(futures)
     completed = 0
+    applied_batch_count = 0
+    apply_elapsed_s = 0.0
+    max_result_drain_batch = 0
+    tail_retry_stats = _empty_tail_retry_stats()
     try:
         while completed < total_batches:
             try:
@@ -265,14 +297,18 @@ def run_translation_batches_parallel(
             )
             apply_started = time.perf_counter()
             touched_pages = result_applier.apply_batches(drained)
+            apply_elapsed = time.perf_counter() - apply_started
+            applied_batch_count += len(drained)
+            apply_elapsed_s += max(0.0, apply_elapsed)
+            max_result_drain_batch = max(max_result_drain_batch, len(drained))
             if apply_stats_callback is not None:
-                apply_stats_callback(batch_count=len(drained), elapsed_s=time.perf_counter() - apply_started)
+                apply_stats_callback(batch_count=len(drained), elapsed_s=apply_elapsed)
             completed += len(drained)
             flush_state.record_progress(completed, touched_pages)
             flush_state.flush_if_due(completed, label=f"flushed after completed batch {completed}/{total_batches}")
             print(f"book: completed batch {completed}/{total_batches} (+{len(drained)})", flush=True)
             if _should_drain_translation_tail_early(completed, total_batches):
-                _drain_translation_tail_queue(
+                tail_stats = _drain_translation_tail_queue(
                     translation_context=translation_context,
                     result_applier=result_applier,
                     flush_state=flush_state,
@@ -280,13 +316,14 @@ def run_translation_batches_parallel(
                     update_total_batches=False,
                     label_prefix="early translation tail retry",
                 )
+                _merge_tail_retry_stats(tail_retry_stats, tail_stats, early=True)
     finally:
         for executor in executors:
             executor.shutdown(wait=True, cancel_futures=False)
         for future in worker_futures:
             if future.done() and future.exception() is not None:
                 raise future.exception()
-    _drain_translation_tail_queue(
+    final_tail_stats = _drain_translation_tail_queue(
         translation_context=translation_context,
         result_applier=result_applier,
         flush_state=flush_state,
@@ -294,8 +331,21 @@ def run_translation_batches_parallel(
         update_total_batches=True,
         label_prefix="translation tail retry",
     )
+    _merge_tail_retry_stats(tail_retry_stats, final_tail_stats, early=False)
     flush_translation_memory(memory_store)
     flush_state.final_flush()
+    if apply_stats_callback is not None:
+        apply_stats_callback(
+            batch_count=0,
+            elapsed_s=0.0,
+            reported_applied_batches=applied_batch_count,
+            reported_apply_elapsed_s=apply_elapsed_s,
+            reported_max_result_drain_batch=max_result_drain_batch,
+        )
+    if tail_retry_stats_callback is not None:
+        tail_retry_stats_callback(**tail_retry_stats)
+    if flush_stats_callback is not None:
+        flush_stats_callback(**flush_state.stats())
 
 
 __all__ = [

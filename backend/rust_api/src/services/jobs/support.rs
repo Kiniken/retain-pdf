@@ -1,8 +1,6 @@
 use crate::error::AppError;
-use crate::models::{
-    build_job_actions, build_job_links_with_workflow, JobSnapshot, JobStatusKind,
-    JobSubmissionView, WorkflowKind,
-};
+use crate::models::api::{build_job_actions, build_job_links_with_workflow, JobSubmissionView};
+use crate::models::domain::{JobSnapshot, JobStatusKind, WorkflowKind};
 pub(crate) fn build_submission_view(
     job: &JobSnapshot,
     status: JobStatusKind,
@@ -33,7 +31,8 @@ pub(crate) fn ensure_cancelable(job: &JobSnapshot) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{CreateJobInput, JobSnapshot};
+    use crate::models::domain::JobSnapshot;
+    use crate::models::request::CreateJobInput;
 
     fn build_job() -> JobSnapshot {
         JobSnapshot::new(

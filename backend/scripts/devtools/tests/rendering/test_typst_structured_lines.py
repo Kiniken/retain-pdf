@@ -227,6 +227,107 @@ def test_body_preserve_lines_contract_keeps_numbered_list_breaks() -> None:
     assert item["_render_line_structure"] == "structured_lines"
 
 
+def test_body_preserve_lines_contract_flows_unmarked_regular_body() -> None:
+    item = {
+        "item_id": "p005-b002",
+        "block_type": "text",
+        "block_kind": "text",
+        "semantic_role": "body",
+        "structure_role": "body",
+        "text_flow": "preserve_lines",
+        "source_text": (
+            "The EHT-type term in GFN2-xTB is mostly responsible for\n"
+            "covalent binding. Via the coordination number dependence\n"
+            "of the valence energy levels, these obtain additional flexibility"
+        ),
+        "lines": [
+            {
+                "bbox": [104.0, 104.5, 380.5, 113.989],
+                "text": "The EHT-type term in GFN2-xTB is mostly responsible for",
+            },
+            {
+                "bbox": [104.0, 113.989, 380.5, 123.477],
+                "text": "covalent binding. Via the coordination number dependence",
+            },
+            {
+                "bbox": [104.0, 123.477, 380.5, 132.966],
+                "text": "of the valence energy levels, these obtain additional flexibility",
+            },
+        ],
+    }
+    translated = "GFN2-xTB中的EHT型项主要负责\n共价键合。通过配位数依赖性\n价能级获得额外灵活性。"
+
+    rendered = maybe_preserve_structured_line_breaks(item, translated)
+
+    assert rendered == "GFN2-xTB中的EHT型项主要负责 共价键合。通过配位数依赖性 价能级获得额外灵活性。"
+    assert "_render_preserve_line_breaks" not in item
+
+
+def test_body_preserve_lines_contract_flows_poms_paragraph_with_acronyms() -> None:
+    item = {
+        "item_id": "p001-b019",
+        "block_type": "text",
+        "block_kind": "text",
+        "layout_role": "paragraph",
+        "semantic_role": "body",
+        "structure_role": "body",
+        "text_flow": "preserve_lines",
+        "source_text": (
+            "With advances in science and medical technology, therapies\n"
+            "based on POMs have come a long way [36]. A plenary of POMs-based\n"
+            "anticancer agents was reported in recent years, which have\n"
+            "shown excellent therapeutic effects on the growth, spread\n"
+            "and metastasis of malignant tumors through CDT, PTT or combination\n"
+            "therapies [37]. Herein, we have summarized the latest progress\n"
+            "of POM-based materials for cancer treatments, and reveal\n"
+            "the roles of POMs in various therapeutic"
+        ),
+        "source_line_texts": [
+            "With advances in science and medical technology, therapies",
+            "based on POMs have come a long way [36]. A plenary of POMs-based",
+            "anticancer agents was reported in recent years, which have",
+            "shown excellent therapeutic effects on the growth, spread",
+            "and metastasis of malignant tumors through CDT, PTT or combination",
+            "therapies [37]. Herein, we have summarized the latest progress",
+            "of POM-based materials for cancer treatments, and reveal",
+            "the roles of POMs in various therapeutic",
+        ],
+    }
+    translated = (
+        "随着科学和医疗技术的进步，基于多金属氧酸盐（POMs）的疗法取得了长足发展 [36]。近年来，"
+        "多种基于POMs的抗癌药物被报道，这些药物通过化学动力学疗法（CDT）、光热疗法（PTT）或联合疗法，"
+        "在抑制恶性肿瘤的生长、扩散和转移方面表现出优异的治疗效果 [37]。"
+    )
+
+    rendered = maybe_preserve_structured_line_breaks(item, translated)
+
+    assert "\n" not in rendered
+    assert "_render_preserve_line_breaks" not in item
+
+
+def test_body_preserve_lines_contract_keeps_glossary_short_lines() -> None:
+    item = {
+        "item_id": "p014-b001",
+        "block_type": "text",
+        "block_kind": "text",
+        "semantic_role": "body",
+        "structure_role": "body",
+        "text_flow": "preserve_lines",
+        "source_text": "ALDA adiabatic local density approximation\nAF antiferromagnetic\nASA atomic sphere approximation",
+        "lines": [
+            {"bbox": [48.989, 221.367, 351.92, 233.408], "text": "ALDA adiabatic local density approximation"},
+            {"bbox": [48.989, 233.408, 351.92, 245.449], "text": "AF antiferromagnetic"},
+            {"bbox": [48.989, 245.449, 351.92, 257.49], "text": "ASA atomic sphere approximation"},
+        ],
+    }
+    translated = "ALDA 绝热局域密度近似\nAF 反铁磁性\nASA 原子球近似"
+
+    rendered = maybe_preserve_structured_line_breaks(item, translated)
+
+    assert rendered == translated
+    assert item["_render_preserve_line_breaks"] is True
+
+
 def test_body_without_preserve_lines_contract_still_flows_visual_lines() -> None:
     item = {
         "item_id": "p005-b001",

@@ -1,22 +1,28 @@
-const READER_FRAME_PLACEHOLDER = "<style>html,body{margin:0;min-height:100%;background:#f3f4f6;color:#1d1d1f}</style>";
+import {
+  READER_DIALOG_COPY,
+  READER_DIALOG_CLASSES,
+  READER_DIALOG_DATASETS,
+  READER_DIALOG_IDS,
+  READER_FRAME_PLACEHOLDER,
+} from "./reader-dialog-contract.js";
 
 export function readerDialogElements(host) {
   return {
-    dialog: host.querySelector("#reader-dialog"),
-    frame: host.querySelector("#reader-dialog-frame"),
-    loading: host.querySelector("#reader-dialog-loading"),
-    loadingText: host.querySelector("#reader-dialog-loading-text"),
-    loadingPercent: host.querySelector("#reader-dialog-loading-percent"),
-    loadingBar: host.querySelector("#reader-dialog-loading-bar"),
+    dialog: host.querySelector(`#${READER_DIALOG_IDS.dialog}`),
+    frame: host.querySelector(`#${READER_DIALOG_IDS.frame}`),
+    loading: host.querySelector(`#${READER_DIALOG_IDS.loading}`),
+    loadingText: host.querySelector(`#${READER_DIALOG_IDS.loadingText}`),
+    loadingPercent: host.querySelector(`#${READER_DIALOG_IDS.loadingPercent}`),
+    loadingBar: host.querySelector(`#${READER_DIALOG_IDS.loadingBar}`),
   };
 }
 
 export function setReaderDialogLoadingVisible(host, loading) {
-  readerDialogElements(host).loading?.classList.toggle("hidden", !loading);
+  readerDialogElements(host).loading?.classList.toggle(READER_DIALOG_CLASSES.hidden, !loading);
 }
 
 export function setReaderDialogLoadingProgress(host, {
-  text = "正在准备对照阅读...",
+  text = READER_DIALOG_COPY.preparing,
   percent = 0,
   widthPercent = null,
 } = {}) {
@@ -40,28 +46,28 @@ export function setReaderDialogToolbarButtonState(host, id, { enabled = false, u
     return;
   }
   button.disabled = !enabled;
-  button.dataset.url = enabled ? url : "";
+  button.dataset[READER_DIALOG_DATASETS.url] = enabled ? url : "";
   button.setAttribute("aria-disabled", enabled ? "false" : "true");
 }
 
 export function getReaderDialogToolbarButtonUrl(host, id) {
-  return `${host.querySelector(`#${id}`)?.dataset?.url || ""}`.trim();
+  return `${host.querySelector(`#${id}`)?.dataset?.[READER_DIALOG_DATASETS.url] || ""}`.trim();
 }
 
-export function setReaderDialogButtonBusy(host, id, busy, label = "生成中…") {
+export function setReaderDialogButtonBusy(host, id, busy, label = READER_DIALOG_COPY.busyGenerating) {
   const button = host.querySelector(`#${id}`);
   if (!button) {
     return "";
   }
   const previousMarkup = button.innerHTML;
-  if (!button.dataset.defaultMarkup) {
-    button.dataset.defaultMarkup = previousMarkup;
+  if (!button.dataset[READER_DIALOG_DATASETS.defaultMarkup]) {
+    button.dataset[READER_DIALOG_DATASETS.defaultMarkup] = previousMarkup;
   }
   if (busy) {
     button.disabled = true;
     button.innerHTML = `<span>${label}</span>`;
   } else {
-    button.innerHTML = button.dataset.defaultMarkup || previousMarkup;
+    button.innerHTML = button.dataset[READER_DIALOG_DATASETS.defaultMarkup] || previousMarkup;
   }
   return previousMarkup;
 }

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use anyhow::{anyhow, Result};
 
 use crate::job_events::persist_runtime_job_with_resources;
-use crate::models::JobRuntimeState;
+use crate::models::domain::{JobArtifacts, JobRuntimeState};
 use crate::storage_paths::build_job_paths;
 
 use crate::job_runner::stage_contract::ocr_ready_inputs_for_translation;
@@ -52,10 +52,8 @@ pub(super) async fn prepare_job_from_ocr_artifacts(
 fn copy_ocr_checkpoint_artifacts(
     job: &mut JobRuntimeState,
     source_job_id: &str,
-    source_artifacts: &crate::models::JobArtifacts,
+    source_artifacts: &JobArtifacts,
 ) {
-    let artifacts = job
-        .artifacts
-        .get_or_insert_with(crate::models::JobArtifacts::default);
+    let artifacts = job.artifacts.get_or_insert_with(JobArtifacts::default);
     artifacts.copy_ocr_checkpoint_from(source_job_id, source_artifacts);
 }

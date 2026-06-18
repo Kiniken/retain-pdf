@@ -1,32 +1,22 @@
-use std::path::{Path, PathBuf};
-
 use crate::error::AppError;
-use crate::models::{MarkdownDocumentView, PagePreviewQuery};
+use crate::models::api::{MarkdownDocumentView, PagePreviewQuery};
 use crate::services::jobs::downloads::{
     bundle_download, cover_download, document_download, markdown_document_view, markdown_download,
-    markdown_image_download, page_preview_download, thumbnail_download, FileDownload,
-    MarkdownDownload,
+    markdown_image_download, page_preview_download, side_by_side_pdf_download, thumbnail_download,
+    DocumentDownloadKind, FileDownload, MarkdownDownload,
 };
 
 use super::super::JobsFacade;
 
 impl<'a> JobsFacade<'a> {
-    pub fn download_job_document(
+    pub(crate) fn download_job_document(
         &self,
         job_id: &str,
         ocr_only: bool,
-        resolve_path: impl Fn(&crate::models::JobSnapshot, &Path) -> Option<PathBuf>,
-        not_ready_label: &str,
-        content_type: &str,
+        kind: DocumentDownloadKind,
     ) -> Result<FileDownload, AppError> {
         let job = self.load_supported_job_snapshot(job_id, ocr_only)?;
-        document_download(
-            &self.query,
-            &job,
-            resolve_path,
-            not_ready_label,
-            content_type,
-        )
+        document_download(&self.query, &job, kind)
     }
 
     pub async fn markdown_document(&self, job_id: String) -> Result<MarkdownDownload, AppError> {
@@ -64,6 +54,11 @@ impl<'a> JobsFacade<'a> {
         query: &PagePreviewQuery,
     ) -> Result<FileDownload, AppError> {
         page_preview_download(&self.query, job_id, page, query)
+    }
+
+    pub async fn side_by_side_pdf_download(&self, job_id: &str) -> Result<FileDownload, AppError> {
+        let _guard = self.query.downloads_lock.lock().await;
+        side_by_side_pdf_download(&self.query, job_id)
     }
 
     pub async fn bundle_download(&self, job_id: &str) -> Result<FileDownload, AppError> {

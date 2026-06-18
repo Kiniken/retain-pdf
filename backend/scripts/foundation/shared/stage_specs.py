@@ -398,6 +398,7 @@ class ProviderStageOcrParams:
     extra_formats: str
     poll_interval: int
     poll_timeout: int
+    options: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -497,6 +498,9 @@ class ProviderStageSpec:
             extra_formats=str(ocr_payload.get("extra_formats", "") or ""),
             poll_interval=int(ocr_payload.get("poll_interval", 5) or 5),
             poll_timeout=int(ocr_payload.get("poll_timeout", 1800) or 1800),
+            options=dict(ocr_payload.get("options") or {})
+            if isinstance(ocr_payload.get("options"), dict)
+            else {},
         )
         glossary_entries = translation_payload.get("glossary_entries") or []
         if not isinstance(glossary_entries, list):

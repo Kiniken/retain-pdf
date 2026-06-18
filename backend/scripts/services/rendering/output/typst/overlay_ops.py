@@ -28,6 +28,7 @@ from services.rendering.output.typst.overlay_runtime import overlay_pdf_size_mis
 from services.rendering.output.typst.overlay_source_cache import resolve_prebuilt_overlay_source
 from services.rendering.output.typst.source_page_overlay import apply_source_page_overlay
 from services.rendering.output.typst.source_page_overlay import overlay_pages_from_single_pdf
+from services.rendering.visual_profile import merge_visual_profile_colors
 from services.pipeline_shared.events import emit_render_compile_progress
 from services.pipeline_shared.events import emit_render_page_progress
 
@@ -51,6 +52,7 @@ def overlay_translated_items_on_page(
     apply_source_overlay: bool = True,
     redaction_strategy: str | None = None,
     request_chat_content_fn: TypstRepairRequestFn | None = None,
+    visual_profile_path: Path | None = None,
 ) -> None:
     if apply_source_overlay:
         apply_source_page_overlay(
@@ -58,6 +60,7 @@ def overlay_translated_items_on_page(
             translated_items,
             cover_only=cover_only,
             redaction_strategy=redaction_strategy,
+            visual_profile_path=visual_profile_path,
         )
     overlay_pdf = compile_page_overlay_pdf(
         page.rect.width,
@@ -104,9 +107,11 @@ def overlay_translated_pages_on_doc(
     color_sample_pdf_path: Path | None = None,
     prepared_overlay_pages: dict[int, list[dict]] | None = None,
     precomputed_colors_by_item_id: dict[str, dict[str, tuple[float, float, float]]] | None = None,
+    visual_profile_path: Path | None = None,
     pikepdf_output_pdf_path: Path | None = None,
     source_cleanup_strategy: str = "typst_fill",
     visual_cover_page_indices: frozenset[int] = frozenset(),
+    no_cache: bool = False,
     request_chat_content_fn: TypstRepairRequestFn | None = None,
 ) -> dict[str, object]:
     prepare_started = time.perf_counter()
@@ -145,6 +150,10 @@ def overlay_translated_pages_on_doc(
             "sanitize_page_diagnostics": [],
         }
 
+    active_colors_by_item_id, visual_profile_diagnostics = merge_visual_profile_colors(
+        visual_profile_path=visual_profile_path,
+        precomputed_colors_by_item_id=precomputed_colors_by_item_id,
+    )
     color_started = time.perf_counter()
     if prepared_overlay_pages is not None:
         color_elapsed = 0.0
@@ -155,7 +164,7 @@ def overlay_translated_pages_on_doc(
                 sample_doc,
                 ordered_page_indices,
                 translated_pages,
-                precomputed_colors_by_item_id=precomputed_colors_by_item_id,
+                precomputed_colors_by_item_id=active_colors_by_item_id,
             )
         finally:
             sample_doc.close()
@@ -164,7 +173,7 @@ def overlay_translated_pages_on_doc(
             doc,
             ordered_page_indices,
             translated_pages,
-            precomputed_colors_by_item_id=precomputed_colors_by_item_id,
+            precomputed_colors_by_item_id=active_colors_by_item_id,
         )
     if prepared_overlay_pages is None:
         color_elapsed = time.perf_counter() - color_started
@@ -172,8 +181,8 @@ def overlay_translated_pages_on_doc(
     page_specs = build_overlay_page_specs(doc, ordered_page_indices, translated_pages, stem=stem)
     book_specs = [(page_width, page_height, items) for _, page_width, page_height, items, _ in page_specs]
     specs_elapsed = time.perf_counter() - specs_started
-    use_typst_overlay_fill_only = False
-    include_cover_rect_in_overlay = bool(cover_fallback_page_indices)
+    include_cover_rect_in_overlay = True
+    use_typst_overlay_fill_only = include_cover_rect_in_overlay
     can_merge_whole_overlay_with_pikepdf = (
         source_base_pdf_path is not None
         and pikepdf_output_pdf_path is not None
@@ -190,7 +199,7 @@ def overlay_translated_pages_on_doc(
         can_merge_whole_overlay_with_pikepdf
         and should_use_chunked_overlay_compile(len(ordered_page_indices))
     )
-    if use_chunked_overlay_compile:
+    if use_chunked_overlay_compile or no_cache:
         active_prebuilt_source_path = None
         source_prepare_elapsed = 0.0
     else:
@@ -270,7 +279,7 @@ def overlay_translated_pages_on_doc(
             diagnostics["pikepdf_overlay_elapsed_seconds"] = pike_result.elapsed_seconds
             diagnostics.setdefault("compile_errors", [])
             diagnostics.setdefault("sanitize_page_diagnostics", [])
-            return diagnostics
+            return _with_visual_profile_diagnostics(diagnostics, visual_profile_diagnostics)
         overlay_pdf = compile_book_overlay_pdf(
             book_specs,
             stem=stem,
@@ -310,6 +319,7 @@ def overlay_translated_pages_on_doc(
                 redaction_strategy=redaction_strategy,
                 source_base_pdf_path=source_base_pdf_path,
                 pikepdf_output_pdf_path=pikepdf_output_pdf_path,
+                visual_profile_path=visual_profile_path,
                 request_chat_content_fn=request_chat_content_fn,
             )
             diagnostics["compile_elapsed_seconds"] = compile_elapsed
@@ -328,7 +338,7 @@ def overlay_translated_pages_on_doc(
             diagnostics["overlay_page_size_mismatches"] = page_size_mismatches
             diagnostics.setdefault("compile_errors", [])
             diagnostics.setdefault("sanitize_page_diagnostics", [])
-            return diagnostics
+            return _with_visual_profile_diagnostics(diagnostics, visual_profile_diagnostics)
         if can_merge_whole_overlay_with_pikepdf:
             merge_started = time.perf_counter()
             pike_result = overlay_pdf_pages_with_pikepdf(
@@ -358,7 +368,7 @@ def overlay_translated_pages_on_doc(
             diagnostics["pikepdf_overlay_elapsed_seconds"] = pike_result.elapsed_seconds
             diagnostics.setdefault("compile_errors", [])
             diagnostics.setdefault("sanitize_page_diagnostics", [])
-            return diagnostics
+            return _with_visual_profile_diagnostics(diagnostics, visual_profile_diagnostics)
         diagnostics = overlay_pages_from_single_pdf(
             doc,
             ordered_page_indices,
@@ -371,6 +381,7 @@ def overlay_translated_pages_on_doc(
             skip_visual_cover=use_typst_overlay_fill_only,
             source_base_pdf_path=source_base_pdf_path,
             pikepdf_output_pdf_path=pikepdf_output_pdf_path,
+            visual_profile_path=visual_profile_path,
         )
         diagnostics["compile_elapsed_seconds"] = compile_elapsed
         diagnostics["sanitize_elapsed_seconds"] = 0.0
@@ -386,7 +397,7 @@ def overlay_translated_pages_on_doc(
         diagnostics["typst_prebuilt_source_path"] = str(active_prebuilt_source_path or "")
         diagnostics.setdefault("compile_errors", [])
         diagnostics.setdefault("sanitize_page_diagnostics", [])
-        return diagnostics
+        return _with_visual_profile_diagnostics(diagnostics, visual_profile_diagnostics)
     except RuntimeError as exc:
         first_compile_elapsed = time.perf_counter() - compile_started
         failed_overlay_indices = _extract_failed_overlay_indices(exc, page_specs)
@@ -503,7 +514,7 @@ def overlay_translated_pages_on_doc(
                 diagnostics["pikepdf_overlay_output_pdf_path"] = str(pike_result.output_pdf_path)
                 diagnostics["pikepdf_overlay_pages"] = pike_result.pages_merged
                 diagnostics["pikepdf_overlay_elapsed_seconds"] = pike_result.elapsed_seconds
-                return diagnostics
+                return _with_visual_profile_diagnostics(diagnostics, visual_profile_diagnostics)
             diagnostics = overlay_pages_from_single_pdf(
                 doc,
                 ordered_page_indices,
@@ -516,6 +527,7 @@ def overlay_translated_pages_on_doc(
                 skip_visual_cover=use_typst_overlay_fill_only,
                 source_base_pdf_path=source_base_pdf_path,
                 pikepdf_output_pdf_path=pikepdf_output_pdf_path,
+                visual_profile_path=visual_profile_path,
             )
             diagnostics["compile_elapsed_seconds"] = first_compile_elapsed + sanitized_compile_elapsed
             diagnostics["sanitize_elapsed_seconds"] = sanitize_elapsed
@@ -532,7 +544,7 @@ def overlay_translated_pages_on_doc(
             diagnostics["compile_errors"] = compile_errors
             diagnostics["sanitize_page_diagnostics"] = sanitize_page_diagnostics
             diagnostics["targeted_sanitize_overlay_indices"] = sorted(failed_overlay_indices)
-            return diagnostics
+            return _with_visual_profile_diagnostics(diagnostics, visual_profile_diagnostics)
         except RuntimeError as exc:
             print("typst sanitized book compile failed; falling back to per-page compilation", flush=True)
             print(str(exc), flush=True)
@@ -578,6 +590,7 @@ def overlay_translated_pages_on_doc(
         redaction_strategy=redaction_strategy,
         source_base_pdf_path=source_base_pdf_path,
         pikepdf_output_pdf_path=pikepdf_output_pdf_path,
+        visual_profile_path=visual_profile_path,
         request_chat_content_fn=request_chat_content_fn,
     )
     diagnostics["compile_elapsed_seconds"] = (
@@ -591,4 +604,12 @@ def overlay_translated_pages_on_doc(
         diagnostics["mode"] = "page_overlay_fallback"
     diagnostics["compile_errors"] = compile_errors
     diagnostics["sanitize_page_diagnostics"] = sanitize_page_diagnostics
+    return _with_visual_profile_diagnostics(diagnostics, visual_profile_diagnostics)
+
+
+def _with_visual_profile_diagnostics(
+    diagnostics: dict[str, object],
+    visual_profile_diagnostics: dict[str, object],
+) -> dict[str, object]:
+    diagnostics["visual_profile"] = dict(visual_profile_diagnostics)
     return diagnostics

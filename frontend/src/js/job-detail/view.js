@@ -1,4 +1,4 @@
-import { $ } from "../dom.js";
+import { $ } from "../dom/query.js";
 
 const DETAIL_MODAL_IDS = [
   "detail-stage-history-modal",

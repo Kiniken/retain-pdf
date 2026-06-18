@@ -134,6 +134,8 @@ def test_apply_translation_policies_translates_title_by_default_with_title_rule_
     assert payload[0]["should_translate"] is True
     assert payload[0]["skip_reason"] == ""
     assert "Title rule:" in payload[0]["translation_style_hint"]
+    assert "document domain" in payload[0]["translation_style_hint"]
+    assert "matched terminology" in payload[0]["translation_style_hint"]
 
 
 def test_apply_translation_policies_skips_title_when_config_enabled() -> None:

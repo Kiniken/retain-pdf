@@ -1,6 +1,18 @@
-use crate::models::{JobArtifacts, OcrInput};
+use crate::models::domain::JobArtifacts;
+use crate::models::request::OcrInput;
+use serde_json::Value;
+use std::collections::BTreeMap;
 
-use super::{mineru, paddle, OcrProviderCapabilities, OcrProviderDiagnostics, OcrProviderKind};
+use super::provider_config;
+use super::{
+    mineru, paddle, OcrProviderArtifactLayout, OcrProviderCapabilities, OcrProviderCredentialSpec,
+    OcrProviderDiagnostics, OcrProviderKind, OcrProviderOptionSpec, OcrProviderPublicDefinition,
+};
+
+const MINERU_RESULT_FILE_NAME: &str = "mineru_result.json";
+const MINERU_BUNDLE_FILE_NAME: &str = "mineru_bundle.zip";
+const MINERU_UNPACK_DIR_NAME: &str = "unpacked";
+const MINERU_LAYOUT_JSON_FILE_NAME: &str = "layout.json";
 
 #[derive(Debug, Clone)]
 pub struct OcrProviderDefinition {
@@ -10,6 +22,7 @@ pub struct OcrProviderDefinition {
     pub token_field_name: &'static str,
     pub token_env_name: &'static str,
     pub capabilities: OcrProviderCapabilities,
+    pub artifact_layout: OcrProviderArtifactLayout,
 }
 
 pub fn provider_definition(kind: &OcrProviderKind) -> Option<OcrProviderDefinition> {
@@ -21,6 +34,12 @@ pub fn provider_definition(kind: &OcrProviderKind) -> Option<OcrProviderDefiniti
             token_field_name: "mineru_token",
             token_env_name: "RETAIN_MINERU_API_TOKEN",
             capabilities: mineru::capabilities(),
+            artifact_layout: OcrProviderArtifactLayout::new(
+                MINERU_RESULT_FILE_NAME,
+                MINERU_BUNDLE_FILE_NAME,
+                MINERU_UNPACK_DIR_NAME,
+                format!("{MINERU_UNPACK_DIR_NAME}/{MINERU_LAYOUT_JSON_FILE_NAME}"),
+            ),
         }),
         OcrProviderKind::Paddle => Some(OcrProviderDefinition {
             kind: OcrProviderKind::Paddle,
@@ -29,6 +48,12 @@ pub fn provider_definition(kind: &OcrProviderKind) -> Option<OcrProviderDefiniti
             token_field_name: "paddle_token",
             token_env_name: "RETAIN_PADDLE_API_TOKEN",
             capabilities: paddle::capabilities(),
+            artifact_layout: OcrProviderArtifactLayout::new(
+                "paddle_result.json",
+                "paddle_bundle.zip",
+                "paddle_raw",
+                "paddle_result.json",
+            ),
         }),
         OcrProviderKind::Local => Some(OcrProviderDefinition {
             kind: OcrProviderKind::Local,
@@ -45,13 +70,218 @@ pub fn provider_definition(kind: &OcrProviderKind) -> Option<OcrProviderDefiniti
                 supports_formula_toggle: false,
                 supports_table_toggle: false,
             },
+            artifact_layout: OcrProviderArtifactLayout::new(
+                "result.json",
+                "bundle.zip",
+                "local_raw",
+                "result.json",
+            ),
         }),
         OcrProviderKind::Unknown => None,
     }
 }
 
+pub fn provider_public_definitions() -> Vec<OcrProviderPublicDefinition> {
+    let mut definitions: Vec<OcrProviderPublicDefinition> =
+        provider_config::ocr_provider_definitions()
+            .into_iter()
+            .map(|(key, value)| provider_public_definition_from_config(key, value))
+            .collect();
+    definitions.sort_by(|left, right| {
+        provider_sort_rank(&left.key)
+            .cmp(&provider_sort_rank(&right.key))
+            .then_with(|| left.key.cmp(&right.key))
+    });
+    definitions
+}
+
+fn provider_sort_rank(key: &str) -> u8 {
+    match key {
+        "mineru" => 0,
+        "paddle" => 1,
+        "local" => 2,
+        _ => 3,
+    }
+}
+
+fn provider_public_definition_from_config(
+    key: String,
+    value: Value,
+) -> OcrProviderPublicDefinition {
+    let provider_kind = value
+        .get("kind")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .unwrap_or("remote")
+        .to_string();
+    let display_name = value
+        .get("display_name")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .unwrap_or(key.as_str())
+        .to_string();
+    let known_kind = kind_for_public_key(&key, &provider_kind);
+    OcrProviderPublicDefinition {
+        key: key.clone(),
+        display_name,
+        provider_kind: provider_kind.clone(),
+        credential: parse_credential_spec(value.get("credential")),
+        options: parse_option_specs(value.get("options")),
+        capabilities: provider_capabilities_for_public(&known_kind, &provider_kind),
+        artifact_layout: provider_artifact_layout_for_public(&known_kind, &key, &provider_kind),
+    }
+}
+
+fn kind_for_public_key(key: &str, provider_kind: &str) -> OcrProviderKind {
+    match key {
+        "mineru" => OcrProviderKind::Mineru,
+        "paddle" => OcrProviderKind::Paddle,
+        "local" => OcrProviderKind::Local,
+        _ if matches!(provider_kind, "local_command" | "remote_command") => OcrProviderKind::Local,
+        _ => OcrProviderKind::Unknown,
+    }
+}
+
+fn provider_capabilities_for_public(
+    known_kind: &OcrProviderKind,
+    provider_kind: &str,
+) -> OcrProviderCapabilities {
+    provider_capabilities(known_kind).unwrap_or_else(|| OcrProviderCapabilities {
+        supports_remote_url_submit: provider_kind != "local_command",
+        supports_local_file_upload: true,
+        supports_polling: !matches!(provider_kind, "local_command" | "remote_command"),
+        supports_download_bundle: !matches!(provider_kind, "local_command" | "remote_command"),
+        supports_extra_formats: false,
+        supports_formula_toggle: false,
+        supports_table_toggle: false,
+    })
+}
+
+fn provider_artifact_layout_for_public(
+    known_kind: &OcrProviderKind,
+    key: &str,
+    provider_kind: &str,
+) -> OcrProviderArtifactLayout {
+    provider_artifact_layout(known_kind).unwrap_or_else(|| {
+        let raw_dir = if matches!(provider_kind, "local_command" | "remote_command") {
+            format!("{key}_raw")
+        } else {
+            "provider_raw".to_string()
+        };
+        OcrProviderArtifactLayout::new("result.json", "bundle.zip", raw_dir, "result.json")
+    })
+}
+
+fn parse_credential_spec(value: Option<&Value>) -> Option<OcrProviderCredentialSpec> {
+    let object = value?.as_object()?;
+    let field = object
+        .get("field")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|item| !item.is_empty())?
+        .to_string();
+    let env = object
+        .get("env")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or("")
+        .to_string();
+    let required_for = object
+        .get("required_for")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|item| !item.is_empty())
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    Some(OcrProviderCredentialSpec {
+        field,
+        env,
+        required_for,
+    })
+}
+
+fn parse_option_specs(value: Option<&Value>) -> BTreeMap<String, OcrProviderOptionSpec> {
+    let Some(object) = value.and_then(Value::as_object) else {
+        return BTreeMap::new();
+    };
+    object
+        .iter()
+        .filter_map(|(key, value)| parse_option_spec(value).map(|spec| (key.clone(), spec)))
+        .collect()
+}
+
+fn parse_option_spec(value: &Value) -> Option<OcrProviderOptionSpec> {
+    let object = value.as_object()?;
+    let option_type = object
+        .get("type")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .unwrap_or("string")
+        .to_string();
+    let default = object.get("default").cloned().unwrap_or(Value::Null);
+    let env = object
+        .get("env")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(ToString::to_string);
+    let aliases = object
+        .get("aliases")
+        .and_then(Value::as_object)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|(key, value)| {
+                    value
+                        .as_str()
+                        .map(str::trim)
+                        .filter(|item| !item.is_empty())
+                        .map(|target| (key.clone(), target.to_string()))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let choices = object
+        .get("choices")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|item| !item.is_empty())
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+    Some(OcrProviderOptionSpec {
+        option_type,
+        default,
+        env,
+        aliases,
+        choices,
+        required: object
+            .get("required")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+    })
+}
+
 pub fn provider_capabilities(kind: &OcrProviderKind) -> Option<OcrProviderCapabilities> {
     provider_definition(kind).map(|definition| definition.capabilities)
+}
+
+pub fn provider_artifact_layout(kind: &OcrProviderKind) -> Option<OcrProviderArtifactLayout> {
+    provider_definition(kind).map(|definition| definition.artifact_layout)
 }
 
 pub fn provider_display_name(kind: &OcrProviderKind) -> Option<&'static str> {
@@ -84,16 +314,11 @@ pub fn provider_model_version<'a>(kind: &OcrProviderKind, input: &'a OcrInput) -
     }
 }
 
-pub fn supported_provider_keys() -> Vec<&'static str> {
-    [
-        OcrProviderKind::Mineru,
-        OcrProviderKind::Paddle,
-        OcrProviderKind::Local,
-        OcrProviderKind::Unknown,
-    ]
-    .iter()
-    .filter_map(|kind| provider_definition(kind).map(|definition| definition.key))
-    .collect()
+pub fn supported_provider_keys() -> Vec<String> {
+    provider_public_definitions()
+        .into_iter()
+        .map(|definition| definition.key)
+        .collect()
 }
 
 pub fn is_supported_provider(kind: &OcrProviderKind) -> bool {
@@ -160,11 +385,45 @@ mod tests {
         assert_eq!(mineru.display_name, "MinerU");
         assert_eq!(mineru.token_field_name, "mineru_token");
         assert_eq!(mineru.token_env_name, "RETAIN_MINERU_API_TOKEN");
+        assert_eq!(
+            mineru.artifact_layout.provider_result_json,
+            "mineru_result.json"
+        );
+        assert_eq!(mineru.artifact_layout.layout_json, "unpacked/layout.json");
     }
 
     #[test]
     fn supported_provider_keys_lists_all_supported_backends() {
         assert_eq!(supported_provider_keys(), vec!["mineru", "paddle", "local"]);
+    }
+
+    #[test]
+    fn provider_public_definitions_expose_credentials_and_options() {
+        let definitions = provider_public_definitions();
+        let paddle = definitions
+            .iter()
+            .find(|definition| definition.key == "paddle")
+            .expect("paddle public definition");
+        assert_eq!(paddle.display_name, "PaddleOCR");
+        assert_eq!(
+            paddle
+                .credential
+                .as_ref()
+                .map(|credential| credential.field.as_str()),
+            Some("paddle_token")
+        );
+        assert_eq!(
+            paddle
+                .options
+                .get("paddle_model")
+                .map(|option| option.option_type.as_str()),
+            Some("string")
+        );
+        assert!(paddle
+            .options
+            .get("paddle_model")
+            .map(|option| option.aliases.contains_key("paddleocr-vl"))
+            .unwrap_or(false));
     }
 
     #[test]

@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use crate::db::Db;
 use crate::error::AppError;
-use crate::models::{
-    build_glossary_id, now_iso, CreateJobInput, GlossaryCsvParseInput, GlossaryEntryInput,
-    GlossaryRecord, GlossaryUpsertInput, ListGlossariesQuery,
+use crate::models::api::ListGlossariesQuery;
+use crate::models::domain::{build_glossary_id, now_iso, GlossaryRecord};
+use crate::models::request::{
+    CreateJobInput, GlossaryCsvParseInput, GlossaryEntryInput, GlossaryUpsertInput,
 };
 
 const MAX_GLOSSARY_ENTRIES: usize = 200;
@@ -465,7 +466,8 @@ mod tests {
 
     use crate::config::AppConfig;
     use crate::db::Db;
-    use crate::models::{glossary_to_csv_export, CreateJobInput, GlossaryEntryInput};
+    use crate::models::api::glossary_to_csv_export;
+    use crate::models::request::{CreateJobInput, GlossaryEntryInput};
     use crate::AppState;
 
     use super::*;

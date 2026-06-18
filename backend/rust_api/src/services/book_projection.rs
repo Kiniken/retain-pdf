@@ -2,14 +2,14 @@ use std::path::Path;
 
 use crate::db::Db;
 use crate::error::AppError;
-use crate::models::{
-    to_absolute_url, JobSnapshot, LibraryBookDetailView, LibraryBookListItemView,
-    LibraryBookListView, ListJobsQuery, WorkflowKind,
+use crate::models::api::{
+    build_artifact_links, to_absolute_url, LibraryBookDetailView, LibraryBookListItemView,
+    LibraryBookListView, ListJobsQuery,
 };
-use crate::storage_paths::{resolve_markdown_path, resolve_output_pdf, resolve_source_pdf};
+use crate::models::domain::{JobSnapshot, WorkflowKind};
+use crate::storage_paths::resolve_source_pdf;
 
-use crate::models::build_artifact_links;
-use crate::services::jobs::readiness;
+use crate::services::jobs::job_readiness;
 
 mod artifacts;
 mod live;
@@ -45,8 +45,7 @@ pub(crate) fn build_library_book_detail_view(
     let summary = build_book_summary(db, job, data_root, base_url, &display_name)
         .with_cover_url(library_image_url(job, data_root, base_url, "cover"));
     let live = build_live_projection(db, job, data_root);
-    let (pdf_ready, markdown_ready, bundle_ready) =
-        readiness(job, data_root, resolve_output_pdf, resolve_markdown_path);
+    let (pdf_ready, markdown_ready, bundle_ready) = job_readiness(job, data_root);
     let artifacts = build_artifact_links(
         job,
         base_url,
@@ -82,8 +81,7 @@ fn build_library_book_list_item(
 ) -> LibraryBookListItemView {
     let display_name = derive_display_name(db, job);
     let live = build_live_projection(db, job, data_root);
-    let (output_pdf_ready, markdown_ready, bundle_ready) =
-        readiness(job, data_root, resolve_output_pdf, resolve_markdown_path);
+    let (output_pdf_ready, markdown_ready, bundle_ready) = job_readiness(job, data_root);
     LibraryBookListItemView {
         id: job.job_id.clone(),
         job_id: job.job_id.clone(),
@@ -189,7 +187,8 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::models::{CreateJobInput, JobArtifacts, JobSnapshot};
+    use crate::models::domain::{JobArtifacts, JobSnapshot};
+    use crate::models::request::CreateJobInput;
 
     #[test]
     fn library_projection_uses_library_media_urls() {

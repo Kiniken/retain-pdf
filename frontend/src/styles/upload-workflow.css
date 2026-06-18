@@ -23,6 +23,8 @@
   }
 
   .translation-workflow-card .form {
+    display: grid;
+    gap: 12px;
     width: 100%;
   }
 
@@ -320,9 +322,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: min(100%, 560px);
-    padding: 0;
-    pointer-events: none;
+    width: 100%;
+    padding: 2px 0 0;
+    pointer-events: auto;
   }
 
   .inline-page-range {
@@ -361,24 +363,33 @@
     text-align: center;
   }
 
-  .upload-action-slot > button {
-    min-height: 52px;
-    box-shadow: 0 18px 36px rgba(29, 29, 31, 0.16);
-    pointer-events: auto;
-    flex: 1 1 0;
-    min-width: 0;
-  }
-
   .upload-action-group {
     position: relative;
-    @apply flex items-center justify-center gap-3;
-    width: min(680px, 100%);
+    @apply inline-flex items-center justify-center gap-2;
+    width: auto;
+    max-width: 100%;
+    padding: 6px;
+    border: 1px solid rgba(210, 210, 215, 0.78);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, 0.07);
     pointer-events: auto;
+  }
+
+  .upload-action-group > button {
+    flex: 0 0 116px;
+    width: 116px;
+    min-width: 116px;
+    max-width: 116px;
+    min-height: 34px;
+    padding: 0 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    box-shadow: none;
   }
 
   .upload-action-group #submit-btn {
     order: 1;
-    min-width: 0;
     background: #1d1d1f;
     color: #fff;
     border-color: #1d1d1f;
@@ -386,7 +397,6 @@
 
   .upload-action-group #page-range-btn {
     order: 0;
-    min-width: 0;
   }
 
   .math-mode-inline {
@@ -521,12 +531,17 @@
     }
 
     .upload-action-group {
-      flex-wrap: wrap;
-      gap: 10px;
+      gap: 8px;
+      padding: 6px;
     }
 
     .upload-action-group > button {
-      flex: 1 1 210px;
+      flex: 0 1 116px;
+      width: min(116px, calc((100vw - 64px) / 2));
+      min-width: 0;
+      max-width: 116px;
+      min-height: 36px;
+      font-size: 12px;
     }
   }
 }

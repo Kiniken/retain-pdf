@@ -6,6 +6,7 @@ from foundation.config import fonts
 from foundation.config import runtime
 from foundation.config.output_layout import ARTIFACTS_DIR_NAME
 from runtime.pipeline.render_mode import is_editable_pdf
+from runtime.pipeline.render_mode import resolve_effective_render_mode
 from runtime.pipeline.render_stage import build_book_from_translations
 from runtime.pipeline.render_stage import build_book_pipeline
 from runtime.pipeline.render_stage import run_render_stage
@@ -162,6 +163,14 @@ def run_book_pipeline(
     )
     if render_visual_prewarm_handle is not None:
         render_visual_prewarm_handle.wait()
+    effective_prewarm_render_mode = resolve_effective_render_mode(
+        render_mode=render_mode,
+        source_pdf_path=source_pdf_path,
+        start_page=translation_summary["start_page"],
+        end_page=translation_summary["end_page"],
+        translated_pages_map=translation_summary["translated_pages_map"],
+        document_analysis=render_document_analysis,
+    )
     render_preprocess_handle = start_render_source_prewarm(
         RenderPrewarmSpec(
             source_pdf_path=source_pdf_path,
@@ -174,6 +183,7 @@ def run_book_pipeline(
             pdf_compress_dpi=pdf_compress_dpi,
             source_cleanup_strategy=source_cleanup_strategy,
             document_analysis=render_document_analysis,
+            include_source_cleanup=effective_prewarm_render_mode != "overlay",
         )
     )
     render_preprocess_handle.wait()

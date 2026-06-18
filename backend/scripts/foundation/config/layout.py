@@ -7,6 +7,7 @@ INNER_BBOX_DENSE_SHRINK_X = 0.0
 INNER_BBOX_DENSE_SHRINK_Y = 0.0
 FONT_UNIFY_MODE = "role_min"
 SOURCE_CLEANUP_STRATEGY = "pikepdf_text_strip"
+DEFAULT_TEXT_OVERLAY_COVER_FILL = True
 SOURCE_CLEANUP_TYPST_FILL = "typst_fill"
 SOURCE_CLEANUP_PIKEPDF_TEXT_STRIP = "pikepdf_text_strip"
 SOURCE_CLEANUP_BBOX_TEXT_STRIP_ALIASES = {
@@ -31,6 +32,7 @@ def apply_layout_tuning(
     inner_bbox_dense_shrink_y: float | None = None,
     font_unify_mode: str | None = None,
     source_cleanup_strategy: str | None = None,
+    default_text_overlay_cover_fill: bool | None = None,
 ) -> None:
     global BODY_FONT_SIZE_FACTOR
     global BODY_LEADING_FACTOR
@@ -40,6 +42,7 @@ def apply_layout_tuning(
     global INNER_BBOX_DENSE_SHRINK_Y
     global FONT_UNIFY_MODE
     global SOURCE_CLEANUP_STRATEGY
+    global DEFAULT_TEXT_OVERLAY_COVER_FILL
 
     if body_font_size_factor is not None:
         BODY_FONT_SIZE_FACTOR = body_font_size_factor
@@ -58,6 +61,8 @@ def apply_layout_tuning(
         FONT_UNIFY_MODE = mode if mode in {"role_min", "off"} else "role_min"
     if source_cleanup_strategy is not None:
         SOURCE_CLEANUP_STRATEGY = normalize_source_cleanup_strategy(source_cleanup_strategy)
+    if default_text_overlay_cover_fill is not None:
+        DEFAULT_TEXT_OVERLAY_COVER_FILL = bool(default_text_overlay_cover_fill)
 
 
 def normalize_source_cleanup_strategy(value: str | None) -> str:
@@ -69,6 +74,10 @@ def normalize_source_cleanup_strategy(value: str | None) -> str:
 
 def use_typst_fill_cleanup() -> bool:
     return SOURCE_CLEANUP_STRATEGY == SOURCE_CLEANUP_TYPST_FILL
+
+
+def use_default_text_overlay_cover_fill() -> bool:
+    return DEFAULT_TEXT_OVERLAY_COVER_FILL
 
 
 def use_bbox_text_strip_cleanup(strategy: str | None = None) -> bool:

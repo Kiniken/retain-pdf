@@ -79,12 +79,7 @@ def prepare_translated_pages_for_render(
         first_line_indent_lookup=first_line_indent_lookup,
         effective_inner_bbox_lookup=effective_inner_bbox_lookup,
     )
-    if not skip_policy_page_indices:
-        return apply_render_pages_policy_fields(prepared_pages)
-    return {
-        page_idx: items if page_idx in skip_policy_page_indices else apply_render_page_policy_fields(items)
-        for page_idx, items in prepared_pages.items()
-    }
+    return apply_render_pages_policy_fields(prepared_pages)
 
 
 def compile_background_pdf_resilient(

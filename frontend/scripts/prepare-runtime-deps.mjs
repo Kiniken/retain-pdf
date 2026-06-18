@@ -30,10 +30,6 @@ function copyPackageAssets(packageName, entries, targetDirName = packageName) {
 
 fs.mkdirSync(vendorRoot, { recursive: true });
 
-copyPackageAssets("pdf-lib", [
-  "dist/pdf-lib.esm.js",
-]);
-
 copyPackageAssets("pdfjs-dist", [
   "build/pdf.mjs",
   "build/pdf.worker.mjs",

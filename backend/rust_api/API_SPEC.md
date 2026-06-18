@@ -325,14 +325,14 @@ Query parameters:
 Behavior:
 
 - events are returned in ascending `seq` order
-- `GET /api/v1/jobs/{job_id}/events` is the frontend's primary progress source for the whole workflow
+- `GET /api/v1/jobs/{job_id}/events` is the historical progress and debugging stream
 - runtime merges DB events, `DATA_ROOT/jobs/<job_id>/logs/pipeline_events.jsonl`, and OCR child events from `{job_id}-ocr`
 - OCR child events are mapped back to the parent `job_id`
 - when an event came from the OCR child job, `payload.source_job_id` contains the child job ID and `payload.source_event` contains the original child event payload
 - `GET /api/v1/ocr/jobs/{job_id}/events` remains available for OCR-only debugging and direct OCR jobs
 - each public event includes:
   - `job_id`, `seq`, `created_at`, `ts`, `level`
-  - `display_stage`: `ocr`, `translation`, `render`, or `done`
+  - `display_stage`: `ocr`, `translation`, `render`, or `null`; `done` is never emitted
   - `stage`: machine-readable backend stage such as `ocr_processing`, `translating`, or `rendering`
   - `substage`
   - `stage_detail`
@@ -345,8 +345,9 @@ Behavior:
   - `raw`: source-kind/source-seq/debug metadata for DB, pipeline jsonl, or OCR child events
 - public events do not expose top-level `user_stage`, `progress_unit`, `progress_current`, or `progress_total`; those may still exist inside `raw` / `payload.source_event`
 - `event` remains a compatibility alias for legacy clients; new clients should prefer `event_type`
-- `stage` stays machine-readable, while frontend tabs should use `display_stage`
+- `stage` stays machine-readable. Frontend current-stage UI must use job `stage_snapshot`, not events.
 - completed jobs keep historical events; clients should not rely only on the final `finished` event
+- `stage_snapshot` in job detail/list is authoritative for current stage and progress. Clients MUST NOT compute the active stage from `events[*]`.
 - failed `failure_classified` and `job_terminal` events include `payload.contracts`
   with the same `job_stage_contracts.v1` shape as job detail, so clients can
   explain missing artifacts directly from the event stream.
@@ -491,7 +492,8 @@ Canonical JSON request:
     "cache_tolerance": 900,
     "extra_formats": "",
     "poll_interval": 5,
-    "poll_timeout": 1800
+    "poll_timeout": 1800,
+    "options": {}
   },
   "translation": {
     "mode": "sci",
@@ -558,12 +560,67 @@ Endpoint boundary:
 - `/api/v1/jobs` is for `book`, `translate`, and `render`
 - `/api/v1/ocr/jobs` is for OCR-only jobs
 - `/api/v1/translate/bundle` is the synchronous multipart helper for the same full flow; flat multipart fields remain supported here, including `provider=paddle|mineru`
+- `GET /api/v1/providers/ocr` returns discoverable OCR provider metadata, credentials, options, capabilities, and artifact layout
 
 Required provider fields:
 
 - `ocr.mineru_token` when `ocr.provider=mineru`
 - `ocr.paddle_token` when `ocr.provider=paddle`
 - `translation.base_url`, `translation.api_key`, and `translation.model` when translation is required
+
+OCR provider options:
+
+- `ocr.options` is the canonical JSON object for provider-specific non-secret options.
+- For multipart helper requests, send the same object as JSON string field `ocr_options`.
+- Legacy fields such as `paddle_model` and `paddle_api_url` remain accepted for current built-in providers; new command providers should prefer `ocr.options`.
+- Dynamic providers declared in `backend/config/ocr_providers.json` with `kind=local_command` or `kind=remote_command` are discoverable through `/api/v1/providers/ocr` and are executed through `provider.stage.v1`.
+- `remote_command` means the external command owns the remote API submit/poll/download state machine. The backend passes `source.file_url`, optional local file path, provider options, and credential env, then consumes only the resulting source PDF plus `document.v1.json`.
+- Configured command provider credentials can be supplied through `ocr.options.credential`, `ocr.options.token`, `ocr.options.api_key`, or through the provider config `credential.env`. The worker exposes the resolved secret to the command as `RETAIN_OCR_CREDENTIAL`.
+
+`GET /api/v1/providers/ocr` response example:
+
+```json
+{
+  "code": 0,
+  "message": "ok",
+  "data": [
+    {
+      "key": "paddle",
+      "display_name": "PaddleOCR",
+      "provider_kind": "remote",
+      "credential": {
+        "field": "paddle_token",
+        "env": "RETAIN_PADDLE_API_TOKEN",
+        "required_for": ["remote_url", "local_upload"]
+      },
+      "options": {
+        "paddle_model": {
+          "type": "string",
+          "default": "PaddleOCR-VL-1.6",
+          "aliases": {
+            "paddleocr-vl": "PaddleOCR-VL-1.6"
+          }
+        }
+      },
+      "capabilities": {
+        "supports_remote_url_submit": true,
+        "supports_local_file_upload": true,
+        "supports_polling": true,
+        "supports_download_bundle": true,
+        "supports_extra_formats": false,
+        "supports_formula_toggle": false,
+        "supports_table_toggle": false
+      },
+      "artifact_layout": {
+        "provider_result_json": "paddle_result.json",
+        "provider_bundle_zip": "paddle_bundle.zip",
+        "provider_raw_dir": "paddle_raw",
+        "layout_json": "paddle_result.json"
+      }
+    }
+  ]
+}
+```
 
 Translation options:
 
@@ -676,9 +733,9 @@ Stable list item fields:
 - `display_name`
 - `workflow`
 - `status`
-- `stage`
-- `stage_detail`
-- `progress`: `{current, total, percent}`
+- `stage_snapshot`: current main stage snapshot, or `null` for terminal jobs
+- `background_snapshots`: background stage snapshots such as `render_prewarm`
+- `stages`: stage-state object for `ocr`, `translation`, and `render`
 - `page_count`
 - `source_file_name`
 - `output_pdf_ready`
@@ -697,9 +754,20 @@ Example item:
   "display_name": "paper.pdf",
   "workflow": "book",
   "status": "running",
-  "stage": "translating",
-  "stage_detail": "正在翻译，第 3/12 批",
-  "progress": {"current": 3, "total": 12, "percent": 25.0},
+  "stage_snapshot": {
+    "display_stage": "translation",
+    "stage": "translating",
+    "substage": "translation_batches",
+    "lane": "main",
+    "stage_detail": "正在翻译，第 3/12 批",
+    "progress": {"unit": "batch", "current": 3, "total": 12, "percent": 25.0}
+  },
+  "background_snapshots": [],
+  "stages": {
+    "ocr": {"state": "completed", "progress": {"current": null, "total": null, "percent": null}},
+    "translation": {"state": "in_progress", "progress": {"unit": "batch", "current": 3, "total": 12, "percent": 25.0}},
+    "render": {"state": "pending", "progress": {"current": null, "total": null, "percent": null}}
+  },
   "page_count": 12,
   "source_file_name": "paper.pdf",
   "output_pdf_ready": false,
@@ -987,12 +1055,38 @@ Response:
     "job_id": "20260327190500-ef3456",
     "workflow": "book",
     "status": "running",
-    "stage": "translating",
-    "stage_detail": "正在翻译，第 3/12 批",
-    "progress": {
-      "current": 3,
-      "total": 12,
-      "percent": 25.0
+    "stage_snapshot": {
+      "display_stage": "translation",
+      "stage": "translating",
+      "substage": "translation_batches",
+      "lane": "main",
+      "stage_detail": "正在翻译，第 3/12 批",
+      "progress": {
+        "unit": "batch",
+        "current": 3,
+        "total": 12,
+        "percent": 25.0
+      }
+    },
+    "background_snapshots": [
+      {
+        "display_stage": "render",
+        "stage": "rendering",
+        "substage": "render_prewarm",
+        "lane": "background",
+        "stage_detail": "渲染预热完成",
+        "progress": {
+          "unit": "step",
+          "current": 2,
+          "total": 3,
+          "percent": 66.66666666666666
+        }
+      }
+    ],
+    "stages": {
+      "ocr": {"state": "completed", "progress": {"current": null, "total": null, "percent": null}},
+      "translation": {"state": "in_progress", "progress": {"unit": "batch", "current": 3, "total": 12, "percent": 25.0}},
+      "render": {"state": "pending", "progress": {"current": null, "total": null, "percent": null}}
     },
     "timestamps": {
       "created_at": "2026-03-27T11:05:00Z",
@@ -1261,12 +1355,24 @@ Response:
         "display_name": "paper.pdf",
         "workflow": "book",
         "status": "running",
-        "stage": "translating",
-        "stage_detail": "正在翻译，第 3/12 批",
-        "progress": {
-          "current": 3,
-          "total": 12,
-          "percent": 25.0
+        "stage_snapshot": {
+          "display_stage": "translation",
+          "stage": "translating",
+          "substage": "translation_batches",
+          "lane": "main",
+          "stage_detail": "正在翻译，第 3/12 批",
+          "progress": {
+            "unit": "batch",
+            "current": 3,
+            "total": 12,
+            "percent": 25.0
+          }
+        },
+        "background_snapshots": [],
+        "stages": {
+          "ocr": {"state": "completed", "progress": {"current": null, "total": null, "percent": null}},
+          "translation": {"state": "in_progress", "progress": {"unit": "batch", "current": 3, "total": 12, "percent": 25.0}},
+          "render": {"state": "pending", "progress": {"current": null, "total": null, "percent": null}}
         },
         "page_count": 12,
         "source_file_name": "paper.pdf",
@@ -1368,7 +1474,24 @@ Response:
 
 - raw `application/pdf`
 
-## 6.1 Cover and Thumbnail
+## 6.1 Side-by-side PDF
+
+`GET /api/v1/jobs/{job_id}/pdf/side-by-side`
+
+Response:
+
+- raw `application/pdf`
+- `Content-Disposition` filename: `{job_id}-side-by-side.pdf`
+
+Behavior:
+
+- reads the job source PDF and final translated PDF from backend artifacts
+- generates and caches `jobs/{job_id}/artifacts/{job_id}-side-by-side.pdf`
+- each output page places the original page on the left and the translated page on the right
+- output page count is `max(source_page_count, translated_page_count)`; a missing side is left blank
+- returns `404` if either source PDF or translated PDF is not ready
+
+## 6.2 Cover and Thumbnail
 
 `GET /api/v1/jobs/{job_id}/cover`
 

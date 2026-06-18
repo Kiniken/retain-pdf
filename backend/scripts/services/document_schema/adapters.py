@@ -22,12 +22,12 @@ def _load_json(path: Path) -> dict:
 
 
 def _build_mineru_document(payload: dict, document_id: str, source_json_path: Path, provider_version: str) -> dict:
-    from services.mineru.document_v1 import build_normalized_document_from_layout_payload
+    from services.document_schema.provider_adapters.mineru import build_mineru_document
 
-    return build_normalized_document_from_layout_payload(
-        layout_payload=payload,
+    return build_mineru_document(
+        payload=payload,
         document_id=document_id,
-        layout_json_path=source_json_path,
+        source_json_path=source_json_path,
         provider_version=provider_version,
     )
 
@@ -209,13 +209,9 @@ def adapt_path_to_document_v1_with_report(
 
 
 def _looks_like_mineru_layout(payload: dict) -> bool:
-    pdf_info = payload.get("pdf_info")
-    if not isinstance(pdf_info, list):
-        return False
-    if not pdf_info:
-        return True
-    first_page = pdf_info[0]
-    return isinstance(first_page, dict) and "para_blocks" in first_page
+    from services.document_schema.provider_adapters.mineru import looks_like_mineru_layout
+
+    return looks_like_mineru_layout(payload)
 
 
 def _looks_like_mineru_content_list_v2(payload: dict) -> bool:

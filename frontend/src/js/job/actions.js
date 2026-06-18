@@ -1,8 +1,9 @@
 import {
+  appendResourceQuery,
   hasReadyManifestArtifact,
   resolveManifestArtifactUrl,
   resolveJobMarkdownContract,
-  toAbsoluteApiUrl,
+  resolveResourceUrl,
 } from "../job/artifacts.js";
 import { firstNonEmpty } from "./core.js";
 
@@ -18,19 +19,11 @@ function artifactDisplayReady(job, ...keys) {
 
 function artifactDisplayUrl(job, ...keys) {
   const item = artifactDisplayItem(job, ...keys);
-  return toAbsoluteApiUrl(firstNonEmpty(item?.download_url, item?.url, item?.path));
+  return resolveResourceUrl(firstNonEmpty(item?.download_url, item?.url, item?.path));
 }
 
 function withIncludeJobDir(url) {
-  const normalized = `${url || ""}`.trim();
-  if (!normalized) {
-    return "";
-  }
-  if (/[?&]include_job_dir=/.test(normalized)) {
-    return normalized;
-  }
-  const separator = normalized.includes("?") ? "&" : "?";
-  return `${normalized}${separator}include_job_dir=true`;
+  return appendResourceQuery(url, { include_job_dir: "true" });
 }
 
 export function resolveJobActions(job) {
@@ -76,14 +69,14 @@ export function resolveJobActions(job) {
     pdfEnabled,
     markdownJsonEnabled,
     markdownRawEnabled,
-    cancel: toAbsoluteApiUrl(firstNonEmpty(
+    cancel: resolveResourceUrl(firstNonEmpty(
       actions.cancel?.url,
       artifactActions.cancel?.url,
       actions.cancel_url,
       links.cancel_url,
       links.cancel_path,
     )),
-    rerun: toAbsoluteApiUrl(firstNonEmpty(
+    rerun: resolveResourceUrl(firstNonEmpty(
       actions.rerun?.url,
       artifactActions.rerun?.url,
       actions.rerun?.path,
@@ -92,7 +85,7 @@ export function resolveJobActions(job) {
       links.rerun_url,
       links.rerun_path,
     )),
-    bundle: toAbsoluteApiUrl(firstNonEmpty(
+    bundle: resolveResourceUrl(firstNonEmpty(
       actions.download_bundle?.url,
       actions.download_bundle?.path,
       artifactActions.download_bundle?.url,
@@ -105,7 +98,7 @@ export function resolveJobActions(job) {
       job.bundle_path,
       artifactDisplayUrl(job, "bundle", "download_bundle", "archive"),
     )),
-    pdf: toAbsoluteApiUrl(firstNonEmpty(
+    pdf: resolveResourceUrl(firstNonEmpty(
       actions.download_pdf?.url,
       actions.download_pdf?.path,
       artifactActions.download_pdf?.url,
@@ -118,13 +111,13 @@ export function resolveJobActions(job) {
       job.pdf_path,
       artifactDisplayUrl(job, "output_pdf", "pdf", "translated_pdf", "result_pdf"),
     )),
-    markdownJson: markdownContract.jsonUrl || artifactDisplayUrl(job, "markdown") || toAbsoluteApiUrl(firstNonEmpty(
+    markdownJson: markdownContract.jsonUrl || artifactDisplayUrl(job, "markdown") || resolveResourceUrl(firstNonEmpty(
       actions.open_markdown?.url,
       actions.open_markdown?.path,
       artifactActions.open_markdown?.url,
       artifactActions.open_markdown?.path,
     )),
-    markdownRaw: markdownContract.rawUrl || artifactDisplayUrl(job, "markdown") || toAbsoluteApiUrl(firstNonEmpty(
+    markdownRaw: markdownContract.rawUrl || artifactDisplayUrl(job, "markdown") || resolveResourceUrl(firstNonEmpty(
       actions.open_markdown_raw?.url,
       actions.open_markdown_raw?.path,
       artifactActions.open_markdown_raw?.url,
@@ -140,7 +133,7 @@ export function resolveJobMarkdownBundleAction(job, manifestPayload = null) {
   const manifestUrl = resolveManifestArtifactUrl(manifestPayload, "markdown_bundle_zip", {
     includeJobDir: true,
   });
-  const url = withIncludeJobDir(toAbsoluteApiUrl(firstNonEmpty(
+  const url = withIncludeJobDir(resolveResourceUrl(firstNonEmpty(
     manifestUrl,
     actions.download_markdown_bundle?.url,
     actions.download_markdown_bundle?.path,
@@ -195,7 +188,7 @@ export function resolveJobSourcePdfAction(job, manifestPayload = null) {
   const fallbackUrl = job?.job_id
     ? `/api/v1/jobs/${encodeURIComponent(job.job_id)}/artifacts/source_pdf`
     : "";
-  const url = toAbsoluteApiUrl(firstNonEmpty(
+  const url = resolveResourceUrl(firstNonEmpty(
     manifestUrl,
     artifacts.source_pdf?.url,
     artifacts.source_pdf?.path,

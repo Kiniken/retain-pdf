@@ -1,6 +1,6 @@
 #[cfg(test)]
-use crate::models::JobArtifacts;
-use crate::models::JobRuntimeState;
+use crate::models::domain::JobArtifacts;
+use crate::models::domain::JobRuntimeState;
 use anyhow::Result;
 
 use super::ProcessRuntimeDeps;
@@ -74,13 +74,14 @@ mod tests {
     use crate::config::AppConfig;
     use crate::db::Db;
     use crate::job_events::persist_runtime_job_with_resources;
-    use crate::models::{now_iso, CreateJobInput, JobStatusKind};
+    use crate::models::domain::{now_iso, JobFailureInfo, JobSnapshot, JobStatusKind};
+    use crate::models::request::CreateJobInput;
     use crate::ocr_provider::{provider_token_env_name, OcrProviderKind};
     use crate::AppState;
     use tokio::sync::{Mutex, RwLock, Semaphore};
 
     fn build_job() -> JobRuntimeState {
-        crate::models::JobSnapshot::new(
+        JobSnapshot::new(
             "job-test".to_string(),
             CreateJobInput::default(),
             vec!["python".to_string()],
@@ -219,7 +220,7 @@ mod tests {
 
     #[test]
     fn apply_timeout_failure_marks_job_failed() {
-        let mut job = crate::models::JobSnapshot::new(
+        let mut job = JobSnapshot::new(
             "job-test".to_string(),
             CreateJobInput::default(),
             vec!["python".to_string()],
@@ -235,7 +236,7 @@ mod tests {
     #[tokio::test]
     async fn execute_process_job_preserves_timeout_process_output() {
         let state = test_state("timeout-output");
-        let mut job = crate::models::JobSnapshot::new(
+        let mut job = JobSnapshot::new(
             "job-timeout-output".to_string(),
             CreateJobInput::default(),
             vec![
@@ -359,7 +360,7 @@ print(json.dumps({
         job.stage = Some("failed".to_string());
         job.stage_detail = Some("Python worker 执行失败".to_string());
         job.error = Some("Traceback (most recent call last):\nRuntimeError: boom".to_string());
-        job.failure = Some(crate::models::JobFailureInfo {
+        job.failure = Some(JobFailureInfo {
             stage: "translation".to_string(),
             category: "unknown".to_string(),
             code: None,
@@ -467,7 +468,7 @@ print(json.dumps({
         let state = test_state("provider-envs");
         let paddle_env = provider_token_env_name(&OcrProviderKind::Paddle).expect("paddle env");
         let mineru_env = provider_token_env_name(&OcrProviderKind::Mineru).expect("mineru env");
-        let mut job = crate::models::JobSnapshot::new(
+        let mut job = JobSnapshot::new(
             "job-provider-envs".to_string(),
             CreateJobInput::default(),
             vec![

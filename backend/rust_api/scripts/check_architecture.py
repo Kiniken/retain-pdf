@@ -66,6 +66,10 @@ ROUTE_SERVICE_IMPORT_ALLOWLIST = {
     ),
     Path("src/routes/download_response/files.rs"): (
         "crate::services::jobs::FileDownload",
+        "crate::services::jobs::{DocumentDownloadKind, FileDownload}",
+    ),
+    Path("src/routes/jobs/download.rs"): (
+        "crate::services::jobs::DocumentDownloadKind",
     ),
     Path("src/routes/download_response/markdown.rs"): (
         "crate::services::jobs::MarkdownDownload",
@@ -97,13 +101,23 @@ OCR_FLOW_ORCHESTRATOR_FILE = Path("src/job_runner/ocr_flow/mod.rs")
 OCR_FLOW_ALLOWED_RAW_TOKEN_FILES = {
     Path("src/job_runner/ocr_flow/paddle_markdown.rs"),
 }
+DOWNLOADS_ROOT = SRC_ROOT / "services" / "jobs" / "downloads"
+STAGE_VIEW_CONSUMER_ROOTS = (
+    SRC_ROOT / "services" / "jobs" / "presentation",
+    SRC_ROOT / "services" / "book_projection",
+)
+WORKER_COMMAND_FACADE = SRC_ROOT / "worker_command.rs"
 
 def rel(path: Path) -> Path:
     return path.relative_to(REPO_ROOT)
 
 
 def scan_rs_files(root: Path) -> list[Path]:
-    return sorted(path for path in root.rglob("*.rs") if path.is_file())
+    return sorted(
+        path
+        for path in root.rglob("*.rs")
+        if path.is_file() and ".ipynb_checkpoints" not in path.parts
+    )
 
 
 def check_appstate_boundaries(errors: list[str]) -> None:
@@ -175,6 +189,154 @@ def check_route_service_imports(errors: list[str]) -> None:
             errors.append(
                 f"{rel_path}: routes must not import internal services directly ({service_path})"
             )
+
+
+def check_route_model_boundary(errors: list[str]) -> None:
+    internal_model_tokens = (
+        "JobSnapshot",
+        "JobRuntimeState",
+        "JobRecord",
+        "ResolvedJobSpec",
+        "JobArtifacts",
+        "JobFailureInfo",
+    )
+    model_import_pattern = re.compile(r"^use crate::models::([^\n;]+)", re.MULTILINE)
+    for path in scan_rs_files(SRC_ROOT / "routes"):
+        rel_path = rel(path)
+        text = route_source_without_tests(path)
+        for line in re.findall(r"^use crate::models(?:::|::\{)[^\n;]+", text, re.MULTILINE):
+            if not any(
+                allowed in line
+                for allowed in (
+                    "crate::models::api",
+                    "crate::models::domain",
+                    "crate::models::request",
+                )
+            ):
+                errors.append(
+                    f"{rel_path}: routes must import models through models::api/domain/request facades ({line})"
+                )
+        for imported in model_import_pattern.findall(text):
+            for token in internal_model_tokens:
+                if re.search(rf"\b{re.escape(token)}\b", imported):
+                    errors.append(
+                        f"{rel_path}: routes must not import internal job model {token}; use API view DTOs or services facade"
+                    )
+        if "crate::storage_paths::resolve_" in text:
+            errors.append(
+                f"{rel_path}: routes must not choose storage path resolvers directly; use service download kinds/facades"
+            )
+
+
+def check_service_model_facade_boundaries(errors: list[str]) -> None:
+    scoped_roots = (
+        SRC_ROOT / "services" / "artifacts",
+        SRC_ROOT / "services" / "derived_artifacts",
+        SRC_ROOT / "services" / "derived_artifacts.rs",
+        SRC_ROOT / "job_events",
+        SRC_ROOT / "job_events.rs",
+        SRC_ROOT / "db",
+        SRC_ROOT / "db.rs",
+        SRC_ROOT / "storage_paths",
+        SRC_ROOT / "storage_paths.rs",
+        SRC_ROOT / "worker_command",
+        SRC_ROOT / "worker_command.rs",
+        SRC_ROOT / "app" / "state.rs",
+        SRC_ROOT / "app" / "state_recovery.rs",
+        SRC_ROOT / "ocr_provider",
+        SRC_ROOT / "job_runner" / "mod.rs",
+        SRC_ROOT / "job_runner" / "lifecycle.rs",
+        SRC_ROOT / "job_runner" / "process_runner",
+        SRC_ROOT / "job_runner" / "process_runner.rs",
+        SRC_ROOT / "job_runner" / "stdout_parser",
+        SRC_ROOT / "job_runner" / "process_contract.rs",
+        SRC_ROOT / "job_runner" / "stage_contract.rs",
+        SRC_ROOT / "job_runner" / "runtime_state.rs",
+        SRC_ROOT / "job_runner" / "worker_process.rs",
+        SRC_ROOT / "job_runner" / "execution_queue.rs",
+        SRC_ROOT / "job_runner" / "translation_flow.rs",
+        SRC_ROOT / "job_runner" / "translation_flow_artifacts.rs",
+        SRC_ROOT / "job_runner" / "translation_flow_child.rs",
+        SRC_ROOT / "job_runner" / "translation_flow_executor.rs",
+        SRC_ROOT / "job_runner" / "translation_flow_stage.rs",
+        SRC_ROOT / "job_runner" / "translation_flow_support.rs",
+        SRC_ROOT / "job_runner" / "render_flow.rs",
+        SRC_ROOT / "job_runner" / "render_flow_artifacts.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "mod.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "bundle_download.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "bundle_download_retry.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "bundle_events.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "bundle_ready_wait.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "mineru.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "mineru_polling.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "mineru_retry.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "mineru_status_handlers.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "paddle.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "paddle_errors.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "provider_result.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "provider_transport.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "status.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "support.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "transport.rs",
+        SRC_ROOT / "job_runner" / "ocr_flow" / "workspace.rs",
+        SRC_ROOT / "job_failure.rs",
+        SRC_ROOT / "job_failure_support.rs",
+        SRC_ROOT / "job_failure_structured.rs",
+        SRC_ROOT / "services" / "glossary_api.rs",
+        SRC_ROOT / "services" / "glossaries.rs",
+        SRC_ROOT / "services" / "job_snapshot_factory.rs",
+        SRC_ROOT / "services" / "job_validation.rs",
+        SRC_ROOT / "services" / "job_launcher.rs",
+        SRC_ROOT / "services" / "jobs" / "downloads",
+        SRC_ROOT / "services" / "jobs" / "creation",
+        SRC_ROOT / "services" / "jobs" / "presentation",
+        SRC_ROOT / "services" / "jobs" / "control.rs",
+        SRC_ROOT / "services" / "jobs" / "debug",
+        SRC_ROOT / "services" / "jobs" / "facade.rs",
+        SRC_ROOT / "services" / "jobs" / "facade" / "query",
+        SRC_ROOT / "services" / "jobs" / "facade" / "command" / "creation.rs",
+        SRC_ROOT / "services" / "jobs" / "facade" / "command" / "control.rs",
+        SRC_ROOT / "services" / "jobs" / "facade" / "command" / "rerun.rs",
+        SRC_ROOT / "services" / "jobs" / "facade" / "command" / "stage_retry.rs",
+        SRC_ROOT / "services" / "jobs" / "facade" / "command" / "stage_retry_overrides.rs",
+        SRC_ROOT / "services" / "jobs" / "facade" / "command" / "stage_retry_request.rs",
+        SRC_ROOT / "services" / "jobs" / "facade" / "command" / "stage_retry_view.rs",
+        SRC_ROOT / "services" / "jobs" / "live_stage",
+        SRC_ROOT / "services" / "jobs" / "live_stage.rs",
+        SRC_ROOT / "services" / "jobs" / "reader_regions",
+        SRC_ROOT / "services" / "jobs" / "reader_regions.rs",
+        SRC_ROOT / "services" / "jobs" / "query.rs",
+        SRC_ROOT / "services" / "jobs" / "stage_plan.rs",
+        SRC_ROOT / "services" / "jobs" / "stage_view.rs",
+        SRC_ROOT / "services" / "jobs" / "summary_loaders",
+        SRC_ROOT / "services" / "jobs" / "summary_loaders.rs",
+        SRC_ROOT / "services" / "jobs" / "support.rs",
+        SRC_ROOT / "services" / "library.rs",
+        SRC_ROOT / "services" / "library_api.rs",
+        SRC_ROOT / "services" / "provider_probe.rs",
+        SRC_ROOT / "services" / "upload_api.rs",
+        SRC_ROOT / "services" / "book_projection",
+        SRC_ROOT / "services" / "book_projection.rs",
+    )
+    for root in scoped_roots:
+        paths = [root] if root.is_file() else scan_rs_files(root)
+        for path in paths:
+            rel_path = rel(path)
+            if path.name == "tests.rs":
+                continue
+            text = route_source_without_tests(path)
+            for line in re.findall(r"^use crate::models(?:::|::\{)[^\n;]+", text, re.MULTILINE):
+                if not any(
+                    allowed in line
+                    for allowed in (
+                        "crate::models::api",
+                        "crate::models::domain",
+                        "crate::models::request",
+                    )
+                ):
+                    errors.append(
+                        f"{rel_path}: migrated service modules must import models through models::api/domain/request facades ({line})"
+                    )
 
 
 def check_process_runtime_deps_usage(errors: list[str]) -> None:
@@ -301,6 +463,173 @@ def check_artifact_boundary_layer(errors: list[str]) -> None:
                 )
 
 
+def check_downloads_do_not_generate_artifacts(errors: list[str]) -> None:
+    for path in scan_rs_files(DOWNLOADS_ROOT):
+        rel_path = rel(path)
+        text = path.read_text(encoding="utf-8")
+        if "std::process::Command" in text or "Command::new(" in text:
+            errors.append(
+                f"{rel_path}: downloads layer must not spawn artifact generators; use services::derived_artifacts"
+            )
+        if "import fitz" in text or "qpdf" in text:
+            errors.append(
+                f"{rel_path}: downloads layer must not embed PDF generation scripts; use services::derived_artifacts"
+            )
+
+    downloads_facade = SRC_ROOT / "services" / "jobs" / "downloads.rs"
+    text = route_source_without_tests(downloads_facade)
+    for token in (
+        "crate::storage_paths::",
+        "crate::services::derived_artifacts",
+        "load_supported_job",
+        "resolve_source_pdf",
+        "resolve_output_pdf",
+    ):
+        if token in text:
+            errors.append(
+                f"{rel(downloads_facade)}: downloads facade must stay thin; move concrete download behavior into services/jobs/downloads/* ({token})"
+            )
+
+
+def check_stage_view_projection_boundary(errors: list[str]) -> None:
+    allowed = {
+        Path("src/services/jobs/presentation/detail_projection.rs"),
+        Path("src/services/jobs/presentation/listing.rs"),
+        Path("src/services/book_projection/live.rs"),
+    }
+    forbidden_tokens = (
+        "public_stage_for_raw_stage(",
+        "build_progress_view(",
+        "progress_current",
+        "progress_total",
+        "background_stages.iter()",
+    )
+    for root in STAGE_VIEW_CONSUMER_ROOTS:
+        for path in scan_rs_files(root):
+            rel_path = rel(path)
+            text = route_source_without_tests(path)
+            if "JobDetailView" not in text and "JobListItemView" not in text and "BookLiveProjection" not in text:
+                continue
+            if rel_path not in allowed:
+                continue
+            if "build_job_stage_view(" not in text:
+                errors.append(
+                    f"{rel_path}: stage/progress presentation must use services::jobs::stage_view::build_job_stage_view"
+                )
+            for token in forbidden_tokens:
+                if token in text:
+                    errors.append(
+                        f"{rel_path}: stage/progress fallback belongs in services::jobs::stage_view, found '{token}'"
+                    )
+
+
+def check_job_readiness_boundary(errors: list[str]) -> None:
+    scoped_roots = (
+        SRC_ROOT / "services" / "jobs" / "presentation",
+        SRC_ROOT / "services" / "book_projection",
+    )
+    for root in scoped_roots:
+        for path in scan_rs_files(root):
+            rel_path = rel(path)
+            text = route_source_without_tests(path)
+            if re.search(
+                r"\breadiness\s*\([^;]*resolve_output_pdf\s*,\s*resolve_markdown_path",
+                text,
+                re.DOTALL,
+            ):
+                errors.append(
+                    f"{rel_path}: presentation must use services::jobs::job_readiness instead of wiring storage resolvers"
+                )
+
+
+def check_translation_debug_boundary(errors: list[str]) -> None:
+    debug_root = SRC_ROOT / "services" / "jobs" / "debug"
+    query_translation_debug = SRC_ROOT / "services" / "jobs" / "facade" / "query" / "translation_debug.rs"
+    command_translation_debug = SRC_ROOT / "services" / "jobs" / "facade" / "command" / "translation_debug.rs"
+    artifact_module = debug_root / "artifacts.rs"
+    if not artifact_module.exists():
+        errors.append(
+            "src/services/jobs/debug/artifacts.rs: expected translation debug artifact reader boundary is missing"
+        )
+    if not command_translation_debug.exists():
+        errors.append(
+            "src/services/jobs/facade/command/translation_debug.rs: expected translation debug command facade is missing"
+        )
+
+    projection_files = (
+        debug_root / "index.rs",
+        debug_root / "item.rs",
+        debug_root / "diagnostics.rs",
+    )
+    for path in projection_files:
+        rel_path = rel(path)
+        text = route_source_without_tests(path)
+        if "super::index::load_manifest_pages" in text:
+            errors.append(
+                f"{rel_path}: debug projection must read manifest pages through debug::artifacts, not debug::index"
+            )
+        if path.name in {"index.rs", "item.rs"} and "resolve_translation_manifest" in text:
+            errors.append(
+                f"{rel_path}: translation manifest path resolution belongs in debug/artifacts.rs"
+            )
+        if path.name == "index.rs" and "resolve_translation_debug_index" in text:
+            errors.append(
+                f"{rel_path}: translation debug index file resolution belongs in debug/artifacts.rs"
+            )
+
+    if query_translation_debug.exists():
+        text = route_source_without_tests(query_translation_debug)
+        for token in (
+            "replay_translation_item",
+            "TranslationReplayView",
+            "Command::new(",
+            "tokio::process::Command",
+        ):
+            if token in text:
+                errors.append(
+                    f"{rel(query_translation_debug)}: query facade must not execute replay actions ({token}); use facade/command/translation_debug.rs"
+                )
+
+
+def check_reader_regions_boundary(errors: list[str]) -> None:
+    reader_projection = SRC_ROOT / "services" / "jobs" / "reader_regions.rs"
+    reader_artifacts = SRC_ROOT / "services" / "jobs" / "reader_regions" / "artifacts.rs"
+    if not reader_artifacts.exists():
+        errors.append(
+            "src/services/jobs/reader_regions/artifacts.rs: expected reader artifact reader boundary is missing"
+        )
+        return
+    text = route_source_without_tests(reader_projection)
+    for token in (
+        "resolve_translation_manifest",
+        "resolve_normalized_document",
+        "std::fs::read_to_string",
+        "serde_json::from_str",
+    ):
+        if token in text:
+            errors.append(
+                f"{rel(reader_projection)}: reader projection must not read/parse source artifacts directly ({token}); use reader_regions/artifacts.rs"
+            )
+
+
+def check_summary_loaders_boundary(errors: list[str]) -> None:
+    summary_root = SRC_ROOT / "services" / "jobs" / "summary_loaders"
+    shared = summary_root / "shared.rs"
+    if not shared.exists():
+        errors.append(
+            "src/services/jobs/summary_loaders/shared.rs: expected summary artifact reader boundary is missing"
+        )
+        return
+    for name in ("glossary.rs", "invocation.rs"):
+        path = summary_root / name
+        text = route_source_without_tests(path)
+        for token in ("resolve_translation_manifest", "resolve_data_path", "read_json_value("):
+            if token in text:
+                errors.append(
+                    f"{rel(path)}: summary loaders must read shared summary artifacts through summary_loaders/shared.rs ({token})"
+                )
+
+
 def check_ocr_flow_boundaries(errors: list[str]) -> None:
     for path in scan_rs_files(OCR_FLOW_ROOT):
         rel_path = rel(path)
@@ -344,6 +673,63 @@ def check_ocr_flow_boundaries(errors: list[str]) -> None:
                 )
 
 
+def check_worker_command_boundary(errors: list[str]) -> None:
+    text = route_source_without_tests(WORKER_COMMAND_FACADE)
+    forbidden_facade_tokens = (
+        "enum JobPathArg",
+        "enum OcrArg",
+        "const JOB_PATH_ARGS",
+        "const OCR_ARGS",
+        "fn push_job_path_args",
+        "fn push_ocr_args",
+        "write_normalize_stage_spec(",
+        "write_translate_stage_spec(",
+        "write_render_stage_spec(",
+    )
+    for token in forbidden_facade_tokens:
+        if token in text:
+            errors.append(
+                f"src/worker_command.rs: worker command facade must not own OCR args or stage spec assembly ({token})"
+            )
+
+    required_modules = (
+        SRC_ROOT / "worker_command" / "legacy_ocr.rs",
+        SRC_ROOT / "worker_command" / "stage_commands.rs",
+        SRC_ROOT / "worker_command" / "stage_specs.rs",
+    )
+    for path in required_modules:
+        if not path.exists():
+            errors.append(f"{rel(path)}: expected worker command boundary module is missing")
+
+    job_runner_forbidden_tokens = (
+        "build_normalize_ocr_command",
+        "build_translate_only_command",
+        "build_render_only_command",
+    )
+    for path in scan_rs_files(SRC_ROOT / "job_runner"):
+        rel_path = rel(path)
+        text = route_source_without_tests(path)
+        for token in job_runner_forbidden_tokens:
+            if token in text:
+                errors.append(
+                    f"{rel_path}: job_runner must request WorkerStageCommand instead of direct {token}"
+                )
+
+    snapshot_factory_path = SRC_ROOT / "services" / "job_snapshot_factory.rs"
+    snapshot_factory_text = route_source_without_tests(snapshot_factory_path)
+    if "crate::worker_command" in snapshot_factory_text or "build_ocr_command" in snapshot_factory_text:
+        errors.append(
+            "src/services/job_snapshot_factory.rs: snapshot creation must not build worker commands"
+        )
+
+    child_creation_path = SRC_ROOT / "job_runner" / "translation_flow_child.rs"
+    child_creation_text = route_source_without_tests(child_creation_path)
+    if "build_ocr_command" in child_creation_text:
+        errors.append(
+            "src/job_runner/translation_flow_child.rs: OCR child creation must keep a placeholder command; execute_ocr_job builds provider command"
+        )
+
+
 def check_protocol_docs(errors: list[str]) -> None:
     path = REPO_ROOT / "API_SPEC.md"
     text = path.read_text(encoding="utf-8")
@@ -366,6 +752,8 @@ def main() -> int:
     check_jobs_route_deps_dedup(errors)
     check_route_state_resource_access(errors)
     check_route_service_imports(errors)
+    check_route_model_boundary(errors)
+    check_service_model_facade_boundaries(errors)
     check_process_runtime_deps_usage(errors)
     check_job_persist_deps_usage(errors)
     check_runtime_deps_module_boundary(errors)
@@ -373,7 +761,14 @@ def main() -> int:
     check_lifecycle_helper_boundaries(errors)
     check_provider_markdown_fallback(errors)
     check_artifact_boundary_layer(errors)
+    check_downloads_do_not_generate_artifacts(errors)
+    check_stage_view_projection_boundary(errors)
+    check_job_readiness_boundary(errors)
+    check_translation_debug_boundary(errors)
+    check_reader_regions_boundary(errors)
+    check_summary_loaders_boundary(errors)
     check_ocr_flow_boundaries(errors)
+    check_worker_command_boundary(errors)
     check_protocol_docs(errors)
 
     if errors:

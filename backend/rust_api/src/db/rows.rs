@@ -4,9 +4,10 @@ use anyhow::{Context, Result};
 use rusqlite::types::Type;
 use rusqlite::Row;
 
-use crate::models::{
-    event_progress_unit, job_user_stage, GlossaryRecord, JobArtifactRecord, JobEventRecord,
-    JobFailureInfo, JobRuntimeInfo, JobSnapshot, ResolvedJobSpec,
+use crate::models::api::JobEventRecord;
+use crate::models::domain::{
+    event_progress_unit, job_user_stage, GlossaryRecord, JobArtifactRecord, JobFailureInfo,
+    JobRecord, JobRuntimeInfo, JobSnapshot, ResolvedJobSpec,
 };
 
 pub(super) const JOB_SELECT_SQL: &str = r#"
@@ -30,7 +31,7 @@ pub(super) fn row_to_job_snapshot(row: &Row<'_>) -> rusqlite::Result<JobSnapshot
     let status_json: String = row.get(2)?;
     let request_json: String = row.get(10)?;
     Ok(JobSnapshot {
-        record: crate::models::JobRecord {
+        record: JobRecord {
             job_id: row.get(0)?,
             workflow: parse_json_column(1, "workflow", &workflow_json)?,
             status: parse_json_column(2, "status_json", &status_json)?,

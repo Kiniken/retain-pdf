@@ -104,7 +104,7 @@ pub fn normalize_event_user_stage(value: &str) -> Option<&'static str> {
         "ocr" => Some("ocr"),
         "translate" | "translation" => Some("translation"),
         "render" => Some("render"),
-        "done" => Some("done"),
+        "done" => None,
         _ => None,
     }
 }
@@ -134,7 +134,7 @@ pub fn public_stage_for_substage(substage: Option<&str>) -> Option<&'static str>
         | "final_untranslated_recovery" => Some("translation"),
         "render_prepare" | "render_preprocess" | "render_prewarm" | "render_pages"
         | "render_compile" => Some("render"),
-        "finished" | "done" | "succeeded" => Some("done"),
+        "finished" | "done" | "succeeded" => None,
         _ => None,
     }
 }
@@ -156,8 +156,8 @@ pub fn public_stage_for_raw_stage(stage: Option<&str>) -> Option<&'static str> {
         "render_prepare" | "render_preprocess" | "rendering" | "compile" | "overlay" | "saving" => {
             Some("render")
         }
-        "finished" | "done" | "succeeded" => Some("done"),
-        "failed" | "canceled" => Some("done"),
+        "finished" | "done" | "succeeded" => None,
+        "failed" | "canceled" => None,
         _ => None,
     }
 }
@@ -213,7 +213,7 @@ pub fn job_stage_rank(stage: Option<&str>) -> i32 {
         None => match job_user_stage(stage) {
             Some("ocr") => 1,
             Some("translation") => 2,
-            Some("render") | Some("done") => 3,
+            Some("render") => 3,
             _ => 0,
         },
     }

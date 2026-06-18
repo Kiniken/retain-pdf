@@ -23,6 +23,7 @@ from services.rendering.source.cleanup.vector_heavy import apply_vector_heavy_re
 from services.rendering.source.cleanup.visual_cover_execution import apply_visual_cover_redaction
 from services.rendering.source.cleanup.plan_types import RedactionPlan
 from services.rendering.source.text_redaction import remove_text_under_rects_with_pymupdf_redaction
+from services.rendering.visual_profile import VisualProfileRuntime
 
 
 def apply_auto_redaction(
@@ -91,6 +92,7 @@ def apply_redaction_route(
     cover_only: bool = False,
     strategy: str | None = None,
     plan: RedactionPlan | None = None,
+    visual_profile: VisualProfileRuntime | None = None,
 ) -> dict[str, object]:
     route = resolve_redaction_route(strategy, cover_only=cover_only)
     if route in ("auto", "visual_cover", "visual_cover_and_remove_text"):
@@ -115,6 +117,7 @@ def apply_redaction_route(
             draw_covers=draw_white_covers,
             draw_flat_covers=draw_flat_white_covers,
             remove_text=remove_text_under_rects_with_pymupdf_redaction,
+            visual_profile=visual_profile,
         )
 
     if decision.execution == "visual_cover_and_remove_text":
@@ -127,6 +130,7 @@ def apply_redaction_route(
             draw_covers=draw_white_covers,
             draw_flat_covers=draw_flat_white_covers,
             remove_text=remove_text_under_rects_with_pymupdf_redaction,
+            visual_profile=visual_profile,
         )
 
     if decision.execution == "image_page_redaction":

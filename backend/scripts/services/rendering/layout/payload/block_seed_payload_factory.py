@@ -141,7 +141,7 @@ def build_seed_payload_for_item(
         font_size_pt = round(font_size_pt * COMPACT_SCALE, 2)
         leading_em = round(leading_em * COMPACT_SCALE, 2)
 
-    if not title_like and not memory_hit:
+    if not title_like:
         fit_item = {
             **item,
             "_is_body_text_candidate": body_like_single_line,

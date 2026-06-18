@@ -52,7 +52,9 @@ AUTHOR_START_RE = re.compile(
 
 TITLE_STYLE_HINT = (
     "Title rule: translate titles as concise formal headings. Preserve numbering, "
-    "formula placeholders, symbols, and proper nouns; do not expand into body prose."
+    "formula placeholders, symbols, and proper nouns; apply the document domain "
+    "guidance and matched terminology when choosing technical wording; do not "
+    "expand into body prose."
 )
 STYLE_HINTS_BY_ROLE = {
     "abstract": "This block is an abstract sentence or paragraph. Translate it as compact academic summary prose.",

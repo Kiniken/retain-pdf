@@ -6,7 +6,8 @@ use crate::models::view::job::{
 };
 use crate::models::{
     redact_json_value, redact_text, sensitive_values, CreateJobInput, JobArtifactRecord,
-    JobArtifacts, JobFailureInfo, JobSnapshot, JobStatusKind, WorkflowKind,
+    JobArtifacts, JobFailureInfo, JobSnapshot, JobStageRuntimeView, JobStageStateView,
+    JobStagesView, JobStatusKind, WorkflowKind,
 };
 use crate::storage_paths::{
     ARTIFACT_KEY_MARKDOWN_RAW, ARTIFACT_KEY_NORMALIZED_DOCUMENT_JSON, ARTIFACT_KEY_TRANSLATED_PDF,
@@ -34,6 +35,30 @@ fn artifact_record(job_id: &str, artifact_key: &str) -> JobArtifactRecord {
         source_stage: Some("test".to_string()),
         created_at: "2026-04-11T00:00:00Z".to_string(),
         updated_at: "2026-04-11T00:00:00Z".to_string(),
+    }
+}
+
+fn empty_progress() -> crate::models::JobProgressView {
+    crate::models::JobProgressView {
+        current: None,
+        total: None,
+        percent: None,
+        unit: None,
+    }
+}
+
+fn runtime(state: JobStageStateView) -> JobStageRuntimeView {
+    JobStageRuntimeView {
+        state,
+        progress: empty_progress(),
+    }
+}
+
+fn test_stages() -> JobStagesView {
+    JobStagesView {
+        ocr: runtime(JobStageStateView::Completed),
+        translation: runtime(JobStageStateView::Completed),
+        render: runtime(JobStageStateView::Skipped),
     }
 }
 
@@ -163,14 +188,9 @@ fn summarize_list_invocation_counts_stage_spec_and_unknown() {
             workflow: WorkflowKind::Translate,
             status: JobStatusKind::Succeeded,
             trace_id: None,
-            stage: Some("done".to_string()),
-            stage_detail: Some("任务完成".to_string()),
-            progress: crate::models::JobProgressView {
-                current: Some(10),
-                total: Some(10),
-                percent: Some(100.0),
-                unit: Some("page".to_string()),
-            },
+            stage_snapshot: None,
+            background_snapshots: Vec::new(),
+            stages: test_stages(),
             page_count: Some(10),
             source_file_name: Some("a.pdf".to_string()),
             cover_url: Some("https://api.example/api/v1/jobs/job-1/cover".to_string()),
@@ -194,13 +214,12 @@ fn summarize_list_invocation_counts_stage_spec_and_unknown() {
             workflow: WorkflowKind::Book,
             status: JobStatusKind::Queued,
             trace_id: None,
-            stage: None,
-            stage_detail: None,
-            progress: crate::models::JobProgressView {
-                current: None,
-                total: None,
-                percent: None,
-                unit: None,
+            stage_snapshot: None,
+            background_snapshots: Vec::new(),
+            stages: JobStagesView {
+                ocr: runtime(JobStageStateView::Pending),
+                translation: runtime(JobStageStateView::Pending),
+                render: runtime(JobStageStateView::Pending),
             },
             page_count: None,
             source_file_name: Some("b.pdf".to_string()),

@@ -1,14 +1,12 @@
-import { $ } from "../../dom.js";
 import { initializeIdleAppView } from "./idle-reset.js";
-import {
-  bindDialogBackdropClose,
-  bindInfoBubbles,
-  bindUploadTilePicker,
-  resetEventsList,
-} from "./view.js";
+import { APP_DIALOG_BACKDROP_IDS } from "../../contracts/app-contract.js";
+import { defaultAppShellConfigPort } from "./config-port.js";
+import { createAppShellChromeViewPort } from "./chrome-view-port.js";
 
 export function mountAppShellFeature({
-  isMockMode,
+  configPort = defaultAppShellConfigPort,
+  chromeViewPort = createAppShellChromeViewPort(),
+  jobPresentationPort,
   prepareFilePicker,
   setText,
   setWorkflowSections,
@@ -23,24 +21,16 @@ export function mountAppShellFeature({
   translationWorkflowDialogFeature,
 }) {
   function bindChrome() {
-    [
-      "query-dialog",
-      "developer-auth-dialog",
-      "developer-dialog",
-      "glossary-manager-dialog",
-      "browser-credentials-dialog",
-      "page-range-dialog",
-    "status-detail-dialog",
-    "reader-dialog",
-    ].forEach(bindDialogBackdropClose);
-    bindInfoBubbles();
-    bindUploadTilePicker(prepareFilePicker);
+    APP_DIALOG_BACKDROP_IDS.forEach(chromeViewPort.bindBackdropClose);
+    chromeViewPort.bindInfoBubbleToggles();
+    chromeViewPort.bindUploadTile(prepareFilePicker);
     translationWorkflowDialogFeature?.bindEvents();
   }
 
   function initializeIdleView() {
     initializeIdleAppView({
-      isMockMode,
+      configPort,
+      jobPresentationPort,
       setText,
       setWorkflowSections,
       setLinearProgress,
@@ -50,7 +40,7 @@ export function mountAppShellFeature({
       resetUploadedFile,
       applyWorkflowMode,
       updateJobWarning,
-      resetEventsList,
+      resetEventsList: chromeViewPort.resetEvents,
       activateDetailTab,
     });
   }

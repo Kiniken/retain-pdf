@@ -1,9 +1,8 @@
 use std::path::Path;
 
 use crate::error::AppError;
-use crate::models::{
-    JobSnapshot, ReaderDocumentMetadataView, ReaderMetadataView, ReaderPageMetadataView,
-};
+use crate::models::api::{ReaderDocumentMetadataView, ReaderMetadataView, ReaderPageMetadataView};
+use crate::models::domain::JobSnapshot;
 use crate::storage_paths::{resolve_output_pdf, resolve_source_pdf};
 
 pub(crate) fn load_reader_metadata_view(

@@ -8,7 +8,7 @@ use tokio::sync::RwLock;
 use tokio::time::{timeout, Duration};
 
 use crate::config::WorkerProcessRuntimeConfig;
-use crate::models::JobRuntimeState;
+use crate::models::domain::JobRuntimeState;
 
 use super::super::{terminate_job_process_tree, JobPersistDeps};
 use super::io_support::{read_stdout, read_stream};

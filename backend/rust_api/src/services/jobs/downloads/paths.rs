@@ -1,7 +1,7 @@
 use std::path::{Component, Path, PathBuf};
 
 use crate::error::AppError;
-use crate::models::JobSnapshot;
+use crate::models::domain::JobSnapshot;
 
 use super::QueryJobsDeps;
 

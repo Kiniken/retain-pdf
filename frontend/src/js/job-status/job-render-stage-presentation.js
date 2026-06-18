@@ -1,5 +1,5 @@
-import { resolveDisplayedStagePresentation } from "./job-stage-presentation.js";
-import { resolvePinnedStagePresentation } from "../ui/stage-pinning.js";
+import { resolveJobDisplayState } from "./job-display-state.js";
+import { resolvePinnedStagePresentation } from "./stage-pinning-port.js";
 
 export function resolveRenderStagePresentation({
   state,
@@ -7,9 +7,15 @@ export function resolveRenderStagePresentation({
   jobId,
   events,
 }) {
-  return resolvePinnedStagePresentation({
+  const displayState = resolveJobDisplayState(job, events);
+  const presentation = resolvePinnedStagePresentation({
     state,
     jobId,
-    presentation: resolveDisplayedStagePresentation(job, events),
+    presentation: displayState.stagePresentation,
   });
+  return {
+    ...presentation,
+    stageProgressByKey: displayState.stageProgressByKey,
+    backgroundStages: displayState.backgroundStages,
+  };
 }

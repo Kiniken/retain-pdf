@@ -1,15 +1,38 @@
 import { APP_VERSION } from "../../generated/app-version.js";
+import {
+  APP_UPDATE_CLASSES,
+  APP_UPDATE_DATASETS,
+  APP_UPDATE_IDS,
+  APP_UPDATE_SELECTORS,
+  APP_UPDATE_STATES,
+} from "./contract.js";
 
 function updateButton() {
-  return document.getElementById("app-update-btn");
+  return document.getElementById(APP_UPDATE_IDS.button);
 }
 
 function updateDialog() {
-  return document.getElementById("app-update-dialog");
+  return document.getElementById(APP_UPDATE_IDS.dialog);
 }
 
 function updateStatus() {
-  return document.getElementById("app-update-status");
+  return document.getElementById(APP_UPDATE_IDS.status);
+}
+
+const delegatedUpdateBindings = new WeakMap();
+
+function closestById(target, id) {
+  let node = target || null;
+  while (node) {
+    if (node.id === id) {
+      return node;
+    }
+    if (typeof node.closest === "function") {
+      return node.closest(`#${id}`);
+    }
+    node = node.parentElement || null;
+  }
+  return null;
 }
 
 function setStatusText(text) {
@@ -17,7 +40,7 @@ function setStatusText(text) {
   if (!status) {
     return;
   }
-  status.classList.toggle("hidden", !text);
+  status.classList.toggle(APP_UPDATE_CLASSES.hidden, !text);
   status.textContent = text;
 }
 
@@ -42,14 +65,14 @@ function setPanelContent({ title = "检查更新", body = "", latestVersion = ""
     return;
   }
   const note = `${body || ""}`.trim();
-  dialog.querySelector("[data-update-title]").textContent = title;
-  dialog.querySelector("[data-update-version]").textContent = latestVersion
+  dialog.querySelector(APP_UPDATE_SELECTORS.title).textContent = title;
+  dialog.querySelector(APP_UPDATE_SELECTORS.version).textContent = latestVersion
     ? `当前 ${currentVersion} · 最新 ${latestVersion}`
     : `当前 ${currentVersion}`;
-  dialog.querySelector("[data-update-notes]").textContent = formatReleaseNotes(note) || "暂无更新说明。";
-  const link = dialog.querySelector("[data-update-link]");
+  dialog.querySelector(APP_UPDATE_SELECTORS.notes).textContent = formatReleaseNotes(note) || "暂无更新说明。";
+  const link = dialog.querySelector(APP_UPDATE_SELECTORS.link);
   link.href = htmlUrl || "#";
-  link.classList.toggle("hidden", !htmlUrl);
+  link.classList.toggle(APP_UPDATE_CLASSES.hidden, !htmlUrl);
 }
 
 export function openUpdateDialog() {
@@ -67,7 +90,7 @@ export function setUpdateChecking() {
   if (!button) {
     return;
   }
-  button.dataset.updateState = "checking";
+  button.dataset[APP_UPDATE_DATASETS.state] = APP_UPDATE_STATES.checking;
   button.setAttribute("title", "正在检查更新");
   setStatusText("正在检查 GitHub Releases...");
   setPanelContent({
@@ -81,8 +104,8 @@ export function setUpdateReady() {
   if (!button) {
     return;
   }
-  button.dataset.updateState = "idle";
-  button.classList.remove("has-update");
+  button.dataset[APP_UPDATE_DATASETS.state] = APP_UPDATE_STATES.idle;
+  button.classList.remove(APP_UPDATE_CLASSES.hasUpdate);
   button.setAttribute("title", "检查更新");
   setStatusText("");
   setPanelContent({
@@ -96,8 +119,8 @@ export function setUpdateAvailable(info) {
   if (!button) {
     return;
   }
-  button.dataset.updateState = "available";
-  button.classList.add("has-update");
+  button.dataset[APP_UPDATE_DATASETS.state] = APP_UPDATE_STATES.available;
+  button.classList.add(APP_UPDATE_CLASSES.hasUpdate);
   button.setAttribute("title", `发现新版本 ${info.latestVersion}`);
   setStatusText("发现新版本");
   setPanelContent({
@@ -114,8 +137,8 @@ export function setUpdateLatest(info) {
   if (!button) {
     return;
   }
-  button.dataset.updateState = "latest";
-  button.classList.remove("has-update");
+  button.dataset[APP_UPDATE_DATASETS.state] = APP_UPDATE_STATES.latest;
+  button.classList.remove(APP_UPDATE_CLASSES.hasUpdate);
   button.setAttribute("title", "已是最新版本");
   setStatusText("已是最新版本");
   setPanelContent({
@@ -132,8 +155,8 @@ export function setUpdateError(error) {
   if (!button) {
     return;
   }
-  button.dataset.updateState = "error";
-  button.classList.remove("has-update");
+  button.dataset[APP_UPDATE_DATASETS.state] = APP_UPDATE_STATES.error;
+  button.classList.remove(APP_UPDATE_CLASSES.hasUpdate);
   button.setAttribute("title", "检查更新失败");
   setStatusText("检查失败");
   setPanelContent({
@@ -143,10 +166,26 @@ export function setUpdateError(error) {
 }
 
 export function bindUpdateButton({ onCheck } = {}) {
-  updateButton()?.addEventListener("click", () => {
-    openUpdateDialog();
-  });
-  document.getElementById("app-update-check-btn")?.addEventListener("click", () => {
-    onCheck?.();
-  });
+  if (typeof document.addEventListener === "function") {
+    const existing = delegatedUpdateBindings.get(document);
+    if (existing) {
+      existing.onCheck = onCheck;
+      return;
+    }
+    const binding = { onCheck };
+    delegatedUpdateBindings.set(document, binding);
+    document.addEventListener("click", (event) => {
+      if (closestById(event.target, APP_UPDATE_IDS.button)) {
+        openUpdateDialog();
+        return;
+      }
+      if (closestById(event.target, APP_UPDATE_IDS.checkButton)) {
+        binding.onCheck?.();
+      }
+    });
+    return;
+  }
+
+  updateButton()?.addEventListener("click", () => openUpdateDialog());
+  document.getElementById(APP_UPDATE_IDS.checkButton)?.addEventListener("click", () => onCheck?.());
 }

@@ -1,9 +1,9 @@
 use serde_json::{Map, Value};
 
-use crate::models::{
+use crate::models::api::{JobEventProgressView, JobEventRawView, JobEventRecord};
+use crate::models::domain::{
     event_progress_unit, normalize_event_substage, normalize_event_user_stage,
-    public_stage_for_raw_stage, public_stage_for_substage, JobEventProgressView, JobEventRawView,
-    JobEventRecord,
+    public_stage_for_raw_stage, public_stage_for_substage,
 };
 
 pub(super) fn canonicalize_job_event(item: &mut JobEventRecord, source_kind: &str) {

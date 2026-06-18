@@ -1,11 +1,7 @@
-import { resolveJobActions } from "../../job.js";
 import {
   firstNonEmptyText,
 } from "./formatters.js";
-import {
-  dialogComponent,
-  setRerunButtonDisabled,
-} from "./view.js";
+import { createStatusDetailResumeViewPort } from "./resume-view-port.js";
 
 function firstJobIdFromPayload(payload) {
   return firstNonEmptyText(
@@ -38,14 +34,15 @@ export function summarizeResumePlan(plan) {
 }
 
 export function syncRerunAction({
-  state,
+  job = null,
+  resumePlan = null,
   statusText = "",
+  viewPort = createStatusDetailResumeViewPort(),
+  resolveActions = () => ({}),
 } = {}) {
-  const job = state?.currentJobSnapshot || null;
-  const actions = job ? resolveJobActions(job) : {};
-  const resumePlan = state?.currentJobResumePlan || null;
+  const actions = job ? resolveActions(job) : {};
   const enabled = Boolean(resumePlan?.can_resume || (actions.rerunEnabled && actions.rerun));
-  dialogComponent()?.setRerunAction?.({
+  viewPort.setRerunAction({
     enabled,
     status: statusText || (enabled
       ? summarizeResumePlan(resumePlan) || "后端支持从当前任务产物创建恢复任务。"
@@ -55,20 +52,26 @@ export function syncRerunAction({
 }
 
 export async function rerunCurrentJob({
-  state,
+  rerunContext,
   rerunJob,
   setText,
   startPolling,
+  viewPort = createStatusDetailResumeViewPort(),
+  resolveActions = () => ({}),
 } = {}) {
   const actionUrl = syncRerunAction({
-    state,
+    ...rerunContext,
     statusText: "正在提交恢复任务...",
+    viewPort,
+    resolveActions,
   });
-  setRerunButtonDisabled(true);
+  viewPort.setRerunDisabled(true);
   if (!actionUrl) {
     syncRerunAction({
-      state,
+      ...rerunContext,
       statusText: "当前任务暂不可从断点恢复。",
+      viewPort,
+      resolveActions,
     });
     return;
   }
@@ -77,18 +80,22 @@ export async function rerunCurrentJob({
     const nextJobId = firstJobIdFromPayload(payload);
     if (!nextJobId) {
       syncRerunAction({
-        state,
+        ...rerunContext,
         statusText: "恢复任务已提交，但响应中没有 job_id。",
+        viewPort,
+        resolveActions,
       });
       return;
     }
-    dialogComponent()?.close?.();
+    viewPort.closeDialog();
     setText?.("error-box", `已创建恢复任务 ${nextJobId}，开始轮询。`);
     startPolling?.(nextJobId);
   } catch (error) {
     syncRerunAction({
-      state,
+      ...rerunContext,
       statusText: error.message || String(error),
+      viewPort,
+      resolveActions,
     });
   }
 }

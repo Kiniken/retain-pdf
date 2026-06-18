@@ -1,6 +1,7 @@
 use crate::config::ProviderLimitsConfig;
 use crate::error::AppError;
-use crate::models::{CreateJobInput, OcrProviderKind, UploadRecord, SOURCE_CLEANUP_STRATEGIES};
+use crate::models::domain::{OcrProviderKind, UploadRecord, SOURCE_CLEANUP_STRATEGIES};
+use crate::models::request::CreateJobInput;
 use crate::ocr_provider::{
     parse_provider_kind, provider_display_name, provider_token, provider_token_field_name,
     require_supported_provider,
@@ -240,7 +241,7 @@ fn validate_provider_token(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{now_iso, DEFAULT_SOURCE_CLEANUP_STRATEGY};
+    use crate::models::domain::{now_iso, DEFAULT_SOURCE_CLEANUP_STRATEGY};
 
     fn default_limits() -> ProviderLimitsConfig {
         ProviderLimitsConfig::from_env()

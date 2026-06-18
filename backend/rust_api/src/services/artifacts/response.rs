@@ -1,4 +1,4 @@
-use crate::models::{JobArtifactRecord, JobSnapshot};
+use crate::models::domain::{JobArtifactRecord, JobSnapshot};
 use crate::storage_paths::ARTIFACT_KIND_DIR;
 
 pub fn artifact_resource_path(job: &JobSnapshot, artifact_key: &str) -> Option<String> {

@@ -28,6 +28,10 @@ class TranslationFlushState:
         self._last_progress_emit_at = 0.0
         self._last_progress_emit_completed = 0
         self._last_flush_completed = 0
+        self.flush_count = 0
+        self.flushed_page_total = 0
+        self.flush_elapsed_ms = 0
+        self.max_flush_pages = 0
 
     def mark_dirty(self, pages: set[int]) -> None:
         self.dirty_pages.update(pages)
@@ -58,6 +62,11 @@ class TranslationFlushState:
         flushed_pages = set(self.dirty_pages)
         page_count = len(flushed_pages)
         save_pages(self.page_payloads, self.translation_paths, flushed_pages, refresh_units=False)
+        elapsed_ms = int(round((time.perf_counter() - save_started) * 1000))
+        self.flush_count += 1
+        self.flushed_page_total += page_count
+        self.flush_elapsed_ms += max(0, elapsed_ms)
+        self.max_flush_pages = max(self.max_flush_pages, page_count)
         print(
             f"book: {label} pages={page_count} in {time.perf_counter() - save_started:.2f}s",
             flush=True,
@@ -68,6 +77,14 @@ class TranslationFlushState:
 
     def final_flush(self) -> None:
         self.flush(label="final flush")
+
+    def stats(self) -> dict[str, int]:
+        return {
+            "flush_count": self.flush_count,
+            "flushed_page_total": self.flushed_page_total,
+            "flush_elapsed_ms": self.flush_elapsed_ms,
+            "max_flush_pages": self.max_flush_pages,
+        }
 
 
 __all__ = ["TranslationFlushState"]

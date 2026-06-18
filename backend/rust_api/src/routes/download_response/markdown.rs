@@ -2,7 +2,7 @@ use axum::http::{header, HeaderMap};
 use axum::response::{IntoResponse, Response};
 
 use crate::error::AppError;
-use crate::models::{to_absolute_url, MarkdownQuery, MarkdownView};
+use crate::models::api::{to_absolute_url, MarkdownQuery, MarkdownView};
 use crate::routes::common::ok_json;
 use crate::services::jobs::MarkdownDownload;
 

@@ -10,7 +10,9 @@ use crate::storage_paths::{
 
 use super::super::common::{ActionLinkView, JobActionsView, JobLinksView};
 #[cfg(test)]
-use super::super::common::{JobProgressView, JobTimestampsView};
+use super::super::common::{
+    JobProgressView, JobStageRuntimeView, JobStageStateView, JobStagesView, JobTimestampsView,
+};
 #[cfg(test)]
 use super::super::test_support::{
     build_ocr_job_summary, job_failure_to_legacy_view, load_glossary_summary,
@@ -287,6 +289,7 @@ pub fn job_to_detail(
         (Some(current), Some(total)) if total > 0 => Some((current as f64 / total as f64) * 100.0),
         _ => None,
     };
+    let stage_snapshot = test_stage_snapshot(job, percent);
     let failure = job
         .failure
         .clone()
@@ -305,14 +308,9 @@ pub fn job_to_detail(
             .artifacts
             .as_ref()
             .and_then(|item| item.provider_trace_id.clone()),
-        stage: job.stage.clone(),
-        stage_detail: job.stage_detail.clone(),
-        progress: JobProgressView {
-            current: job.progress_current,
-            total: job.progress_total,
-            percent,
-            unit: None,
-        },
+        stage_snapshot: stage_snapshot.clone(),
+        background_snapshots: Vec::new(),
+        stages: test_stages(job, stage_snapshot.as_ref()),
         timestamps: JobTimestampsView {
             created_at: job.created_at.clone(),
             updated_at: job.updated_at.clone(),
@@ -370,6 +368,11 @@ pub fn job_to_list_item(
     data_root: &Path,
 ) -> JobListItemView {
     let detail_path = format!("{}/{}", job_path_prefix(&job.workflow), job.job_id);
+    let percent = match (job.progress_current, job.progress_total) {
+        (Some(current), Some(total)) if total > 0 => Some((current as f64 / total as f64) * 100.0),
+        _ => None,
+    };
+    let stage_snapshot = test_stage_snapshot(job, percent);
     JobListItemView {
         job_id: job.job_id.clone(),
         display_name,
@@ -379,19 +382,9 @@ pub fn job_to_list_item(
             .artifacts
             .as_ref()
             .and_then(|item| item.trace_id.clone()),
-        stage: job.stage.clone(),
-        stage_detail: job.stage_detail.clone(),
-        progress: JobProgressView {
-            current: job.progress_current,
-            total: job.progress_total,
-            percent: match (job.progress_current, job.progress_total) {
-                (Some(current), Some(total)) if total > 0 => {
-                    Some((current as f64 / total as f64) * 100.0)
-                }
-                _ => None,
-            },
-            unit: None,
-        },
+        stage_snapshot: stage_snapshot.clone(),
+        background_snapshots: Vec::new(),
+        stages: test_stages(job, stage_snapshot.as_ref()),
         page_count: job
             .artifacts
             .as_ref()
@@ -407,6 +400,92 @@ pub fn job_to_list_item(
         updated_at: job.updated_at.clone(),
         detail_path: detail_path.clone(),
         detail_url: to_absolute_url(base_url, &detail_path),
+    }
+}
+
+#[cfg(test)]
+fn test_stage_snapshot(job: &JobSnapshot, percent: Option<f64>) -> Option<JobStageSnapshotView> {
+    if matches!(
+        job.status,
+        JobStatusKind::Succeeded | JobStatusKind::Failed | JobStatusKind::Canceled
+    ) {
+        return None;
+    }
+    let display_stage =
+        crate::models::public_stage_for_raw_stage(job.stage.as_deref()).map(str::to_string)?;
+    Some(JobStageSnapshotView {
+        display_stage: Some(display_stage),
+        stage: job.stage.clone(),
+        substage: None,
+        lane: Some("main".to_string()),
+        stage_detail: job.stage_detail.clone(),
+        progress: JobProgressView {
+            current: job.progress_current,
+            total: job.progress_total,
+            percent,
+            unit: None,
+        },
+    })
+}
+
+#[cfg(test)]
+fn test_stages(job: &JobSnapshot, stage_snapshot: Option<&JobStageSnapshotView>) -> JobStagesView {
+    JobStagesView {
+        ocr: test_stage_runtime("ocr", job, stage_snapshot),
+        translation: test_stage_runtime("translation", job, stage_snapshot),
+        render: test_stage_runtime("render", job, stage_snapshot),
+    }
+}
+
+#[cfg(test)]
+fn test_stage_runtime(
+    stage_name: &str,
+    job: &JobSnapshot,
+    stage_snapshot: Option<&JobStageSnapshotView>,
+) -> JobStageRuntimeView {
+    let included = match job.workflow {
+        WorkflowKind::Book => matches!(stage_name, "ocr" | "translation" | "render"),
+        WorkflowKind::Translate => matches!(stage_name, "ocr" | "translation"),
+        WorkflowKind::Render => stage_name == "render",
+        WorkflowKind::Ocr => stage_name == "ocr",
+    };
+    if !included {
+        return test_runtime(JobStageStateView::Skipped, None);
+    }
+    if stage_snapshot.and_then(|item| item.display_stage.as_deref()) == Some(stage_name) {
+        return JobStageRuntimeView {
+            state: JobStageStateView::InProgress,
+            progress: stage_snapshot
+                .map(|item| item.progress.clone())
+                .unwrap_or_else(empty_progress),
+        };
+    }
+    if matches!(job.status, JobStatusKind::Succeeded) {
+        return test_runtime(JobStageStateView::Completed, None);
+    }
+    test_runtime(JobStageStateView::Pending, None)
+}
+
+#[cfg(test)]
+fn test_runtime(state: JobStageStateView, unit: Option<String>) -> JobStageRuntimeView {
+    JobStageRuntimeView {
+        state,
+        progress: JobProgressView {
+            current: None,
+            total: None,
+            percent: None,
+            unit,
+        },
+    }
+}
+
+#[cfg(test)]
+fn empty_progress() -> JobProgressView {
+    JobProgressView {
+        current: None,
+        total: None,
+        percent: None,
+        unit: None,
     }
 }
 

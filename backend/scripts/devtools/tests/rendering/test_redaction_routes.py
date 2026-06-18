@@ -12,6 +12,10 @@ sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from services.rendering.source.cleanup import routes
 from services.rendering.source.cleanup import standard
+from services.rendering.visual_profile.contracts import DocumentVisualProfile
+from services.rendering.visual_profile.contracts import ItemVisualProfile
+from services.rendering.visual_profile.contracts import PageVisualProfile
+from services.rendering.visual_profile.runtime import VisualProfileRuntime
 
 
 class _FakePage:
@@ -60,6 +64,50 @@ def test_apply_standard_redaction_uses_text_only_rects_for_mixed_items(monkeypat
             "text": fitz.PDF_REDACT_TEXT_REMOVE,
         }
     ]
+
+
+def test_visual_cover_redaction_uses_visual_profile_fill(monkeypatch) -> None:
+    page = fitz.open().new_page(width=200, height=120)
+    rect = fitz.Rect(10, 10, 100, 40)
+    valid_items = [(rect, {"item_id": "p001-b001"}, "正文")]
+    sampled_rects: list[fitz.Rect] = []
+    profile = DocumentVisualProfile(
+        algorithm="visual_profile_v1",
+        pages={
+            0: PageVisualProfile(
+                page_index=0,
+                background_rgb=(1, 1, 1),
+                items={
+                    "p001-b001": ItemVisualProfile(
+                        item_id="p001-b001",
+                        page_index=0,
+                        bbox=(10, 10, 100, 40),
+                        bbox_space="page_pt",
+                        bbox_source="render_cover_bbox",
+                        source_item_kind="text",
+                        background_rgb=(0.7, 0.8, 0.9),
+                        text_rgb=(0, 0, 0),
+                        confidence=0.9,
+                        method="test",
+                    )
+                },
+            )
+        },
+    )
+    runtime = VisualProfileRuntime(path=None, profile=profile, diagnostics={"loaded": True})
+
+    monkeypatch.setattr(routes, "draw_white_covers", lambda _page, rects: sampled_rects.extend(rects))
+
+    diagnostics = routes.apply_redaction_route(
+        page,
+        valid_items,
+        strategy="visual_cover",
+        visual_profile=runtime,
+    )
+
+    assert sampled_rects == []
+    assert diagnostics["cover_rects"] == 1
+    assert diagnostics["visual_profile_cover_rects"] == 1
 
 
 def test_apply_standard_redaction_keeps_text_layer_cleanup_for_plain_text(monkeypatch) -> None:

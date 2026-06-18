@@ -1,5 +1,6 @@
 use crate::error::AppError;
-use crate::models::{ApiResponse, CreateJobInput, JobSubmissionView};
+use crate::models::api::{ApiResponse, JobSubmissionView};
+use crate::models::request::CreateJobInput;
 use crate::routes::job_requests::{parse_ocr_job_request, parse_translate_bundle_request};
 use crate::AppState;
 use axum::extract::{Multipart, State};

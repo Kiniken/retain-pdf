@@ -17,6 +17,8 @@ from services.rendering.document.pikepdf_overlay import overlay_pdf_pages_with_p
 from services.rendering.output.typst.overlay_diagnostics import apply_merge_elapsed
 from services.rendering.output.typst.overlay_diagnostics import apply_redaction_diagnostics
 from services.rendering.output.typst.overlay_diagnostics import new_overlay_merge_diagnostics
+from services.rendering.visual_profile import VisualProfileRuntime
+from services.rendering.visual_profile import load_visual_profile_runtime
 
 
 PAGE_SIZE_MISMATCH_TOLERANCE_PT = 0.5
@@ -45,18 +47,33 @@ def _page_size_diag(source_page: fitz.Page, overlay_page: fitz.Page) -> dict[str
     }
 
 
-def _draw_overlay_visual_covers(page: fitz.Page, cleanup_items: list[dict]) -> int:
-    cover_rects: list[fitz.Rect] = []
+def _draw_overlay_visual_covers(
+    page: fitz.Page,
+    cleanup_items: list[dict],
+    *,
+    visual_profile: VisualProfileRuntime | None = None,
+) -> tuple[int, int]:
+    sampled_cover_rects: list[fitz.Rect] = []
+    profile_cover_count = 0
     for item in cleanup_items:
         bbox = item.get("bbox", [])
         if len(bbox) != 4:
             continue
         rect = fitz.Rect(bbox)
-        if not rect.is_empty:
-            cover_rects.append(rect)
-    merged = merge_rects(cover_rects)
+        if rect.is_empty:
+            continue
+        fill = visual_profile.background_fill_for_item(item) if visual_profile is not None else None
+        if fill is None:
+            sampled_cover_rects.append(rect)
+            continue
+        shape = page.new_shape()
+        shape.draw_rect(rect)
+        shape.finish(color=None, fill=fill)
+        shape.commit(overlay=True)
+        profile_cover_count += 1
+    merged = merge_rects(sampled_cover_rects)
     draw_white_covers(page, merged)
-    return len(merged)
+    return profile_cover_count + len(merged), profile_cover_count
 
 
 def _can_use_pikepdf_single_pdf_overlay(
@@ -71,9 +88,7 @@ def _can_use_pikepdf_single_pdf_overlay(
         return False
     if skip_visual_cover:
         return True
-    if not _overlay_visual_cover_enabled():
-        return True
-    return all(page_idx in source_text_precleaned_page_indices for page_idx in ordered_page_indices)
+    return not _overlay_visual_cover_enabled()
 
 
 def overlay_pages_from_single_pdf(
@@ -91,9 +106,12 @@ def overlay_pages_from_single_pdf(
     skip_visual_cover: bool = False,
     source_base_pdf_path: Path | None = None,
     pikepdf_output_pdf_path: Path | None = None,
+    visual_profile_path: Path | None = None,
 ) -> dict[str, object]:
     overlay_doc = fitz.open(overlay_pdf_path)
     diagnostics = new_overlay_merge_diagnostics()
+    visual_profile = load_visual_profile_runtime(visual_profile_path)
+    diagnostics["visual_profile_cover"] = dict(visual_profile.diagnostics)
     try:
         total_pages = len(ordered_page_indices)
         if (
@@ -283,7 +301,7 @@ def overlay_pages_from_single_pdf(
                     reasons = diagnostics.setdefault("legacy_pdf_write_reasons", {})
                     if isinstance(reasons, dict):
                         reasons["bbox_text_layer_cleanup"] = int(reasons.get("bbox_text_layer_cleanup", 0) or 0) + 1
-            elif skip_visual_cover or page_idx in source_text_precleaned_page_indices:
+            elif skip_visual_cover:
                 page_diag.update(
                     {
                         "items": 0,
@@ -292,24 +310,25 @@ def overlay_pages_from_single_pdf(
                         "cover_rects": 0,
                         "fast_page_cover_only": False,
                         "item_fast_cover_count": 0,
-                        "route": "typst_overlay_fill_skip_visual_cover" if skip_visual_cover else "precleaned_source_skip_visual_cover",
-                        "strategy": "typst_overlay_fill" if skip_visual_cover else "precleaned_source",
+                        "route": "typst_overlay_fill_skip_visual_cover",
+                        "strategy": "typst_overlay_fill",
                         "elapsed_seconds": 0.0,
-                        "source_overlay_mode": (
-                            "typst_overlay_fill_skip_visual_cover"
-                            if skip_visual_cover
-                            else "precleaned_source_skip_visual_cover"
-                        ),
+                        "source_overlay_mode": "typst_overlay_fill_skip_visual_cover",
                         "uses_pymupdf_redaction": False,
                         "legacy_pdf_write_reason": "",
                     }
                 )
-                key = "typst_overlay_fill_cover_skipped_pages" if skip_visual_cover else "precleaned_source_cover_skipped_pages"
-                diagnostics[key] = int(diagnostics.get(key, 0) or 0) + 1
+                diagnostics["typst_overlay_fill_cover_skipped_pages"] = int(
+                    diagnostics.get("typst_overlay_fill_cover_skipped_pages", 0) or 0
+                ) + 1
             elif _overlay_visual_cover_enabled():
                 cleanup_started = time.perf_counter()
                 cleanup_items = (redaction_pages or {}).get(page_idx) or translated_pages[page_idx]
-                cover_count = _draw_overlay_visual_covers(page, cleanup_items)
+                cover_count, profile_cover_count = _draw_overlay_visual_covers(
+                    page,
+                    cleanup_items,
+                    visual_profile=visual_profile if visual_profile.loaded else None,
+                )
                 cleanup_elapsed = time.perf_counter() - cleanup_started
                 page_diag.update(
                     {
@@ -317,6 +336,7 @@ def overlay_pages_from_single_pdf(
                         "raw_removable_rects": 0,
                         "merged_removable_rects": 0,
                         "cover_rects": cover_count,
+                        "visual_profile_cover_rects": profile_cover_count,
                         "fast_page_cover_only": False,
                         "item_fast_cover_count": 0,
                         "route": "overlay_visual_cover",
@@ -331,6 +351,9 @@ def overlay_pages_from_single_pdf(
                     diagnostics.get("source_overlay_elapsed_seconds", 0.0) or 0.0
                 ) + cleanup_elapsed
                 diagnostics["cover_rects"] = int(diagnostics.get("cover_rects", 0) or 0) + cover_count
+                diagnostics["visual_profile_cover_rects"] = int(
+                    diagnostics.get("visual_profile_cover_rects", 0) or 0
+                ) + profile_cover_count
             merge_started = time.perf_counter()
             overlay_page = overlay_doc[overlay_page_idx]
             if not _page_size_matches(page, overlay_page):

@@ -7,7 +7,7 @@ use axum::Json;
 use crate::app::{build_jobs_facade_from_state, AppState};
 use crate::config::{DeepSeekRuntimeConfig, MineruRuntimeConfig, PaddleRuntimeConfig};
 use crate::db::Db;
-use crate::models::ApiResponse;
+use crate::models::api::ApiResponse;
 use crate::services::jobs::JobsFacade;
 use crate::services::library::LibraryDeps;
 

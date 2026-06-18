@@ -1,6 +1,6 @@
 use crate::db::Db;
 use crate::error::AppError;
-use crate::models::{
+use crate::models::api::{
     glossary_to_csv_export, glossary_to_detail, glossary_to_summary, GlossaryCsvExportView,
     GlossaryCsvParseInput, GlossaryCsvParseView, GlossaryDetailView, GlossaryListView,
     GlossaryUpsertInput, ListGlossariesQuery,

@@ -10,6 +10,20 @@ from services.rendering.layout.model.models import RenderLineBox
 
 TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*|[^\S\r\n]+|.")
 PUNCTUATION_RE = re.compile(r"^[，。！？；：、,.!?;:()\[\]{}<>《》“”‘’\"']$")
+SENTENCE_END_RE = re.compile(r"[.!?。！？]\s*$")
+ORDERED_LIST_LINE_RE = re.compile(r"^\s*(?:\d{1,4}|[A-Za-z])\s*[\.)、]\s+\S+")
+BULLET_LIST_LINE_RE = re.compile(r"^\s*(?:[-*•‣◦])\s+\S+")
+GLOSSARY_TERM_LINE_RE = re.compile(r"^\s*(?:[A-Z][A-Z0-9-]{1,12}|[A-Z]\d{1,3}[A-Z]*)\s+\S+")
+BODY_LIST_BLOCK_RE = re.compile(
+    r"^\s*(?:(?:\d{1,4}|[A-Za-z])\s*[\.)、]|[-*•‣◦])\s+\S.*"
+    r"(?:\n\s*(?:(?:\d{1,4}|[A-Za-z])\s*[\.)、]|[-*•‣◦])\s+\S.*)+\s*$",
+    re.MULTILINE,
+)
+BODY_GLOSSARY_BLOCK_RE = re.compile(
+    r"^\s*(?:[A-Z][A-Z0-9-]{1,12}|[A-Z]\d{1,3}[A-Z]*)\s+\S.*"
+    r"(?:\n\s*(?:[A-Z][A-Z0-9-]{1,12}|[A-Z]\d{1,3}[A-Z]*)\s+\S.*)+\s*$",
+    re.MULTILINE,
+)
 PRESERVED_LINE_LEADING_CANDIDATES = (0.12, 0.16, 0.2, 0.24, 0.28, 0.32)
 PRESERVED_LINE_HEIGHT_FILL = 0.96
 PRESERVED_LINE_MIN_FONT_PT = 7.2
@@ -56,6 +70,8 @@ def looks_like_structured_line_block(item: dict, lines: list[str] | None = None)
     structure_role = str(item.get("structure_role") or "").strip().lower()
     explicit_preserve_lines = str(item.get("text_flow", "") or "").strip().lower() == TEXT_FLOW_PRESERVE_LINES
     if explicit_preserve_lines and _has_line_contract(item):
+        if semantic_role in {"body", "abstract"} and structure_role != "table_of_contents":
+            return _body_lines_match_preserve_whitelist(lines or source_line_texts(item))
         return True
     if structure_role != "table_of_contents" and semantic_role in {"body", "abstract"}:
         return False
@@ -66,6 +82,31 @@ def looks_like_structured_line_block(item: dict, lines: list[str] | None = None)
 
 def _has_line_contract(item: dict) -> bool:
     return len(source_line_texts(item)) >= 2
+
+
+def _body_lines_match_preserve_whitelist(lines: list[str]) -> bool:
+    materialized = [str(line or "").strip() for line in lines if str(line or "").strip()]
+    if len(materialized) < 2:
+        return False
+    expanded = "\n".join(materialized)
+    if BODY_LIST_BLOCK_RE.fullmatch(expanded):
+        return True
+    if BODY_GLOSSARY_BLOCK_RE.fullmatch(expanded):
+        return _glossary_lines_are_short_entries(materialized)
+    return False
+
+
+def _glossary_lines_are_short_entries(lines: list[str]) -> bool:
+    for line in lines:
+        if len(line) > 88:
+            return False
+        if SENTENCE_END_RE.search(line):
+            return False
+        if len(re.findall(r"[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*", line)) > 9:
+            return False
+        if not GLOSSARY_TERM_LINE_RE.match(line):
+            return False
+    return True
 
 
 def _token_units(token: str) -> float:

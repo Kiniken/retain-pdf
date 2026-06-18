@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::config::{DeepSeekRuntimeConfig, MineruRuntimeConfig, PaddleRuntimeConfig};
 use crate::error::AppError;
-use crate::models::now_iso;
+use crate::models::domain::now_iso;
 use crate::ocr_provider::mineru::{
     extract_provider_error_code, extract_provider_message, extract_provider_trace_id,
     map_provider_error_code, MineruClient,

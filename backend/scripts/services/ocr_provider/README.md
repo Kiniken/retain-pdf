@@ -218,8 +218,10 @@ provider 层产物一旦落盘，下一步只做一件事：
 为了避免继续反复重构，当前 `ocr_provider/` 目录按下面规则维护：
 
 - `provider_pipeline.py` 负责 stage/provider 分发和稳定兼容面
-- `drivers.py` 负责 provider registry；新增 provider 先挂这里，不要把分发逻辑写回主流程
-- `types.py` 定义 provider driver 的稳定输入/输出契约
+- `drivers.py` 负责 Python provider registry；新增 provider 先挂这里，不要把分发逻辑写回主流程
+- `types.py` 定义 provider driver 的稳定输入/输出契约，`OcrProviderResult.artifact_manifest` 是 provider 产物边界
+- Rust API 侧 provider 产物路径由 `backend/rust_api/src/ocr_provider/catalog.rs` 的 artifact layout 声明，任务编排不要在 workspace 里写 provider 文件名
+- Rust API 侧 provider transport 由 `backend/rust_api/src/job_runner/ocr_flow/provider_transport.rs` 的 transport registry 分发，新增内置 provider 时先注册 transport handler
 - 新增的纯实现优先下沉到独立模块，不直接堆回 `provider_pipeline.py`
 - 如果测试需要 monkeypatch，patch 点应保留在 `provider_pipeline.py`
 - `services/ocr_provider/__init__.py` 必须显式导出 `provider_pipeline`
@@ -227,6 +229,7 @@ provider 层产物一旦落盘，下一步只做一件事：
 - `paddle_markdown.py` 只处理 Markdown/图片产物，不碰翻译和渲染
 - `paddle_normalize.py` 只处理 normalized document 和几何修正，不碰 provider transport
 - `local_command_driver.py` 是本地 OCR 模型的最小接入口；它不关心模型实现，只校验落盘契约
+- `services/document_schema/adapters.py` 只做 adapter registry，不直接 import `services/mineru/*`；MinerU 走 `services/document_schema/provider_adapters/mineru/`
 - Paddle 默认模型和 alias 配在 `backend/config/ocr_providers.json`，不要在 Python/Rust 里硬编码版本号
 
 这些约束已经进入：
@@ -237,7 +240,15 @@ provider 层产物一旦落盘，下一步只做一件事：
 
 ## 本地 OCR 接入方式
 
-如果别人想接自己的本地 OCR 模型，优先走内置 `local` provider，不要改翻译或渲染代码。
+如果别人想接自己的本地 OCR 模型，优先走配置型 `local_command` provider，不要改翻译或渲染代码。
+
+完整外部接入文档看：
+
+```text
+doc/api/03-OCR/04-local-command插件.md
+```
+
+这一层的核心设计是：本地 OCR 是一个“命令行 API”。RetainPDF 负责启动命令并通过环境变量传入输入/输出路径；本地 OCR 命令负责读取 PDF，写出 raw payload 或 `document.v1.json`。
 
 运行时设置：
 
@@ -255,27 +266,67 @@ RETAIN_OCR_DIR
 RETAIN_OCR_PROVIDER_RESULT_JSON
 RETAIN_OCR_NORMALIZED_DOCUMENT_JSON
 RETAIN_OCR_NORMALIZATION_REPORT_JSON
+RETAIN_OCR_PROVIDER_RAW_DIR
+RETAIN_OCR_RAW_PAYLOAD_JSON
+RETAIN_OCR_RAW_PROVIDER
 ```
 
-最小要求：
+最小成功条件：
 
 - 读取 `RETAIN_OCR_SOURCE_PDF`
-- 写出 `RETAIN_OCR_NORMALIZED_DOCUMENT_JSON`
-- 内容必须是 `document.v1.json`
+- 写出 `RETAIN_OCR_NORMALIZED_DOCUMENT_JSON`，内容是 `document.v1.json`
+- 或写出 `RETAIN_OCR_RAW_PAYLOAD_JSON`，让 RetainPDF 通过 `document_schema` adapter 统一生成 `document.v1.json`
+- 成功时退出码为 `0`；失败时退出非 `0`
 
 可选：
 
 - 写 `RETAIN_OCR_PROVIDER_RESULT_JSON` 保存本地 OCR 原始结果
 - 写 `RETAIN_OCR_NORMALIZATION_REPORT_JSON` 保存自己的诊断报告
 
-如果本地命令没有写 report/result，driver 会补一个最小 report/result，并校验 `document.v1.json`。这样后续翻译、渲染、reader API 都只消费统一 schema。
+如果本地命令直接写了 `document.v1.json`，driver 会补一个最小 report/result，并校验 `document.v1.json`。这样后续翻译、渲染、reader API 都只消费统一 schema。
 
-如果本地 OCR 只能输出自定义 raw JSON，而不能直接输出 `document.v1.json`，接入顺序是：
+如果本地 OCR 只能输出自定义 raw JSON，而不能直接输出 `document.v1.json`，推荐走 raw artifact 模式：
 
-1. 先把 raw JSON 稳定落到 `RETAIN_OCR_PROVIDER_RESULT_JSON`
+1. 先把 raw JSON 稳定落到 `RETAIN_OCR_RAW_PAYLOAD_JSON`
 2. 在 `services/document_schema/provider_adapters/` 下新增 adapter
 3. adapter 产出 `document.v1.json`
-4. 最后再把 provider 挂到 `services/ocr_provider/drivers.py`
+4. 通过 `RETAIN_OCR_RAW_PROVIDER` 指定 adapter 名称
+5. 如果要成为内置 provider，再把 provider driver 注册到 `services/ocr_provider/drivers.py`
+
+最小 raw payload 例子可以先使用内置 `generic_flat_ocr` adapter：
+
+```bash
+export RETAIN_LOCAL_OCR_COMMAND="python /path/to/my_ocr.py"
+export RETAIN_OCR_RAW_PROVIDER=generic_flat_ocr
+```
+
+外部命令只需要把下面这种结构写入 `RETAIN_OCR_RAW_PAYLOAD_JSON`：
+
+```json
+{
+  "provider": "generic_flat_ocr",
+  "pages": [
+    {
+      "page": 1,
+      "width": 612,
+      "height": 792,
+      "unit": "pt",
+      "blocks": [
+        {
+          "type": "text",
+          "sub_type": "body",
+          "bbox": [72, 72, 420, 120],
+          "text": "OCR raw text",
+          "lines": [],
+          "segments": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+如果已经有本地 HTTP OCR 服务，不要让 RetainPDF 直接耦合该服务的私有 API。推荐写一个 wrapper 命令：读取 `RETAIN_OCR_SOURCE_PDF`，请求本地 HTTP 服务，把返回结果转换为 `generic_flat_ocr` 或 `document.v1`，再写到约定路径。
 
 ## Paddle 模型配置
 
@@ -304,3 +355,136 @@ Rust API 同时支持：
 export RUST_API_OCR_PROVIDER_CONFIG=/path/to/ocr_providers.json
 export RUST_API_PADDLE_DEFAULT_MODEL=PaddleOCR-VL-1.6
 ```
+
+## Provider Options / Credential Spec / 动态发现
+
+OCR provider 的可见契约统一放在：
+
+```text
+backend/config/ocr_providers.json
+```
+
+前端和外部集成方不要硬编码“某个 provider 需要填哪些字段”，而是读取：
+
+```http
+GET /api/v1/providers/ocr
+```
+
+返回的每个 provider 都包含：
+
+- `key`：提交任务时使用的 provider 名
+- `display_name`：展示名
+- `provider_kind`：`remote`、`local_command` 或 `remote_command`
+- `credential`：凭据字段和环境变量约定；本地 provider 可以是 `null`
+- `options`：provider 参数定义，包括 `type/default/env/aliases/choices/required`
+- `capabilities`：是否支持 URL、本地文件、轮询、bundle、公式/表格开关
+- `artifact_layout`：provider 原始产物的稳定落盘位置
+
+典型响应结构：
+
+```json
+{
+  "key": "paddle",
+  "display_name": "PaddleOCR",
+  "provider_kind": "remote",
+  "credential": {
+    "field": "paddle_token",
+    "env": "RETAIN_PADDLE_API_TOKEN",
+    "required_for": ["remote_url", "local_upload"]
+  },
+  "options": {
+    "paddle_model": {
+      "type": "string",
+      "default": "PaddleOCR-VL-1.6",
+      "aliases": {
+        "paddleocr-vl": "PaddleOCR-VL-1.6"
+      }
+    }
+  }
+}
+```
+
+如果要新增一个本地 OCR provider，不需要修改翻译/渲染主流程。先在配置里增加：
+
+```json
+{
+  "providers": {
+    "my_local_ocr": {
+      "display_name": "My Local OCR",
+      "kind": "local_command",
+      "credential": null,
+      "options": {
+        "command": {
+          "type": "string",
+          "default": "python /path/to/my_ocr.py"
+        },
+        "raw_provider": {
+          "type": "string",
+          "default": "generic_flat_ocr"
+        }
+      }
+    }
+  }
+}
+```
+
+如果要新增一个远程 OCR provider，也优先走 `remote_command`，不要先把第三方 submit/poll/download 状态机写进 Rust 主流程。配置示例：
+
+```json
+{
+  "providers": {
+    "my_remote_ocr": {
+      "display_name": "My Remote OCR",
+      "kind": "remote_command",
+      "credential": {
+        "field": "credential",
+        "env": "RETAIN_MY_REMOTE_OCR_TOKEN",
+        "required_for": ["remote_url", "local_upload"]
+      },
+      "options": {
+        "command": {
+          "type": "string",
+          "default": "python /path/to/my_remote_ocr.py"
+        },
+        "raw_provider": {
+          "type": "string",
+          "default": "generic_flat_ocr"
+        }
+      }
+    }
+  }
+}
+```
+
+Python provider registry 会动态发现 `kind=local_command|remote_command` 的 provider，并用同一个 command driver 执行。`command/raw_provider` 的读取顺序是：
+
+1. stage spec 或运行参数里的 provider options
+2. `RETAIN_LOCAL_OCR_COMMAND` / `RETAIN_OCR_RAW_PROVIDER`
+
+command provider 会收到这些稳定环境变量：
+
+```text
+RETAIN_OCR_PROVIDER
+RETAIN_OCR_PROVIDER_KIND
+RETAIN_OCR_CREDENTIAL
+RETAIN_OCR_SOURCE_PDF
+RETAIN_OCR_SOURCE_URL
+RETAIN_OCR_JOB_ROOT
+RETAIN_OCR_SOURCE_DIR
+RETAIN_OCR_DIR
+RETAIN_OCR_PROVIDER_RESULT_JSON
+RETAIN_OCR_NORMALIZED_DOCUMENT_JSON
+RETAIN_OCR_NORMALIZATION_REPORT_JSON
+RETAIN_OCR_PROVIDER_RAW_DIR
+RETAIN_OCR_RAW_PAYLOAD_JSON
+RETAIN_OCR_RAW_PROVIDER
+```
+
+`remote_command` 的关键契约：
+
+- 插件命令自己负责第三方 API 的 submit / poll / download / retry。
+- 如果输入来自 `source.file_url`，插件必须把最终源 PDF 写入 `RETAIN_OCR_SOURCE_DIR`。
+- 插件可以直接写 `RETAIN_OCR_NORMALIZED_DOCUMENT_JSON`。
+- 插件也可以写 `RETAIN_OCR_RAW_PAYLOAD_JSON`，然后由 `raw_provider` 对应 adapter 转成 `document.v1.json`。
+- 凭据优先由后端解析 `ocr.credential_ref` 后写入 `RETAIN_OCR_CREDENTIAL`，同时也可通过配置里的 `credential.env` 让插件读取自己的环境变量。
+- 主 workflow 只消费 `document.v1.json`，不理解远程服务自己的状态机。

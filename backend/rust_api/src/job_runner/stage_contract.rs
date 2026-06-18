@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
 
-use crate::models::{JobArtifacts, JobRuntimeState};
+use crate::models::domain::{JobArtifacts, JobRuntimeState};
 use crate::storage_paths::TRANSLATION_MANIFEST_FILE_NAME;
 
 use super::artifact_requirements::{
@@ -140,7 +140,8 @@ fn require_translation_manifest(translations_dir: &Path, source_label: &str) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{CreateJobInput, JobSnapshot};
+    use crate::models::domain::JobSnapshot;
+    use crate::models::request::CreateJobInput;
 
     fn build_job() -> JobRuntimeState {
         JobSnapshot::new(

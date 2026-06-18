@@ -20,7 +20,7 @@ class DeveloperAuthDialog extends HTMLElement {
             </label>
             <div id="developer-auth-error" class="upload-status hidden"></div>
             <div class="actions credential-dialog-actions">
-              <button id="developer-auth-submit-btn" type="button">进入开发者设置</button>
+              <button id="developer-auth-submit-btn" type="button" class="app-button">进入开发者设置</button>
             </div>
           </div>
         </form>

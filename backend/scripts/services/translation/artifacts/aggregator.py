@@ -116,6 +116,9 @@ class TranslationRunDiagnostics:
     _adaptive_recent_failure_count: int = field(default=0, init=False, repr=False)
     _adaptive_slow_success_streak: int = field(default=0, init=False, repr=False)
     _result_stats: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+    _queue_split: dict[str, int] = field(default_factory=dict, init=False, repr=False)
+    _flush_stats: dict[str, int] = field(default_factory=dict, init=False, repr=False)
+    _tail_retry_stats: dict[str, int] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
         initial_limit = max(1, int(self.configured_workers))
@@ -163,12 +166,25 @@ class TranslationRunDiagnostics:
         single_fast_workers: int,
         single_slow_workers: int,
         slow_worker_limit: int,
+        batched_fast_batches: int = 0,
+        single_fast_batches: int = 0,
+        single_slow_batches: int = 0,
     ) -> None:
         with self._lock:
             self._effective["effective_workers_batched_fast"] = int(max(0, batched_fast_workers))
             self._effective["effective_workers_single_fast"] = int(max(0, single_fast_workers))
             self._effective["effective_workers_single_slow"] = int(max(0, single_slow_workers))
             self._effective["slow_worker_limit"] = int(max(0, slow_worker_limit))
+            self._queue_split = {
+                "batched_fast_batches": int(max(0, batched_fast_batches)),
+                "single_fast_batches": int(max(0, single_fast_batches)),
+                "single_slow_batches": int(max(0, single_slow_batches)),
+                "fast_queue_batches": int(max(0, batched_fast_batches)) + int(max(0, single_fast_batches)),
+                "slow_queue_batches": int(max(0, single_slow_batches)),
+                "batched_fast_workers": int(max(0, batched_fast_workers)),
+                "single_fast_workers": int(max(0, single_fast_workers)),
+                "single_slow_workers": int(max(0, single_slow_workers)),
+            }
 
     def set_translation_result_stats(
         self,
@@ -176,12 +192,38 @@ class TranslationRunDiagnostics:
         applied_batches: int,
         apply_elapsed_ms: int,
         max_result_drain_batch: int,
+        flush_count: int = 0,
+        flushed_page_total: int = 0,
+        flush_elapsed_ms: int = 0,
+        max_flush_pages: int = 0,
+        tail_retry_drains: int = 0,
+        tail_retry_items: int = 0,
+        tail_retry_completed: int = 0,
+        tail_retry_failed: int = 0,
+        tail_retry_elapsed_ms: int = 0,
+        early_tail_retry_drains: int = 0,
+        final_tail_retry_drains: int = 0,
     ) -> None:
         with self._lock:
             self._result_stats = {
                 "applied_batches": int(max(0, applied_batches)),
                 "apply_elapsed_ms": int(max(0, apply_elapsed_ms)),
                 "max_result_drain_batch": int(max(0, max_result_drain_batch)),
+            }
+            self._flush_stats = {
+                "flush_count": int(max(0, flush_count)),
+                "flushed_page_total": int(max(0, flushed_page_total)),
+                "flush_elapsed_ms": int(max(0, flush_elapsed_ms)),
+                "max_flush_pages": int(max(0, max_flush_pages)),
+            }
+            self._tail_retry_stats = {
+                "tail_retry_drains": int(max(0, tail_retry_drains)),
+                "tail_retry_items": int(max(0, tail_retry_items)),
+                "tail_retry_completed": int(max(0, tail_retry_completed)),
+                "tail_retry_failed": int(max(0, tail_retry_failed)),
+                "tail_retry_elapsed_ms": int(max(0, tail_retry_elapsed_ms)),
+                "early_tail_retry_drains": int(max(0, early_tail_retry_drains)),
+                "final_tail_retry_drains": int(max(0, final_tail_retry_drains)),
             }
 
     def set_http_pool_settings(self, *, pool_size: int, pool_cap: int) -> None:
@@ -457,6 +499,7 @@ class TranslationRunDiagnostics:
                     "peak_inflight_policy_requests": self._peak_inflight_by_stage.get("mixed_literal_split", 0),
                     "peak_inflight_all_llm_requests": self._peak_inflight_by_stage.get("__all__", 0),
                 },
+                "translation_queue_split": dict(self._queue_split),
                 "adaptive_concurrency": {
                     "enabled": True,
                     "configured_limit": self.configured_workers,
@@ -466,6 +509,8 @@ class TranslationRunDiagnostics:
                     "floor_limit": self._adaptive_floor_limit,
                 },
                 "result_apply": dict(self._result_stats),
+                "result_flush": dict(self._flush_stats),
+                "tail_retry": dict(self._tail_retry_stats),
                 "phase_elapsed_ms": self._phase_elapsed_summary(),
                 "slow_request_samples": list(self._slow_requests),
                 "recommendations": self._recommendations(),

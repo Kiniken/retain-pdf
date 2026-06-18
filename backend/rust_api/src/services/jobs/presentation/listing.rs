@@ -1,20 +1,19 @@
 use std::path::Path;
 
-use super::super::live_stage::{
-    build_progress_view, list_combined_job_events, load_live_stage_snapshot,
-};
+use super::super::live_stage::{list_combined_job_events, load_live_stage_snapshot};
 use super::super::query::list_jobs_filtered;
+use super::super::stage_view::build_job_stage_view;
 use super::super::summary_loaders::load_invocation_summary;
 use super::helpers::{cover_url, derive_display_name, job_path_prefix};
 use super::helpers::{page_count_for_job, source_file_name, thumbnail_url};
 use super::security::redact_job_events;
 use crate::db::Db;
 use crate::error::AppError;
-use crate::models::{
-    summarize_list_invocation, JobEventListView, JobListItemView, JobListView, JobSnapshot,
+use crate::models::api::{
+    summarize_list_invocation, to_absolute_url, JobEventListView, JobListItemView, JobListView,
     ListJobEventsQuery, ListJobsQuery,
 };
-use crate::storage_paths::{resolve_markdown_path, resolve_output_pdf};
+use crate::models::domain::JobSnapshot;
 
 pub fn build_job_list_view(
     db: &Db,
@@ -66,17 +65,9 @@ fn build_job_list_item_view(
 ) -> JobListItemView {
     let detail_path = format!("{}/{}", job_path_prefix(job), job.job_id);
     let live_stage = load_live_stage_snapshot(db, job, data_root);
-    let stage = live_stage
-        .as_ref()
-        .and_then(|snapshot| snapshot.stage.clone())
-        .or_else(|| job.stage.clone());
-    let stage_detail = live_stage
-        .as_ref()
-        .and_then(|snapshot| snapshot.stage_detail.clone())
-        .or_else(|| job.stage_detail.clone());
-    let progress = build_progress_view(job, live_stage.as_ref());
+    let stage = build_job_stage_view(job, live_stage.as_ref());
     let (output_pdf_ready, markdown_ready, bundle_ready) =
-        super::super::readiness(job, data_root, resolve_output_pdf, resolve_markdown_path);
+        super::super::job_readiness(job, data_root);
     let cover_url = cover_url(job, data_root, base_url);
     let thumbnail_url = thumbnail_url(job, data_root, base_url);
     JobListItemView {
@@ -88,9 +79,9 @@ fn build_job_list_item_view(
             .artifacts
             .as_ref()
             .and_then(|item| item.trace_id.clone()),
-        stage,
-        stage_detail,
-        progress,
+        stage_snapshot: stage.stage_snapshot,
+        background_snapshots: stage.background_snapshots,
+        stages: stage.stages,
         page_count: page_count_for_job(db, job, data_root),
         source_file_name: source_file_name(db, job),
         cover_url,
@@ -101,7 +92,7 @@ fn build_job_list_item_view(
         invocation: load_invocation_summary(job, data_root),
         created_at: job.created_at.clone(),
         updated_at: job.updated_at.clone(),
-        detail_url: crate::models::to_absolute_url(base_url, &detail_path),
+        detail_url: to_absolute_url(base_url, &detail_path),
         detail_path,
     }
 }

@@ -1,7 +1,7 @@
 use axum::Json;
 
 use crate::error::AppError;
-use crate::models::{
+use crate::models::api::{
     ApiResponse, ListTranslationItemsQuery, TranslationDebugItemView, TranslationDebugListView,
     TranslationDiagnosticsView, TranslationReplayView,
 };

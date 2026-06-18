@@ -1,8 +1,4 @@
 import {
-  bindProtectedArtifactLinks,
-  isActionLinkDisabled,
-} from "./view.js";
-import {
   fileNameFromDisposition,
   formatTransferSize,
   prepareDownloadTarget,
@@ -14,31 +10,23 @@ import {
   showDownloadPreparing,
   updateDownloadProgress,
 } from "../../utils/download-feedback.js";
+import { buildErrorDiagnostic } from "../../utils/error-diagnostics.js";
 import {
-  resolveSourcePdfDownloadName,
-  resolveTranslatedPdfDownloadName,
-} from "../../job/artifacts.js";
-import { currentJobId } from "../job-runtime/runtime-state.js";
+  downloadActionForLink,
+  defaultDownloadNameResolver,
+  resolveDownloadActionTarget,
+} from "./download-actions.js";
+import { createArtifactDownloadViewPort } from "./download-view-port.js";
+import { createArtifactDownloadsRuntimePort } from "./runtime-port.js";
 
 export function mountArtifactDownloadsFeature({
   state,
   fetchProtected,
   setText,
+  runtimePort = createArtifactDownloadsRuntimePort(),
+  viewPort = createArtifactDownloadViewPort(),
+  downloadNameResolver = defaultDownloadNameResolver,
 }) {
-  function setLinkBusy(link, busy, text = "") {
-    if (!link) {
-      return;
-    }
-    const label = link.querySelector("span");
-    const labelTarget = label || link;
-    if (!link.dataset.defaultLabel) {
-      link.dataset.defaultLabel = labelTarget.textContent?.trim() || "下载";
-    }
-    link.classList.toggle("disabled", busy);
-    link.setAttribute("aria-disabled", busy ? "true" : "false");
-    labelTarget.textContent = busy ? text || "下载中..." : link.dataset.defaultLabel;
-  }
-
   function summarizeDownloadProgress(receivedBytes, totalBytes, percent) {
     const receivedText = formatTransferSize(receivedBytes);
     if (Number.isFinite(totalBytes) && totalBytes > 0) {
@@ -54,7 +42,7 @@ export function mountArtifactDownloadsFeature({
     if (!link) {
       return;
     }
-    const disabled = isActionLinkDisabled(link);
+    const disabled = viewPort.isLinkDisabled(link);
     const url = link.dataset.url || "";
     if (disabled || !url) {
       event.preventDefault();
@@ -63,39 +51,37 @@ export function mountArtifactDownloadsFeature({
 
     event.preventDefault();
     setText("error-box", "-");
-    const jobId = currentJobId(state) || "result";
-    const fallbackName = link.id === "download-btn"
-      ? `${jobId}.zip`
-      : link.id === "markdown-bundle-btn" || link.id === "status-markdown-bundle-btn"
-        ? `${jobId}-markdown.zip`
-        : link.id === "source-pdf-btn"
-          ? `${jobId}-source.pdf`
-          : link.id === "pdf-btn"
-            ? `${jobId}.pdf`
-            : link.id === "markdown-raw-btn"
-              ? `${jobId}.md`
-              : `${jobId}.json`;
-    const preferredName = link.id === "pdf-btn"
-      ? resolveTranslatedPdfDownloadName(state, fallbackName)
-      : link.id === "source-pdf-btn"
-        ? resolveSourcePdfDownloadName(state, fallbackName)
-        : fallbackName;
+    const action = downloadActionForLink(link);
+    const jobId = runtimePort.currentJobId(state) || "result";
+    const {
+      fallbackName,
+      preferredName,
+      preferSuggestedName,
+    } = resolveDownloadActionTarget({
+      action,
+      state,
+      jobId,
+      nameResolver: downloadNameResolver,
+    });
     const downloadTarget = await prepareDownloadTarget(preferredName);
     if (downloadTarget.kind === "aborted") {
       return;
     }
 
     try {
-      setLinkBusy(link, true, "下载中...");
+      viewPort.setLinkBusy(link, true, "下载中...");
       showDownloadPreparing(preferredName);
       const resp = await fetchProtected(url);
       if (!resp.ok) {
         const text = await resp.text();
-        throw new Error(`下载失败: ${resp.status} ${text || "unknown error"}`);
+        const error = new Error(`下载失败: ${resp.status} ${text || "unknown error"}`);
+        error.status = resp.status;
+        error.url = url;
+        throw error;
       }
 
       const disposition = resp.headers.get("content-disposition") || "";
-      const filename = link.id === "pdf-btn" || link.id === "source-pdf-btn"
+      const filename = preferSuggestedName
         ? preferredName
         : fileNameFromDisposition(disposition, fallbackName);
       await saveResponseDownload(resp, {
@@ -104,12 +90,12 @@ export function mountArtifactDownloadsFeature({
         onProgress: ({ receivedBytes, totalBytes, percent, done }) => {
           if (done) {
             setText("error-box", `已开始保存 ${filename}`);
-            setLinkBusy(link, true, "已完成");
+            viewPort.setLinkBusy(link, true, "已完成");
             completeDownloadToast(filename);
             return;
           }
           setText("error-box", summarizeDownloadProgress(receivedBytes, totalBytes, percent));
-          setLinkBusy(
+          viewPort.setLinkBusy(
             link,
             true,
             Number.isFinite(percent) ? `${Math.max(0, Math.min(100, Number(percent) || 0)).toFixed(0)}%` : "下载中...",
@@ -123,15 +109,23 @@ export function mountArtifactDownloadsFeature({
         },
       });
     } catch (err) {
-      setText("error-box", err.message);
+      setText("error-box", buildErrorDiagnostic(err, {
+        operation: "下载任务产物",
+        url,
+        jobId,
+        details: {
+          action,
+          filename: preferredName,
+        },
+      }));
       failDownloadToast(err.message || "下载失败");
     } finally {
-      setLinkBusy(link, false);
+      viewPort.setLinkBusy(link, false);
     }
   }
 
   function bindEvents() {
-    bindProtectedArtifactLinks(handleProtectedArtifactClick);
+    viewPort.bindProtectedLinks(handleProtectedArtifactClick);
   }
 
   return {

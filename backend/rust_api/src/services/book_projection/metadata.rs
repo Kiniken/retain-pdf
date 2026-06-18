@@ -1,7 +1,8 @@
 use std::path::Path;
 
 use crate::db::Db;
-use crate::models::{BookSummaryView, JobSnapshot};
+use crate::models::api::BookSummaryView;
+use crate::models::domain::JobSnapshot;
 use crate::services::jobs::summary_loaders::load_normalization_summary;
 
 pub(super) fn derive_display_name(db: &Db, job: &JobSnapshot) -> String {

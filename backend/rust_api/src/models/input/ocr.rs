@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::BTreeMap;
 
 use crate::models::defaults::*;
 
@@ -39,6 +41,8 @@ pub struct OcrInput {
     pub poll_interval: i64,
     #[serde(default = "default_poll_timeout")]
     pub poll_timeout: i64,
+    #[serde(default)]
+    pub options: BTreeMap<String, Value>,
 }
 
 impl Default for OcrInput {
@@ -61,6 +65,7 @@ impl Default for OcrInput {
             extra_formats: String::new(),
             poll_interval: default_poll_interval(),
             poll_timeout: default_poll_timeout(),
+            options: BTreeMap::new(),
         }
     }
 }

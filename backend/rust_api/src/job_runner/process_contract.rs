@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Result};
 
-use crate::models::JobRuntimeState;
+use crate::models::domain::{JobArtifacts, JobRuntimeState};
 use crate::storage_paths::TRANSLATION_MANIFEST_FILE_NAME;
 
 use super::artifact_requirements::{required_existing_dir, required_existing_file};
@@ -107,7 +107,7 @@ fn validate_render_outputs(job: &JobRuntimeState, data_root: &Path) -> Result<()
     Ok(())
 }
 
-fn required_artifacts(job: &JobRuntimeState) -> Result<&crate::models::JobArtifacts> {
+fn required_artifacts(job: &JobRuntimeState) -> Result<&JobArtifacts> {
     job.artifacts.as_ref().ok_or_else(|| {
         anyhow!(
             "worker succeeded but artifacts are missing for {}",
@@ -151,7 +151,8 @@ fn require_worker_dir(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{CreateJobInput, JobArtifacts, JobSnapshot};
+    use crate::models::domain::{JobArtifacts, JobSnapshot};
+    use crate::models::request::CreateJobInput;
 
     fn build_job(command_script: &str) -> JobRuntimeState {
         JobSnapshot::new(

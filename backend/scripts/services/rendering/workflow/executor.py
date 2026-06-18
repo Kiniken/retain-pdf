@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import time
 
@@ -11,6 +12,7 @@ from services.rendering.workflow.context import RenderExecutionContext
 from services.rendering.workflow.cover_fallback import TypstCoverFallbackPlan
 from services.rendering.workflow.document_analysis import document_analysis_diagnostics
 from services.rendering.workflow.document_analysis import document_analysis_prewarm_hit
+from services.rendering.workflow.document_analysis import build_sync_workflow_document_analysis
 from services.rendering.workflow.document_analysis import resolve_cached_workflow_document_analysis
 from services.rendering.workflow.modes import run_background_typst_render
 from services.rendering.workflow.modes import run_dual_render
@@ -25,6 +27,16 @@ from services.rendering.source_cleanup.protected_blocks import protected_pages_f
 from services.rendering.source.prewarm import try_load_prewarmed_render_source_pdf
 from services.rendering.source.prewarm import try_load_render_payload_prewarm
 from services.rendering.source.prewarm_manifest_io import render_payload_prewarm_from_manifest_payload
+from services.rendering.source.prewarm_payload import ensure_pdf_structure_profile
+
+
+def render_no_cache_enabled() -> bool:
+    return str(os.environ.get("RETAINPDF_RENDER_NO_CACHE") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 def execute_render_plan(
@@ -46,6 +58,9 @@ def execute_render_plan(
     start = max(0, start_page)
     stop = max(render_plan.selected_pages) if end_page < 0 else end_page
     cleanup_strategy = layout.normalize_source_cleanup_strategy(source_cleanup_strategy)
+    no_cache = render_no_cache_enabled()
+    if no_cache:
+        render_prewarm_manifest_path = None
     render_source_pdf = (
         try_load_prewarmed_render_source_pdf(
             manifest_path=render_prewarm_manifest_path,
@@ -83,10 +98,34 @@ def execute_render_plan(
         render_source_pdf=render_source_pdf,
         payload_prewarm=payload_prewarm,
     )
+    if document_analysis is None:
+        analysis_started = time.perf_counter()
+        document_analysis = build_sync_workflow_document_analysis(
+            source_pdf_path=render_plan.render_inputs.source_pdf_path,
+            translated_pages=render_plan.selected_pages,
+            start_page=start,
+            end_page=stop,
+        )
+        print(
+            "render document analysis: "
+            f"sync pages={len(document_analysis.pages)} elapsed={time.perf_counter() - analysis_started:.2f}s",
+            flush=True,
+        )
     protected_pages = _protected_pages_for_render(render_plan.render_inputs.translations_dir)
     render_source_sync_cache_written = False
     if render_source_pdf is None:
         sync_prepare_started = time.perf_counter()
+        pdf_structure_profile_path = (
+            payload_prewarm.pdf_structure_profile_path
+            if payload_prewarm is not None
+            else None
+        )
+        if pdf_structure_profile_path is None and render_prewarm_manifest_path is not None:
+            pdf_structure_profile_path, _pdf_structure_profile = ensure_pdf_structure_profile(
+                source_pdf_path=render_plan.render_inputs.source_pdf_path,
+                translated_pages=render_plan.selected_pages,
+                manifest_path=render_prewarm_manifest_path,
+            )
         render_source_pdf = build_render_source_pdf(
             source_pdf_path=render_plan.render_inputs.source_pdf_path,
             output_pdf_path=(
@@ -108,34 +147,47 @@ def execute_render_plan(
             ),
             source_cleanup_strategy=cleanup_strategy,
             document_analysis=document_analysis,
+            pdf_structure_profile_path=pdf_structure_profile_path,
         )
-        sync_payload_prewarm = build_full_sync_payload_prewarm(
-            manifest_path=render_prewarm_manifest_path,
-            prepared=render_source_pdf,
-            source_pdf_path=render_plan.render_inputs.source_pdf_path,
-            translated_pages=render_plan.selected_pages,
-            effective_render_mode=render_plan.effective_render_mode,
-            source_cleanup_strategy=cleanup_strategy,
+        sync_payload_prewarm = (
+            {}
+            if no_cache
+            else build_full_sync_payload_prewarm(
+                manifest_path=render_prewarm_manifest_path,
+                prepared=render_source_pdf,
+                source_pdf_path=render_plan.render_inputs.source_pdf_path,
+                translated_pages=render_plan.selected_pages,
+                effective_render_mode=render_plan.effective_render_mode,
+                source_cleanup_strategy=cleanup_strategy,
+            )
         )
-        merged_sync_payload_prewarm = build_sync_payload_prewarm(
-            manifest_path=render_prewarm_manifest_path,
-            prepared=render_source_pdf,
-            payload_prewarm=sync_payload_prewarm,
+        merged_sync_payload_prewarm = (
+            {}
+            if no_cache
+            else build_sync_payload_prewarm(
+                manifest_path=render_prewarm_manifest_path,
+                prepared=render_source_pdf,
+                payload_prewarm=sync_payload_prewarm,
+            )
         )
-        render_source_sync_cache_written = persist_sync_render_source_prewarm(
-            manifest_path=render_prewarm_manifest_path,
-            prepared=render_source_pdf,
-            source_pdf_path=render_plan.render_inputs.source_pdf_path,
-            translated_pages=render_plan.selected_pages,
-            effective_render_mode=render_plan.effective_render_mode,
-            start_page=start,
-            end_page=stop,
-            pdf_compress_dpi=pdf_compress_dpi,
-            source_cleanup_strategy=cleanup_strategy,
-            elapsed=time.perf_counter() - sync_prepare_started,
-            payload_prewarm=merged_sync_payload_prewarm,
+        render_source_sync_cache_written = (
+            False
+            if no_cache
+            else persist_sync_render_source_prewarm(
+                manifest_path=render_prewarm_manifest_path,
+                prepared=render_source_pdf,
+                source_pdf_path=render_plan.render_inputs.source_pdf_path,
+                translated_pages=render_plan.selected_pages,
+                effective_render_mode=render_plan.effective_render_mode,
+                start_page=start,
+                end_page=stop,
+                pdf_compress_dpi=pdf_compress_dpi,
+                source_cleanup_strategy=cleanup_strategy,
+                elapsed=time.perf_counter() - sync_prepare_started,
+                payload_prewarm=merged_sync_payload_prewarm,
+            )
         )
-        if payload_prewarm is None:
+        if payload_prewarm is None and not no_cache:
             payload_prewarm = render_payload_prewarm_from_manifest_payload(
                 merged_sync_payload_prewarm,
                 document_analysis=getattr(render_source_pdf, "document_analysis", None),
@@ -196,11 +248,22 @@ def execute_render_plan(
             if payload_prewarm is not None
             else None
         ),
-        overlay_source_path=(
-            payload_prewarm.overlay_source_path
+        visual_profile_path=(
+            payload_prewarm.visual_profile_path
             if payload_prewarm is not None
             else None
         ),
+        pdf_structure_profile_path=(
+            payload_prewarm.pdf_structure_profile_path
+            if payload_prewarm is not None
+            else None
+        ),
+        overlay_source_path=(
+            payload_prewarm.overlay_source_path
+            if payload_prewarm is not None and not no_cache
+            else None
+        ),
+        no_cache=no_cache,
         page_routes_by_index=document_analysis.pages if document_analysis is not None else None,
         visual_cover_page_indices=cover_fallback_plan.page_indices,
     )
@@ -222,6 +285,7 @@ def execute_render_plan(
             "render_document_analysis_hit": render_document_analysis_hit,
             "render_source_prewarm_manifest": str(render_prewarm_manifest_path or ""),
             "render_source_sync_cache_written": render_source_sync_cache_written,
+            "render_no_cache": no_cache,
             "source_cleanup_strategy": cleanup_strategy,
             "source_text_precleaned_pages": len(render_source_pdf.source_text_precleaned_page_indices),
             "bbox_text_stripped_pages": len(render_source_pdf.bbox_text_stripped_page_indices),

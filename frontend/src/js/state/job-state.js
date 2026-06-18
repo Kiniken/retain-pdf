@@ -25,6 +25,7 @@ export function createJobState() {
 
 export function resetJobState(target) {
   Object.assign(target, createJobState());
+  syncSecondaryResourceReset(target, { preserveInFlight: false });
 }
 
 export function resetJobSecondaryState(target) {
@@ -45,4 +46,26 @@ export function resetJobSecondaryState(target) {
     currentJobDisplayedStageKey: "",
     currentJobDisplayedStageJobId: "",
   });
+  syncSecondaryResourceReset(target, { preserveInFlight: false });
+}
+
+function syncSecondaryResourceReset(target, options) {
+  const symbols = Object.getOwnPropertySymbols(target || {});
+  const secondaryStoreSymbol = symbols.find((symbol) => String(symbol) === "Symbol(retainpdf.secondaryResourceStore)");
+  const secondaryStore = secondaryStoreSymbol ? target[secondaryStoreSymbol] : null;
+  if (!secondaryStore?.reset) {
+    return;
+  }
+  const emptyRecord = {
+    payload: null,
+    jobId: "",
+    fetchedAt: 0,
+    inFlight: false,
+  };
+  const next = {
+    events: { ...emptyRecord, inFlight: options?.preserveInFlight ? Boolean(target.currentJobEventsFetchInFlight) : false },
+    manifest: { ...emptyRecord, inFlight: options?.preserveInFlight ? Boolean(target.currentJobManifestFetchInFlight) : false },
+    stageActions: { ...emptyRecord, inFlight: options?.preserveInFlight ? Boolean(target.currentJobStageActionsFetchInFlight) : false },
+  };
+  secondaryStore.reset(next);
 }

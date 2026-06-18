@@ -1,4 +1,4 @@
-use crate::models::{JobArtifacts, JobSnapshot};
+use crate::models::domain::{JobArtifacts, JobSnapshot};
 use crate::ocr_provider::{
     ensure_provider_diagnostics, parse_provider_kind, OcrProviderDiagnostics,
 };

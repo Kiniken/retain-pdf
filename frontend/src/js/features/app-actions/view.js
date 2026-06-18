@@ -1,8 +1,8 @@
-import { $ } from "../../dom.js";
-import { resetUploadState } from "../../state/actions.js";
+import { $ } from "../../dom/query.js";
+import { APP_EVENTS } from "../../contracts/app-contract.js";
 
 export function setSubmitBusy(busy) {
-  document.dispatchEvent(new CustomEvent("retainpdf:submit-busy-changed", {
+  document.dispatchEvent(new CustomEvent(APP_EVENTS.submitBusyChanged, {
     detail: { busy: !!busy },
   }));
   const button = $("submit-btn");
@@ -12,8 +12,8 @@ export function setSubmitBusy(busy) {
   }
 }
 
-export function resetMissingUploadState({ state, resetUploadedFile, setText }) {
-  resetUploadState(state, { includePageRange: false });
+export function resetMissingUploadState({ uploadStatePort, resetUploadedFile, setText }) {
+  uploadStatePort?.reset?.({ includePageRange: false });
   resetUploadedFile?.();
   setText("error-box", "当前上传文件已失效，请重新上传 PDF 后再提交。");
 }

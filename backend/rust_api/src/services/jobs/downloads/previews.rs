@@ -1,9 +1,14 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::error::AppError;
+use crate::models::api::PagePreviewQuery;
+use crate::services::derived_artifacts;
+use crate::storage_paths::{resolve_output_pdf, resolve_source_pdf};
 
-use super::super::query::load_supported_job;
-use super::QueryJobsDeps;
+use super::artifact_deps::derived_artifact_deps;
+use super::paths::job_artifacts_dir;
+use super::{FileDownload, QueryJobsDeps};
+use crate::services::jobs::query::load_supported_job;
 
 #[derive(Clone, Copy)]
 pub(super) enum PagePreviewKind {
@@ -30,120 +35,83 @@ pub(super) fn preview_kind(kind: &str) -> Result<PagePreviewKind, AppError> {
     }
 }
 
-#[derive(Clone, Copy)]
-pub(super) enum BookImageKind {
-    Cover,
-    Thumbnail,
-}
-
-impl BookImageKind {
-    fn file_name(self) -> &'static str {
-        match self {
-            Self::Cover => "cover.jpg",
-            Self::Thumbnail => "thumbnail.jpg",
-        }
-    }
-
-    fn width_px(self) -> u32 {
-        match self {
-            Self::Cover => 900,
-            Self::Thumbnail => 360,
-        }
-    }
-}
-
-pub(super) fn render_book_image(
+pub(crate) fn page_preview_download(
     deps: &QueryJobsDeps<'_>,
     job_id: &str,
-    kind: BookImageKind,
-) -> Result<PathBuf, AppError> {
+    page: u32,
+    query: &PagePreviewQuery,
+) -> Result<FileDownload, AppError> {
     let job = load_supported_job(deps.db, deps.data_root, job_id)?;
-    let source_pdf = crate::storage_paths::resolve_source_pdf(&job, deps.data_root)
-        .ok_or_else(|| AppError::not_found(format!("source pdf not ready: {}", job.job_id)))?;
-    let output_dir = super::paths::job_artifacts_dir(deps, &job)?;
-    let output_path = output_dir.join(kind.file_name());
-    if output_path.exists() && output_path.is_file() {
-        return Ok(output_path);
-    }
-
-    let script = r#"
-import sys
-from pathlib import Path
-import fitz
-
-source = Path(sys.argv[1])
-output = Path(sys.argv[2])
-width_px = int(sys.argv[3])
-
-with fitz.open(source) as doc:
-    if doc.page_count < 1:
-        raise RuntimeError("source pdf has no pages")
-    page = doc[0]
-    scale = width_px / max(float(page.rect.width), 1.0)
-    pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    pix.save(output)
-"#;
-    let status = std::process::Command::new(deps.replay.python_bin)
-        .arg("-c")
-        .arg(script)
-        .arg(&source_pdf)
-        .arg(&output_path)
-        .arg(kind.width_px().to_string())
-        .status()
-        .map_err(|error| AppError::internal(format!("failed to render book image: {error}")))?;
-    if !status.success() || !output_path.exists() {
-        return Err(AppError::internal(format!(
-            "failed to render book image for {}",
-            job.job_id
-        )));
-    }
-    Ok(output_path)
+    let source_pdf = match preview_kind(&query.kind)? {
+        PagePreviewKind::Source => resolve_source_pdf(&job, deps.data_root)
+            .ok_or_else(|| AppError::not_found(format!("source pdf not ready: {}", job.job_id)))?,
+        PagePreviewKind::Translated => {
+            resolve_output_pdf(&job, deps.data_root).ok_or_else(|| {
+                AppError::not_found(format!("translated pdf not ready: {}", job.job_id))
+            })?
+        }
+    };
+    let page_index = page
+        .checked_sub(1)
+        .ok_or_else(|| AppError::bad_request("page must be 1-based"))?;
+    let width_px = query.width.unwrap_or(1200).clamp(240, 2400);
+    let dpi = query.dpi.unwrap_or(0).min(300);
+    let output_dir = job_artifacts_dir(deps, &job)?;
+    let output_path = output_dir.join(format!(
+        "preview-{}-p{:04}-w{}-d{}.jpg",
+        preview_kind(&query.kind)?.as_str(),
+        page,
+        width_px,
+        dpi
+    ));
+    let path = derived_artifacts::preview::ensure_page_preview(
+        derived_artifact_deps(deps),
+        &output_path,
+        &source_pdf,
+        page_index,
+        width_px,
+        dpi,
+    )?;
+    Ok(FileDownload::new(path, "image/jpeg", None))
 }
 
-pub(super) fn render_pdf_page_preview(
-    python_bin: &str,
-    source_pdf: &Path,
-    output_path: &Path,
-    page_index: u32,
-    width_px: u32,
-    dpi: u32,
-) -> Result<(), AppError> {
-    let script = r#"
-import sys
-from pathlib import Path
-import fitz
+pub(crate) fn cover_download(
+    deps: &QueryJobsDeps<'_>,
+    job_id: &str,
+) -> Result<FileDownload, AppError> {
+    let path = book_image_download_path(
+        deps,
+        job_id,
+        derived_artifacts::preview::BookImageKind::Cover,
+    )?;
+    Ok(FileDownload::new(path, "image/jpeg", None))
+}
 
-source = Path(sys.argv[1])
-output = Path(sys.argv[2])
-page_index = int(sys.argv[3])
-width_px = int(sys.argv[4])
-dpi = int(sys.argv[5])
+pub(crate) fn thumbnail_download(
+    deps: &QueryJobsDeps<'_>,
+    job_id: &str,
+) -> Result<FileDownload, AppError> {
+    let path = book_image_download_path(
+        deps,
+        job_id,
+        derived_artifacts::preview::BookImageKind::Thumbnail,
+    )?;
+    Ok(FileDownload::new(path, "image/jpeg", None))
+}
 
-with fitz.open(source) as doc:
-    if page_index < 0 or page_index >= doc.page_count:
-        raise RuntimeError(f"page out of range: {page_index + 1}/{doc.page_count}")
-    page = doc[page_index]
-    if dpi > 0:
-        scale = dpi / 72.0
-    else:
-        scale = width_px / max(float(page.rect.width), 1.0)
-    pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    pix.save(output, jpg_quality=82)
-"#;
-    let status = std::process::Command::new(python_bin)
-        .arg("-c")
-        .arg(script)
-        .arg(source_pdf)
-        .arg(output_path)
-        .arg(page_index.to_string())
-        .arg(width_px.to_string())
-        .arg(dpi.to_string())
-        .status()
-        .map_err(|error| AppError::internal(format!("failed to render page preview: {error}")))?;
-    if !status.success() || !output_path.exists() {
-        return Err(AppError::internal("failed to render page preview"));
-    }
-    Ok(())
+fn book_image_download_path(
+    deps: &QueryJobsDeps<'_>,
+    job_id: &str,
+    kind: derived_artifacts::preview::BookImageKind,
+) -> Result<PathBuf, AppError> {
+    let job = load_supported_job(deps.db, deps.data_root, job_id)?;
+    let source_pdf = resolve_source_pdf(&job, deps.data_root)
+        .ok_or_else(|| AppError::not_found(format!("source pdf not ready: {}", job.job_id)))?;
+    derived_artifacts::preview::ensure_book_image(
+        derived_artifact_deps(deps),
+        deps.data_root,
+        &job,
+        &source_pdf,
+        kind,
+    )
 }

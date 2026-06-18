@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use crate::error::AppError;
-use crate::models::{CreateJobInput, ResolvedJobSpec};
+use crate::models::domain::{CreateJobInput, ResolvedJobSpec};
 
 pub(super) fn apply_retry_overrides(
     input: &mut CreateJobInput,

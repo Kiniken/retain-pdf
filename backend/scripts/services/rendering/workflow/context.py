@@ -31,6 +31,9 @@ class RenderExecutionContext:
     background_render_page_specs: list[RenderPageSpec] | None = None
     prepared_overlay_pages: dict[int, list[dict]] | None = None
     render_colors_by_item_id: dict[str, dict[str, tuple[float, float, float]]] | None = None
+    visual_profile_path: Path | None = None
+    pdf_structure_profile_path: Path | None = None
     overlay_source_path: Path | None = None
+    no_cache: bool = False
     page_routes_by_index: dict[int, RenderPageAnalysis] | None = None
     visual_cover_page_indices: frozenset[int] = frozenset()

@@ -1,5 +1,6 @@
 use crate::error::AppError;
-use crate::models::{CreateJobInput, JobSnapshot};
+use crate::models::domain::JobSnapshot;
+use crate::models::request::CreateJobInput;
 use crate::services::job_launcher::start_job_execution;
 
 use super::context::JobSubmitDeps;

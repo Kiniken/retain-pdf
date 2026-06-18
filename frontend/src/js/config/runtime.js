@@ -1,16 +1,22 @@
-import { DEFAULT_BASE_URL, DEFAULT_MODEL } from "../constants.js";
+import { DEFAULT_BASE_URL, DEFAULT_MODEL } from "./model-constants.js";
 import { normalizeOcrProvider } from "./providers.js";
 
-export let runtimeConfig = { ...(window.__FRONT_RUNTIME_CONFIG__ || {}) };
+export let runtimeConfig = { ...((typeof window !== "undefined" ? window.__FRONT_RUNTIME_CONFIG__ : null) || {}) };
 
 const API_V1_SUFFIX = "/api/v1";
 
 export function isFileProtocol() {
+  if (typeof window === "undefined") {
+    return false;
+  }
   return window.location.protocol === "file:";
 }
 
 export function buildFrontendPageUrl(relativePath, params = {}) {
-  const url = new URL(relativePath, window.location.href);
+  const baseHref = typeof window !== "undefined" && window.location?.href
+    ? window.location.href
+    : "http://127.0.0.1/";
+  const url = new URL(relativePath, baseHref);
   for (const [key, value] of Object.entries(params || {})) {
     const normalized = `${value ?? ""}`.trim();
     if (!normalized) {
@@ -23,6 +29,9 @@ export function buildFrontendPageUrl(relativePath, params = {}) {
 }
 
 export function readerMessageTargetOrigin() {
+  if (typeof window === "undefined") {
+    return "*";
+  }
   return isFileProtocol() ? "*" : window.location.origin;
 }
 
@@ -39,6 +48,9 @@ export function isTrustedWindowMessage(event, expectedSource = null) {
 export function apiBase() {
   if (typeof runtimeConfig.apiBase === "string" && runtimeConfig.apiBase.trim()) {
     return runtimeConfig.apiBase.trim().replace(/\/+$/, "").replace(new RegExp(`${API_V1_SUFFIX}$`), "");
+  }
+  if (typeof window === "undefined") {
+    return "http://127.0.0.1:41000";
   }
   if (!isFileProtocol() && window.location.protocol === "https:") {
     return window.location.origin;
@@ -60,7 +72,7 @@ export function buildApiUrl(apiPrefix = "", relativePath = "") {
 
 export function mockScenario() {
   const value = new URLSearchParams(window.location.search).get("mock")?.trim().toLowerCase() || "";
-  return ["queued", "running", "succeeded", "failed", "upload", "ocr", "translate", "render", "done"].includes(value) ? value : "";
+  return ["queued", "running", "succeeded", "failed", "upload", "ocr", "translate", "render", "done", "parallel"].includes(value) ? value : "";
 }
 
 export function isMockMode() {

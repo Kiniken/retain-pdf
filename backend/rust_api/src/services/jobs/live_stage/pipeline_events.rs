@@ -5,9 +5,8 @@ use std::path::Path;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::models::{
-    event_progress_unit, job_user_stage, normalize_event_user_stage, JobEventRecord,
-};
+use crate::models::api::JobEventRecord;
+use crate::models::domain::{event_progress_unit, job_user_stage, normalize_event_user_stage};
 
 #[derive(Debug, Deserialize)]
 struct PipelineEventJsonlRecord {

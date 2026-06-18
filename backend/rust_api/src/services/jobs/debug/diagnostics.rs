@@ -1,7 +1,8 @@
 use std::path::Path;
 
 use crate::error::AppError;
-use crate::models::{redact_json_value, sensitive_values, JobSnapshot, TranslationDiagnosticsView};
+use crate::models::api::{redact_json_value, sensitive_values, TranslationDiagnosticsView};
+use crate::models::domain::JobSnapshot;
 use crate::storage_paths::resolve_translation_diagnostics;
 
 use super::common::read_json_value;

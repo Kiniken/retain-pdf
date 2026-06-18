@@ -54,5 +54,8 @@ async fn jobs_list_route_prefers_live_pipeline_stage_snapshot() {
         .iter()
         .find(|item| item["job_id"] == "job-route-list-live-stage")
         .expect("job item");
-    assert_eq!(item["stage"], "translating");
+    assert!(item.get("stage").is_none());
+    assert!(item.get("progress").is_none());
+    assert_eq!(item["stage_snapshot"]["stage"], "translating");
+    assert_eq!(item["stage_snapshot"]["display_stage"], "translation");
 }

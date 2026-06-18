@@ -1,3 +1,10 @@
+import {
+  READER_DIALOG_BUTTON_IDS,
+  READER_DIALOG_COPY,
+  READER_DIALOG_IDS,
+  READER_FRAME_PLACEHOLDER,
+} from "./reader-dialog-contract.js";
+
 function downloadIconMarkup(extra = "") {
   return `
     <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -25,41 +32,41 @@ export function readerDialogTemplate() {
     <path d="M14.3 8.1h2.3" stroke="currentColor" stroke-width="1.45" stroke-linecap="round"/>
   `;
   return `
-    <dialog id="reader-dialog" class="desktop-dialog reader-dialog">
+    <dialog id="${READER_DIALOG_IDS.dialog}" class="desktop-dialog reader-dialog">
       <div class="reader-dialog-shell">
         <div class="reader-dialog-head">
           <div class="reader-dialog-toolbar">
-            <button id="reader-source-download-btn" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
+            <button id="${READER_DIALOG_BUTTON_IDS.source}" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
               ${downloadIconMarkup()}
               <span>原始 PDF</span>
             </button>
-            <button id="reader-merged-download-btn" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
+            <button id="${READER_DIALOG_BUTTON_IDS.merged}" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
               ${splitPdfIconMarkup()}
               <span>对照 PDF</span>
             </button>
-            <button id="reader-translated-download-btn" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
+            <button id="${READER_DIALOG_BUTTON_IDS.translated}" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
               ${downloadIconMarkup(translatedIconExtra)}
               <span>译文 PDF</span>
             </button>
           </div>
-          <button id="reader-dialog-close-btn" type="button" class="dialog-close-btn" aria-label="关闭">×</button>
+          <button id="${READER_DIALOG_IDS.closeButton}" type="button" class="dialog-close-btn" aria-label="关闭">×</button>
         </div>
-        <div id="reader-dialog-loading" class="reader-dialog-loading hidden" aria-live="polite">
+        <div id="${READER_DIALOG_IDS.loading}" class="reader-dialog-loading hidden" aria-live="polite">
           <div class="reader-dialog-loading-card">
             <div class="reader-dialog-loading-head">
-              <div id="reader-dialog-loading-text" class="reader-dialog-loading-text">正在准备对照阅读...</div>
-              <div id="reader-dialog-loading-percent" class="reader-dialog-loading-percent">0%</div>
+              <div id="${READER_DIALOG_IDS.loadingText}" class="reader-dialog-loading-text">${READER_DIALOG_COPY.preparing}</div>
+              <div id="${READER_DIALOG_IDS.loadingPercent}" class="reader-dialog-loading-percent">0%</div>
             </div>
             <div class="reader-dialog-loading-track">
-              <span id="reader-dialog-loading-bar" class="reader-dialog-loading-bar"></span>
+              <span id="${READER_DIALOG_IDS.loadingBar}" class="reader-dialog-loading-bar"></span>
             </div>
           </div>
         </div>
         <iframe
-          id="reader-dialog-frame"
+          id="${READER_DIALOG_IDS.frame}"
           class="reader-dialog-frame"
           title="对照阅读"
-          srcdoc="<style>html,body{margin:0;min-height:100%;background:#f3f4f6;color:#1d1d1f}</style>"
+          srcdoc="${READER_FRAME_PLACEHOLDER}"
         ></iframe>
       </div>
     </dialog>

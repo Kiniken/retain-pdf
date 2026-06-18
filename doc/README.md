@@ -5,6 +5,7 @@
 
 ## 入口
 
+- [API Wiki](./api/README.md)
 - [主线文档](./core/README.md)
 - [参考资料](./reference/README.md)
 - [运维与过程记录](./ops/README.md)

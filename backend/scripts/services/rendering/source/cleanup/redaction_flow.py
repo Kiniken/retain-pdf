@@ -5,6 +5,7 @@ import fitz
 from services.rendering.source.cleanup.empty_result import new_empty_redaction_result
 from services.rendering.source.cleanup.plan_builder import build_redaction_plan
 from services.rendering.source.cleanup.routes import apply_redaction_route
+from services.rendering.visual_profile import VisualProfileRuntime
 
 
 def execute_redaction_flow(
@@ -14,6 +15,7 @@ def execute_redaction_flow(
     fill_background: bool | None = None,
     cover_only: bool = False,
     strategy: str | None = None,
+    visual_profile: VisualProfileRuntime | None = None,
 ) -> dict[str, object]:
     plan = build_redaction_plan(page, translated_items)
     valid_items = plan.valid_items
@@ -27,4 +29,5 @@ def execute_redaction_flow(
         cover_only=cover_only,
         strategy=strategy,
         plan=plan,
+        visual_profile=visual_profile,
     )

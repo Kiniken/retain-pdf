@@ -2,7 +2,7 @@ use axum::http::HeaderMap;
 use axum::Json;
 
 use crate::error::AppError;
-use crate::models::{
+use crate::models::api::{
     ApiResponse, JobSubmissionView, RetryStageRequest, RetryStageSubmissionView, StageActionsView,
 };
 

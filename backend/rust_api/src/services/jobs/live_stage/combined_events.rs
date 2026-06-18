@@ -4,7 +4,8 @@ use serde_json::{json, Value};
 
 use crate::db::Db;
 use crate::error::AppError;
-use crate::models::{JobEventRecord, JobSnapshot};
+use crate::models::api::JobEventRecord;
+use crate::models::domain::JobSnapshot;
 
 use super::canonical_events::canonicalize_job_event;
 use super::records::load_pipeline_event_records;

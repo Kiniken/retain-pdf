@@ -1,15 +1,33 @@
+import { resolveSubmitReadiness } from "../../contracts/submit-readiness-contract.js";
+
 export function resolveSubmitControlState({
   workflow,
   isMock,
   desktopMode,
+  desktopConfigured = true,
   uploadId,
   renderSourceJobId,
   hasBrowserCredentials,
+  budgetBlocking = false,
   workflowNeedsUpload,
   workflowNeedsCredentials,
   workflowSubmitLabel,
 }) {
   const showPageRangeButton = workflowNeedsUpload(workflow);
+  const needsUpload = workflowNeedsUpload(workflow);
+  const needsCredentials = workflowNeedsCredentials(workflow);
+  const readiness = resolveSubmitReadiness({
+    workflow,
+    isMock,
+    desktopMode,
+    desktopConfigured,
+    uploadId,
+    renderSourceJobId,
+    hasBrowserCredentials,
+    needsUpload,
+    needsCredentials,
+    budgetBlocking,
+  });
   if (isMock) {
     return {
       disabled: false,
@@ -18,18 +36,11 @@ export function resolveSubmitControlState({
       pageRangeVisible: showPageRangeButton,
     };
   }
-  const needsUpload = workflowNeedsUpload(workflow);
-  const needsCredentials = workflowNeedsCredentials(workflow);
-  const credentialsMissing = !desktopMode
-    && needsCredentials
-    && !hasBrowserCredentials;
-  const renderReady = Boolean(renderSourceJobId);
-  const uploadReady = Boolean(uploadId);
-  const canSubmit = needsUpload ? uploadReady : renderReady;
   return {
-    disabled: credentialsMissing || !canSubmit,
+    disabled: !readiness.ready,
     label: workflowSubmitLabel(workflow),
-    actionVisible: !(credentialsMissing || (needsUpload ? !uploadReady : false)),
+    actionVisible: !(readiness.credentialsMissing || (needsUpload ? !readiness.uploadReady : false)),
     pageRangeVisible: showPageRangeButton,
+    readiness,
   };
 }

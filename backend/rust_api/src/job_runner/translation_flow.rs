@@ -1,8 +1,7 @@
 use anyhow::Result;
 
 use crate::job_events::persist_runtime_job_with_resources;
-use crate::models::now_iso;
-use crate::models::{JobRuntimeState, JobStatusKind};
+use crate::models::domain::{now_iso, JobRuntimeState, JobStatusKind};
 use crate::storage_paths::build_job_paths;
 
 #[path = "translation_flow_artifacts.rs"]

@@ -14,6 +14,9 @@ function buildInvokeAdapter(source) {
 }
 
 function resolveDesktopHost() {
+  if (typeof window === "undefined") {
+    return null;
+  }
   const preferredBridge = isObject(window.retainPdfDesktop) ? window.retainPdfDesktop : null;
   const legacyBridge = isObject(window.__TAURI_INTERNALS__) ? window.__TAURI_INTERNALS__ : null;
   const invokeAdapter = buildInvokeAdapter(preferredBridge) || buildInvokeAdapter(legacyBridge);

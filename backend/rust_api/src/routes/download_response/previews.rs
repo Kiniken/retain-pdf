@@ -2,7 +2,7 @@ use axum::http::{header, HeaderMap, HeaderValue};
 use axum::response::Response;
 
 use crate::error::AppError;
-use crate::models::PagePreviewQuery;
+use crate::models::api::PagePreviewQuery;
 use crate::routes::job_helpers::file_etag;
 
 use super::files::{file_download_response, jobs_facade_ref};

@@ -28,8 +28,6 @@ def can_use_pikepdf_book_overlay(
         return False
     if use_typst_overlay_fill_only:
         return True
-    if source_cleanup_strategy == "pikepdf_text_strip":
-        return True
     return all(
         page_idx in source_text_precleaned_page_indices or not translated_pages.get(page_idx)
         for page_idx in ordered_page_indices

@@ -1,75 +1,81 @@
-import { API_PREFIX } from "../constants.js";
-import { mountRecentJobsFeature } from "../features/recent-jobs/controller.js";
 import {
-  ensureReaderDialogFeature,
-  getRequestedJobIdFromLocation,
-  getRequestedReaderJobIdFromLocation,
-  setText,
-} from "./main-helpers.js";
-
-function openReaderWhenStatusActionReady({ attempts = 10, delay = 350 } = {}) {
-  const readerButton = document.getElementById("reader-btn");
-  if (readerButton && !readerButton.classList.contains("disabled")) {
-    readerButton.click();
-    return;
-  }
-  if (attempts <= 0) {
-    setText("error-box", "对照阅读暂不可用，请等待任务产物刷新后再试。");
-    return;
-  }
-  window.setTimeout(() => {
-    openReaderWhenStatusActionReady({ attempts: attempts - 1, delay });
-  }, delay);
-}
+  defaultStartupRoutePorts,
+} from "./startup-route-ports.js";
+import {
+  openReaderDirectly,
+} from "./startup-reader-open-flow.js";
+import {
+  buildRecentJobsStartupMountPayload,
+  buildRecentJobsStartupPorts,
+} from "./startup-route-recent-jobs-payloads.js";
+import { buildErrorDiagnostic } from "../utils/error-diagnostics.js";
 
 export function initializeIdleAndRecentJobs({
   appShellFeature,
+  state,
+  fetchProtected,
   fetchJobList,
   fetchJobPayload,
   fetchLibraryBookList,
   deleteLibraryBook,
   jobRuntimeFeature,
+  libraryEventPort,
+  ports = defaultStartupRoutePorts,
+  setText: setTextFn = ports.setText,
 }) {
   appShellFeature?.initializeIdleView();
-  mountRecentJobsFeature({
-    fetchJobList,
+  const startupPorts = buildRecentJobsStartupPorts({
     fetchJobPayload,
-    fetchLibraryBookList,
-    deleteLibraryBook,
-    apiPrefix: API_PREFIX,
-    startPolling: (jobId) => jobRuntimeFeature?.startPolling(jobId),
-    currentJobId: () => jobRuntimeFeature?.currentJobId?.() || "",
-    openReader: (jobId) => {
-      jobRuntimeFeature?.startPolling(jobId);
-      openReaderWhenStatusActionReady();
-    },
+    fetchProtected,
+    jobRuntimeFeature,
+    ports,
+    setTextFn,
+    state,
   });
+  ports.mountRecentJobsFeature(
+    buildRecentJobsStartupMountPayload({
+      deleteLibraryBook,
+      fetchJobList,
+      fetchJobPayload,
+      fetchLibraryBookList,
+      jobRuntimeFeature,
+      libraryEventPort,
+      ports,
+      startupPorts,
+    }),
+  );
 }
 
 export function bootstrapStartupRoute({
   state,
   fetchProtected,
   jobRuntimeFeature,
-  setText,
+  ports = defaultStartupRoutePorts,
+  setText = ports.setText,
 }) {
-  const startupReaderJobId = getRequestedReaderJobIdFromLocation();
-  const startupJobId = startupReaderJobId || getRequestedJobIdFromLocation();
+  const startupReaderJobId = ports.getRequestedReaderJobIdFromLocation();
+  const startupJobId = startupReaderJobId || ports.getRequestedJobIdFromLocation();
   if (startupJobId) {
     jobRuntimeFeature?.startPolling(startupJobId);
   }
   if (!startupReaderJobId) {
     return;
   }
-  window.setTimeout(async () => {
+  ports.setTimeoutFn(async () => {
     try {
-      const feature = await ensureReaderDialogFeature({
+      await openReaderDirectly({
         state,
         fetchProtected,
-        setText,
+        jobId: startupReaderJobId,
+        ports,
+        setTextFn: setText,
       });
-      feature.open({ jobId: startupReaderJobId });
     } catch (error) {
-      setText("error-box", error.message || String(error));
+      setText("error-box", buildErrorDiagnostic(error, {
+        operation: "打开阅读器路由",
+        jobId: startupReaderJobId,
+        url: globalThis.location?.href,
+      }));
     }
   }, 0);
 }

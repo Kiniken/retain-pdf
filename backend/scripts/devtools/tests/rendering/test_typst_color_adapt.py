@@ -153,6 +153,66 @@ def test_render_color_profile_preserves_tuple_cover_fill() -> None:
     )
 
 
+def test_prewarm_color_adapt_uses_full_visual_profile_without_resampling() -> None:
+    from services.rendering.source import prewarm_color_profile
+    from services.rendering.visual_profile.contracts import DocumentVisualProfile
+    from services.rendering.visual_profile.contracts import ItemVisualProfile
+    from services.rendering.visual_profile.contracts import PageVisualProfile
+
+    pages = {
+        0: [
+            {"item_id": "p001-b001", "bbox": [10, 20, 80, 40], "translated_text": "甲"},
+            {"item_id": "p001-b002", "bbox": [10, 50, 80, 70], "translated_text": "乙"},
+        ]
+    }
+    profile = DocumentVisualProfile(
+        algorithm="test",
+        pages={
+            0: PageVisualProfile(
+                page_index=0,
+                background_rgb=(1.0, 1.0, 1.0),
+                items={
+                    "p001-b001": ItemVisualProfile(
+                        item_id="p001-b001",
+                        page_index=0,
+                        bbox=(10, 20, 80, 40),
+                        bbox_space="page_pt",
+                        bbox_source="test",
+                        source_item_kind="text",
+                        background_rgb=(0.9, 0.9, 0.9),
+                        text_rgb=(0.1, 0.1, 0.1),
+                        confidence=1.0,
+                        method="test",
+                    ),
+                    "p001-b002": ItemVisualProfile(
+                        item_id="p001-b002",
+                        page_index=0,
+                        bbox=(10, 50, 80, 70),
+                        bbox_space="page_pt",
+                        bbox_source="test",
+                        source_item_kind="text",
+                        background_rgb=(0.8, 0.8, 0.8),
+                        text_rgb=(0.2, 0.2, 0.2),
+                        confidence=1.0,
+                        method="test",
+                    ),
+                },
+            )
+        },
+    )
+
+    with mock.patch.object(prewarm_color_profile.fitz, "open") as open_mock:
+        adapted = prewarm_color_profile.apply_page_color_adapt_for_prewarm(
+            Path("/does/not/need/source.pdf"),
+            pages,
+            visual_profile=profile,
+        )
+
+    open_mock.assert_not_called()
+    assert adapted[0][0]["_render_cover_fill"] == (0.9, 0.9, 0.9)
+    assert adapted[0][1]["_render_text_color"] == (0.2, 0.2, 0.2)
+
+
 def test_overlay_color_adapt_samples_local_gray_fill_without_page_background_image() -> None:
     from services.rendering.output.typst.color_adapt import apply_adaptive_overlay_colors
 
@@ -183,6 +243,43 @@ def test_overlay_color_adapt_samples_local_gray_fill_without_page_background_ima
     assert fill != (1, 1, 1)
     assert all(abs(component - 216 / 255.0) < 0.08 for component in fill)
     assert adapted[0]["_render_text_color"] == (0, 0, 0)
+
+
+def test_overlay_color_adapt_batch_sampler_uses_rect_area_compatibility() -> None:
+    from services.rendering.output.typst.color_adapt import apply_adaptive_overlay_colors
+
+    doc = fitz.open()
+    try:
+        page = doc.new_page(width=240, height=240)
+        shape = page.new_shape()
+        for index in range(8):
+            x0 = 12 + (index % 4) * 54
+            y0 = 18 + (index // 4) * 64
+            shape.draw_rect(fitz.Rect(x0, y0, x0 + 36, y0 + 24))
+        shape.finish(color=None, fill=(230 / 255.0, 230 / 255.0, 230 / 255.0))
+        shape.commit()
+
+        items = [
+            {
+                "item_id": f"p001-b{index:03d}",
+                "bbox": [
+                    12 + (index % 4) * 54,
+                    18 + (index // 4) * 64,
+                    48 + (index % 4) * 54,
+                    42 + (index // 4) * 64,
+                ],
+                "translated_text": "译文",
+                "_render_use_cover_fill": True,
+            }
+            for index in range(8)
+        ]
+
+        adapted = apply_adaptive_overlay_colors(page, items)
+    finally:
+        doc.close()
+
+    assert len(adapted) == 8
+    assert adapted[0]["_render_cover_fill"][0] == pytest.approx(230 / 255.0, abs=0.04)
 
 
 def test_overlay_color_adapt_prefers_inner_colored_panel_over_white_neighbors() -> None:

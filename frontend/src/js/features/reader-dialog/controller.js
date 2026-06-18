@@ -1,48 +1,32 @@
-import { isTrustedWindowMessage } from "../../config.js";
-import { downloadBlob } from "../../utils/downloads.js";
+import { failDownloadToast } from "../../utils/download-feedback.js";
+import { buildErrorDiagnostic } from "../../utils/error-diagnostics.js";
 import {
-  completeDownloadToast,
-  failDownloadToast,
-} from "../../utils/download-feedback.js";
-import {
-  resolveSourcePdfDownloadName,
-  resolveTranslatedPdfDownloadName,
-} from "../../job/artifacts.js";
-import {
-  bindReaderDialogEvents,
-  closeReaderDialog,
-  getReaderFrameWindow,
-  getReaderLinkOpenState,
-  getReaderToolbarButtonUrl,
-  hasLoadedReaderFrame,
-  openReaderDialog,
-  restoreReaderButton,
-  setReaderButtonBusy,
-  setReaderFrameSource,
-  setReaderLoadingProgress,
-  setReaderLoadingVisible,
-  setReaderToolbarButtonState,
-} from "./view.js";
-import {
-  buildMergedComparePdf,
   downloadProtectedResource,
-  fetchProtectedBytes,
   summarizeDownloadProgress,
 } from "./downloads.js";
 import {
   buildReaderPageUrl,
   buildReaderRouteUrl,
-  currentReaderArtifactUrls,
   jobIdFromReaderUrl,
   requestedReaderJobIdFromLocation,
 } from "./routing.js";
-import { currentJobId } from "../job-runtime/runtime-state.js";
+import {
+  READER_DIALOG_BUTTON_IDS,
+  READER_DIALOG_COPY,
+  READER_DIALOG_MESSAGES,
+} from "./contract.js";
+import { defaultReaderDialogConfigPort } from "./config-port.js";
+import { createReaderDialogViewPort } from "./view-port.js";
 
 export function mountReaderDialogFeature({
   state,
   fetchProtected,
   setText,
+  configPort = defaultReaderDialogConfigPort,
+  runtimePort,
+  viewPort = createReaderDialogViewPort(),
 }) {
+  let activeReaderJobId = "";
   const progressState = {
     value: 0,
     target: 0,
@@ -54,28 +38,31 @@ export function mountReaderDialogFeature({
   }
 
   function setLoading(loading) {
-    setReaderLoadingVisible(loading);
+    viewPort.setLoadingVisible(loading);
   }
 
   function setLoadingProgress(percent = 0, text = "正在准备对照阅读…") {
-    setReaderLoadingProgress(progressState, percent, text);
+    viewPort.setLoadingProgress(progressState, percent, text);
   }
 
   function syncToolbarActions() {
-    const { sourcePdf, translatedPdf } = currentReaderArtifactUrls(state);
-    setReaderToolbarButtonState("reader-source-download-btn", !!sourcePdf, sourcePdf);
-    setReaderToolbarButtonState("reader-translated-download-btn", !!translatedPdf, translatedPdf);
-    setReaderToolbarButtonState("reader-merged-download-btn", !!sourcePdf && !!translatedPdf);
+    const { sourcePdf, translatedPdf, sideBySidePdf } = runtimePort.currentArtifactUrls({
+      ...state,
+      readerJobId: activeReaderJobId,
+    });
+    viewPort.setToolbarButtonState(READER_DIALOG_BUTTON_IDS.source, !!sourcePdf, sourcePdf);
+    viewPort.setToolbarButtonState(READER_DIALOG_BUTTON_IDS.translated, !!translatedPdf, translatedPdf);
+    viewPort.setToolbarButtonState(READER_DIALOG_BUTTON_IDS.merged, !!sideBySidePdf, sideBySidePdf);
   }
 
   async function handleSourceDownload() {
-    const url = getReaderToolbarButtonUrl("reader-source-download-btn");
+    const url = viewPort.toolbarButtonUrl(READER_DIALOG_BUTTON_IDS.source);
     if (!url) {
       return;
     }
     try {
-      const jobId = currentJobId(state) || "result";
-      const preferredName = resolveSourcePdfDownloadName(state, `${jobId}-source.pdf`);
+      const jobId = runtimePort.currentJobId(state) || "result";
+      const preferredName = runtimePort.sourcePdfDownloadName(state, `${jobId}-source.pdf`);
       await downloadProtectedResource(
         fetchProtected,
         url,
@@ -84,10 +71,14 @@ export function mountReaderDialogFeature({
         ({ filename, receivedBytes, totalBytes, percent, done }) => {
           setText("error-box", done ? `已开始保存 ${filename}` : summarizeDownloadProgress(receivedBytes, totalBytes, percent));
         },
-        (busy, label) => setReaderButtonBusy("reader-source-download-btn", busy, label),
+        (busy, label) => viewPort.setButtonBusy(READER_DIALOG_BUTTON_IDS.source, busy, label),
       );
     } catch (err) {
-      setText("error-box", err.message);
+      setText("error-box", buildErrorDiagnostic(err, {
+        operation: "下载原始 PDF",
+        url,
+        jobId: activeReaderJobId || runtimePort.currentJobId(state),
+      }));
       failDownloadToast(err.message || "下载失败");
     } finally {
       syncToolbarActions();
@@ -95,13 +86,13 @@ export function mountReaderDialogFeature({
   }
 
   async function handleTranslatedDownload() {
-    const url = getReaderToolbarButtonUrl("reader-translated-download-btn");
+    const url = viewPort.toolbarButtonUrl(READER_DIALOG_BUTTON_IDS.translated);
     if (!url) {
       return;
     }
     try {
-      const jobId = currentJobId(state) || "result";
-      const preferredName = resolveTranslatedPdfDownloadName(state, "");
+      const jobId = runtimePort.currentJobId(state) || "result";
+      const preferredName = runtimePort.translatedPdfDownloadName(state, "");
       await downloadProtectedResource(
         fetchProtected,
         url,
@@ -110,10 +101,14 @@ export function mountReaderDialogFeature({
         ({ filename, receivedBytes, totalBytes, percent, done }) => {
           setText("error-box", done ? `已开始保存 ${filename}` : summarizeDownloadProgress(receivedBytes, totalBytes, percent));
         },
-        (busy, label) => setReaderButtonBusy("reader-translated-download-btn", busy, label),
+        (busy, label) => viewPort.setButtonBusy(READER_DIALOG_BUTTON_IDS.translated, busy, label),
       );
     } catch (err) {
-      setText("error-box", err.message);
+      setText("error-box", buildErrorDiagnostic(err, {
+        operation: "下载译文 PDF",
+        url,
+        jobId: activeReaderJobId || runtimePort.currentJobId(state),
+      }));
       failDownloadToast(err.message || "下载失败");
     } finally {
       syncToolbarActions();
@@ -121,25 +116,31 @@ export function mountReaderDialogFeature({
   }
 
   async function handleMergedDownload() {
-    const { sourcePdf, translatedPdf } = currentReaderArtifactUrls(state);
-    if (!sourcePdf || !translatedPdf) {
+    const { sideBySidePdf } = runtimePort.currentArtifactUrls(state);
+    if (!sideBySidePdf) {
       return;
     }
-    const previousMarkup = setReaderButtonBusy("reader-merged-download-btn", true, "生成中…");
     try {
-      const [sourceBytes, translatedBytes] = await Promise.all([
-        fetchProtectedBytes(fetchProtected, sourcePdf, "原始 PDF"),
-        fetchProtectedBytes(fetchProtected, translatedPdf, "译文 PDF"),
-      ]);
-      const mergedBytes = await buildMergedComparePdf(sourceBytes, translatedBytes);
-      const filename = `${currentJobId(state) || "result"}-compare.pdf`;
-      downloadBlob(new Blob([mergedBytes], { type: "application/pdf" }), filename);
-      completeDownloadToast(filename);
+      const jobId = runtimePort.currentJobId(state) || "result";
+      const filename = `${jobId}-side-by-side.pdf`;
+      await downloadProtectedResource(
+        fetchProtected,
+        sideBySidePdf,
+        filename,
+        filename,
+        ({ filename: savedFilename, receivedBytes, totalBytes, percent, done }) => {
+          setText("error-box", done ? `已开始保存 ${savedFilename}` : summarizeDownloadProgress(receivedBytes, totalBytes, percent));
+        },
+        (busy, label) => viewPort.setButtonBusy(READER_DIALOG_BUTTON_IDS.merged, busy, label),
+      );
     } catch (err) {
-      setText("error-box", err.message);
+      setText("error-box", buildErrorDiagnostic(err, {
+        operation: "下载对照 PDF",
+        url: sideBySidePdf,
+        jobId: activeReaderJobId || runtimePort.currentJobId(state),
+      }));
       failDownloadToast(err.message || "下载失败");
     } finally {
-      restoreReaderButton("reader-merged-download-btn", previousMarkup);
       syncToolbarActions();
     }
   }
@@ -160,8 +161,8 @@ export function mountReaderDialogFeature({
         disabled: !!input?.disabled,
       };
     }
-    const { url, disabled } = getReaderLinkOpenState(input);
-    let jobId = currentJobId(state);
+    const { url, disabled } = viewPort.linkOpenState(input);
+    let jobId = runtimePort.currentJobId(state);
     if (!jobId && url) {
       try {
         jobId = new URL(url, window.location.href).searchParams.get("job_id")?.trim() || "";
@@ -184,45 +185,47 @@ export function mountReaderDialogFeature({
     if (disabled || !url || !jobId) {
       return;
     }
+    activeReaderJobId = jobId;
     syncReaderRoute(jobId);
     setLoading(true);
-    setLoadingProgress(8, "正在准备对照阅读…");
-    setReaderFrameSource(url);
+    setLoadingProgress(8, READER_DIALOG_COPY.preparing);
+    viewPort.setFrameSource(url);
     syncToolbarActions();
-    openReaderDialog();
+    viewPort.openDialog();
   }
 
   function close() {
-    closeReaderDialog();
+    activeReaderJobId = "";
+    viewPort.closeDialog();
     setLoading(false);
-    setLoadingProgress(0, "正在准备对照阅读…");
-    setReaderToolbarButtonState("reader-source-download-btn", false);
-    setReaderToolbarButtonState("reader-translated-download-btn", false);
-    setReaderToolbarButtonState("reader-merged-download-btn", false);
+    setLoadingProgress(0, READER_DIALOG_COPY.preparing);
+    viewPort.setToolbarButtonState(READER_DIALOG_BUTTON_IDS.source, false);
+    viewPort.setToolbarButtonState(READER_DIALOG_BUTTON_IDS.translated, false);
+    viewPort.setToolbarButtonState(READER_DIALOG_BUTTON_IDS.merged, false);
     syncReaderRoute("");
-    setReaderFrameSource("about:blank");
+    viewPort.setFrameSource("about:blank");
   }
 
   function bindEvents() {
-    bindReaderDialogEvents({
+    viewPort.bindEvents({
       onClose: close,
       onSourceDownload: handleSourceDownload,
       onMergedDownload: handleMergedDownload,
       onTranslatedDownload: handleTranslatedDownload,
       onFrameLoad() {
         window.setTimeout(() => {
-          if (hasLoadedReaderFrame()) {
+          if (viewPort.loadedFrame()) {
             setLoading(false);
           }
         }, 1200);
       },
     });
     window.addEventListener("message", (event) => {
-      if (!isTrustedWindowMessage(event, getReaderFrameWindow())) {
+      if (!configPort.isTrustedReaderMessage(event, viewPort.frameWindow())) {
         return;
       }
       const data = event.data;
-      if (!data || data.type !== "retainpdf-reader-progress") {
+      if (!data || data.type !== READER_DIALOG_MESSAGES.progress) {
         return;
       }
       setLoading(true);

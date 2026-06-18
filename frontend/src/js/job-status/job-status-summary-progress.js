@@ -1,44 +1,56 @@
 import {
-  firstNonEmpty,
   looksLikeProviderPercentProgress,
-  numberOrNull,
-  progressFromText,
 } from "./job-status-summary-helpers.js";
-import { progressUnitOf } from "./job-stage-presentation-utils.js";
 import { stageKeyOf, stageSubtypeOf, userStageFor } from "./job-status-summary-stage.js";
+import {
+  publicProgressOf,
+} from "./job-stage-progress-adapter.js";
 
 export function summarizeStageProgressText(payload) {
-  const rawCurrent = numberOrNull(payload.progress_current ?? payload.progress?.current);
-  const rawTotal = numberOrNull(payload.progress_total ?? payload.progress?.total);
-  const textProgress = progressFromText(payload);
-  const current = (rawCurrent === null || (rawCurrent === 0 && Number.isFinite(textProgress.current) && textProgress.current > 0))
-    ? textProgress.current
-    : rawCurrent;
-  const total = rawTotal === null ? textProgress.total : rawTotal;
+  const progress = publicProgressOf(payload);
+  const stage = userStageFor(payload);
+  return progressTextForStageProgress({
+    stageKey: stageKeyOf(payload),
+    substageKey: stageSubtypeOf(payload),
+    stage,
+    progress,
+  });
+}
+
+export function progressTextForStageProgress({
+  stageKey = "",
+  substageKey = "",
+  stage = null,
+  progress = {},
+} = {}) {
+  const current = progress.current;
+  const total = progress.total;
   if (current === null || total === null || total <= 0) {
     return "";
   }
-  const stageKey = stageKeyOf(payload);
-  const subtype = stageSubtypeOf(payload);
-  const stage = userStageFor(payload);
-  const progressUnit = progressUnitOf(payload) || firstNonEmpty(payload.progress_unit, payload.payload?.progress_unit).toLowerCase();
-  if (stage.key === "render" && subtype === "render_compile") {
-    return `编译 ${current}/${total}`;
+  const subtype = substageKey;
+  const stageInfo = stage || { key: stageKey };
+  const progressUnit = progress.unit || "";
+  if (progressUnit === "percent") {
+    return current > 0 ? `进度 ${current}%` : "处理中";
   }
-  if (stage.key === "render" && subtype === "render_prewarm") {
+  if (stageInfo.key === "render" && subtype === "render_compile") {
+    return current >= total ? "渲染完成" : "正在编译 PDF";
+  }
+  if (stageInfo.key === "render" && subtype === "render_prewarm") {
     return `预热 ${current}/${total}`;
   }
-  if (stage.key === "render" && subtype === "render_prepare") {
+  if (stageInfo.key === "render" && subtype === "render_prepare") {
     return `准备 ${current}/${total}`;
   }
   if (progressUnit === "page") {
-    if (stage.key === "ocr" && current <= 0) {
+    if (stageInfo.key === "ocr" && current <= 0) {
       return `OCR 处理中，共 ${total} 页`;
     }
-    if (stage.key === "render" && current <= 0) {
+    if (stageInfo.key === "render" && current <= 0) {
       return `正在渲染，共 ${total} 页`;
     }
-    if (stage.key === "render" && current >= total) {
+    if (stageInfo.key === "render" && current >= total) {
       return `渲染完成，共 ${total} 页`;
     }
     return `第 ${current}/${total} 页`;
@@ -47,13 +59,10 @@ export function summarizeStageProgressText(payload) {
     return `第 ${current}/${total} 批`;
   }
   if (progressUnit === "step") {
-    if (stage.key === "render") {
+    if (stageInfo.key === "render") {
       return `准备 ${current}/${total}`;
     }
     return `进度 ${current}/${total}`;
-  }
-  if (progressUnit === "percent") {
-    return current > 0 ? `进度 ${current}%` : "处理中";
   }
   if (subtype === "continuation_review" || subtype === "page_policies") {
     return `第 ${current}/${total} 页`;
@@ -61,16 +70,16 @@ export function summarizeStageProgressText(payload) {
   if (subtype === "domain_inference" || subtype === "translation_prepare") {
     return `进度 ${current}/${total}`;
   }
-  if (stage.key === "translate") {
+  if (stageInfo.key === "translate") {
     return `第 ${current}/${total} 批`;
   }
-  if (stage.key === "ocr") {
+  if (stageInfo.key === "ocr") {
     if (looksLikeProviderPercentProgress(current, total)) {
       return current > 0 ? `OCR ${current}%` : "OCR 处理中";
     }
     return `第 ${current}/${total} 页`;
   }
-  if (stage.key === "render") {
+  if (stageInfo.key === "render") {
     return `第 ${current}/${total} 页`;
   }
   return `进度 ${current}/${total}`;

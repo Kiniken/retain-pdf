@@ -2,18 +2,19 @@ use std::path::Path;
 
 use crate::db::Db;
 use crate::job_failure::classify_job_failure;
-use crate::models::{
+use crate::models::api::{
     build_artifact_links, build_job_actions, build_job_links_with_workflow, public_request_payload,
     ArtifactDisplayItemView, ArtifactLinksView, BookSummaryView, GlossaryUsageSummaryView,
     InvocationSummaryView, JobActionsView, JobContractsView, JobFailureDiagnosticView,
-    JobFailureInfo, JobLinksView, JobProgressView, JobRuntimeInfo, JobSnapshot, JobTimestampsView,
-    NormalizationSummaryView, OcrJobSummaryView, OcrProviderDiagnostics, PublicResolvedJobSpec,
+    JobLinksView, JobStageSnapshotView, JobStagesView, JobTimestampsView, NormalizationSummaryView,
+    OcrJobSummaryView, PublicResolvedJobSpec,
 };
+use crate::models::domain::{JobFailureInfo, JobRuntimeInfo, JobSnapshot, OcrProviderDiagnostics};
 use crate::services::book_projection::build_artifacts_display;
-use crate::storage_paths::{resolve_markdown_path, resolve_output_pdf};
 
-use super::super::live_stage::{build_progress_view, load_live_stage_snapshot};
-use super::super::readiness;
+use super::super::job_readiness;
+use super::super::live_stage::load_live_stage_snapshot;
+use super::super::stage_view::build_job_stage_view;
 use super::super::summary_loaders::{
     load_glossary_summary, load_invocation_summary, load_normalization_summary,
 };
@@ -34,9 +35,9 @@ pub(super) struct DetailCoreProjection {
 }
 
 pub(super) struct DetailLiveProjection {
-    pub stage: Option<String>,
-    pub stage_detail: Option<String>,
-    pub progress: JobProgressView,
+    pub stage_snapshot: Option<JobStageSnapshotView>,
+    pub background_snapshots: Vec<JobStageSnapshotView>,
+    pub stages: JobStagesView,
 }
 
 pub(super) struct DetailArtifactProjection {
@@ -62,7 +63,7 @@ pub(super) struct DetailSummaryProjection {
 }
 
 pub(super) fn detail_readiness(job: &JobSnapshot, data_root: &Path) -> (bool, bool, bool) {
-    readiness(job, data_root, resolve_output_pdf, resolve_markdown_path)
+    job_readiness(job, data_root)
 }
 
 pub(super) fn build_core_projection(
@@ -95,16 +96,11 @@ pub(super) fn build_live_projection(
     data_root: &Path,
 ) -> DetailLiveProjection {
     let live_stage = load_live_stage_snapshot(db, job, data_root);
+    let stage = build_job_stage_view(job, live_stage.as_ref());
     DetailLiveProjection {
-        stage: live_stage
-            .as_ref()
-            .and_then(|snapshot| snapshot.stage.clone())
-            .or_else(|| job.stage.clone()),
-        stage_detail: live_stage
-            .as_ref()
-            .and_then(|snapshot| snapshot.stage_detail.clone())
-            .or_else(|| job.stage_detail.clone()),
-        progress: build_progress_view(job, live_stage.as_ref()),
+        stage_snapshot: stage.stage_snapshot,
+        background_snapshots: stage.background_snapshots,
+        stages: stage.stages,
     }
 }
 

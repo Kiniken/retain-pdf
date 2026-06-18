@@ -1,10 +1,15 @@
-import { API_PREFIX } from "../constants.js";
-import { $ } from "../dom.js";
+import { $ } from "../dom/query.js";
 import {
   formatEventTimestamp,
   formatRuntimeDuration,
-  isTerminalStatus,
-} from "../job.js";
+} from "../job/formatters.js";
+import {
+  stageHistoryDisplay,
+} from "../job/stage-history.js";
+import {
+  isJobTerminal,
+} from "../job/core.js";
+import { buildJobDetailEventViewModel } from "./status-view-model.js";
 import {
   setDetailEventsStatus,
   setDetailModalOpen,
@@ -22,15 +27,6 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
-function firstNonEmptyText(...values) {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-  return "";
-}
-
 function numberOrNull(value) {
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
@@ -45,11 +41,6 @@ function parseIsoTime(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function summarizeStageName(stage, detail) {
-  const detailText = `${detail || ""}`.trim();
-  return detailText || `${stage || "-"}`.trim() || "-";
-}
-
 function resolveStageHistoryDuration(entry, job) {
   const explicit = Number(entry?.duration_ms);
   if (Number.isFinite(explicit) && explicit >= 0) {
@@ -61,7 +52,7 @@ function resolveStageHistoryDuration(entry, job) {
     return Math.max(0, exitAt.getTime() - enterAt.getTime());
   }
   if (enterAt && !exitAt) {
-    const endAt = isTerminalStatus(job.status)
+    const endAt = isJobTerminal(job)
       ? parseIsoTime(job.finished_at || job.updated_at)
       : new Date();
     if (endAt) {
@@ -99,12 +90,13 @@ export function renderStageHistory(job) {
   list.classList.remove("hidden");
   list.innerHTML = history.map((entry, index) => {
     const enterAt = entry?.enter_at ? formatEventTimestamp(entry.enter_at) : "-";
-    const exitAt = entry?.exit_at ? formatEventTimestamp(entry.exit_at) : (isTerminalStatus(job.status) ? "-" : "进行中");
+    const exitAt = entry?.exit_at ? formatEventTimestamp(entry.exit_at) : (isJobTerminal(job) ? "-" : "进行中");
     const terminalText = entry?.terminal_status ? ` · ${entry.terminal_status}` : "";
+    const stageDisplay = stageHistoryDisplay(entry);
     return `
       <article class="detail-stage-item">
         <div class="detail-stage-top">
-          <div class="detail-stage-title">${index + 1}. ${escapeHtml(summarizeStageName(entry?.stage, entry?.detail))}</div>
+          <div class="detail-stage-title">${index + 1}. ${escapeHtml(stageDisplay.title)}</div>
           <div class="detail-stage-title">${escapeHtml(formatRuntimeDuration(resolveStageHistoryDuration(entry, job)))}</div>
         </div>
         <div class="detail-stage-meta">${escapeHtml(enterAt)} → ${escapeHtml(exitAt)}${escapeHtml(terminalText)}</div>
@@ -131,42 +123,48 @@ export function renderEvents(eventsPayload) {
   empty.classList.add("hidden");
   list.classList.remove("hidden");
   list.innerHTML = items.map((item) => {
-    const payloadText = formatEventPayload(item.payload);
+    const viewModel = buildJobDetailEventViewModel(item);
+    const payloadText = formatEventPayload(viewModel.payload);
     const metaBits = [
-      `#${item?.seq ?? "-"}`,
-      formatEventTimestamp(item.ts),
-      firstNonEmptyText(item?.stage_detail, item?.stage) || "-",
+      `#${viewModel.seq}`,
+      formatEventTimestamp(viewModel.timestamp),
+      viewModel.stageText,
     ];
     const contextBits = [
-      firstNonEmptyText(item?.provider),
-      firstNonEmptyText(item?.provider_stage),
-      firstNonEmptyText(item?.event_type),
+      viewModel.lane && viewModel.lane !== "main" ? `lane:${viewModel.lane}` : "",
+      viewModel.displayStage ? `stage:${viewModel.displayStage}` : "",
+      viewModel.substage ? `substage:${viewModel.substage}` : "",
+      viewModel.provider,
+      viewModel.providerStage,
+      viewModel.eventType,
+      viewModel.rawEventType,
     ].filter(Boolean);
     const statsBits = [];
-    const progressCurrent = numberOrNull(item?.progress?.current ?? item?.progress_current);
-    const progressTotal = numberOrNull(item?.progress?.total ?? item?.progress_total);
+    const progressCurrent = viewModel.progressCurrent;
+    const progressTotal = viewModel.progressTotal;
     if (progressCurrent !== null || progressTotal !== null) {
-      const progressUnit = `${item?.progress?.unit || item?.progress_unit || ""}`.trim();
+      const progressUnit = viewModel.progressUnit;
       const suffix = progressUnit ? ` ${progressUnit}` : "";
-      statsBits.push(`progress ${progressCurrent ?? "-"} / ${progressTotal ?? "-"}${suffix}`);
+      const text = viewModel.progressText ? `${viewModel.progressText} · ` : "";
+      statsBits.push(`${text}progress ${progressCurrent ?? "-"} / ${progressTotal ?? "-"}${suffix}`);
     }
-    const retryCount = numberOrNull(item?.retry_count);
+    const retryCount = viewModel.retryCount;
     if (retryCount !== null) {
       statsBits.push(`retry ${retryCount}`);
     }
-    const elapsedMs = numberOrNull(item?.elapsed_ms);
+    const elapsedMs = viewModel.elapsedMs;
     if (elapsedMs !== null) {
       statsBits.push(`elapsed ${formatRuntimeDuration(elapsedMs)}`);
     }
     return `
       <article class="detail-event-item">
         <div class="detail-event-top">
-          <div class="detail-event-title">${escapeHtml(item.event || "-")}</div>
-          <div class="detail-event-title">${escapeHtml(item.level || "-")}</div>
+          <div class="detail-event-title">${escapeHtml(viewModel.event)}</div>
+          <div class="detail-event-title">${escapeHtml(viewModel.level)}</div>
         </div>
         <div class="detail-event-meta">${escapeHtml(metaBits.join(" · "))}</div>
         ${contextBits.length ? `<div class="detail-event-meta">${escapeHtml(contextBits.join(" · "))}</div>` : ""}
-        <div class="detail-event-meta">${escapeHtml(item.message || "-")}</div>
+        <div class="detail-event-meta">${escapeHtml(viewModel.message)}</div>
         ${statsBits.length ? `<div class="detail-event-meta">${escapeHtml(statsBits.join(" · "))}</div>` : ""}
         ${payloadText ? `<pre class="detail-event-payload">${escapeHtml(payloadText)}</pre>` : ""}
       </article>
@@ -174,11 +172,11 @@ export function renderEvents(eventsPayload) {
   }).join("");
 }
 
-async function fetchAllJobEvents({ fetchJobEvents, jobId }) {
+async function fetchAllJobEvents({ apiPrefix = "", fetchJobEvents, jobId }) {
   const items = [];
   let offset = 0;
   while (true) {
-    const payload = await fetchJobEvents(jobId, API_PREFIX, JOB_EVENTS_PAGE_SIZE, offset);
+    const payload = await fetchJobEvents(jobId, apiPrefix, JOB_EVENTS_PAGE_SIZE, offset);
     const batch = Array.isArray(payload?.items) ? payload.items : [];
     items.push(...batch);
     if (batch.length < JOB_EVENTS_PAGE_SIZE) {
@@ -193,7 +191,7 @@ async function fetchAllJobEvents({ fetchJobEvents, jobId }) {
   }
 }
 
-async function ensureEventsLoaded({ detailPageState, fetchJobEvents }) {
+async function ensureEventsLoaded({ apiPrefix = "", detailPageState, fetchJobEvents }) {
   if (detailPageState.eventsPayload) {
     setDetailEventsStatus(`全部事件 · ${Array.isArray(detailPageState.eventsPayload.items) ? detailPageState.eventsPayload.items.length : 0} 条`);
     renderEvents(detailPageState.eventsPayload);
@@ -205,6 +203,7 @@ async function ensureEventsLoaded({ detailPageState, fetchJobEvents }) {
   if (!detailPageState.eventsLoadingPromise) {
     setDetailEventsStatus("正在加载全部事件...");
     detailPageState.eventsLoadingPromise = fetchAllJobEvents({
+      apiPrefix,
       fetchJobEvents,
       jobId: detailPageState.job.job_id,
     })
@@ -233,11 +232,11 @@ export function bindStageHistoryLauncher({ detailPageState }) {
   });
 }
 
-export function bindEventsLauncher({ detailPageState, fetchJobEvents }) {
+export function bindEventsLauncher({ apiPrefix = "", detailPageState, fetchJobEvents }) {
   $("detail-open-events-btn")?.addEventListener("click", async () => {
     setDetailModalOpen("detail-events-modal", true);
     try {
-      await ensureEventsLoaded({ detailPageState, fetchJobEvents });
+      await ensureEventsLoaded({ apiPrefix, detailPageState, fetchJobEvents });
       setDetailOpenEventsButtonText("查看");
     } catch (_error) {
       // Status text already updated in ensureEventsLoaded.

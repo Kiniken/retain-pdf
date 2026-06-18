@@ -10,7 +10,6 @@ import {
   DEFAULT_INNER_BBOX_SHRINK_Y,
   DEFAULT_LANGUAGE,
   DEFAULT_MODE,
-  DEFAULT_MODEL_VERSION,
   DEFAULT_PDF_COMPRESS_DPI,
   DEFAULT_RENDER_MODE,
   DEFAULT_RULE_PROFILE,
@@ -18,7 +17,8 @@ import {
   DEFAULT_TRANSLATED_PDF_NAME,
   DEFAULT_TYPST_FONT_FAMILY,
   DEFAULT_WORKERS,
-} from "../constants.js";
+} from "../config/workflow-defaults.js";
+import { DEFAULT_MODEL_VERSION } from "../config/model-constants.js";
 
 export const WORKFLOW_BOOK = "book";
 export const WORKFLOW_TRANSLATE = "translate";

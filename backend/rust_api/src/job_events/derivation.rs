@@ -1,6 +1,6 @@
 use serde_json::{json, Value};
 
-use crate::models::{
+use crate::models::domain::{
     event_progress_unit, job_user_stage, normalize_event_user_stage, JobSnapshot, JobStatusKind,
     OcrProviderKind, WorkflowKind,
 };
@@ -358,7 +358,8 @@ pub(super) fn event_elapsed_ms(job: &JobSnapshot) -> Option<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{job_stage_str, CreateJobInput, JobStage};
+    use crate::models::domain::{job_stage_str, JobFailureInfo, JobStage};
+    use crate::models::request::CreateJobInput;
 
     fn job() -> JobSnapshot {
         JobSnapshot::new(
@@ -425,7 +426,7 @@ mod tests {
         current.stage = Some(job_stage_str(JobStage::Failed).to_string());
         current.stage_detail = Some("provider timeout".to_string());
         current.error = Some("ReadTimeout".to_string());
-        current.replace_failure_info(Some(crate::models::JobFailureInfo {
+        current.replace_failure_info(Some(JobFailureInfo {
             stage: "translation".to_string(),
             category: "upstream_timeout".to_string(),
             code: None,

@@ -106,8 +106,8 @@ class DeveloperSettingsDialog extends HTMLElement {
               </section>
             </div>
             <div class="actions credential-dialog-actions">
-              <button id="developer-reset-btn" type="button" class="secondary">恢复默认</button>
-              <button id="developer-save-btn" type="button">保存</button>
+              <button id="developer-reset-btn" type="button" class="app-button secondary">恢复默认</button>
+              <button id="developer-save-btn" type="button" class="app-button">保存</button>
             </div>
           </div>
         </form>

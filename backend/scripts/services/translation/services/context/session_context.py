@@ -74,7 +74,7 @@ def build_translation_context_from_policy(
         )
     return build_translation_context(
         mode=policy_config.mode,
-        domain_guidance=(policy_config.domain_context.get("translation_guidance") or "").strip(),
+        domain_guidance=policy_config.document_domain_guidance,
         rule_guidance=policy_config.rule_guidance,
         extra_guidance="\n\n".join(extra_guidance_parts).strip(),
         request_label=request_label,

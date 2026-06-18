@@ -1,5 +1,7 @@
 use crate::error::AppError;
-use crate::models::{CreateJobInput, JobStatusKind, JobSubmissionView, WorkflowKind};
+use crate::models::api::JobSubmissionView;
+use crate::models::domain::{JobStatusKind, WorkflowKind};
+use crate::models::request::CreateJobInput;
 
 use super::super::super::creation::context::BundleBuildDeps;
 use super::super::super::creation::{

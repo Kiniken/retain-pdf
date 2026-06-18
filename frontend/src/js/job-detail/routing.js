@@ -1,4 +1,4 @@
-import { buildFrontendPageUrl } from "../config.js";
+import { defaultJobDetailConfigPort } from "./config-port.js";
 
 export function getJobIdFromQuery() {
   return new URLSearchParams(window.location.search).get("job_id")?.trim() || "";
@@ -24,17 +24,9 @@ export function firstJobIdFromPayload(payload) {
 }
 
 export function buildReaderPageUrl(jobId) {
-  const normalizedJobId = `${jobId || ""}`.trim();
-  if (!normalizedJobId) {
-    return "";
-  }
-  return buildFrontendPageUrl("./reader.html", {
-    job_id: normalizedJobId,
-  });
+  return defaultJobDetailConfigPort.buildReaderPageUrl(jobId);
 }
 
 export function buildDetailPageUrl(jobId) {
-  return buildFrontendPageUrl("./detail.html", {
-    job_id: jobId,
-  });
+  return defaultJobDetailConfigPort.buildDetailPageUrl(jobId);
 }

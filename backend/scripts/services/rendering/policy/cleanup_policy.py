@@ -3,8 +3,8 @@ from __future__ import annotations
 import fitz
 
 from foundation.config import layout
-from services.rendering.layout.model.render_text import get_render_translation_overlay_text
 from services.rendering.policy.geometry import item_rect
+from services.rendering.policy.models import CleanupMode
 from services.rendering.policy.models import RenderItemPolicy
 from services.rendering.policy.models import RenderPagePolicy
 from services.document_schema.semantics import block_kind
@@ -64,9 +64,35 @@ def build_render_page_policy(translated_items: list[dict]) -> RenderPagePolicy:
     if layout.use_typst_fill_cleanup():
         return _build_typst_fill_page_policy(translated_items)
     has_formula = page_has_formula_region(translated_items)
+    if layout.use_default_text_overlay_cover_fill():
+        return _build_default_cover_fill_page_policy(translated_items, cleanup_mode="delete_text")
     return RenderPagePolicy(
         page_has_formula_region=has_formula,
         item_policies={},
+    )
+
+
+def _build_default_cover_fill_page_policy(
+    translated_items: list[dict],
+    *,
+    cleanup_mode: CleanupMode,
+) -> RenderPagePolicy:
+    policies: dict[str, RenderItemPolicy] = {}
+    for item in translated_items:
+        item_id = str(item.get("item_id") or "").strip()
+        if not item_id or block_kind(item) != "text":
+            continue
+        if not item_will_render_translated_overlay(item):
+            continue
+        policies[item_id] = RenderItemPolicy(
+            item_id=item_id,
+            cleanup_mode=cleanup_mode,
+            overlay_fill="white",
+            reason="default_text_overlay_cover_fill",
+        )
+    return RenderPagePolicy(
+        page_has_formula_region=page_has_formula_region(translated_items),
+        item_policies=policies,
     )
 
 
@@ -75,6 +101,8 @@ def _build_typst_fill_page_policy(translated_items: list[dict]) -> RenderPagePol
     for item in translated_items:
         item_id = str(item.get("item_id") or "").strip()
         if not item_id or block_kind(item) != "text":
+            continue
+        if not item_will_render_translated_overlay(item):
             continue
         policies[item_id] = RenderItemPolicy(
             item_id=item_id,
@@ -176,9 +204,21 @@ def item_is_marked_non_translated(item: dict) -> bool:
 
 
 def item_render_output_text(item: dict) -> str:
+    if "render_protected_text" in item:
+        return str(item.get("render_protected_text") or "").strip()
+    if (item.get("continuation_group") or item.get("continuation_group_id")) and (
+        item.get("protected_translated_text") or item.get("translated_text")
+    ):
+        return str(item.get("protected_translated_text") or item.get("translated_text") or "").strip()
     return str(
-        get_render_translation_overlay_text(item)
-        or item.get("render_text")
+        item.get("render_translation_overlay_text")
+        or item.get("translation_overlay_text")
+        or item.get("translation_unit_protected_translated_text")
+        or item.get("group_protected_translated_text")
+        or item.get("protected_translated_text")
+        or item.get("translation_unit_translated_text")
+        or item.get("group_translated_text")
+        or item.get("translated_text")
         or ""
     ).strip()
 

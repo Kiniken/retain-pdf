@@ -17,14 +17,40 @@ DEFAULT_PORT = int(os.environ.get("RETAIN_PDF_FRONTEND_PORT", "40001"))
 DEFAULT_ROOT = Path(
     os.environ.get("RETAIN_PDF_FRONTEND_ROOT", "/home/wxyhgk/tmp/Code/frontend")
 ).resolve()
-DEFAULT_API_BASE = os.environ.get("RETAIN_PDF_FRONTEND_API_BASE", "").strip()
-DEFAULT_X_API_KEY = os.environ.get("RETAIN_PDF_FRONTEND_X_API_KEY", "").strip()
 DEFAULT_OCR_PROVIDER = os.environ.get("RETAIN_PDF_FRONTEND_OCR_PROVIDER", "").strip()
 DEFAULT_PADDLE_TOKEN = os.environ.get("RETAIN_PDF_FRONTEND_PADDLE_TOKEN", "").strip()
 DEFAULT_MINERU_TOKEN = os.environ.get("RETAIN_PDF_FRONTEND_MINERU_TOKEN", "").strip()
 DEFAULT_MODEL_API_KEY = os.environ.get("RETAIN_PDF_FRONTEND_MODEL_API_KEY", "").strip()
 DEFAULT_MODEL = os.environ.get("RETAIN_PDF_FRONTEND_MODEL", "deepseek-v4-flash").strip()
 DEFAULT_BASE_URL = os.environ.get("RETAIN_PDF_FRONTEND_BASE_URL", "https://api.deepseek.com/v1").strip()
+
+
+def default_api_base() -> str:
+    configured = os.environ.get("RETAIN_PDF_FRONTEND_API_BASE", "").strip()
+    if configured:
+        return configured
+    if DEFAULT_HOST in ("", "0.0.0.0", "::"):
+        return "http://1.94.67.196:41000"
+    return f"http://{DEFAULT_HOST}:41000"
+
+
+def default_x_api_key() -> str:
+    configured = os.environ.get("RETAIN_PDF_FRONTEND_X_API_KEY", "").strip()
+    if configured:
+        return configured
+    auth_path = DEFAULT_ROOT.parent / "backend" / "rust_api" / "auth.local.json"
+    try:
+        payload = json.loads(auth_path.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    api_keys = payload.get("api_keys")
+    if isinstance(api_keys, list):
+        return str(api_keys[0]).strip() if api_keys else ""
+    return ""
+
+
+DEFAULT_API_BASE = default_api_base()
+DEFAULT_X_API_KEY = default_x_api_key()
 
 mimetypes.add_type("application/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
@@ -93,7 +119,7 @@ class FrontendRequestHandler(http.server.SimpleHTTPRequestHandler):
         if path == "/runtime-config.local.js":
             self.send_header("Cache-Control", "no-store")
         elif path.startswith(("/vendor/", "/src/assets/", "/dist/")):
-            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+            self.send_header("Cache-Control", "public, max-age=0, must-revalidate")
         elif path.endswith((".js", ".css", ".html")) or path in ("/", "/index.html"):
             self.send_header("Cache-Control", "public, max-age=0, must-revalidate")
         else:

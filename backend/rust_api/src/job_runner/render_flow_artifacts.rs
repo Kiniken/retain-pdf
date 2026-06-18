@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 
 use crate::job_events::persist_runtime_job_with_resources;
-use crate::models::{JobArtifacts, JobRuntimeState};
+use crate::models::domain::{JobArtifacts, JobRuntimeState};
 use crate::storage_paths::build_job_paths;
 
 use super::stage_contract::translation_ready_inputs_for_render;

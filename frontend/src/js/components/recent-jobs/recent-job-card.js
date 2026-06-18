@@ -1,4 +1,3 @@
-import { buildApiHeaders, buildApiUrl } from "../../config.js";
 import {
   isRecentJobActive,
   recentJobProgressPercent,
@@ -7,69 +6,26 @@ import {
   recentJobStageLabel,
   recentJobStatusLabel,
   recentJobTitle,
-} from "../../features/recent-jobs/card-presenter.js";
+} from "./recent-job-card-presenter.js";
+import { loadFirstRecentJobImage } from "./recent-job-card-image-loader.js";
 
-const recentJobImageCache = new Map();
-
-function normalizeRecentJobImageUrl(value) {
-  const raw = `${value || ""}`.trim();
-  if (!raw) {
-    return "";
-  }
-  if (/^https?:\/\//i.test(raw)) {
-    try {
-      const parsed = new URL(raw);
-      if (parsed.pathname.startsWith("/api/v1/")) {
-        const path = `${parsed.pathname}${parsed.search}`;
-        return buildApiUrl("", path.replace(/^\/+/, ""));
-      }
-    } catch {
-      return raw;
-    }
-    return raw;
-  }
-  if (raw.startsWith("/api/v1/")) {
-    return isFileProtocol() ? buildApiUrl("", raw.replace(/^\/+/, "")) : raw;
-  }
-  return buildApiUrl("", raw.replace(/^\/+/, ""));
-}
-
-async function loadRecentJobImage(rawUrl) {
-  const url = normalizeRecentJobImageUrl(rawUrl);
-  if (!url) {
-    return "";
-  }
-  if (recentJobImageCache.has(url)) {
-    return recentJobImageCache.get(url);
-  }
-  const request = fetch(url, { headers: buildApiHeaders() })
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error(`image failed: ${response.status}`);
-      }
-      return response.blob();
-    })
-    .then((blob) => URL.createObjectURL(blob))
-    .catch((error) => {
-      recentJobImageCache.delete(url);
-      throw error;
-    });
-  recentJobImageCache.set(url, request);
-  return request;
-}
-
-async function loadFirstRecentJobImage(rawUrls) {
-  for (const rawUrl of Array.isArray(rawUrls) ? rawUrls : [rawUrls]) {
-    try {
-      const objectUrl = await loadRecentJobImage(rawUrl);
-      if (objectUrl) {
-        return objectUrl;
-      }
-    } catch {
-      // Try the next candidate URL.
-    }
-  }
-  return "";
+function imageCacheVersionOf(item = {}) {
+  const progress = item.progress && typeof item.progress === "object" ? item.progress : {};
+  const runtimeProgress = item.runtime_status?.progress && typeof item.runtime_status.progress === "object"
+    ? item.runtime_status.progress
+    : {};
+  return [
+    item.updated_at,
+    item.status,
+    item.display_stage,
+    item.substage,
+    progress.current,
+    progress.total,
+    progress.percent,
+    runtimeProgress.current,
+    runtimeProgress.total,
+    runtimeProgress.percent,
+  ].map((value) => `${value ?? ""}`).join("|");
 }
 
 function createIconButton({ className, title, label, svg }) {
@@ -210,6 +166,10 @@ export class RecentJobCard extends HTMLElement {
     this.setAttribute("role", "button");
     this.tabIndex = 0;
     this.dataset.jobId = item.job_id || "";
+    this.dataset.status = item.status || "";
+    this.dataset.updatedAt = item.updated_at || "";
+    this.dataset.displayStage = item.display_stage || "";
+    this.dataset.substage = item.substage || "";
 
     const coverWrap = document.createElement("div");
     coverWrap.className = "recent-job-cover-wrap";
@@ -251,13 +211,12 @@ export class RecentJobCard extends HTMLElement {
     titleWrap.append(titleEl, meta);
 
     this.replaceChildren(coverWrap, titleWrap);
-    this.#loadCoverImage(cover, imageUrls);
+    this.#loadCoverImage(cover, imageUrls, imageCacheVersionOf(item));
   }
 
   #createHoverActions() {
     const actions = document.createElement("div");
     actions.className = "recent-job-hover-actions";
-    actions.setAttribute("aria-hidden", "true");
     actions.append(createIconButton({
       className: "recent-job-hover-btn recent-job-reader",
       title: "对照阅读",
@@ -292,13 +251,13 @@ export class RecentJobCard extends HTMLElement {
     return overlay;
   }
 
-  #loadCoverImage(cover, rawUrls) {
+  #loadCoverImage(cover, rawUrls, cacheVersion = "") {
     const token = ++this.#imageLoadToken;
     if (!Array.isArray(rawUrls) || rawUrls.length === 0) {
       return;
     }
     cover.dataset.loaded = "1";
-    loadFirstRecentJobImage(rawUrls)
+    loadFirstRecentJobImage(rawUrls, { cacheVersion })
       .then((objectUrl) => {
         if (token !== this.#imageLoadToken || !objectUrl) {
           return;

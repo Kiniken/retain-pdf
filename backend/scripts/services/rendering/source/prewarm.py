@@ -24,6 +24,7 @@ from services.rendering.source.prewarm_manifest_io import load_matching_manifest
 from services.rendering.source.prewarm_manifest_io import try_load_prewarmed_render_source_pdf
 from services.rendering.source.prewarm_manifest_io import try_load_render_payload_prewarm
 from services.rendering.source.prewarm_payload import build_payload_prewarm
+from services.rendering.source.prewarm_payload import ensure_pdf_structure_profile
 from services.rendering.source_cleanup.protected_blocks import protected_pages_from_document_path
 
 
@@ -68,6 +69,13 @@ def _run_render_source_prewarm(spec: RenderPrewarmSpec, manifest_path: Path) -> 
             start_page=resolved_start,
             end_page=resolved_stop,
         )
+        pdf_structure_profile_path = None
+        if spec.include_source_cleanup:
+            pdf_structure_profile_path, _pdf_structure_profile = ensure_pdf_structure_profile(
+                source_pdf_path=spec.source_pdf_path,
+                translated_pages=spec.translated_pages,
+                manifest_path=manifest_path,
+            )
         if prepared is None:
             cleanup_strategy = spec.source_cleanup_strategy if spec.include_source_cleanup else layout.SOURCE_CLEANUP_TYPST_FILL
             protected_pages = _protected_pages_for_prewarm(spec.artifacts_dir)
@@ -83,6 +91,7 @@ def _run_render_source_prewarm(spec: RenderPrewarmSpec, manifest_path: Path) -> 
                 artifact_mode=True,
                 source_cleanup_strategy=cleanup_strategy,
                 document_analysis=document_analysis,
+                pdf_structure_profile_path=pdf_structure_profile_path,
             )
         payload_prewarm = build_payload_prewarm(
             source_pdf_path=spec.source_pdf_path,

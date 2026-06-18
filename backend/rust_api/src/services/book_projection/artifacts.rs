@@ -1,4 +1,4 @@
-use crate::models::{ArtifactDisplayItemView, ArtifactLinksView};
+use crate::models::api::{ArtifactDisplayItemView, ArtifactLinksView};
 
 pub(crate) fn build_artifacts_display(
     artifacts: &ArtifactLinksView,

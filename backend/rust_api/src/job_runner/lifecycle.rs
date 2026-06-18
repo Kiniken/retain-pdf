@@ -2,7 +2,7 @@ use anyhow::Result;
 use tracing::error;
 
 use crate::job_events::{persist_job_with_resources, persist_runtime_job_with_resources};
-use crate::models::{now_iso, JobRuntimeState, JobSnapshot, JobStatusKind, WorkflowKind};
+use crate::models::domain::{now_iso, JobRuntimeState, JobSnapshot, JobStatusKind, WorkflowKind};
 
 use super::{
     append_error_chain_log,

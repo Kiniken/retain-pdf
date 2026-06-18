@@ -2,7 +2,7 @@ use axum::extract::{Path as AxumPath, State};
 use axum::Json;
 
 use crate::error::AppError;
-use crate::models::{ApiResponse, JobDiagnosticsView, JobResumePlanView};
+use crate::models::api::{ApiResponse, JobDiagnosticsView, JobResumePlanView};
 use crate::AppState;
 
 use super::super::json_response::{job_diagnostics_response, resume_plan_response};

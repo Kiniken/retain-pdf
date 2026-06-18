@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use rusqlite::params;
 
-use crate::models::GlossaryRecord;
+use crate::models::domain::GlossaryRecord;
 
 use super::rows::row_to_glossary_record;
 use super::Db;

@@ -1,14 +1,19 @@
-import { getHomeState, setHomeViewMode } from "./state.js";
-import { bindHomeStateView, applyHomeViewMode } from "./view.js";
+import {
+  createHomeStatePort,
+} from "./state.js";
+import { createHomeViewPort } from "./home-view-port.js";
 
-export function mountHomeFeature() {
+export function mountHomeFeature({
+  statePort = createHomeStatePort(),
+  viewPort = createHomeViewPort(),
+} = {}) {
   function bindEvents() {
-    bindHomeStateView();
-    applyHomeViewMode(getHomeState().viewMode);
+    viewPort.bindStateView();
+    viewPort.applyViewMode(statePort.getSnapshot().viewMode);
   }
 
   return {
     bindEvents,
-    setViewMode: setHomeViewMode,
+    setViewMode: statePort.setViewMode,
   };
 }

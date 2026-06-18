@@ -131,7 +131,7 @@ ensureElement("error-box").textContent = "old error";
 
 const [{ saveDesktopConfig }, { state }] = await Promise.all([
   import("../src/js/desktop/index.js"),
-  import("../src/js/state.js"),
+  import("../src/js/state/store.js"),
 ]);
 
 let caughtMessage = "";

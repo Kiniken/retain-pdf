@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import as_completed
 
@@ -46,13 +47,24 @@ def _drain_translation_tail_queue(
     tail_workers: int,
     update_total_batches: bool = True,
     label_prefix: str = "translation tail retry",
-) -> None:
+) -> dict[str, int | bool | str]:
+    stats = {
+        "items": 0,
+        "completed": 0,
+        "failed": 0,
+        "elapsed_ms": 0,
+        "workers": max(1, tail_workers),
+        "updated_total_batches": bool(update_total_batches),
+        "label_prefix": label_prefix,
+    }
+    started = time.perf_counter()
     queue = translation_tail_queue_from_context(translation_context)
     if queue is None:
-        return
+        return stats
     tail_items = queue.drain()
     if not tail_items:
-        return
+        return stats
+    stats["items"] = len(tail_items)
     print(
         f"book: translation tail queue start items={len(tail_items)} workers={max(1, tail_workers)}",
         flush=True,
@@ -66,6 +78,7 @@ def _drain_translation_tail_queue(
             try:
                 translated = _run_translation_tail_item(tail_item)
             except Exception as exc:
+                stats["failed"] += 1
                 print(
                     f"book: translation tail item failed for {tail_item.item.get('item_id', '')} reason={tail_item.reason}: {type(exc).__name__}: {exc}",
                     flush=True,
@@ -73,10 +86,12 @@ def _drain_translation_tail_queue(
                 translated = _failed_results_for_unhandled_batch_exception([tail_item.item], exc)
             touched_pages = result_applier.apply_batch([tail_item.item], translated)
             completed += 1
+            stats["completed"] = completed
             if update_total_batches:
                 flush_state.record_progress(base_completed + completed, touched_pages, substage="translation_tail_retry")
             flush_state.flush_if_due(completed, label=f"flushed after {label_prefix} {completed}/{len(tail_items)}")
-        return
+        stats["elapsed_ms"] = int(round((time.perf_counter() - started) * 1000))
+        return stats
 
     with ThreadPoolExecutor(max_workers=max(1, tail_workers)) as executor:
         futures = {
@@ -88,6 +103,7 @@ def _drain_translation_tail_queue(
             try:
                 translated = future.result()
             except Exception as exc:
+                stats["failed"] += 1
                 print(
                     f"book: translation tail item failed for {tail_item.item.get('item_id', '')} reason={tail_item.reason}: {type(exc).__name__}: {exc}",
                     flush=True,
@@ -95,9 +111,12 @@ def _drain_translation_tail_queue(
                 translated = _failed_results_for_unhandled_batch_exception([tail_item.item], exc)
             touched_pages = result_applier.apply_batch([tail_item.item], translated)
             completed += 1
+            stats["completed"] = completed
             if update_total_batches:
                 flush_state.record_progress(base_completed + completed, touched_pages, substage="translation_tail_retry")
             flush_state.flush_if_due(completed, label=f"flushed after {label_prefix} {completed}/{len(tail_items)}")
+    stats["elapsed_ms"] = int(round((time.perf_counter() - started) * 1000))
+    return stats
 
 
 def _should_drain_translation_tail_early(completed: int, total_batches: int) -> bool:

@@ -2,6 +2,11 @@
 @import "./styles/tokens.css";
 @import "./styles/base.css";
 @import "./styles/components.css";
+@import "./styles/dialog-shell.css";
+@import "./styles/app-update.css";
+@import "./styles/ai-assistant.css";
+@import "./styles/app-settings.css";
+@import "./styles/library-shell.css";
 @import "./styles/upload-workflow.css";
 @import "./styles/reader.css";
 @import "./styles/job-dialogs.css";

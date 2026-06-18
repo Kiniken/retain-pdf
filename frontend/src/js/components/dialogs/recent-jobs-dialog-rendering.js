@@ -1,84 +1,30 @@
-import { buildApiHeaders, buildApiUrl } from "../../config.js";
+import {
+  RECENT_JOBS_CLASSES,
+  RECENT_JOBS_IDS,
+} from "./recent-jobs-dialog-dom-contract.js";
+import { APP_DIALOG_IDS } from "../../contracts/app-contract.js";
+import {
+  applyRecentJobsEmptyState,
+  applyRecentJobsErrorState,
+  applyRecentJobsListState,
+  applyRecentJobsLoadMoreLoadingState,
+  applyRecentJobsLoadingState,
+  RECENT_JOBS_VIEW_TEXT,
+} from "./recent-jobs-dialog-view-state.js";
 
-const recentJobImageCache = new Map();
-
-function normalizeRecentJobImageUrl(value) {
-  const raw = `${value || ""}`.trim();
-  if (!raw) {
-    return "";
-  }
-  if (/^https?:\/\//i.test(raw)) {
-    try {
-      const parsed = new URL(raw);
-      if (parsed.pathname.startsWith("/api/v1/")) {
-        const path = `${parsed.pathname}${parsed.search}`;
-        return buildApiUrl("", path.replace(/^\/+/, ""));
-      }
-    } catch {
-      return raw;
-    }
-    return raw;
-  }
-  if (raw.startsWith("/api/v1/")) {
-    return isFileProtocol() ? buildApiUrl("", raw.replace(/^\/+/, "")) : raw;
-  }
-  return buildApiUrl("", raw.replace(/^\/+/, ""));
-}
-
-async function loadRecentJobImage(rawUrl) {
-  const url = normalizeRecentJobImageUrl(rawUrl);
-  if (!url) {
-    return "";
-  }
-  if (recentJobImageCache.has(url)) {
-    return recentJobImageCache.get(url);
-  }
-  const request = fetch(url, { headers: buildApiHeaders() })
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error(`image failed: ${response.status}`);
-      }
-      return response.blob();
-    })
-    .then((blob) => URL.createObjectURL(blob))
-    .catch((error) => {
-      recentJobImageCache.delete(url);
-      throw error;
-    });
-  recentJobImageCache.set(url, request);
-  return request;
-}
-
-export function hydrateRecentJobImages(list) {
-  list.querySelectorAll(".recent-job-cover[data-image-url]").forEach((cover) => {
-    const rawUrl = cover.getAttribute("data-image-url") || "";
-    if (!rawUrl || cover.dataset.loaded === "1") {
-      return;
-    }
-    cover.dataset.loaded = "1";
-    loadRecentJobImage(rawUrl)
-      .then((objectUrl) => {
-        if (!objectUrl) {
-          return;
-        }
-        cover.style.backgroundImage = `url("${objectUrl}")`;
-        cover.classList.add("has-image");
-      })
-      .catch(() => {
-        cover.classList.add("is-missing");
-      });
-  });
+function byDialogId(root, id) {
+  return root?.querySelector?.(`#${id}`) || null;
 }
 
 export function recentJobsElements(host) {
   const root = host || document;
   return {
-    summary: root.querySelector("#recent-jobs-summary"),
-    list: root.querySelector("#recent-jobs-list"),
-    empty: root.querySelector("#recent-jobs-empty"),
-    loadMoreButton: root.querySelector("#load-more-jobs-btn"),
-    body: root.querySelector("#recent-jobs-scroll-body"),
-    dialog: root.querySelector("#query-dialog"),
+    summary: byDialogId(root, RECENT_JOBS_IDS.summary),
+    list: byDialogId(root, RECENT_JOBS_IDS.list),
+    empty: byDialogId(root, RECENT_JOBS_IDS.empty),
+    loadMoreButton: byDialogId(root, RECENT_JOBS_IDS.loadMoreButton),
+    body: byDialogId(root, RECENT_JOBS_IDS.scrollBody),
+    dialog: byDialogId(root, APP_DIALOG_IDS.recentJobs),
   };
 }
 
@@ -103,140 +49,56 @@ export function renderRecentJobsSummary(host, text) {
 
 export function renderRecentJobsLoading(host) {
   const { list, empty, loadMoreButton } = recentJobsElements(host);
-  if (!list || !empty || !loadMoreButton) {
-    return;
-  }
-  empty.classList.add("hidden");
-  list.classList.remove("hidden");
-  list.innerHTML = '<div class="events-empty">正在加载最近任务...</div>';
-  loadMoreButton.classList.add("hidden");
+  applyRecentJobsLoadingState({ list, empty, loadMoreButton }, {
+    loadingText: RECENT_JOBS_VIEW_TEXT.loadingDialog,
+  });
 }
 
 export function renderRecentJobsEmpty(host, message) {
   const { list, empty, loadMoreButton } = recentJobsElements(host);
-  if (!list || !empty || !loadMoreButton) {
-    return;
-  }
-  list.innerHTML = "";
-  list.classList.add("hidden");
-  empty.textContent = message || "暂无最近任务";
-  empty.classList.remove("hidden");
-  loadMoreButton.classList.add("hidden");
-  loadMoreButton.disabled = false;
-  loadMoreButton.textContent = "更多";
+  applyRecentJobsEmptyState({ list, empty, loadMoreButton }, message);
 }
 
 export function renderRecentJobsError(host, message, { reset = false } = {}) {
   const { list, empty, loadMoreButton } = recentJobsElements(host);
-  if (!list || !empty || !loadMoreButton) {
-    return;
-  }
-  if (reset) {
-    list.innerHTML = "";
-    list.classList.add("hidden");
-    empty.textContent = message || "读取最近任务失败";
-    empty.classList.remove("hidden");
-  } else {
-    loadMoreButton.classList.add("hidden");
-  }
-  loadMoreButton.disabled = false;
-  loadMoreButton.textContent = "更多";
+  applyRecentJobsErrorState({ list, empty, loadMoreButton }, message, { reset });
 }
 
-export function renderRecentJobsList(host, markup, { reset = false, hasMore = false, onSelect, onDelete, onReader } = {}) {
+export function renderRecentJobsList(
+  host,
+  markup,
+  {
+    reset = false,
+    hasMore = false,
+    onSelect,
+    onDelete,
+    onReader,
+    bindListEvents = () => {},
+    hydrateImages = () => {},
+  } = {},
+) {
   const { list, empty, loadMoreButton } = recentJobsElements(host);
   if (!list || !empty || !loadMoreButton) {
     return;
   }
-  list.__retainPdfRecentJobSelect = onSelect;
-  list.__retainPdfRecentJobDelete = onDelete;
-  list.__retainPdfRecentJobReader = onReader;
-  if (!list.__retainPdfRecentJobBound) {
-    list.__retainPdfRecentJobBound = true;
-    list.addEventListener("click", (event) => {
-      const cancelButton = event.target?.closest?.(".recent-job-delete-cancel");
-      if (cancelButton && list.contains(cancelButton)) {
-        event.preventDefault();
-        event.stopPropagation();
-        cancelButton.closest(".recent-job-item")?.classList.remove("is-confirming-delete");
-        return;
-      }
-      const confirmButton = event.target?.closest?.(".recent-job-delete-confirm");
-      if (confirmButton && list.contains(confirmButton)) {
-        event.preventDefault();
-        event.stopPropagation();
-        const item = confirmButton.closest(".recent-job-item");
-        item?.classList.remove("is-confirming-delete");
-        list.__retainPdfRecentJobDelete?.(item?.dataset.jobId || "");
-        return;
-      }
-      const deleteButton = event.target?.closest?.(".recent-job-delete");
-      if (deleteButton && list.contains(deleteButton)) {
-        event.preventDefault();
-        event.stopPropagation();
-        const item = deleteButton.closest(".recent-job-item");
-        list.querySelectorAll(".recent-job-item.is-confirming-delete").forEach((node) => {
-          if (node !== item) {
-            node.classList.remove("is-confirming-delete");
-          }
-        });
-        item?.classList.toggle("is-confirming-delete");
-        return;
-      }
-      const readerButton = event.target?.closest?.(".recent-job-reader");
-      if (readerButton && list.contains(readerButton)) {
-        event.preventDefault();
-        event.stopPropagation();
-        const item = readerButton.closest(".recent-job-item");
-        list.__retainPdfRecentJobReader?.(item?.dataset.jobId || "");
-        return;
-      }
-      const button = event.target?.closest?.(".recent-job-item");
-      if (!button || !list.contains(button)) {
-        list.querySelectorAll(".recent-job-item.is-confirming-delete").forEach((node) => {
-          node.classList.remove("is-confirming-delete");
-        });
-        return;
-      }
-      event.preventDefault();
-      list.querySelectorAll(".recent-job-item.is-confirming-delete").forEach((node) => {
-        node.classList.remove("is-confirming-delete");
-      });
-      list.__retainPdfRecentJobSelect?.(button.dataset.jobId || "");
-    });
-    list.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") {
-        return;
-      }
-      const item = event.target?.closest?.(".recent-job-item");
-      if (!item || !list.contains(item)) {
-        return;
-      }
-      event.preventDefault();
-      list.__retainPdfRecentJobSelect?.(item.dataset.jobId || "");
-    });
+  bindListEvents(list, { onSelect, onDelete, onReader });
+  if (!applyRecentJobsListState({ list, empty, loadMoreButton }, { hasMore })) {
+    return;
   }
-  list.classList.remove("hidden");
-  empty.classList.add("hidden");
   list.innerHTML = reset ? markup : `${list.innerHTML}${markup}`;
-  hydrateRecentJobImages(list);
-  loadMoreButton.classList.toggle("hidden", !hasMore);
-  loadMoreButton.disabled = false;
-  loadMoreButton.textContent = "更多";
+  hydrateImages(list);
 }
 
 export function setRecentJobsLoadMoreLoading(host) {
   const { loadMoreButton } = recentJobsElements(host);
-  if (!loadMoreButton) {
-    return;
-  }
-  loadMoreButton.disabled = true;
-  loadMoreButton.textContent = "加载中...";
+  applyRecentJobsLoadMoreLoadingState({ loadMoreButton }, {
+    loadingText: RECENT_JOBS_VIEW_TEXT.loadMoreLoadingDialog,
+  });
 }
 
 export function shouldAutoLoadRecentJobs(host) {
   const { body, loadMoreButton } = recentJobsElements(host);
-  if (!body || !loadMoreButton || loadMoreButton.classList.contains("hidden") || loadMoreButton.disabled) {
+  if (!body || !loadMoreButton || loadMoreButton.classList.contains(RECENT_JOBS_CLASSES.hidden) || loadMoreButton.disabled) {
     return false;
   }
   const remaining = body.scrollHeight - body.scrollTop - body.clientHeight;

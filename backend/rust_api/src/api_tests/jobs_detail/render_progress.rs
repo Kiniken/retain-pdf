@@ -48,11 +48,28 @@ async fn job_detail_route_ignores_background_render_prewarm_for_main_stage() {
         .expect("detail response");
     assert_eq!(detail_response.status(), StatusCode::OK);
     let detail_json = read_json(detail_response).await;
-    assert_eq!(detail_json["data"]["stage"], "translating");
-    assert_eq!(detail_json["data"]["stage_detail"], "已完成第 2/5 批翻译");
-    assert_eq!(detail_json["data"]["progress"]["current"], 2);
-    assert_eq!(detail_json["data"]["progress"]["total"], 5);
-    assert_eq!(detail_json["data"]["progress"]["unit"], "batch");
+    assert!(detail_json["data"].get("stage").is_none());
+    assert!(detail_json["data"].get("progress").is_none());
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["stage"],
+        "translating"
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["stage_detail"],
+        "已完成第 2/5 批翻译"
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["progress"]["current"],
+        2
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["progress"]["total"],
+        5
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["progress"]["unit"],
+        "batch"
+    );
 }
 
 #[tokio::test]
@@ -94,12 +111,21 @@ async fn job_detail_route_keeps_render_page_progress_over_compile_steps() {
         .expect("detail response");
     assert_eq!(detail_response.status(), StatusCode::OK);
     let detail_json = read_json(detail_response).await;
-    assert_eq!(detail_json["data"]["stage"], "rendering");
+    assert_eq!(detail_json["data"]["stage_snapshot"]["stage"], "rendering");
     assert_eq!(
-        detail_json["data"]["stage_detail"],
+        detail_json["data"]["stage_snapshot"]["stage_detail"],
         "整本 Typst 渲染编译完成，共 548 页"
     );
-    assert_eq!(detail_json["data"]["progress"]["current"], 548);
-    assert_eq!(detail_json["data"]["progress"]["total"], 548);
-    assert_eq!(detail_json["data"]["progress"]["unit"], "page");
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["progress"]["current"],
+        548
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["progress"]["total"],
+        548
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["progress"]["unit"],
+        "page"
+    );
 }

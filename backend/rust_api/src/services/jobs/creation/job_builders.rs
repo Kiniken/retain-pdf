@@ -1,5 +1,6 @@
 use crate::error::AppError;
-use crate::models::{CreateJobInput, JobSnapshot, UploadRecord, WorkflowKind};
+use crate::models::domain::{JobSnapshot, UploadRecord, WorkflowKind};
+use crate::models::request::CreateJobInput;
 use crate::services::job_snapshot_factory::{build_job_snapshot, JobCommandKind, JobInit};
 
 use super::context::SnapshotBuildDeps;
@@ -89,9 +90,7 @@ pub(super) fn build_ocr_job_snapshot(
     build_job_snapshot(
         &ctx.config,
         prepared.spec,
-        JobCommandKind::Ocr {
-            upload_path: prepared.upload_path,
-        },
+        JobCommandKind::Ocr,
         JobInit::ocr_default(),
     )
 }

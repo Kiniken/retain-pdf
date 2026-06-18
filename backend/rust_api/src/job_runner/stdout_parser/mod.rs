@@ -1,4 +1,4 @@
-use crate::models::JobSnapshot;
+use crate::models::domain::JobSnapshot;
 
 mod artifact_fields;
 mod artifact_rules;
@@ -33,7 +33,8 @@ pub fn apply_line(job: &mut JobSnapshot, line: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{job_stage_str, CreateJobInput, JobStage};
+    use crate::models::domain::{job_stage_str, JobStage};
+    use crate::models::request::CreateJobInput;
 
     fn build_job() -> JobSnapshot {
         JobSnapshot::new(

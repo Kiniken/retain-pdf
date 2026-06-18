@@ -1,4 +1,4 @@
-use crate::models::{job_stage_detail, job_stage_str, JobSnapshot, JobStage};
+use crate::models::domain::{job_stage_detail, job_stage_str, JobSnapshot, JobStage};
 use crate::ocr_provider::mineru::map_task_status;
 
 use super::{

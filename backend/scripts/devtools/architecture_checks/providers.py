@@ -46,6 +46,7 @@ OCR_PROVIDER_COMPAT_SYMBOLS = (
     "tighten_paddle_text_bbox",
     "save_normalized_document_for_paddle",
 )
+DOCUMENT_SCHEMA_ADAPTERS_ENTRY = SCRIPTS_ROOT / "services" / "document_schema" / "adapters.py"
 
 
 def check_pipeline_provider_leaks(errors: list[str]) -> None:
@@ -130,6 +131,14 @@ def check_ocr_provider_boundaries(errors: list[str]) -> None:
         errors.append(
             "services/ocr_provider/drivers.py: provider registry must expose local OCR command driver"
         )
+    if "_PROVIDER_DRIVERS" not in driver_text or "register_ocr_provider_driver" not in driver_text:
+        errors.append(
+            "services/ocr_provider/drivers.py: provider dispatch must use an explicit registry"
+        )
+    if "if provider ==" in driver_text:
+        errors.append(
+            "services/ocr_provider/drivers.py: provider dispatch must not grow provider-specific if chains"
+        )
     for symbol in OCR_PROVIDER_COMPAT_SYMBOLS:
         if f"{symbol}" not in entry_text:
             errors.append(
@@ -142,6 +151,12 @@ def check_ocr_provider_boundaries(errors: list[str]) -> None:
             errors.append(
                 f"{rel(path)}: entrypoints must route MinerU through services/ocr_provider/provider_pipeline.py"
             )
+
+    adapters_text = read_text(DOCUMENT_SCHEMA_ADAPTERS_ENTRY)
+    if "from services.mineru" in adapters_text:
+        errors.append(
+            "services/document_schema/adapters.py: provider registry must route MinerU through document_schema/provider_adapters/mineru"
+        )
 
 
 __all__ = [

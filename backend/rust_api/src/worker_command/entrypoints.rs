@@ -23,10 +23,7 @@ pub(super) fn provider_case_command(
 
 pub(super) fn provider_ocr_command(
     config: &WorkerCommandRuntimeConfig<'_>,
-    upload_path: Option<&Path>,
-    file_url: &str,
-    push_ocr_args: impl FnOnce(&mut CommandBuilder),
-    push_job_path_args: impl FnOnce(&mut CommandBuilder),
+    spec_path: &Path,
 ) -> Vec<String> {
     let mut cmd = CommandBuilder::new(
         config.python_bin,
@@ -34,13 +31,7 @@ pub(super) fn provider_ocr_command(
         &PythonEntrypoint::new(config.run_provider_ocr_script, "retainpdf-run-provider-ocr"),
         true,
     );
-    if let Some(upload_path) = upload_path {
-        cmd.path_arg("--file-path", upload_path);
-    } else {
-        cmd.arg("--file-url", file_url);
-    }
-    push_ocr_args(&mut cmd);
-    push_job_path_args(&mut cmd);
+    cmd.path_arg("--spec", spec_path);
     cmd.finish()
 }
 

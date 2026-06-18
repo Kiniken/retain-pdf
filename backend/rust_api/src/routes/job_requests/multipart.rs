@@ -1,7 +1,7 @@
 use axum::extract::Multipart;
 
 use crate::error::AppError;
-use crate::models::CreateJobInput;
+use crate::models::request::CreateJobInput;
 
 use super::fields::apply_multipart_request_field;
 

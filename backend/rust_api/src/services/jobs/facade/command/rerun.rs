@@ -1,8 +1,7 @@
 use crate::error::AppError;
-use crate::models::now_iso;
-use crate::models::{
-    CreateJobInput, JobSnapshot, JobSourceInput, JobStatusKind, JobSubmissionView, WorkflowKind,
-};
+use crate::models::api::JobSubmissionView;
+use crate::models::domain::{now_iso, JobSnapshot, JobStatusKind, WorkflowKind};
+use crate::models::request::{CreateJobInput, JobSourceInput};
 use crate::services::jobs::stage_plan::resume_plan;
 
 use super::super::super::creation::create_translation_job;

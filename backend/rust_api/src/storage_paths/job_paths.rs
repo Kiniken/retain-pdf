@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 
-use crate::models::{JobArtifacts, JobSnapshot};
+use crate::models::domain::{JobArtifacts, JobSnapshot};
 
 use super::constants::{
     OUTPUT_ARTIFACTS_DIR_NAME, OUTPUT_LOGS_DIR_NAME, OUTPUT_MARKDOWN_DIR_NAME, OUTPUT_OCR_DIR_NAME,

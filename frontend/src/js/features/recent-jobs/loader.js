@@ -1,30 +1,17 @@
 import {
-  HOME_LOADING_STATES,
-  setHomeRecentJobsLoadingState,
-} from "../home/state.js";
+  RECENT_JOBS_LOADING_STATES,
+} from "./loading-state-contract.js";
 import {
-  hasActiveRecentJobs,
-} from "./active-refresh.js";
-import {
-  collectRecentJobsPage,
-  dedupeRecentJobs,
   RECENT_JOBS_PAGE_SIZE,
 } from "./pagination.js";
+import { createLibraryBooksResource } from "./library-books-resource.js";
 import {
-  getRecentJobsState,
-  resetRecentJobsPagination,
-  setRecentJobsHasMore,
-  setRecentJobsItems,
-  setRecentJobsOffset,
-} from "./state.js";
-import {
-  hasRecentJobsView,
-  renderRecentJobsEmpty,
-  renderRecentJobsError,
-  renderRecentJobsList,
-  renderRecentJobsLoading,
-  setRecentJobsLoadMoreLoading,
-} from "./view.js";
+  commitRecentJobsEmpty,
+  commitRecentJobsError,
+  commitRecentJobsNoMore,
+  commitRecentJobsPage,
+} from "./commit.js";
+import { createRecentJobsViewPort } from "./view-port.js";
 
 export function createRecentJobsLoader({
   fetchJobList,
@@ -35,12 +22,36 @@ export function createRecentJobsLoader({
   runtimePatches,
   activeRefreshLoop,
   scheduleAutoLoadIfNeeded,
+  homeStatePort,
+  recentJobsStatePort,
+  storeDrivenRendering = false,
+  viewPort = createRecentJobsViewPort(),
+  libraryBooksResource = createLibraryBooksResource({
+    fetchJobList,
+    fetchLibraryBookList,
+    apiPrefix,
+  }),
 }) {
   let loading = false;
   let pendingLoad = null;
 
   function isLoading() {
     return loading;
+  }
+
+  async function loadLibraryBooksPage(params) {
+    const snapshot = await libraryBooksResource.load(params, {
+      cache: false,
+    });
+    if (snapshot.status === "error") {
+      throw snapshot.error || new Error("读取最近任务失败");
+    }
+    return snapshot.data || {
+      collected: [],
+      hasMore: false,
+      latestInvocationSummary: null,
+      nextOffset: params.startOffset || 0,
+    };
   }
 
   async function load({ reset = false, silent = false, query = getQuery?.() || "" } = {}) {
@@ -52,24 +63,24 @@ export function createRecentJobsLoader({
       };
       return;
     }
-    if (!hasRecentJobsView()) {
+    if (!viewPort.hasView()) {
       return;
     }
     loading = true;
     if (!silent) {
-      setHomeRecentJobsLoadingState(HOME_LOADING_STATES.LOADING);
+      homeStatePort.setRecentJobsLoadingState(RECENT_JOBS_LOADING_STATES.LOADING);
     }
     if (reset) {
-      resetRecentJobsPagination();
+      recentJobsStatePort.resetPagination();
       if (!silent) {
-        renderRecentJobsLoading();
+        viewPort.renderLoading();
       }
     } else {
-      setRecentJobsLoadMoreLoading();
+      viewPort.setLoadMoreLoading();
     }
 
     try {
-      const { offset, items: previousItems } = getRecentJobsState();
+      const { offset, items: previousItems } = recentJobsStatePort.getSnapshot();
       const existingJobIds = new Set(
         (reset ? [] : previousItems)
           .map((item) => `${item?.job_id || ""}`.trim())
@@ -80,10 +91,7 @@ export function createRecentJobsLoader({
         hasMore,
         latestInvocationSummary,
         nextOffset,
-      } = await collectRecentJobsPage({
-        fetchJobList,
-        fetchLibraryBookList,
-        apiPrefix,
+      } = await loadLibraryBooksPage({
         startOffset: reset ? 0 : offset,
         pageSize: RECENT_JOBS_PAGE_SIZE,
         existingJobIds,
@@ -91,54 +99,51 @@ export function createRecentJobsLoader({
       });
 
       if (reset && collected.length === 0) {
-        setRecentJobsItems([]);
-        setRecentJobsHasMore(false);
-        setHomeRecentJobsLoadingState(HOME_LOADING_STATES.READY);
-        renderRecentJobsEmpty(`${query || ""}`.trim() ? "没有匹配的书籍" : "暂无最近任务", latestInvocationSummary);
+        commitRecentJobsEmpty({
+          query,
+          invocationSummary: latestInvocationSummary,
+          homeStatePort,
+          recentJobsStatePort,
+          storeDrivenRendering,
+          viewPort,
+        });
         return;
       }
       if (!reset && collected.length === 0) {
-        setRecentJobsHasMore(false);
-        setHomeRecentJobsLoadingState(HOME_LOADING_STATES.READY);
-        renderRecentJobsError("", { reset: false });
+        commitRecentJobsNoMore({
+          homeStatePort,
+          recentJobsStatePort,
+          storeDrivenRendering,
+          viewPort,
+        });
         return;
       }
 
-      const nextItems = runtimePatches.apply(dedupeRecentJobs(reset ? collected : [...previousItems, ...collected]));
-      const renderItems = reset
-        ? nextItems
-        : runtimePatches.apply(collected);
-      setRecentJobsOffset(nextOffset);
-      setRecentJobsHasMore(hasMore);
-      setRecentJobsItems(nextItems);
-      if (hasActiveRecentJobs(nextItems)) {
-        activeRefreshLoop()?.schedule();
-      } else {
-        activeRefreshLoop()?.stop();
-      }
-      if (reset) {
-        recentJobActions.recoverActiveJob(nextItems);
-      }
-      renderRecentJobsList({
-        items: renderItems,
-        allItems: nextItems,
-        invocationSummary: latestInvocationSummary,
+      commitRecentJobsPage({
         reset,
+        collected,
         hasMore,
-        onSelect: recentJobActions.selectJob,
-        onDelete: recentJobActions.deleteJob,
-        onReader: recentJobActions.openJobReader,
+        nextOffset,
+        invocationSummary: latestInvocationSummary,
+        query,
+        recentJobActions,
+        runtimePatches,
+        activeRefreshLoop,
+        scheduleAutoLoadIfNeeded,
+        recentJobsStatePort,
+        storeDrivenRendering,
+        viewPort,
       });
-      if (hasMore && !`${query || ""}`.trim()) {
-        window.setTimeout(() => scheduleAutoLoadIfNeeded?.(), 0);
-      }
-      setHomeRecentJobsLoadingState(HOME_LOADING_STATES.READY);
+      homeStatePort.setRecentJobsLoadingState(RECENT_JOBS_LOADING_STATES.READY);
     } catch (err) {
-      if (!reset) {
-        setRecentJobsHasMore(false);
-      }
-      setHomeRecentJobsLoadingState(HOME_LOADING_STATES.ERROR, err.message || "读取最近任务失败");
-      renderRecentJobsError(err.message || "读取最近任务失败", { reset });
+      commitRecentJobsError({
+        error: err,
+        reset,
+        homeStatePort,
+        recentJobsStatePort,
+        storeDrivenRendering,
+        viewPort,
+      });
     } finally {
       loading = false;
       if (pendingLoad) {

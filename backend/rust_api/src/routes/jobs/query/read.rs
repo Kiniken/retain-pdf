@@ -3,10 +3,11 @@ use axum::http::HeaderMap;
 use axum::Json;
 
 use crate::error::AppError;
-use crate::models::{
+use crate::models::api::{
     ApiResponse, ArtifactLinksView, JobArtifactManifestView, JobDetailView, JobEventListView,
     JobListView, ListJobEventsQuery, ListJobsQuery,
 };
+use crate::models::domain::WorkflowKind;
 use crate::AppState;
 
 use super::super::json_response::{
@@ -28,7 +29,7 @@ pub async fn list_ocr_jobs(
     headers: HeaderMap,
     Query(mut query): Query<ListJobsQuery>,
 ) -> Result<Json<ApiResponse<JobListView>>, AppError> {
-    query.workflow = Some(crate::models::WorkflowKind::Ocr);
+    query.workflow = Some(WorkflowKind::Ocr);
     list_jobs(State(state), headers, Query(query)).await
 }
 

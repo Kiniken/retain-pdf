@@ -1,36 +1,49 @@
-import { API_PREFIX } from "../../constants.js";
 import {
   getOcrProviderDefinition,
   TRANSLATION_PROVIDER_DEFINITION,
-} from "../../provider-config.js";
-import {
-  resetOcrValidationCache as resetOcrValidationCacheState,
-  setOcrValidationCache,
-} from "../../state/actions.js";
+} from "../../config/providers.js";
+import { createCredentialLegacyRuntimePort } from "./legacy-runtime-port.js";
 
 export function resetOcrValidationCache(state) {
-  resetOcrValidationCacheState(state);
+  createCredentialLegacyRuntimePort(state).resetOcrValidationCache();
+}
+
+function resolveLegacyRuntimePort({ state, legacyRuntimePort } = {}) {
+  return legacyRuntimePort || createCredentialLegacyRuntimePort(state);
+}
+
+function resetOcrValidationRuntime({ state, credentialsStatePort, legacyRuntimePort } = {}) {
+  credentialsStatePort?.resetOcrValidationCache?.();
+  resolveLegacyRuntimePort({ state, legacyRuntimePort }).resetOcrValidationCache();
+}
+
+function setOcrValidationRuntime({ state, credentialsStatePort, legacyRuntimePort }, payload = {}) {
+  credentialsStatePort?.setOcrValidationCache?.(payload);
+  resolveLegacyRuntimePort({ state, legacyRuntimePort }).setOcrValidationCache(payload);
 }
 
 export async function runOcrTokenValidation({
+  apiPrefix,
   state,
+  credentialsStatePort,
   providerId,
   token,
   validateOcrToken,
   setOcrValidationMessage,
   showResult = true,
+  legacyRuntimePort,
 }) {
   const definition = getOcrProviderDefinition(providerId);
   const normalizedToken = `${token || ""}`.trim();
   if (!normalizedToken) {
-    resetOcrValidationCache(state);
+    resetOcrValidationRuntime({ state, credentialsStatePort, legacyRuntimePort });
     if (showResult) {
       setOcrValidationMessage(definition.validationMissingMessage, "error", definition.id);
     }
     return { ok: false, status: "unauthorized" };
   }
   if (!definition.supportsValidation) {
-    setOcrValidationCache(state, {
+    setOcrValidationRuntime({ state, credentialsStatePort, legacyRuntimePort }, {
       provider: definition.id,
       token: normalizedToken,
       status: "skipped",
@@ -48,8 +61,8 @@ export async function runOcrTokenValidation({
     setOcrValidationMessage(`正在检测 ${definition.label} Token…`, "", definition.id);
   }
   try {
-    const result = await validateOcrToken(API_PREFIX, definition.id, normalizedToken);
-    setOcrValidationCache(state, {
+    const result = await validateOcrToken(apiPrefix, definition.id, normalizedToken);
+    setOcrValidationRuntime({ state, credentialsStatePort, legacyRuntimePort }, {
       provider: definition.id,
       token: normalizedToken,
       status: result.status || "",
@@ -61,7 +74,7 @@ export async function runOcrTokenValidation({
     }
     return result;
   } catch (_err) {
-    resetOcrValidationCache(state);
+    resetOcrValidationRuntime({ state, credentialsStatePort, legacyRuntimePort });
     if (showResult) {
       setOcrValidationMessage(`${definition.label} Token 检测失败，请稍后重试。`, "error", definition.id);
     }
@@ -74,6 +87,7 @@ export async function runOcrTokenValidation({
 }
 
 export async function runDeepSeekConnectivityCheck({
+  apiPrefix,
   apiKey,
   baseUrl,
   validateDeepSeekToken,
@@ -92,7 +106,7 @@ export async function runDeepSeekConnectivityCheck({
     setDeepSeekValidationMessage("正在检测 DeepSeek 接口…");
   }
   try {
-    const result = await validateDeepSeekToken(API_PREFIX, {
+    const result = await validateDeepSeekToken(apiPrefix, {
       api_key: modelApiKey,
       base_url: modelBaseUrl,
     });
@@ -128,6 +142,7 @@ export function summarizeDeepSeekBalance(result) {
 }
 
 export async function runDeepSeekBalanceCheck({
+  apiPrefix,
   apiKey,
   baseUrl,
   queryDeepSeekBalance,
@@ -141,7 +156,7 @@ export async function runDeepSeekBalanceCheck({
     return { ok: false, status: "unsupported" };
   }
   try {
-    return await queryDeepSeekBalance(API_PREFIX, {
+    return await queryDeepSeekBalance(apiPrefix, {
       api_key: modelApiKey,
       base_url: modelBaseUrl,
     });

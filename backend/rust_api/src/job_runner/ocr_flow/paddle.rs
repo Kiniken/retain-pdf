@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json::json;
 use std::path::Path;
 
-use crate::models::{now_iso, JobRuntimeState};
+use crate::models::domain::{now_iso, JobRuntimeState};
 use crate::ocr_provider::paddle::{
     map_task_status as map_paddle_task_status, normalize_model_name, PaddleClient,
     PaddleProviderError,

@@ -1,15 +1,13 @@
-import { summarizeStatus } from "../../job.js";
-import {
-  clearAppliedPageRange,
-  resetJobState,
-} from "../../state/actions.js";
 import { resetStatusDetailRuntimeView } from "../app-shell/idle-reset.js";
-import { closeRuntimeDialogs, resetEventsList } from "../app-shell/view.js";
 import { clearActiveJobId } from "./active-job-storage.js";
+import { createJobRuntimeShellViewPort } from "./shell-view-port.js";
+import { createJobRuntimeResetStatePort } from "./reset-state-port.js";
 import {
   currentJobId,
+} from "./current-job-state.js";
+import {
   stopPolling,
-} from "./runtime-state.js";
+} from "./runtime-polling-state.js";
 
 export function returnJobRuntimeToHome({
   state,
@@ -22,13 +20,23 @@ export function returnJobRuntimeToHome({
   setText,
   updateJobWarning,
   activateDetailTab,
+  uploadStatePort,
+  resetStatePort,
+  shellViewPort = createJobRuntimeShellViewPort(),
+  jobPresentationPort = {},
 }) {
+  const summarizeStatus = jobPresentationPort.summarizeStatus || ((status) => status);
+  const resetState = resetStatePort || createJobRuntimeResetStatePort(state);
   clearActiveJobId(currentJobId(state));
   stopPolling(state);
-  closeRuntimeDialogs();
+  shellViewPort.closeDialogs();
   onReaderDialogClose?.();
-  resetJobState(state);
-  clearAppliedPageRange(state);
+  resetState.resetJob();
+  if (uploadStatePort?.clearAppliedPageRange) {
+    uploadStatePort.clearAppliedPageRange();
+  } else {
+    resetState.clearAppliedPageRange?.();
+  }
   setWorkflowSections(null);
   resetUploadProgress();
   resetUploadedFile();
@@ -39,6 +47,10 @@ export function returnJobRuntimeToHome({
   setText("query-job-duration", "-");
   setText("job-finished-at", "-");
   clearPageRanges();
-  resetStatusDetailRuntimeView({ setText, resetEventsList, activateDetailTab });
+  resetStatusDetailRuntimeView({
+    setText,
+    resetEventsList: shellViewPort.resetEvents,
+    activateDetailTab,
+  });
   updateJobWarning("idle");
 }

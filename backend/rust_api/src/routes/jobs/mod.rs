@@ -11,8 +11,8 @@ pub use download::{
     download_artifact_by_key, download_bundle, download_cover, download_markdown,
     download_markdown_image, download_normalization_report, download_normalized_document,
     download_ocr_artifact_by_key, download_ocr_normalization_report,
-    download_ocr_normalized_document, download_page_preview, download_pdf, download_thumbnail,
-    get_markdown_document,
+    download_ocr_normalized_document, download_page_preview, download_pdf,
+    download_side_by_side_pdf, download_thumbnail, get_markdown_document,
 };
 pub use query::{
     get_job, get_job_artifacts, get_job_artifacts_manifest, get_job_diagnostics, get_job_events,
@@ -27,7 +27,7 @@ pub use translation_debug::{
 
 #[cfg(test)]
 mod tests {
-    use crate::models::CreateJobInput;
+    use crate::models::request::CreateJobInput;
     use serde_json::json;
 
     #[test]

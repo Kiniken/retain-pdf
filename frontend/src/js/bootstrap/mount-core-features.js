@@ -1,46 +1,24 @@
-import { isMockMode } from "../config.js";
-import { mountAppUpdateFeature } from "../features/app-update/controller.js";
-import { mountAppShellFeature } from "../features/app-shell/controller.js";
-import { mountHomeFeature } from "../features/home/controller.js";
-import { mountTranslationWorkflowDialogFeature } from "../features/translation-workflow-dialog/controller.js";
-import { setText } from "./main-helpers.js";
 import {
-  prepareFilePicker,
-  renderJob,
-  resetUploadProgress,
-  resetUploadedFile,
-  setLinearProgress,
-  setWorkflowSections,
-  updateActionButtons,
-  updateJobWarning,
-} from "../ui.js";
+  defaultCoreFeatureMountPorts,
+} from "./core-feature-mount-ports.js";
+import {
+  buildAppShellFeatureMountPayload,
+  buildHomeFeatureMountPayload,
+  buildTranslationWorkflowDialogMountPayload,
+} from "./core-feature-mount-payloads.js";
 
-export function mountCoreFeatures(features) {
-  features.homeFeature = mountHomeFeature();
-  features.appUpdateFeature = mountAppUpdateFeature();
-  features.translationWorkflowDialogFeature = mountTranslationWorkflowDialogFeature();
-  features.appShellFeature = mountAppShellFeature({
-    isMockMode,
-    prepareFilePicker,
-    setText,
-    setWorkflowSections,
-    setLinearProgress,
-    updateActionButtons,
-    renderPageRangeSummary: () => features.uploadFeature?.renderPageRangeSummary(),
-    resetUploadProgress,
-    resetUploadedFile,
-    applyWorkflowMode: () => features.workflowFeature?.applyWorkflowMode(),
-    updateJobWarning,
-    activateDetailTab: (name) => features.statusDetailFeature?.activateDetailTab(name),
-    translationWorkflowDialogFeature: features.translationWorkflowDialogFeature,
+export function mountCoreFeatures(features, { state, ports = defaultCoreFeatureMountPorts } = {}) {
+  const homeStatePort = ports.createHomeStatePort(state);
+  features.homeFeature = ports.mountHomeFeature(
+    buildHomeFeatureMountPayload({ homeStatePort }),
+  );
+  features.appUpdateFeature = ports.mountAppUpdateFeature({
+    enabled: Boolean(ports.isAppUpdateEnabled?.()),
   });
+  features.translationWorkflowDialogFeature = ports.mountTranslationWorkflowDialogFeature(
+    buildTranslationWorkflowDialogMountPayload({ features, homeStatePort, ports }),
+  );
+  features.appShellFeature = ports.mountAppShellFeature(
+    buildAppShellFeatureMountPayload({ features, ports }),
+  );
 }
-
-export const coreUiDependencies = {
-  renderJob,
-  resetUploadProgress,
-  resetUploadedFile,
-  setText,
-  setWorkflowSections,
-  updateJobWarning,
-};

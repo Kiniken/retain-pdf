@@ -1,5 +1,3 @@
-import { normalizeJobPayload, summarizeStatus } from "../../job.js";
-
 export function resetStatusDetailRuntimeView({ setText, resetEventsList, activateDetailTab }) {
   setText("runtime-current-stage", "-");
   setText("runtime-stage-elapsed", "-");
@@ -24,7 +22,8 @@ export function resetStatusDetailRuntimeView({ setText, resetEventsList, activat
 }
 
 export function initializeIdleAppView({
-  isMockMode,
+  configPort,
+  jobPresentationPort = {},
   setText,
   setWorkflowSections,
   setLinearProgress,
@@ -37,6 +36,9 @@ export function initializeIdleAppView({
   resetEventsList,
   activateDetailTab,
 }) {
+  const normalizeJobPayload = jobPresentationPort.normalizeJobPayload || ((payload) => payload);
+  const summarizeStatus = jobPresentationPort.summarizeStatus || ((status) => status);
+
   updateActionButtons(normalizeJobPayload({}));
   setWorkflowSections(null);
   setLinearProgress("job-progress-bar", "job-progress-text", NaN, NaN, "-");
@@ -44,7 +46,7 @@ export function initializeIdleAppView({
   setText("job-stage-detail", "-");
   setText("query-job-duration", "-");
   resetStatusDetailRuntimeView({ setText, resetEventsList, activateDetailTab });
-  if (isMockMode()) {
+  if (configPort?.isMock?.()) {
     setText("error-box", "-");
   }
   renderPageRangeSummary();

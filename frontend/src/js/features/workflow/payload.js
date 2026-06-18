@@ -1,5 +1,4 @@
-import { $ } from "../../dom.js";
-import { getOcrProviderDefinition, normalizeOcrProvider } from "../../provider-config.js";
+import { getOcrProviderDefinition, normalizeOcrProvider } from "../../config/providers.js";
 
 export function buildSourcePayload({ workflow, developerConfig, uploadId, workflowNeedsUpload }) {
   return workflowNeedsUpload(workflow)
@@ -9,24 +8,16 @@ export function buildSourcePayload({ workflow, developerConfig, uploadId, workfl
 
 export function buildOcrPayload({
   pageRanges,
-  readOcrProviderValue,
-  readOcrTokenValue,
-  defaultOcrProvider,
-  defaultPaddleToken,
-  defaultMineruToken,
+  ocrProvider,
+  ocrToken,
   defaultPaddleApiUrl,
   constants,
 }) {
-  const provider = normalizeOcrProvider(readOcrProviderValue(defaultOcrProvider()));
+  const provider = normalizeOcrProvider(ocrProvider);
   const definition = getOcrProviderDefinition(provider);
-  const token = readOcrTokenValue({
-    providerId: definition.id,
-    defaultPaddleToken: defaultPaddleToken(),
-    defaultMineruToken: defaultMineruToken(),
-  });
   const payload = {
     provider,
-    [definition.tokenField]: token,
+    [definition.tokenField]: ocrToken || "",
     model_version: constants.DEFAULT_MODEL_VERSION,
     language: constants.DEFAULT_LANGUAGE,
     page_ranges: pageRanges,
@@ -39,25 +30,22 @@ export function buildOcrPayload({
 
 export function buildTranslationPayload({
   developerConfig,
-  readModelApiKey,
-  defaultModelApiKey,
+  modelApiKey,
+  selectedGlossaryId,
   constants,
 }) {
-  const selectedGlossaryId = $("job-glossary-id")?.value?.trim()
-    || developerConfig.glossaryId
-    || "";
   return {
     mode: constants.DEFAULT_MODE,
     math_mode: developerConfig.mathMode,
     model: developerConfig.model,
     base_url: developerConfig.baseUrl,
-    api_key: readModelApiKey(defaultModelApiKey()),
+    api_key: modelApiKey || "",
     workers: developerConfig.workers,
     batch_size: developerConfig.batchSize,
     classify_batch_size: developerConfig.classifyBatchSize,
     rule_profile_name: constants.DEFAULT_RULE_PROFILE,
     custom_rules_text: "",
-    glossary_id: selectedGlossaryId,
+    glossary_id: selectedGlossaryId || developerConfig.glossaryId || "",
     glossary_entries: [],
     skip_title_translation: !developerConfig.translateTitles,
   };

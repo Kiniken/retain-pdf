@@ -16,36 +16,47 @@ import {
   routePathOf,
   summarizeTranslationFilter,
 } from "./formatters.js";
-import { dialogComponent } from "./view.js";
+import {
+  createStatusDetailTranslationViewPort,
+} from "./translation-view-port.js";
+import {
+  dataAttribute,
+  STATUS_DETAIL_DIALOG,
+} from "../../components/dialogs/status-detail-dialog-dom-contract.js";
 
-export function renderTranslationEmpty(message) {
-  const component = dialogComponent();
-  component?.renderTranslationSummary({
+const noopStatusDetailTranslationViewPort = createStatusDetailTranslationViewPort();
+
+export function renderTranslationEmpty(message, {
+  viewPort = noopStatusDetailTranslationViewPort,
+} = {}) {
+  viewPort.renderSummary({
     hidden: true,
     emptyText: message,
   });
-  component?.renderTranslationItems({
+  viewPort.renderItems({
     loading: false,
     hasItems: false,
     emptyText: message,
     meta: "-",
   });
-  component?.renderTranslationItemDetail({
+  viewPort.renderItemDetail({
     loading: false,
     hasItem: false,
     emptyText: "请选择左侧 item",
     meta: "-",
     replayEnabled: false,
   });
-  component?.renderTranslationReplay({
+  viewPort.renderReplay({
     hasResult: false,
     status: "-",
   });
 }
 
-export function renderTranslationSummary(translationState) {
+export function renderTranslationSummary(translationState, {
+  viewPort = noopStatusDetailTranslationViewPort,
+} = {}) {
   const summary = translationState.summary?.summary || {};
-  dialogComponent()?.renderTranslationSummary({
+  viewPort.renderSummary({
     counts: summary.counts || {},
     finalStatusCounts: summary.final_status_counts || {},
     providerFamily: `${summary.provider_family || ""}`.trim(),
@@ -55,8 +66,14 @@ export function renderTranslationSummary(translationState) {
   });
 }
 
-export function renderTranslationItems(translationState, { loading = false, emptyText = "没有匹配的翻译 item" } = {}) {
-  const component = dialogComponent();
+export function renderTranslationItems(
+  translationState,
+  {
+    loading = false,
+    emptyText = "没有匹配的翻译 item",
+    viewPort = noopStatusDetailTranslationViewPort,
+  } = {},
+) {
   const list = translationState.list || [];
   const offset = Number(translationState.query.offset || 0);
   const limit = Number(translationState.query.limit || 20);
@@ -82,7 +99,7 @@ export function renderTranslationItems(translationState, { loading = false, empt
       <button
         type="button"
         class="translation-item-card${active ? " is-active" : ""}"
-        data-translation-item-id="${escapeHtml(item.item_id)}"
+        data-${dataAttribute(STATUS_DETAIL_DIALOG.dataset.translationItemId)}="${escapeHtml(item.item_id)}"
       >
         <div class="translation-item-card-top">
           <span class="translation-item-id mono">${escapeHtml(item.item_id || "-")}</span>
@@ -103,7 +120,7 @@ export function renderTranslationItems(translationState, { loading = false, empt
       </button>
     `;
   }).join("");
-  component?.renderTranslationItems({
+  viewPort.renderItems({
     markup,
     hasItems: list.length > 0,
     emptyText,
@@ -115,11 +132,17 @@ export function renderTranslationItems(translationState, { loading = false, empt
   });
 }
 
-export function renderTranslationItemDetail(translationState, { loading = false, emptyText = "请选择左侧 item" } = {}) {
-  const component = dialogComponent();
+export function renderTranslationItemDetail(
+  translationState,
+  {
+    loading = false,
+    emptyText = "请选择左侧 item",
+    viewPort = noopStatusDetailTranslationViewPort,
+  } = {},
+) {
   const payload = translationState.selectedItem;
   if (loading) {
-    component?.renderTranslationItemDetail({
+    viewPort.renderItemDetail({
       loading: true,
       hasItem: false,
       emptyText,
@@ -129,7 +152,7 @@ export function renderTranslationItemDetail(translationState, { loading = false,
     return;
   }
   if (!payload?.item) {
-    component?.renderTranslationItemDetail({
+    viewPort.renderItemDetail({
       loading: false,
       hasItem: false,
       emptyText,
@@ -162,7 +185,7 @@ export function renderTranslationItemDetail(translationState, { loading = false,
     ${renderTextBlock("保护后译文", item.protected_translated_text || item.translation_unit_protected_translated_text || item.group_protected_translated_text || "")}
     ${renderTextBlock("translation_diagnostics", diagnostics || {})}
   `;
-  component?.renderTranslationItemDetail({
+  viewPort.renderItemDetail({
     loading: false,
     hasItem: true,
     markup,
@@ -171,10 +194,12 @@ export function renderTranslationItemDetail(translationState, { loading = false,
   });
 }
 
-export function renderTranslationReplay(translationState) {
+export function renderTranslationReplay(translationState, {
+  viewPort = noopStatusDetailTranslationViewPort,
+} = {}) {
   const replay = translationState.replay;
   if (!replay?.payload) {
-    dialogComponent()?.renderTranslationReplay({
+    viewPort.renderReplay({
       hasResult: false,
       status: "-",
     });
@@ -189,7 +214,7 @@ export function renderTranslationReplay(translationState) {
       ${renderTextBlock("replay_error", payload.replay_error || null)}
     </div>
   `;
-  dialogComponent()?.renderTranslationReplay({
+  viewPort.renderReplay({
     hasResult: true,
     markup,
     status: payload.replay_error ? "重放返回错误" : "重放完成",

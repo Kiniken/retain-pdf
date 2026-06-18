@@ -6,7 +6,9 @@ use crate::models::{
     WorkflowKind,
 };
 
-use super::super::common::{JobActionsView, JobLinksView, JobProgressView, JobTimestampsView};
+use super::super::common::{
+    JobActionsView, JobLinksView, JobProgressView, JobStagesView, JobTimestampsView,
+};
 
 #[derive(Debug, Serialize)]
 pub struct ResourceLinkView {
@@ -164,9 +166,9 @@ pub struct JobDetailView {
     pub request_payload: PublicResolvedJobSpec,
     pub trace_id: Option<String>,
     pub provider_trace_id: Option<String>,
-    pub stage: Option<String>,
-    pub stage_detail: Option<String>,
-    pub progress: JobProgressView,
+    pub stage_snapshot: Option<JobStageSnapshotView>,
+    pub background_snapshots: Vec<JobStageSnapshotView>,
+    pub stages: JobStagesView,
     pub timestamps: JobTimestampsView,
     pub links: JobLinksView,
     pub actions: JobActionsView,
@@ -184,6 +186,16 @@ pub struct JobDetailView {
     pub glossary_summary: Option<GlossaryUsageSummaryView>,
     pub invocation: Option<InvocationSummaryView>,
     pub log_tail: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct JobStageSnapshotView {
+    pub display_stage: Option<String>,
+    pub stage: Option<String>,
+    pub substage: Option<String>,
+    pub lane: Option<String>,
+    pub stage_detail: Option<String>,
+    pub progress: JobProgressView,
 }
 
 #[derive(Debug, Serialize)]
@@ -366,9 +378,9 @@ pub struct JobListItemView {
     pub workflow: WorkflowKind,
     pub status: JobStatusKind,
     pub trace_id: Option<String>,
-    pub stage: Option<String>,
-    pub stage_detail: Option<String>,
-    pub progress: JobProgressView,
+    pub stage_snapshot: Option<JobStageSnapshotView>,
+    pub background_snapshots: Vec<JobStageSnapshotView>,
+    pub stages: JobStagesView,
     pub page_count: Option<i64>,
     pub source_file_name: Option<String>,
     pub cover_url: Option<String>,

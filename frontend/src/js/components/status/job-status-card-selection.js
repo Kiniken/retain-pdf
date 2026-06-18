@@ -1,40 +1,129 @@
-import { STAGE_FLOW } from "./job-status-card-presets.js";
-import { normalizeSelectedProgress } from "./job-status-card-progress.js";
+import {
+  resolveSelectedStatusStage,
+} from "../../job-status/stage-flow-model.js";
+import {
+  buildSelectedStageDisplay,
+} from "../../job-status/selected-stage-display-view-model.js";
 
-export function effectiveFlowStageKey(snapshot = null) {
-  const stageKey = `${snapshot?.stageKey || ""}`.trim();
-  if (STAGE_FLOW.includes(stageKey)) {
-    return stageKey;
-  }
-  const progressByKey = snapshot?.stageProgressByKey || {};
-  return [...STAGE_FLOW].reverse().find((key) => progressByKey[key]) || "";
+export {
+  effectiveFlowStageKey,
+  resolveSelectedStageContext,
+} from "../../job-status/selected-stage-view-model.js";
+
+function normalizeStageKey(stageKey = "") {
+  return `${stageKey || ""}`.trim();
 }
 
-export function resolveSelectedStageContext({
-  snapshot,
-  selectedStageKey = "",
-}) {
-  const flowStageKey = effectiveFlowStageKey(snapshot);
-  const selected = selectedStageKey || flowStageKey || snapshot.stageKey;
-  const selectedIsCurrent = selected === snapshot.stageKey;
-  const selectedHistoricalProgress = selectedIsCurrent ? null : snapshot.stageProgressByKey?.[selected];
-  const currentProgress = {
-    current: snapshot.progressCurrent,
-    total: snapshot.progressTotal,
-    progressText: snapshot.progressText,
-    progressUnit: snapshot.progressUnit,
-    indeterminate: snapshot.progressIndeterminate,
-    substageKey: snapshot.substageKey,
-    visualStageKey: snapshot.visualStageKey,
+function normalizeJobId(jobId = "") {
+  return `${jobId || ""}`.trim();
+}
+
+export function createStatusCardSelectionState() {
+  const state = {
+    currentStageKey: "",
+    currentJobId: "",
+    selectedStageKey: "",
+    manualStageSelection: false,
   };
-  const selectedProgress = selectedIsCurrent
-    ? normalizeSelectedProgress(currentProgress, snapshot.stageProgressByKey?.[selected])
-    : normalizeSelectedProgress(selectedHistoricalProgress);
+
+  function resolveSelection() {
+    const selection = resolveSelectedStatusStage({
+      currentStageKey: state.currentStageKey,
+      selectedStageKey: state.selectedStageKey,
+      manualStageSelection: state.manualStageSelection,
+    });
+    state.selectedStageKey = selection.selectedStageKey;
+    state.manualStageSelection = selection.manualStageSelection;
+    return snapshot();
+  }
+
+  function resetSelection() {
+    state.selectedStageKey = "";
+    state.manualStageSelection = false;
+  }
+
+  function syncSnapshot({ jobId = "", stageKey = "" } = {}) {
+    const normalizedJobId = normalizeJobId(jobId);
+    const normalizedStageKey = normalizeStageKey(stageKey);
+    const jobChanged = Boolean(normalizedJobId && normalizedJobId !== state.currentJobId);
+    if (jobChanged) {
+      state.currentJobId = normalizedJobId;
+      resetSelection();
+    }
+    return syncCurrentStage(normalizedStageKey);
+  }
+
+  function syncCurrentStage(stageKey = "") {
+    const normalizedStageKey = normalizeStageKey(stageKey);
+    const previousStageKey = state.currentStageKey;
+    state.currentStageKey = normalizedStageKey;
+    if (previousStageKey && previousStageKey !== normalizedStageKey) {
+      state.manualStageSelection = false;
+    }
+    return resolveSelection();
+  }
+
+  function selectStage(stageKey = "") {
+    state.selectedStageKey = normalizeStageKey(stageKey);
+    state.manualStageSelection = true;
+    return resolveSelection();
+  }
+
+  function snapshot() {
+    return {
+      currentJobId: state.currentJobId,
+      currentStageKey: state.currentStageKey,
+      selectedStageKey: state.selectedStageKey,
+      manualStageSelection: state.manualStageSelection,
+    };
+  }
+
   return {
-    flowStageKey,
-    selected,
-    selectedHistoricalProgress,
+    resetSelection,
+    selectStage,
+    snapshot,
+    syncCurrentStage,
+    syncSnapshot,
+  };
+}
+
+export function createStatusCardStageSelectionController({
+  selectionState = createStatusCardSelectionState(),
+} = {}) {
+  function snapshot() {
+    return selectionState.snapshot();
+  }
+
+  function syncSnapshot({ jobId = "", stageKey = "" } = {}) {
+    return selectionState.syncSnapshot({ jobId, stageKey });
+  }
+
+  function syncCurrentStage(stageKey = "") {
+    return selectionState.syncCurrentStage(stageKey);
+  }
+
+  function selectStage(stageKey = "") {
+    return selectionState.selectStage(stageKey);
+  }
+
+  function selectedIsCurrent() {
+    const current = snapshot();
+    return !current.selectedStageKey || current.selectedStageKey === current.currentStageKey;
+  }
+
+  function buildDisplay(snapshotPayload = null) {
+    return buildSelectedStageDisplay({
+      snapshot: snapshotPayload,
+      selectedStageKey: snapshot().selectedStageKey,
+    });
+  }
+
+  return {
+    buildDisplay,
+    selectStage,
     selectedIsCurrent,
-    selectedProgress,
+    snapshot,
+    syncCurrentStage,
+    syncSnapshot,
   };
 }

@@ -1,14 +1,11 @@
-use std::path::{Path, PathBuf};
-
 use anyhow::{anyhow, Result};
 
 use crate::db::Db;
 use crate::job_events::{
     persist_runtime_job_with_resources, record_custom_runtime_event_with_resources,
 };
-use crate::models::{now_iso, JobRuntimeState, JobSnapshot, JobStatusKind, WorkflowKind};
+use crate::models::domain::{now_iso, JobRuntimeState, JobSnapshot, JobStatusKind, WorkflowKind};
 use crate::storage_paths::JobPaths;
-use crate::worker_command::build_ocr_command;
 
 use crate::job_runner::{
     attach_job_paths, clear_job_failure, sync_runtime_state, ProcessRuntimeDeps,
@@ -16,7 +13,6 @@ use crate::job_runner::{
 
 pub(super) struct TranslationUploadSource {
     pub(super) upload_id: String,
-    pub(super) upload_path: PathBuf,
 }
 
 pub(super) fn load_translation_upload_source(
@@ -29,14 +25,10 @@ pub(super) fn load_translation_upload_source(
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| anyhow!("parent translation job is missing upload_id"))?;
     let upload = db.get_upload(&upload_id)?;
-    let upload_path = PathBuf::from(&upload.stored_path);
-    if !upload_path.exists() {
+    if !std::path::Path::new(&upload.stored_path).exists() {
         return Err(anyhow!("uploaded file missing: {}", upload.stored_path));
     }
-    Ok(TranslationUploadSource {
-        upload_id,
-        upload_path,
-    })
+    Ok(TranslationUploadSource { upload_id })
 }
 
 pub(super) fn mark_parent_ocr_submitting(
@@ -74,12 +66,7 @@ pub(super) fn create_ocr_child_job(
     let mut ocr_child = JobSnapshot::new(
         ocr_job_id.clone(),
         ocr_request.clone(),
-        build_ocr_command(
-            &deps.worker_command_runtime(),
-            Some(Path::new(&source.upload_path)),
-            &ocr_request,
-            parent_job_paths,
-        ),
+        vec!["ocr-child-pending-provider".to_string()],
     )
     .into_runtime();
     attach_job_paths(&mut ocr_child, parent_job_paths);

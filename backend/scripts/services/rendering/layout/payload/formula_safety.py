@@ -8,8 +8,12 @@ from services.rendering.layout.text_analysis import formula_texts_for_render
 SCRIPT_OR_TALL_MATH_RE = re.compile(
     r"[_^]|\\(?:frac|dfrac|tfrac|sqrt|sum|prod|int|iint|iiint|lim|underset|overset|substack)\b"
 )
+LATEX_COMMAND_RE = re.compile(r"\\[A-Za-z]+")
 MIN_SAFE_CONTENT_HEIGHT_PT = 8.0
 MAX_FORMULA_INSET_HEIGHT_RATIO = 0.18
+LONG_INLINE_MATH_MIN_BODY_CHARS = 64
+LONG_INLINE_MATH_WIDTH_RATIO = 0.82
+FORMULA_WIDTH_UNIT_PT_RATIO = 1.0
 
 
 @dataclass(frozen=True)
@@ -48,6 +52,39 @@ def formula_safety_insets_pt(
 
 def formula_needs_extra_descent(formula_text: str) -> bool:
     return bool(SCRIPT_OR_TALL_MATH_RE.search(str(formula_text or "")))
+
+
+def has_long_inline_math_layout_risk(
+    text: str,
+    formula_map: list[dict] | None,
+    *,
+    font_size_pt: float,
+    box_width_pt: float,
+) -> bool:
+    if font_size_pt <= 0 or box_width_pt <= MIN_SAFE_CONTENT_HEIGHT_PT:
+        return False
+    return any(
+        _inline_formula_has_layout_risk(formula, font_size_pt=font_size_pt, box_width_pt=box_width_pt)
+        for formula in formula_texts_for_render(text, formula_map)
+    )
+
+
+def _inline_formula_has_layout_risk(formula_text: str, *, font_size_pt: float, box_width_pt: float) -> bool:
+    formula = str(formula_text or "").strip()
+    if len(formula) < LONG_INLINE_MATH_MIN_BODY_CHARS:
+        return False
+    visible_units = _formula_visible_units(formula)
+    estimated_width = visible_units * font_size_pt * FORMULA_WIDTH_UNIT_PT_RATIO
+    return estimated_width >= box_width_pt * LONG_INLINE_MATH_WIDTH_RATIO
+
+
+def _formula_visible_units(formula_text: str) -> float:
+    compact = re.sub(r"\\[A-Za-z]+|[{}\s]", "", formula_text or "")
+    if not compact:
+        return 0.0
+    command_bonus = len(LATEX_COMMAND_RE.findall(formula_text or "")) * 0.18
+    script_bonus = len(re.findall(r"[_^]", formula_text or "")) * 0.12
+    return max(0.0, len(compact) * 0.42 + command_bonus + script_bonus)
 
 
 def formula_safe_inner_bbox(

@@ -1,7 +1,8 @@
 use tokio::process::Command;
 
 use crate::error::AppError;
-use crate::models::{redact_json_value, sensitive_values, JobSnapshot, TranslationReplayView};
+use crate::models::api::{redact_json_value, sensitive_values, TranslationReplayView};
+use crate::models::domain::JobSnapshot;
 use crate::storage_paths::resolve_job_root;
 
 use super::super::creation::context::ReplayDeps;

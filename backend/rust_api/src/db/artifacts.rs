@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rusqlite::params;
 
-use crate::models::JobArtifactRecord;
+use crate::models::domain::JobArtifactRecord;
 
 use super::rows::row_to_job_artifact_record;
 use super::Db;

@@ -2,11 +2,11 @@ use std::path::{Path, PathBuf};
 
 use crate::db::Db;
 use crate::error::AppError;
-use crate::models::{
-    JobSnapshot, JobStatusKind, LibraryBatchDeleteInput, LibraryBatchDeleteResultView,
-    LibraryBookDetailView, LibraryBookListView, LibraryDeleteResultView, ListJobsQuery,
-    WorkflowKind,
+use crate::models::api::{
+    LibraryBatchDeleteInput, LibraryBatchDeleteResultView, LibraryBookDetailView,
+    LibraryBookListView, LibraryDeleteResultView, ListJobsQuery,
 };
+use crate::models::domain::{JobSnapshot, JobStatusKind, WorkflowKind};
 use crate::services::book_projection::{
     build_library_book_detail_view, build_library_book_list_view,
 };

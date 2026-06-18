@@ -1,3 +1,5 @@
+import { STATUS_CARD_IDS } from "./job-status-card-dom-contract.js";
+
 export function jobStatusCardTemplate({
   translationAnimationPath,
   ocrAnimationPath,
@@ -6,22 +8,22 @@ export function jobStatusCardTemplate({
   renderAnimationPath,
 } = {}) {
   return `
-    <div class="status-wa-card">
-      <div class="status-wa-body">
+    <div class="status-card-shell">
+      <div class="status-card-body">
         <div class="status-head">
-          <wa-button id="cancel-btn" type="button" class="status-head-btn status-head-cancel" appearance="outlined" variant="neutral" size="s" aria-label="取消任务" title="取消任务" disabled>
+          <button id="${STATUS_CARD_IDS.cancelButton}" type="button" class="status-action-btn status-head-btn status-head-cancel" aria-label="取消任务" title="取消任务" disabled>
             <span>取消</span>
-          </wa-button>
+          </button>
           <div class="status-head-center">
-            <div id="status-ring-label" class="status-ring-label">等待中</div>
-            <div id="status-ring-elapsed" class="status-ring-elapsed">0秒</div>
+            <div id="${STATUS_CARD_IDS.ringLabel}" class="status-ring-label">等待中</div>
+            <div id="${STATUS_CARD_IDS.ringElapsed}" class="status-ring-elapsed">0秒</div>
           </div>
-          <wa-button id="status-detail-btn" type="button" class="status-head-btn status-head-detail" appearance="plain" variant="neutral" size="s" aria-label="任务详情" title="任务详情">
+          <button id="${STATUS_CARD_IDS.detailButton}" type="button" class="status-action-btn status-head-btn status-head-detail" aria-label="任务详情" title="任务详情">
             <span>详情</span>
-          </wa-button>
+          </button>
         </div>
 
-        <div id="status-stage-flow" class="status-stage-flow" role="tablist" aria-label="任务流程">
+        <div id="${STATUS_CARD_IDS.stageFlow}" class="status-stage-flow" role="tablist" aria-label="任务流程">
           <button type="button" class="status-stage-step" data-stage-key="ocr" role="tab">
             <span class="status-stage-step-name">OCR</span>
           </button>
@@ -36,7 +38,7 @@ export function jobStatusCardTemplate({
           </button>
         </div>
 
-        <div id="status-stage-error-summary" class="status-stage-error-summary hidden"></div>
+        <div id="${STATUS_CARD_IDS.stageErrorSummary}" class="status-stage-error-summary hidden"></div>
         <section class="status-progress-hero">
           <div class="status-animation-wrap">
             <div id="status-stage-animation" class="status-stage-animation hidden" aria-label="任务阶段动画">
@@ -45,37 +47,41 @@ export function jobStatusCardTemplate({
           </div>
           <div class="status-progress-content">
             <div class="status-progress-copy">
-              <div id="status-ring-value" class="status-ring-value">准备中</div>
-              <div id="status-stage-detail" class="status-stage-detail">-</div>
+              <div id="${STATUS_CARD_IDS.ringValue}" class="status-ring-value">准备中</div>
+              <div id="${STATUS_CARD_IDS.stageDetail}" class="status-stage-detail">-</div>
             </div>
             <div class="status-substage-flow hidden" aria-label="任务子阶段"></div>
             <div class="status-progress-block">
-              <wa-progress-bar id="status-progress-bar" class="status-progress-bar" value="0" label="任务进度"></wa-progress-bar>
-              <div class="progress-track hidden"><div id="job-progress-bar" class="progress-bar"></div></div>
+              <div id="${STATUS_CARD_IDS.progressBar}" class="status-progress-bar" role="progressbar" aria-label="任务进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-value="0">
+                <div class="status-progress-bar-fill"></div>
+              </div>
+              <div class="progress-track hidden"><div id="${STATUS_CARD_IDS.legacyProgressBar}" class="progress-bar"></div></div>
               <div class="status-progress-foot">
-                <span id="job-progress-text" class="status-progress-text">-</span>
-                <span id="status-progress-percent" class="status-progress-percent">0%</span>
+                <span id="${STATUS_CARD_IDS.progressText}" class="status-progress-text">-</span>
+                <span id="${STATUS_CARD_IDS.progressPercent}" class="status-progress-percent">0%</span>
               </div>
             </div>
           </div>
           <div class="status-progress-ring-wrap" aria-label="任务进度百分比">
-            <wa-progress-ring id="status-progress-ring" class="status-progress-ring" value="0" label="任务进度">0%</wa-progress-ring>
-            <div id="status-progress-ring-meta" class="status-animation-meta">-</div>
+            <div id="${STATUS_CARD_IDS.progressRing}" class="status-progress-ring" role="progressbar" aria-label="任务进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-value="0">
+              <span class="status-progress-ring-text">0%</span>
+            </div>
+            <div id="${STATUS_CARD_IDS.progressRingMeta}" class="status-animation-meta">-</div>
           </div>
-          <div id="status-stage-retry" class="status-stage-retry is-empty" aria-hidden="true"></div>
+          <div id="${STATUS_CARD_IDS.stageRetry}" class="status-stage-retry is-empty" aria-hidden="true"></div>
         </section>
 
         <div class="status-card-footer">
           <div class="status-result-actions hidden">
-            <wa-button id="status-markdown-bundle-btn" class="task-toolbar-btn-result hidden" href="#" target="_blank" rel="noopener noreferrer" appearance="outlined" variant="neutral" size="s" aria-label="下载 Markdown" title="下载 Markdown">
+            <a id="${STATUS_CARD_IDS.markdownBundleButton}" class="status-action-btn task-toolbar-btn-result hidden disabled" href="#" target="_blank" rel="noopener noreferrer" aria-label="下载 Markdown" title="下载 Markdown" aria-disabled="true">
               <span>下载 Markdown</span>
-            </wa-button>
-            <wa-button id="reader-btn" class="task-toolbar-btn-result hidden" href="#" appearance="outlined" variant="neutral" size="s" aria-label="对照阅读" title="对照阅读" aria-disabled="true">
+            </a>
+            <a id="${STATUS_CARD_IDS.readerButton}" class="status-action-btn task-toolbar-btn-result hidden disabled" href="#" aria-label="对照阅读" title="对照阅读" aria-disabled="true">
               <span>对照阅读</span>
-            </wa-button>
-            <wa-button id="pdf-btn" class="task-toolbar-btn-result hidden" href="#" target="_blank" rel="noopener noreferrer" appearance="outlined" variant="neutral" size="s" aria-label="下载 PDF" title="下载 PDF">
+            </a>
+            <a id="${STATUS_CARD_IDS.pdfButton}" class="status-action-btn task-toolbar-btn-result hidden disabled" href="#" target="_blank" rel="noopener noreferrer" aria-label="下载 PDF" title="下载 PDF" aria-disabled="true">
               <span>下载 PDF</span>
-            </wa-button>
+            </a>
           </div>
         </div>
       </div>
@@ -92,9 +98,9 @@ export function jobStatusCardTemplate({
       <span id="status-upload-animation-src">${uploadAnimationPath || ""}</span>
       <span id="status-download-animation-src">${downloadAnimationPath || ""}</span>
       <span id="status-render-animation-src">${renderAnimationPath || ""}</span>
-      <a id="download-btn" class="button-link disabled" href="#" target="_blank" rel="noopener noreferrer">ZIP</a>
-      <a id="markdown-raw-btn" class="button-link secondary disabled" href="#" target="_blank" rel="noopener noreferrer">Markdown</a>
-      <a id="markdown-btn" class="button-link secondary disabled" href="#" target="_blank" rel="noopener noreferrer">JSON</a>
+      <a id="${STATUS_CARD_IDS.legacyBundleButton}" class="button-link disabled" href="#" target="_blank" rel="noopener noreferrer">ZIP</a>
+      <a id="${STATUS_CARD_IDS.legacyMarkdownRawButton}" class="button-link secondary disabled" href="#" target="_blank" rel="noopener noreferrer">Markdown</a>
+      <a id="${STATUS_CARD_IDS.legacyMarkdownJsonButton}" class="button-link secondary disabled" href="#" target="_blank" rel="noopener noreferrer">JSON</a>
     </div>
   `;
 }

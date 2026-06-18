@@ -484,9 +484,9 @@ fn build_ocr_job_snapshot_supports_source_url_without_upload() {
         .expect("build ocr snapshot");
 
     assert_eq!(job.workflow, WorkflowKind::Ocr);
-    assert!(job.command.iter().any(|arg| arg == "--file-url"));
-    assert!(job
-        .command
-        .iter()
-        .any(|arg| arg == "https://example.com/input.pdf"));
+    assert_eq!(job.command, vec!["ocr-workflow-pending-provider"]);
+    assert_eq!(
+        job.request_payload.source.source_url,
+        "https://example.com/input.pdf"
+    );
 }

@@ -145,6 +145,10 @@ pub fn build_app(state: AppState) -> Router {
             get(jobs::download_artifact_by_key),
         )
         .route("/api/v1/jobs/:job_id/pdf", get(jobs::download_pdf))
+        .route(
+            "/api/v1/jobs/:job_id/pdf/side-by-side",
+            get(jobs::download_side_by_side_pdf),
+        )
         .route("/api/v1/jobs/:job_id/cover", get(jobs::download_cover))
         .route(
             "/api/v1/jobs/:job_id/thumbnail",
@@ -177,6 +181,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/api/v1/jobs/:job_id/download", get(jobs::download_bundle))
         .route("/api/v1/jobs/:job_id/cancel", post(jobs::cancel_job))
         .route("/api/v1/jobs/:job_id/rerun", post(jobs::rerun_job))
+        .route("/api/v1/providers/ocr", get(providers::list_ocr_providers))
         .route(
             "/api/v1/providers/mineru/validate-token",
             post(providers::validate_mineru_token),

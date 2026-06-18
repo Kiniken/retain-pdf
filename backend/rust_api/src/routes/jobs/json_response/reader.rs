@@ -1,7 +1,7 @@
 use axum::Json;
 
 use crate::error::AppError;
-use crate::models::{ApiResponse, ReaderMetadataView, ReaderRegionsView};
+use crate::models::api::{ApiResponse, ReaderMetadataView, ReaderRegionsView};
 
 use crate::routes::common::{jobs_facade, ok_json, JobsRouteDeps};
 

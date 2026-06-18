@@ -4,7 +4,8 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use crate::models::{JobEventRecord, JobSnapshot};
+use crate::models::api::JobEventRecord;
+use crate::models::domain::JobSnapshot;
 use crate::storage_paths::resolve_data_path;
 
 const EVENTS_FILE_NAME: &str = "events.jsonl";

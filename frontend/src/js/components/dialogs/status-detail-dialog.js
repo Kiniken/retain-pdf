@@ -1,5 +1,9 @@
 import { statusDetailDialogTemplate } from "./status-detail-dialog-template.js";
 import {
+  idSelector,
+  STATUS_DETAIL_DIALOG,
+} from "./status-detail-dialog-dom-contract.js";
+import {
   renderEvents,
   renderStageHistory,
   setFailureDetails,
@@ -16,27 +20,27 @@ import {
 
 class StatusDetailDialog extends HTMLElement {
   connectedCallback() {
-    if (this.dataset.hydrated === "1") {
+    if (this.dataset[STATUS_DETAIL_DIALOG.dataset.hydrated] === "1") {
       return;
     }
-    this.dataset.hydrated = "1";
+    this.dataset[STATUS_DETAIL_DIALOG.dataset.hydrated] = "1";
     this.innerHTML = statusDetailDialogTemplate();
   }
 
   dialogElement() {
-    return this.querySelector("#status-detail-dialog");
+    return this.querySelector(idSelector(STATUS_DETAIL_DIALOG.dialogId));
   }
 
   activateTab(name = "overview") {
-    const tabs = this.querySelectorAll(".detail-tab");
-    const panels = this.querySelectorAll(".detail-tab-panel");
+    const tabs = this.querySelectorAll(STATUS_DETAIL_DIALOG.selectors.tabs);
+    const panels = this.querySelectorAll(STATUS_DETAIL_DIALOG.selectors.panels);
     tabs.forEach((tab) => {
-      const active = tab.dataset.tab === name;
+      const active = tab.dataset[STATUS_DETAIL_DIALOG.dataset.tab] === name;
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", active ? "true" : "false");
     });
     panels.forEach((panel) => {
-      const active = panel.dataset.panel === name;
+      const active = panel.dataset[STATUS_DETAIL_DIALOG.dataset.panel] === name;
       panel.classList.toggle("is-active", active);
       panel.hidden = !active;
     });
@@ -111,6 +115,6 @@ class StatusDetailDialog extends HTMLElement {
   }
 }
 
-if (!customElements.get("status-detail-dialog")) {
-  customElements.define("status-detail-dialog", StatusDetailDialog);
+if (!customElements.get(STATUS_DETAIL_DIALOG.hostSelector)) {
+  customElements.define(STATUS_DETAIL_DIALOG.hostSelector, StatusDetailDialog);
 }

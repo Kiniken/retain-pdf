@@ -1,44 +1,53 @@
+import {
+  idSelector,
+  STATUS_DETAIL_DIALOG,
+} from "./status-detail-dialog-dom-contract.js";
+
 export function translationSummaryElements(host) {
+  const { translation } = STATUS_DETAIL_DIALOG.ids;
   return {
-    content: host.querySelector("#translation-debug-content"),
-    empty: host.querySelector("#translation-debug-empty"),
-    status: host.querySelector("#translation-debug-status"),
-    scope: host.querySelector("#translation-summary-scope"),
-    filter: host.querySelector("#translation-list-filter"),
+    content: host.querySelector(idSelector(translation.debugContent)),
+    empty: host.querySelector(idSelector(translation.debugEmpty)),
+    status: host.querySelector(idSelector(translation.debugStatus)),
+    scope: host.querySelector(idSelector(translation.summaryScope)),
+    filter: host.querySelector(idSelector(translation.listFilter)),
     counts: {
-      translated: host.querySelector("#translation-count-translated"),
-      keptOrigin: host.querySelector("#translation-count-kept-origin"),
-      skipped: host.querySelector("#translation-count-skipped"),
-      providerFamily: host.querySelector("#translation-provider-family"),
+      translated: host.querySelector(idSelector(translation.countTranslated)),
+      keptOrigin: host.querySelector(idSelector(translation.countKeptOrigin)),
+      skipped: host.querySelector(idSelector(translation.countSkipped)),
+      providerFamily: host.querySelector(idSelector(translation.providerFamily)),
     },
   };
 }
 
 export function translationItemsElements(host) {
+  const { translation } = STATUS_DETAIL_DIALOG.ids;
   return {
-    list: host.querySelector("#translation-items-list"),
-    empty: host.querySelector("#translation-items-empty"),
-    loading: host.querySelector("#translation-items-loading"),
-    meta: host.querySelector("#translation-items-meta"),
-    page: host.querySelector("#translation-items-page"),
-    prevButton: host.querySelector("#translation-items-prev"),
-    nextButton: host.querySelector("#translation-items-next"),
+    list: host.querySelector(idSelector(translation.itemsList)),
+    empty: host.querySelector(idSelector(translation.itemsEmpty)),
+    loading: host.querySelector(idSelector(translation.itemsLoading)),
+    meta: host.querySelector(idSelector(translation.itemsMeta)),
+    page: host.querySelector(idSelector(translation.itemsPage)),
+    prevButton: host.querySelector(idSelector(translation.itemsPrev)),
+    nextButton: host.querySelector(idSelector(translation.itemsNext)),
   };
 }
 
 export function translationItemDetailElements(host) {
+  const { translation } = STATUS_DETAIL_DIALOG.ids;
   return {
-    detail: host.querySelector("#translation-item-detail"),
-    empty: host.querySelector("#translation-item-empty"),
-    loading: host.querySelector("#translation-item-loading"),
-    meta: host.querySelector("#translation-item-meta"),
-    replayButton: host.querySelector("#translation-item-replay"),
+    detail: host.querySelector(idSelector(translation.itemDetail)),
+    empty: host.querySelector(idSelector(translation.itemEmpty)),
+    loading: host.querySelector(idSelector(translation.itemLoading)),
+    meta: host.querySelector(idSelector(translation.itemMeta)),
+    replayButton: host.querySelector(idSelector(translation.itemReplay)),
   };
 }
 
 export function translationReplayElements(host) {
+  const { translation } = STATUS_DETAIL_DIALOG.ids;
   return {
-    result: host.querySelector("#translation-replay-result"),
-    status: host.querySelector("#translation-replay-status"),
+    result: host.querySelector(idSelector(translation.replayResult)),
+    status: host.querySelector(idSelector(translation.replayStatus)),
   };
 }

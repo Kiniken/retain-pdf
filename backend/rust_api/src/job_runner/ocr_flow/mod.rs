@@ -1,10 +1,11 @@
-use crate::models::{now_iso, JobRuntimeState, JobStatusKind};
-use crate::ocr_provider::parse_provider_kind;
+use crate::models::domain::{now_iso, JobRuntimeState, JobStatusKind};
+use crate::ocr_provider::{is_configured_command_provider, parse_provider_kind, OcrProviderKind};
+use crate::worker_command::{build_ocr_command, build_worker_stage_command, WorkerStageCommand};
 use anyhow::Result;
 
 use super::{
-    build_normalize_ocr_command, clear_canceled_runtime_artifacts, clear_job_failure,
-    execute_process_job, job_artifacts_mut, sync_runtime_state, ProcessRuntimeDeps,
+    clear_canceled_runtime_artifacts, clear_job_failure, execute_process_job, job_artifacts_mut,
+    sync_runtime_state, ProcessRuntimeDeps,
 };
 
 mod artifacts;
@@ -35,6 +36,7 @@ use super::cancel_registry::is_cancel_requested_with_registry;
 use provider_transport::execute_provider_transport;
 pub use support::sync_parent_with_ocr_child;
 use support::{fail_missing_source_pdf, fail_ocr_transport, save_ocr_job};
+use transport::resolve_local_upload_path;
 use workspace::OcrWorkspace;
 
 pub async fn execute_ocr_job(
@@ -43,7 +45,12 @@ pub async fn execute_ocr_job(
     output_job_id_override: Option<String>,
     parent_job_id: Option<String>,
 ) -> Result<JobRuntimeState> {
-    let provider_kind = parse_provider_kind(&job.request_payload.ocr.provider);
+    let is_command_provider = is_configured_command_provider(&job.request_payload.ocr.provider);
+    let provider_kind = if is_command_provider {
+        OcrProviderKind::Local
+    } else {
+        parse_provider_kind(&job.request_payload.ocr.provider)
+    };
     job.status = JobStatusKind::Running;
     if job.started_at.is_none() {
         job.started_at = Some(now_iso());
@@ -61,7 +68,18 @@ pub async fn execute_ocr_job(
         &provider_kind,
         output_job_id_override,
     )?;
+    let upload_path = resolve_local_upload_path(deps.db.as_ref(), &job)?;
+    job.command = build_ocr_command(
+        &deps.worker_command_runtime(),
+        upload_path.as_deref(),
+        &job.request_payload,
+        &workspace.job_paths,
+    );
     save_ocr_job(&deps, &job, parent_job_id.as_deref()).await?;
+
+    if is_command_provider {
+        return execute_process_job(deps, job, &[]).await;
+    }
 
     let source_pdf_path = match execute_provider_transport(
         &deps,
@@ -101,15 +119,17 @@ pub async fn execute_ocr_job(
     let source_pdf_string = source_pdf_path.to_string_lossy().to_string();
     job_artifacts_mut(&mut job).source_pdf = Some(source_pdf_string);
 
-    job.command = build_normalize_ocr_command(
+    job.command = build_worker_stage_command(
         &deps.worker_command_runtime(),
         &job.request_payload,
         &workspace.job_paths,
-        &workspace.layout_json_path,
-        &source_pdf_path,
-        &workspace.provider_result_json_path,
-        &workspace.provider_zip_path,
-        &workspace.provider_raw_dir,
+        WorkerStageCommand::NormalizeOcr {
+            source_json_path: &workspace.layout_json_path,
+            source_pdf_path: &source_pdf_path,
+            provider_result_json_path: &workspace.provider_result_json_path,
+            provider_zip_path: &workspace.provider_zip_path,
+            provider_raw_dir: &workspace.provider_raw_dir,
+        },
     );
     job.stage = Some("normalizing".to_string());
     job.stage_detail = Some("OCR provider 已完成，开始标准化 document.v1".to_string());
@@ -123,11 +143,12 @@ pub async fn execute_ocr_job(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::CreateJobInput;
+    use crate::models::domain::JobSnapshot;
+    use crate::models::request::CreateJobInput;
 
     #[test]
     fn fail_missing_source_pdf_marks_job_failed_with_clear_detail() {
-        let mut job = crate::models::JobSnapshot::new(
+        let mut job = JobSnapshot::new(
             "job-missing-source-pdf".to_string(),
             CreateJobInput::default(),
             vec!["python".to_string()],

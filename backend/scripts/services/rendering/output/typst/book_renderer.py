@@ -28,6 +28,7 @@ from services.rendering.output.typst.color_adapt import apply_adaptive_overlay_c
 from services.rendering.output.typst.overlay_ops import overlay_translated_items_on_page
 from services.rendering.output.typst.overlay_ops import overlay_translated_pages_on_doc
 from services.rendering.output.typst.sanitize import sanitize_page_specs_for_typst_book_background
+from services.rendering.visual_profile import merge_visual_profile_colors
 from services.pipeline_shared.events import emit_render_compile_progress
 from services.pipeline_shared.events import emit_render_page_progress
 
@@ -54,7 +55,12 @@ def _apply_background_page_color_adapt(
     sample_pdf_path: Path,
     translated_pages: dict[int, list[dict]],
     precomputed_colors_by_item_id: dict[str, dict[str, tuple[float, float, float]]] | None = None,
+    visual_profile_path: Path | None = None,
 ) -> dict[int, list[dict]]:
+    active_colors_by_item_id, _diagnostics = merge_visual_profile_colors(
+        visual_profile_path=visual_profile_path,
+        precomputed_colors_by_item_id=precomputed_colors_by_item_id,
+    )
     sample_doc = fitz.open(sample_pdf_path)
     try:
         adapted: dict[int, list[dict]] = {}
@@ -63,7 +69,7 @@ def _apply_background_page_color_adapt(
                 adapted[page_idx] = apply_adaptive_overlay_colors(
                     sample_doc[page_idx],
                     items,
-                    precomputed_colors_by_item_id=precomputed_colors_by_item_id,
+                    precomputed_colors_by_item_id=active_colors_by_item_id,
                 )
             else:
                 adapted[page_idx] = list(items)
@@ -347,7 +353,9 @@ def build_book_typst_pdf(
     source_cleanup_strategy: str = "typst_fill",
     prepared_overlay_pages: dict[int, list[dict]] | None = None,
     precomputed_colors_by_item_id: dict[str, dict[str, tuple[float, float, float]]] | None = None,
+    visual_profile_path: Path | None = None,
     visual_cover_page_indices: frozenset[int] = frozenset(),
+    no_cache: bool = False,
     request_chat_content_fn: TypstRepairRequestFn | None = None,
 ) -> dict[str, object]:
     doc = _build_overlay_base_doc(source_pdf_path)
@@ -376,9 +384,11 @@ def build_book_typst_pdf(
             color_sample_pdf_path=indent_detection_pdf_path or source_pdf_path,
             prepared_overlay_pages=prepared_overlay_pages,
             precomputed_colors_by_item_id=precomputed_colors_by_item_id,
+            visual_profile_path=visual_profile_path,
             pikepdf_output_pdf_path=output_pdf_path,
             source_cleanup_strategy=source_cleanup_strategy,
             visual_cover_page_indices=visual_cover_page_indices,
+            no_cache=no_cache,
             request_chat_content_fn=request_chat_content_fn,
         )
         overlay_elapsed = time.perf_counter() - overlay_started
@@ -490,6 +500,7 @@ def build_book_typst_background_pdf(
     source_text_precleaned_page_indices: frozenset[int] = frozenset(),
     prebuilt_page_specs: list[RenderPageSpec] | None = None,
     precomputed_colors_by_item_id: dict[str, dict[str, tuple[float, float, float]]] | None = None,
+    visual_profile_path: Path | None = None,
     request_chat_content_fn: TypstRepairRequestFn | None = None,
 ) -> dict[str, object]:
     del compile_workers
@@ -517,6 +528,7 @@ def build_book_typst_background_pdf(
             sample_pdf_path=color_sample_pdf_path,
             translated_pages=translated_pages,
             precomputed_colors_by_item_id=precomputed_colors_by_item_id,
+            visual_profile_path=visual_profile_path,
         )
         diagnostics["background_color_adapt_elapsed_seconds"] = time.perf_counter() - color_started
         specs_started = time.perf_counter()

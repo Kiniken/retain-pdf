@@ -6,7 +6,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::RwLock;
 
 use crate::job_events::persist_runtime_job_with_resources;
-use crate::models::{now_iso, JobRuntimeState};
+use crate::models::domain::{now_iso, JobRuntimeState};
 
 use crate::job_runner::JobPersistDeps;
 

@@ -1,7 +1,8 @@
-import { readActiveJobId } from "../job-runtime/active-job-storage.js";
 import { isRecentJobActive } from "./card-presenter.js";
 
-export function resolveRecoverableJobId(items = []) {
+export function resolveRecoverableJobId(items = [], {
+  readActiveJobId = () => "",
+} = {}) {
   const sourceItems = Array.isArray(items) ? items : [];
   const storedJobId = readActiveJobId();
   if (storedJobId) {

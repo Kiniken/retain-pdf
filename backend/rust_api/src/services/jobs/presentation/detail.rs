@@ -2,14 +2,14 @@ use std::path::Path;
 
 use crate::db::Db;
 use crate::error::AppError;
-use crate::models::{
+use crate::models::api::{
     build_artifact_links, build_artifact_manifest, ArtifactLinksView, JobArtifactManifestView,
-    JobDetailView, JobSnapshot,
+    JobDetailView,
 };
+use crate::models::domain::JobSnapshot;
 use crate::services::artifacts::list_registry_for_job;
-use crate::storage_paths::{resolve_markdown_path, resolve_output_pdf};
 
-use super::super::readiness;
+use super::super::job_readiness;
 use super::detail_projection::{
     build_artifact_projection, build_core_projection, build_failure_projection,
     build_live_projection, build_summary_projection, detail_readiness,
@@ -42,9 +42,9 @@ pub fn build_job_detail_view(
         request_payload: core.request_payload,
         trace_id: core.trace_id,
         provider_trace_id: core.provider_trace_id,
-        stage: live.stage,
-        stage_detail: live.stage_detail,
-        progress: live.progress,
+        stage_snapshot: live.stage_snapshot,
+        background_snapshots: live.background_snapshots,
+        stages: live.stages,
         timestamps: core.timestamps,
         links: core.links,
         actions: core.actions,
@@ -70,8 +70,7 @@ pub fn build_job_artifact_links_view(
     job: &JobSnapshot,
     base_url: &str,
 ) -> ArtifactLinksView {
-    let (pdf_ready, markdown_ready, bundle_ready) =
-        readiness(job, data_root, resolve_output_pdf, resolve_markdown_path);
+    let (pdf_ready, markdown_ready, bundle_ready) = job_readiness(job, data_root);
     build_artifact_links(
         job,
         base_url,

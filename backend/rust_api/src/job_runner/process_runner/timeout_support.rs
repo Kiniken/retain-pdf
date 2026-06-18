@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use crate::job_events::persist_job_with_resources;
-use crate::models::{JobStatusKind, ProcessResult};
+use crate::models::domain::{now_iso, JobRuntimeState, JobSnapshot, JobStatusKind, ProcessResult};
 
 use super::super::JobPersistDeps;
 
@@ -14,7 +14,7 @@ pub(super) fn timeout_detail_for_stage(stage: Option<&str>) -> &'static str {
     }
 }
 
-pub(super) fn apply_timeout_failure(job: &mut crate::models::JobSnapshot, timestamp: String) {
+pub(super) fn apply_timeout_failure(job: &mut JobSnapshot, timestamp: String) {
     let timeout_detail = timeout_detail_for_stage(job.stage.as_deref()).to_string();
     job.pid = None;
     job.updated_at = timestamp.clone();
@@ -28,7 +28,7 @@ pub(super) fn apply_timeout_failure(job: &mut crate::models::JobSnapshot, timest
 }
 
 fn attach_timeout_process_result(
-    job: &mut crate::models::JobSnapshot,
+    job: &mut JobSnapshot,
     started: Instant,
     stdout_text: String,
     stderr_text: String,
@@ -45,7 +45,7 @@ fn attach_timeout_process_result(
     });
 }
 
-fn append_timeout_stderr_tail(job: &mut crate::models::JobSnapshot, stderr_text: &str) {
+fn append_timeout_stderr_tail(job: &mut JobSnapshot, stderr_text: &str) {
     let lines: Vec<&str> = stderr_text
         .lines()
         .map(str::trim)
@@ -63,11 +63,11 @@ fn append_timeout_stderr_tail(job: &mut crate::models::JobSnapshot, stderr_text:
 pub(super) fn persist_timeout_failure(
     persist: &JobPersistDeps,
     project_root: &Path,
-    stdout_job: crate::models::JobRuntimeState,
+    stdout_job: JobRuntimeState,
     started: Instant,
     stdout_text: String,
     stderr_text: String,
-) -> Result<crate::models::JobRuntimeState> {
+) -> Result<JobRuntimeState> {
     let mut timed_out_job = persist.db.get_job(&stdout_job.job_id)?;
     append_timeout_stderr_tail(&mut timed_out_job, &stderr_text);
     attach_timeout_process_result(
@@ -77,7 +77,7 @@ pub(super) fn persist_timeout_failure(
         stderr_text,
         project_root,
     );
-    apply_timeout_failure(&mut timed_out_job, crate::models::now_iso());
+    apply_timeout_failure(&mut timed_out_job, now_iso());
     persist_job_with_resources(
         persist.db.as_ref(),
         &persist.data_root,

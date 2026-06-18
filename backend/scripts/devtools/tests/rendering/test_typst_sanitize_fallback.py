@@ -109,7 +109,7 @@ def test_sanitize_items_collects_compile_diagnostics() -> None:
     assert diagnostics["probe_failures"][0]["item_id"] == "b1"
 
 
-def test_sanitize_items_uses_llm_repair_after_plain_fallback_fails() -> None:
+def test_sanitize_items_uses_llm_repair_before_plain_fallback() -> None:
     item = {"item_id": "b1", "bbox": [0, 0, 40, 20], "translated_text": "x", "protected_translated_text": "x"}
 
     def _fake_compile(*args, **kwargs):
@@ -148,7 +148,7 @@ def test_sanitize_items_uses_llm_repair_after_plain_fallback_fails() -> None:
     repair_mock.assert_called_once()
     assert sanitized[0]["protected_translated_text"] == "llm repaired"
     assert diagnostics["final_mode"] == "selective_llm_repair"
-    assert "selective_plain_text_error" in diagnostics
+    assert "selective_plain_text_error" not in diagnostics
 
 
 def test_sanitize_items_can_disable_llm_repair(monkeypatch) -> None:
@@ -236,5 +236,4 @@ def test_sanitize_book_overlay_can_limit_to_candidate_pages() -> None:
     assert sanitized_specs[0][3][0]["protected_translated_text"] == "page 1"
     assert sanitized_specs[1][3][0]["protected_translated_text"] == "sanitized book-overlay-001"
     assert sanitized_specs[2][3][0]["protected_translated_text"] == "page 3"
-
 

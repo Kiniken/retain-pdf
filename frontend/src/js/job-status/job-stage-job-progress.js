@@ -1,33 +1,46 @@
 import {
   summarizeStageKey,
-  progressFromText,
   stageSubtypeOf,
 } from "./job-status-summary.js";
 import {
-  ocrProgressFallbackForRawStage,
-  rawStageOfPayload,
-} from "./job-stage-contract.js";
+  progressTextForStageProgress,
+} from "./job-status-summary-progress.js";
 import {
-  firstNumber,
-  progressUnitOf,
-} from "./job-stage-presentation-utils.js";
+  publicProgressOf,
+} from "./job-stage-progress-adapter.js";
+import { substageDefaultProgressUnit } from "./job-stage-substage-contract.js";
+import { compositeTranslationProgressFromRecord } from "./job-stage-translation-progress.js";
+
+function concreteProgressUnit(unit = "") {
+  return ["page", "batch", "step", "none"].includes(`${unit || ""}`.trim());
+}
 
 export function jobProgress(job = {}) {
-  const textProgress = progressFromText(job);
-  const current = firstNumber(job?.progress_current, job?.progress?.current);
-  const total = firstNumber(job?.progress_total, job?.progress?.total);
+  const progress = publicProgressOf(job);
   return {
-    current: current ?? textProgress.current,
-    total: total ?? textProgress.total,
+    current: progress.current,
+    total: progress.total,
   };
 }
 
 export function stageFallbackProgress(stageKey, job = {}) {
-  return stageKey === "ocr" ? ocrProgressFallbackForRawStage(rawStageOfPayload(job)) : null;
+  return null;
 }
 
-export function shouldPreferJobProgress(job, stageKey, latestProgress) {
+export function shouldPreferJobProgress(job, stageKey, latestProgress, {
+  currentEventRecord = null,
+} = {}) {
   if (!["ocr", "translate", "render"].includes(stageKey)) {
+    return false;
+  }
+  if (
+    currentEventRecord?.hasCanonicalEventContract
+    && currentEventRecord.isMainLane
+    && currentEventRecord.canonicalDisplayStage === stageKey
+  ) {
+    return false;
+  }
+  if (stageKey === "render") {
     return false;
   }
   if (summarizeStageKey(job) !== stageKey) {
@@ -37,10 +50,27 @@ export function shouldPreferJobProgress(job, stageKey, latestProgress) {
   if (fallback.current === null || fallback.total === null || fallback.total <= 0) {
     return false;
   }
-  if (stageKey === "translate" && latestProgress?.progressUnit === "batch") {
-    const jobProgressUnit = progressUnitOf(job);
+  if (stageKey === "translate" && latestProgress?.substageKey) {
     const jobSubstage = stageSubtypeOf(job);
-    if (jobProgressUnit !== "batch" && jobSubstage !== "translation_batches") {
+    if (jobSubstage && jobSubstage !== latestProgress.substageKey) {
+      return false;
+    }
+  }
+  if (stageKey === "translate" && (latestProgress?.progressUnit === "batch" || latestProgress?.sourceProgressUnit === "batch")) {
+    const jobProgressUnit = publicProgressOf(job).unit;
+    const jobSubstage = stageSubtypeOf(job);
+    if (jobProgressUnit !== "batch") {
+      return false;
+    }
+    if (jobSubstage && jobSubstage !== "translation_batches") {
+      return false;
+    }
+  }
+  if (stageKey === "translate" && latestProgress?.progressUnit) {
+    const jobSubstage = stageSubtypeOf(job);
+    const jobProgressUnit = publicProgressOf(job).unit || substageDefaultProgressUnit(jobSubstage);
+    const latestProgressUnit = latestProgress.sourceProgressUnit || latestProgress.progressUnit;
+    if (concreteProgressUnit(latestProgressUnit) && jobProgressUnit && jobProgressUnit !== latestProgressUnit) {
       return false;
     }
   }
@@ -58,21 +88,41 @@ export function shouldPreferJobProgress(job, stageKey, latestProgress) {
 
 export function jobProgressRecord(job, stageKey) {
   const progress = jobProgress(job);
+  const publicProgress = publicProgressOf(job);
+  const progressUnit = publicProgress.unit || (stageKey === "translate" ? "batch" : "page");
   if (progress.current === null || progress.total === null || progress.total <= 0) {
+    if (stageKey !== "translate" || (!progressUnit && !stageSubtypeOf(job))) {
+      return null;
+    }
+  }
+  if (stageKey !== "translate" && (progress.current === null || progress.total === null || progress.total <= 0)) {
     return null;
   }
   const payload = {
     ...job,
     progress_current: progress.current,
     progress_total: progress.total,
-    progress_unit: progressUnitOf(job) || (stageKey === "translate" ? "batch" : "page"),
+    progress_unit: progressUnit,
   };
-  return {
+  const substageKey = stageSubtypeOf(payload);
+  const record = {
     payload,
     current: progress.current,
     total: progress.total,
-    progressPercent: firstNumber(job?.progress_percent, job?.progress?.percent),
+    progressPercent: publicProgress.percent,
     progressUnit: payload.progress_unit,
-    substageKey: stageSubtypeOf(payload),
+    progressText: progressTextForStageProgress({
+      stageKey,
+      substageKey,
+      progress: {
+        current: progress.current,
+        total: progress.total,
+        percent: publicProgress.percent,
+        unit: payload.progress_unit,
+      },
+    }),
+    stageKey,
+    substageKey,
   };
+  return stageKey === "translate" ? compositeTranslationProgressFromRecord(record) : record;
 }

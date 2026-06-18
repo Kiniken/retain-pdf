@@ -1,37 +1,31 @@
 import {
-  browserCredentialElements,
-  currentCredentialDialogSetupMode,
-} from "./view.js";
+  buildBrowserCredentialConfig,
+  buildTaskOptionsFromDialogValues,
+} from "./dialog-values.js";
+import { createCredentialSetupModePort } from "./setup-mode-port.js";
 
 export function persistBrowserCredentialsFromDialog({
-  applyKeyInputs,
+  applyHiddenCredentialInputs,
+  applyCredentialInputs = applyHiddenCredentialInputs,
   currentOcrProvider,
   defaultModelApiKey,
   defaultModelBaseUrl,
+  readHiddenCredentialInputs,
+  readCredentialInputs = readHiddenCredentialInputs,
   saveTaskOptions,
   saveBrowserStoredConfig,
+  values,
 }) {
-  const {
-    mineruInput,
-    paddleInput,
-    apiKeyInput,
-    modelBaseUrlInput,
-    modelNameInput,
-    mathModeSelect,
-  } = browserCredentialElements();
-  applyKeyInputs({
-    ocrProvider: currentOcrProvider(),
-    mineruToken: mineruInput?.value?.trim() || "",
-    paddleToken: paddleInput?.value?.trim() || "",
-    modelApiKey: apiKeyInput?.value?.trim() || defaultModelApiKey?.() || "",
-  });
-  saveTaskOptions?.({
-    model: modelNameInput?.value?.trim() || "",
-    baseUrl: modelBaseUrlInput?.value?.trim() || defaultModelBaseUrl?.() || "",
-    mathMode: mathModeSelect?.value || "direct_typst",
-    translateTitles: true,
-  });
-  saveBrowserStoredConfig();
+  applyCredentialInputs(buildBrowserCredentialConfig({
+    values,
+    currentOcrProvider,
+    defaultModelApiKey,
+  }));
+  saveTaskOptions?.(buildTaskOptionsFromDialogValues({
+    values,
+    defaultModelBaseUrl,
+  }));
+  saveBrowserStoredConfig(readCredentialInputs());
 }
 
 export async function persistDesktopCredentialsFromDialog({
@@ -41,19 +35,13 @@ export async function persistDesktopCredentialsFromDialog({
   saveTaskOptions,
   saveDesktopConfig,
   checkApiConnectivity,
+  values,
+  setupModePort = createCredentialSetupModePort(),
 }) {
-  const {
-    mineruInput,
-    paddleInput,
-    apiKeyInput,
-    modelBaseUrlInput,
-    modelNameInput,
-    mathModeSelect,
-  } = browserCredentialElements();
   const provider = currentOcrProvider();
-  const mineruToken = mineruInput?.value?.trim() || "";
-  const paddleToken = paddleInput?.value?.trim() || "";
-  const modelApiKey = apiKeyInput?.value?.trim() || defaultModelApiKey?.() || "";
+  const mineruToken = values.mineruToken;
+  const paddleToken = values.paddleToken;
+  const modelApiKey = values.modelApiKey || defaultModelApiKey?.() || "";
   await saveDesktopConfig?.(
     mineruToken,
     modelApiKey,
@@ -63,13 +51,11 @@ export async function persistDesktopCredentialsFromDialog({
     {
       ocrProvider: provider,
       paddleToken,
-      markConfigured: currentCredentialDialogSetupMode(),
+      markConfigured: setupModePort.currentSetupMode(),
     },
   );
-  saveTaskOptions?.({
-    model: modelNameInput?.value?.trim() || "",
-    baseUrl: modelBaseUrlInput?.value?.trim() || defaultModelBaseUrl?.() || "",
-    mathMode: mathModeSelect?.value || "direct_typst",
-    translateTitles: true,
-  });
+  saveTaskOptions?.(buildTaskOptionsFromDialogValues({
+    values,
+    defaultModelBaseUrl,
+  }));
 }

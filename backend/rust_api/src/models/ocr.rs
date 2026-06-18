@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -49,6 +51,66 @@ pub struct OcrProviderCapabilities {
     pub supports_extra_formats: bool,
     pub supports_formula_toggle: bool,
     pub supports_table_toggle: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct OcrProviderArtifactLayout {
+    pub provider_result_json: String,
+    pub provider_bundle_zip: String,
+    pub provider_raw_dir: String,
+    pub layout_json: String,
+}
+
+impl OcrProviderArtifactLayout {
+    pub fn new(
+        provider_result_json: impl Into<String>,
+        provider_bundle_zip: impl Into<String>,
+        provider_raw_dir: impl Into<String>,
+        layout_json: impl Into<String>,
+    ) -> Self {
+        Self {
+            provider_result_json: provider_result_json.into(),
+            provider_bundle_zip: provider_bundle_zip.into(),
+            provider_raw_dir: provider_raw_dir.into(),
+            layout_json: layout_json.into(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+pub struct OcrProviderCredentialSpec {
+    pub field: String,
+    pub env: String,
+    #[serde(default)]
+    pub required_for: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+pub struct OcrProviderOptionSpec {
+    #[serde(rename = "type")]
+    pub option_type: String,
+    #[serde(default)]
+    pub default: Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env: Option<String>,
+    #[serde(default)]
+    pub aliases: BTreeMap<String, String>,
+    #[serde(default)]
+    pub choices: Vec<String>,
+    #[serde(default)]
+    pub required: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct OcrProviderPublicDefinition {
+    pub key: String,
+    pub display_name: String,
+    pub provider_kind: String,
+    pub credential: Option<OcrProviderCredentialSpec>,
+    #[serde(default)]
+    pub options: BTreeMap<String, OcrProviderOptionSpec>,
+    pub capabilities: OcrProviderCapabilities,
+    pub artifact_layout: OcrProviderArtifactLayout,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

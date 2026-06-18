@@ -110,7 +110,7 @@ async fn job_events_route_prefers_formal_failure_fields() {
         .find(|item| item["event"] == "failure_classified")
         .expect("failure event");
     assert_eq!(failure_item["stage"], "failed");
-    assert_eq!(failure_item["display_stage"], "done");
+    assert!(failure_item["display_stage"].is_null());
     assert_eq!(
         failure_item["payload"]["failure_stage"],
         "translation_prepare"
@@ -130,7 +130,7 @@ async fn job_events_route_prefers_formal_failure_fields() {
         .find(|item| item["event"] == "job_terminal")
         .expect("terminal event");
     assert_eq!(terminal_item["stage"], "failed");
-    assert_eq!(terminal_item["display_stage"], "done");
+    assert!(terminal_item["display_stage"].is_null());
     assert_eq!(
         terminal_item["payload"]["failure_stage"],
         "translation_prepare"

@@ -1,4 +1,15 @@
-import { $ } from "../../dom.js";
+import { $ } from "../../dom/query.js";
+import { APP_DIALOG_IDS } from "../../contracts/app-contract.js";
+
+const noopUploadTilePort = Object.freeze({
+  setUploadActionSlotVisible: () => {},
+  setUploadTileLocked: () => {},
+  setUploadTileText: () => {},
+});
+
+function uploadTilePortFromOptions(options = {}) {
+  return options.uploadTilePort || noopUploadTilePort;
+}
 
 function positiveInteger(value, fallback) {
   const fallbackNumber = Number(fallback);
@@ -85,13 +96,19 @@ export function readDeveloperWorkflowValue() {
   return $("developer-workflow")?.value;
 }
 
-export function setSubmitControls({ disabled, label, actionVisible, pageRangeVisible }) {
+export function setSubmitControls({
+  disabled,
+  label,
+  actionVisible,
+  pageRangeVisible,
+  uploadTilePort,
+}) {
   if ($("submit-btn")) {
     const busy = $("submit-btn").dataset.busy === "1";
     $("submit-btn").disabled = disabled || busy;
     $("submit-btn").textContent = label;
   }
-  $("upload-action-slot")?.classList.toggle("hidden", !actionVisible);
+  uploadTilePortFromOptions({ uploadTilePort }).setUploadActionSlotVisible(actionVisible);
   $("page-range-btn")?.classList.toggle("hidden", !pageRangeVisible);
 }
 
@@ -119,38 +136,27 @@ export function renderTranslationBudgetNote(budget) {
   }
 }
 
-export function applyMockUploadView({ mockScenario, submitLabel, showPageRangeButton }) {
-  const fileInput = $("file");
-  const tile = fileInput?.closest(".upload-tile");
-  const uploadGlyph = $("upload-glyph");
-  const fileLabel = $("file-label");
-  const uploadHelp = $("upload-help");
-  const uploadMeta = document.querySelector(".upload-meta");
-  const uploadStatus = $("upload-status");
-  if (fileInput) {
-    fileInput.disabled = true;
-  }
-  tile?.classList.add("is-locked");
-  uploadGlyph?.classList.add("hidden");
-  uploadMeta?.classList.add("hidden");
-  if (fileLabel) {
-    fileLabel.textContent = "Mock 模式";
-    fileLabel.title = "";
-    fileLabel.classList.remove("hidden");
-  }
-  if (uploadHelp) {
-    uploadHelp.textContent = `当前为 mock 模式：${mockScenario || "running"}。不会上传文件，也不会请求真实后端。`;
-    uploadHelp.classList.remove("hidden");
-  }
-  if (uploadStatus) {
-    uploadStatus.textContent = "Mock 模式已启用，可直接点击开始翻译。";
-    uploadStatus.classList.remove("hidden");
-  }
+export function applyMockUploadView({
+  mockScenario,
+  submitLabel,
+  showPageRangeButton,
+  uploadTilePort,
+}) {
+  const tilePort = uploadTilePortFromOptions({ uploadTilePort });
+  tilePort.setUploadTileLocked({ locked: true, enabled: false });
+  tilePort.setUploadTileText({
+    label: "Mock 模式",
+    labelTitle: "",
+    help: `当前为 mock 模式：${mockScenario || "running"}。不会上传文件，也不会请求真实后端。`,
+    status: "Mock 模式已启用，可直接点击开始翻译。",
+    statusVisible: true,
+  });
   setSubmitControls({
     disabled: false,
     label: submitLabel,
     actionVisible: true,
     pageRangeVisible: showPageRangeButton,
+    uploadTilePort,
   });
 }
 
@@ -160,53 +166,68 @@ export function applyWorkflowUploadView({
   defaultFileLabel,
   headline,
   renderSourceJobId,
+  uploadTilePort,
 }) {
-  const fileInput = $("file");
-  const tile = fileInput?.closest(".upload-tile");
-  const uploadGlyph = $("upload-glyph");
-  const fileLabel = $("file-label");
-  const uploadHelp = $("upload-help");
-  const uploadMeta = document.querySelector(".upload-meta");
-  const uploadStatus = $("upload-status");
-  if (fileInput) {
-    fileInput.disabled = !needsUpload;
-  }
-  tile?.classList.toggle("is-locked", !needsUpload);
-  uploadGlyph?.classList.toggle("hidden", !needsUpload);
-  uploadMeta?.classList.toggle("hidden", !needsUpload);
-  if (fileLabel && !uploadReady) {
-    fileLabel.textContent = needsUpload ? defaultFileLabel : "复用已有任务产物";
-    fileLabel.title = "";
-    fileLabel.classList.remove("hidden");
-  }
-  if (uploadHelp) {
-    uploadHelp.textContent = headline;
-    uploadHelp.classList.remove("hidden");
-  }
-  if (!needsUpload && uploadStatus) {
-    uploadStatus.textContent = renderSourceJobId
-      ? `当前将复用任务: ${renderSourceJobId}`
-      : "请先在开发者设置里填写 Render 源任务 ID。";
-    uploadStatus.classList.remove("hidden");
-  } else if (!uploadReady) {
-    uploadStatus?.classList.add("hidden");
-  }
+  const tilePort = uploadTilePortFromOptions({ uploadTilePort });
+  tilePort.setUploadTileLocked({ locked: !needsUpload, enabled: needsUpload });
+  tilePort.setUploadTileText({
+    label: !uploadReady ? (needsUpload ? defaultFileLabel : "复用已有任务产物") : "",
+    labelTitle: "",
+    help: headline,
+    status: !needsUpload
+      ? (renderSourceJobId
+          ? `当前将复用任务: ${renderSourceJobId}`
+          : "请先在开发者设置里填写 Render 源任务 ID。")
+      : "",
+    statusVisible: !needsUpload ? true : (!uploadReady ? false : null),
+  });
 }
 
 export function closeDeveloperDialog() {
-  $("developer-dialog")?.close();
+  $(APP_DIALOG_IDS.developerSettings)?.close();
 }
 
-export function readOcrProviderValue(defaultOcrProvider) {
-  return $("ocr_provider")?.value || defaultOcrProvider;
+export function readOcrProviderValue(defaultOcrProvider, credentialsStatePort) {
+  return credentialsStatePort?.getCredentials?.().ocrProvider || defaultOcrProvider;
 }
 
-export function readOcrTokenValue({ providerId, defaultPaddleToken, defaultMineruToken }) {
-  return providerId === "paddle"
-    ? ($("paddle_token")?.value || defaultPaddleToken)
-    : ($("paddle_token")?.value || defaultPaddleToken || defaultMineruToken);
+export function readOcrTokenValue({ providerId, defaultPaddleToken, defaultMineruToken, credentialsStatePort }) {
+  return credentialsStatePort?.getOcrToken?.({
+    providerId,
+    defaultPaddleToken: () => defaultPaddleToken || "",
+    defaultMineruToken: () => defaultMineruToken || "",
+  }) || "";
 }
 
-export function readModelApiKey(defaultModelApiKey) {
-  return $("api_key")?.value || defaultModelApiKey;
+export function readModelApiKey(defaultModelApiKey, credentialsStatePort) {
+  return credentialsStatePort?.getCredentials?.().modelApiKey || defaultModelApiKey;
+}
+
+export function readSelectedGlossaryId() {
+  if (typeof document === "undefined") {
+    return "";
+  }
+  return $("job-glossary-id")?.value?.trim() || $("developer-glossary-id")?.value?.trim() || "";
+}
+
+export function readWorkflowSubmitValues({
+  defaultOcrProvider,
+  defaultPaddleToken,
+  defaultMineruToken,
+  defaultModelApiKey,
+  credentialsStatePort,
+} = {}) {
+  const credentials = credentialsStatePort?.getCredentials?.() || {};
+  const ocrProvider = credentials.ocrProvider || defaultOcrProvider;
+  const ocrToken = credentialsStatePort?.getOcrToken?.({
+    providerId: ocrProvider,
+    defaultPaddleToken: () => defaultPaddleToken || "",
+    defaultMineruToken: () => defaultMineruToken || "",
+  }) || "";
+  return {
+    ocrProvider,
+    ocrToken,
+    modelApiKey: credentials.modelApiKey || defaultModelApiKey,
+    selectedGlossaryId: readSelectedGlossaryId(),
+  };
 }

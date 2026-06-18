@@ -3,54 +3,63 @@ import {
   normalizeReleaseInfo,
 } from "./github-release.js";
 import {
-  readUpdateCache,
-  writeUpdateCache,
+  defaultUpdateCachePort,
 } from "./state.js";
-import {
-  bindUpdateButton,
-  setUpdateAvailable,
-  setUpdateChecking,
-  setUpdateError,
-  setUpdateLatest,
-  setUpdateReady,
-} from "./view.js";
+import { createAppUpdateViewPort } from "./update-view-port.js";
 
-export function mountAppUpdateFeature() {
+export function mountAppUpdateFeature({
+  enabled = true,
+  cachePort = defaultUpdateCachePort,
+  fetchLatestRelease = fetchLatestGithubRelease,
+  normalizeRelease = normalizeReleaseInfo,
+  viewPort = createAppUpdateViewPort(),
+} = {}) {
   function applyUpdateInfo(info) {
     if (!info) {
-      setUpdateReady();
+      viewPort.setReady();
       return;
     }
     if (info.hasUpdate) {
-      setUpdateAvailable(info);
+      viewPort.setAvailable(info);
     } else {
-      setUpdateLatest(info);
+      viewPort.setLatest(info);
     }
   }
 
   async function checkForUpdates({ manual = false } = {}) {
+    if (!enabled) {
+      return false;
+    }
     if (manual) {
-      setUpdateChecking();
+      viewPort.setChecking();
     }
     try {
-      const release = await fetchLatestGithubRelease();
-      const info = normalizeReleaseInfo(release);
-      writeUpdateCache(info);
+      const release = await fetchLatestRelease();
+      const info = normalizeRelease(release);
+      cachePort.write(info);
       applyUpdateInfo(info);
     } catch (error) {
       if (manual) {
-        setUpdateError(error);
+        viewPort.setError(error);
       }
     }
+    return true;
   }
 
-  bindUpdateButton({
+  viewPort.bindButton({
     onCheck: () => {
       void checkForUpdates({ manual: true });
     },
   });
 
-  const cached = readUpdateCache();
+  if (!enabled) {
+    viewPort.setReady();
+    return {
+      checkForUpdates,
+    };
+  }
+
+  const cached = cachePort.read();
   applyUpdateInfo(cached.info);
   if (cached.fresh) {
     return {

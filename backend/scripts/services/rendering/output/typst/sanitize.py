@@ -98,23 +98,6 @@ def sanitize_items_for_typst_compile(
                     diagnostics["final_mode"] = "selective_formula_strip"
                 return patched_items
 
-            patched_items = try_selective_plain_text(
-                page_width,
-                page_height,
-                translated_items,
-                bad_indices,
-                stem=stem,
-                font_family=font_family,
-                include_cover_rect=include_cover_rect,
-                font_paths=font_paths,
-                work_dir=work_dir,
-                diagnostics=diagnostics,
-            )
-            if patched_items is not None:
-                if diagnostics is not None:
-                    diagnostics["final_mode"] = "selective_plain_text"
-                return patched_items
-
             if _llm_repair_enabled():
                 llm_patched_items = try_selective_llm_repair(
                     page_width,
@@ -138,6 +121,23 @@ def sanitize_items_for_typst_compile(
                     return llm_patched_items
             elif diagnostics is not None:
                 diagnostics["selective_llm_repair_skipped"] = "disabled_by_env"
+
+            patched_items = try_selective_plain_text(
+                page_width,
+                page_height,
+                translated_items,
+                bad_indices,
+                stem=stem,
+                font_family=font_family,
+                include_cover_rect=include_cover_rect,
+                font_paths=font_paths,
+                work_dir=work_dir,
+                diagnostics=diagnostics,
+            )
+            if patched_items is not None:
+                if diagnostics is not None:
+                    diagnostics["final_mode"] = "selective_plain_text"
+                return patched_items
 
         print(f"typst page fallback to plain text: {stem}", flush=True)
         print(str(page_error), flush=True)

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rusqlite::params;
 
-use crate::models::JobSnapshot;
+use crate::models::domain::{JobArtifactRecord, JobSnapshot};
 use crate::storage_paths::{collect_job_artifact_entries, normalize_job_paths_for_storage};
 
 use super::Db;
@@ -90,7 +90,7 @@ fn persist_job_artifacts(
     tx: &rusqlite::Transaction<'_>,
     job_id: &str,
     artifacts_json: Option<String>,
-    artifact_entries: &[crate::models::JobArtifactRecord],
+    artifact_entries: &[JobArtifactRecord],
 ) -> Result<()> {
     if let Some(artifacts_json) = artifacts_json {
         tx.execute(

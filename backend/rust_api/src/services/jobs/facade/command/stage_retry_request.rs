@@ -1,5 +1,7 @@
 use crate::error::AppError;
-use crate::models::{CreateJobInput, JobSnapshot, JobSourceInput, RetryStageKind, WorkflowKind};
+use crate::models::api::RetryStageKind;
+use crate::models::domain::{CreateJobInput, JobSnapshot, WorkflowKind};
+use crate::models::request::JobSourceInput;
 
 pub(super) fn build_retry_request(
     source_job: &JobSnapshot,

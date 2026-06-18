@@ -1,10 +1,10 @@
 use serde_json::json;
 
-use crate::models::{
-    build_job_actions, build_job_links_with_workflow, JobSnapshot, JobStatusKind, RetryStageKind,
-    RetryStageSubmissionView, StageActionsView, StageRetryActionLinkView, StageRetryActionView,
-    WorkflowKind,
+use crate::models::api::{
+    build_job_actions, build_job_links_with_workflow, RetryStageKind, RetryStageSubmissionView,
+    StageActionsView, StageRetryActionLinkView, StageRetryActionView,
 };
+use crate::models::domain::{JobSnapshot, JobStatusKind, WorkflowKind};
 use crate::services::jobs::stage_plan::{stage_name, stage_plans, JobStagePlan};
 
 pub(super) fn build_stage_actions_view(base_url: &str, job: &JobSnapshot) -> StageActionsView {

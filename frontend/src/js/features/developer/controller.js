@@ -1,23 +1,20 @@
-import {
-  activateDeveloperTabView,
-  bindDeveloperEvents,
-  openDeveloperDialogView,
-} from "./view.js";
+import { createDeveloperViewPort } from "./developer-view-port.js";
 
 export function mountDeveloperFeature({
+  viewPort = createDeveloperViewPort(),
   syncDeveloperDialogFromState,
   updateDeveloperWorkflowFormState,
   saveDeveloperDialog,
   resetDeveloperDialog,
 }) {
   function activateDeveloperTab(tabName = "model") {
-    activateDeveloperTabView(tabName);
+    viewPort.activateTab(tabName);
   }
 
   function showDeveloperSettingsDialog() {
     syncDeveloperDialogFromState?.();
     activateDeveloperTab("model");
-    openDeveloperDialogView();
+    viewPort.openDialog();
   }
 
   function openDeveloperDialog() {
@@ -25,7 +22,7 @@ export function mountDeveloperFeature({
   }
 
   function bindEvents() {
-    bindDeveloperEvents({
+    viewPort.bindEvents({
       openDeveloperDialog,
       saveDeveloperDialog,
       resetDeveloperDialog,

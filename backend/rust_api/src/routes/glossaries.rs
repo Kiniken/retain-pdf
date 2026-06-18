@@ -5,7 +5,7 @@ use axum::response::IntoResponse;
 use axum::Json;
 
 use crate::error::AppError;
-use crate::models::{
+use crate::models::api::{
     ApiResponse, GlossaryCsvParseInput, GlossaryCsvParseView, GlossaryDetailView, GlossaryListView,
     GlossaryUpsertInput, ListGlossariesQuery,
 };

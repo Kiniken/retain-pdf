@@ -1,60 +1,36 @@
-import { $ } from "../../dom.js";
-import { TRANSLATION_PROVIDER_DEFINITION, getOcrProviderDefinition } from "../../provider-config.js";
+import { $ } from "../../dom/query.js";
+import {
+  CREDENTIAL_DOM_DATASETS,
+  CREDENTIAL_DOM_IDS,
+  CREDENTIAL_DOM_SELECTORS,
+} from "./credentials-dom-contract.js";
+import { credentialDialog } from "./dialog-view.js";
+import { APP_EVENTS } from "../../contracts/app-contract.js";
+export {
+  activateCredentialTabView,
+  browserCredentialElements,
+  closeCredentialDialog,
+  credentialDialog,
+  currentCredentialDialogSetupMode,
+  openCredentialDialog,
+  setCredentialDialogModeView,
+  setDialogStatus,
+} from "./dialog-view.js";
+export {
+  setDeepSeekTopUpVisible,
+  setDeepSeekValidationMessage,
+  setOcrValidationMessage,
+} from "./validation-view.js";
 
-export function credentialDialog() {
-  return $("browser-credentials-dialog");
-}
+const { browser: BROWSER_CREDENTIAL_IDS } = CREDENTIAL_DOM_IDS;
+const noopUploadTilePort = Object.freeze({
+  setUploadTileLocked: () => {},
+  setUploadTileReady: () => {},
+  setUploadTileText: () => {},
+});
 
-export function currentCredentialDialogSetupMode() {
-  return credentialDialog()?.dataset?.setupMode === "1";
-}
-
-export function setCredentialDialogModeView({ setupMode = false, activateCredentialTab }) {
-  const dialog = credentialDialog();
-  if (!dialog) {
-    return;
-  }
-  dialog.dataset.setupMode = setupMode ? "1" : "0";
-  $("browser-credentials-title").textContent = setupMode ? "首次配置" : "接口设置";
-  const subtitle = $("browser-credentials-subtitle");
-  if (subtitle) {
-    subtitle.textContent = "";
-    subtitle.classList.add("hidden");
-  }
-  $("browser-credentials-save-btn").textContent = setupMode ? "保存并启动" : "保存";
-  $("browser-credentials-tabs")?.classList.toggle("hidden", setupMode);
-  if (setupMode) {
-    activateCredentialTab("api");
-  }
-}
-
-export function setDialogStatus(message = "", tone = "") {
-  const el = $("browser-credentials-status");
-  if (!el) {
-    return;
-  }
-  const content = `${message || ""}`.trim();
-  el.textContent = content;
-  el.classList.toggle("hidden", !content);
-  el.classList.toggle("is-valid", tone === "valid");
-  el.classList.toggle("is-error", tone === "error");
-}
-
-export function activateCredentialTabView(tabName = "api") {
-  const dialog = credentialDialog();
-  if (!dialog) {
-    return;
-  }
-  dialog.querySelectorAll("[data-credential-tab]").forEach((tab) => {
-    const active = tab.dataset.credentialTab === tabName;
-    tab.classList.toggle("is-active", active);
-    tab.setAttribute("aria-selected", active ? "true" : "false");
-  });
-  dialog.querySelectorAll("[data-credential-panel]").forEach((panel) => {
-    const active = panel.dataset.credentialPanel === tabName;
-    panel.classList.toggle("is-active", active);
-    panel.hidden = !active;
-  });
+function uploadTilePortFromOptions(options = {}) {
+  return options.uploadTilePort || noopUploadTilePort;
 }
 
 export function syncOcrProviderControlsView(providerId) {
@@ -63,90 +39,15 @@ export function syncOcrProviderControlsView(providerId) {
   if (!dialog) {
     return;
   }
-  const apiSelect = $("browser-ocr-provider-select");
+  const apiSelect = $(BROWSER_CREDENTIAL_IDS.ocrProviderSelect);
   if (apiSelect) {
     apiSelect.value = activeProvider;
   }
-  dialog.querySelectorAll("[data-ocr-provider-panel]").forEach((panel) => {
-    const active = panel.dataset.ocrProviderPanel === activeProvider;
+  dialog.querySelectorAll(CREDENTIAL_DOM_SELECTORS.ocrProviderPanel).forEach((panel) => {
+    const active = panel.dataset[CREDENTIAL_DOM_DATASETS.ocrProviderPanel] === activeProvider;
     panel.classList.toggle("is-active", active);
     panel.hidden = !active;
   });
-}
-
-export function setOcrValidationMessage(message, tone = "", providerId = "") {
-  const definition = getOcrProviderDefinition(providerId);
-  const el = $(`browser-${definition.id}-validation`);
-  if (!el) {
-    return;
-  }
-  const content = `${message || ""}`.trim();
-  el.textContent = validationIcon(tone, content);
-  el.title = content || definition.validationIdleMessage || "";
-  el.classList.toggle("hidden", !content);
-  el.classList.toggle("is-valid", tone === "valid");
-  el.classList.toggle("is-error", tone === "error");
-  el.classList.toggle("is-pending", !!content && !tone);
-}
-
-export function setDeepSeekValidationMessage(message, tone = "") {
-  const el = $("browser-deepseek-validation");
-  if (!el) {
-    return;
-  }
-  const content = `${message || ""}`.trim();
-  el.textContent = validationIcon(tone, content);
-  el.title = content || TRANSLATION_PROVIDER_DEFINITION.validationIdleMessage || "";
-  el.classList.toggle("hidden", !content);
-  el.classList.toggle("is-valid", tone === "valid");
-  el.classList.toggle("is-error", tone === "error");
-  el.classList.toggle("is-pending", !!content && !tone);
-}
-
-export function setDeepSeekTopUpVisible(visible = false) {
-  const link = $("browser-deepseek-top-up-link");
-  if (!link) {
-    return;
-  }
-  link.classList.toggle("hidden", !visible);
-}
-
-function validationIcon(tone = "", content = "") {
-  if (!content) {
-    return "";
-  }
-  if (tone === "valid") {
-    return "✓";
-  }
-  if (tone === "error") {
-    return "!";
-  }
-  return "…";
-}
-
-export function browserCredentialElements() {
-  return {
-    dialog: $("browser-credentials-dialog"),
-    mineruInput: $("browser-mineru-token"),
-    paddleInput: $("browser-paddle-token"),
-    apiKeyInput: $("browser-api-key"),
-    modelBaseUrlInput: $("browser-model-base-url"),
-    modelNameInput: $("browser-model-name"),
-    mathModeSelect: $("browser-job-math-mode"),
-    trigger: $("credentials-btn"),
-  };
-}
-
-export function openCredentialDialog() {
-  const dialog = credentialDialog();
-  if (!dialog || dialog.open) {
-    return;
-  }
-  dialog.showModal();
-}
-
-export function closeCredentialDialog() {
-  credentialDialog()?.close();
 }
 
 export function updateCredentialGateView({
@@ -154,42 +55,30 @@ export function updateCredentialGateView({
   show,
   uploadEnabled,
   uploadReady,
+  uploadTilePort,
 }) {
-  const trigger = $("credentials-btn");
-  const gate = $("credential-gate");
-  const tile = $("file")?.closest(".upload-tile");
-  const fileInput = $("file");
-  const uploadGlyph = $("upload-glyph");
-  const fileLabel = $("file-label");
-  const uploadHelp = $("upload-help");
-  const uploadMeta = document.querySelector(".upload-meta");
-  const uploadStatus = $("upload-status");
-
-  if (!gate || !tile || !fileInput) {
+  const tilePort = uploadTilePortFromOptions({ uploadTilePort });
+  const trigger = $(CREDENTIAL_DOM_IDS.trigger);
+  const gate = $(CREDENTIAL_DOM_IDS.gate);
+  if (!gate || !$(CREDENTIAL_DOM_IDS.file)) {
     return false;
   }
   if (desktopMode) {
     gate.classList.add("hidden");
     trigger?.classList.remove("is-nudged");
-    tile.classList.toggle("is-locked", !uploadEnabled);
-    fileInput.disabled = !uploadEnabled;
-    uploadGlyph?.classList.toggle("hidden", !uploadEnabled);
-    uploadMeta?.classList.toggle("hidden", !uploadEnabled);
-    tile.classList.toggle("is-ready", uploadEnabled && uploadReady);
+    tilePort.setUploadTileLocked({ locked: !uploadEnabled, enabled: uploadEnabled });
+    tilePort.setUploadTileReady(uploadEnabled && uploadReady);
     return true;
   }
   gate.classList.toggle("hidden", !show);
   trigger?.classList.toggle("is-nudged", show);
-  tile.classList.toggle("is-locked", show || !uploadEnabled);
-  fileInput.disabled = show || !uploadEnabled;
-  uploadGlyph?.classList.toggle("hidden", show || !uploadEnabled);
-  fileLabel?.classList.toggle("hidden", show);
-  uploadHelp?.classList.toggle("hidden", false);
-  uploadMeta?.classList.toggle("hidden", show || !uploadEnabled);
-  if (show) {
-    uploadStatus?.classList.add("hidden");
-  }
-  tile.classList.toggle("is-ready", !show && uploadEnabled && uploadReady);
+  tilePort.setUploadTileLocked({ locked: show || !uploadEnabled, enabled: !show && uploadEnabled });
+  tilePort.setUploadTileText({
+    labelVisible: !show,
+    helpVisible: true,
+    statusVisible: show ? false : null,
+  });
+  tilePort.setUploadTileReady(!show && uploadEnabled && uploadReady);
   return true;
 }
 
@@ -204,17 +93,17 @@ export function bindCredentialViewEvents({
   activateCredentialTab,
   changeProvider,
 }) {
-  $("browser-mineru-token")?.addEventListener("input", resetMineruValidation);
-  $("browser-paddle-token")?.addEventListener("input", resetPaddleValidation);
-  $("browser-api-key")?.addEventListener("input", resetDeepSeekValidation);
-  $("browser-model-base-url")?.addEventListener("input", resetDeepSeekValidation);
-  $("browser-model-name")?.addEventListener("input", resetDeepSeekValidation);
-  $("browser-mineru-validate-btn")?.addEventListener("click", validateOcr);
-  $("browser-paddle-validate-btn")?.addEventListener("click", validateOcr);
-  $("browser-deepseek-validate-btn")?.addEventListener("click", validateDeepSeek);
-  $("browser-credentials-save-btn")?.addEventListener("click", save);
+  $(BROWSER_CREDENTIAL_IDS.mineruToken)?.addEventListener("input", resetMineruValidation);
+  $(BROWSER_CREDENTIAL_IDS.paddleToken)?.addEventListener("input", resetPaddleValidation);
+  $(BROWSER_CREDENTIAL_IDS.apiKey)?.addEventListener("input", resetDeepSeekValidation);
+  $(BROWSER_CREDENTIAL_IDS.modelBaseUrl)?.addEventListener("input", resetDeepSeekValidation);
+  $(BROWSER_CREDENTIAL_IDS.modelName)?.addEventListener("input", resetDeepSeekValidation);
+  $(BROWSER_CREDENTIAL_IDS.mineruValidateButton)?.addEventListener("click", validateOcr);
+  $(BROWSER_CREDENTIAL_IDS.paddleValidateButton)?.addEventListener("click", validateOcr);
+  $(BROWSER_CREDENTIAL_IDS.deepSeekValidateButton)?.addEventListener("click", validateDeepSeek);
+  $(BROWSER_CREDENTIAL_IDS.saveButton)?.addEventListener("click", save);
   document.addEventListener("click", (event) => {
-    const trigger = event.target?.closest?.("#credentials-btn, #credential-gate-action");
+    const trigger = event.target?.closest?.(CREDENTIAL_DOM_SELECTORS.trigger);
     if (!trigger) {
       return;
     }
@@ -222,9 +111,9 @@ export function bindCredentialViewEvents({
     event.stopPropagation();
     open?.();
   });
-  credentialDialog()?.querySelectorAll("[data-toggle-secret]").forEach((button) => {
+  credentialDialog()?.querySelectorAll(CREDENTIAL_DOM_SELECTORS.toggleSecret).forEach((button) => {
     button.addEventListener("click", () => {
-      const input = $(button.dataset.toggleSecret || "");
+      const input = $(button.dataset[CREDENTIAL_DOM_DATASETS.toggleSecret] || "");
       if (!input) {
         return;
       }
@@ -234,13 +123,13 @@ export function bindCredentialViewEvents({
       button.setAttribute("aria-pressed", !showing ? "true" : "false");
     });
   });
-  document.addEventListener("retainpdf:open-browser-credentials", (event) => {
+  document.addEventListener(APP_EVENTS.openBrowserCredentials, (event) => {
     open(event?.detail || {});
   });
-  credentialDialog()?.querySelectorAll("[data-credential-tab]").forEach((tab) => {
+  credentialDialog()?.querySelectorAll(CREDENTIAL_DOM_SELECTORS.credentialTab).forEach((tab) => {
     tab.addEventListener("click", () => {
-      activateCredentialTab(tab.dataset.credentialTab || "api");
+      activateCredentialTab(tab.dataset[CREDENTIAL_DOM_DATASETS.credentialTab] || "api");
     });
   });
-  $("browser-ocr-provider-select")?.addEventListener("change", changeProvider);
+  $(BROWSER_CREDENTIAL_IDS.ocrProviderSelect)?.addEventListener("change", changeProvider);
 }

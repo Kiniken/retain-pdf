@@ -1,7 +1,13 @@
+import {
+  idSelector,
+  STATUS_DETAIL_DIALOG,
+} from "./status-detail-dialog-dom-contract.js";
+
 export function setHeadline(host, { iconMarkup = "", jobId = "-", note = "查看任务概览、失败原因与事件流" } = {}) {
-  const icon = host.querySelector("#status-detail-head-icon");
-  const jobIdEl = host.querySelector("#status-detail-job-id");
-  const noteEl = host.querySelector("#status-detail-head-note");
+  const { headline } = STATUS_DETAIL_DIALOG.ids;
+  const icon = host.querySelector(idSelector(headline.icon));
+  const jobIdEl = host.querySelector(idSelector(headline.jobId));
+  const noteEl = host.querySelector(idSelector(headline.note));
   if (icon) {
     icon.innerHTML = iconMarkup;
   }
@@ -14,8 +20,9 @@ export function setHeadline(host, { iconMarkup = "", jobId = "-", note = "查看
 }
 
 export function renderStageHistory(host, { markup = "", emptyText = "暂无阶段记录", hasItems = false } = {}) {
-  const list = host.querySelector("#overview-stage-list");
-  const empty = host.querySelector("#overview-stage-empty");
+  const { stageHistory } = STATUS_DETAIL_DIALOG.ids;
+  const list = host.querySelector(idSelector(stageHistory.list));
+  const empty = host.querySelector(idSelector(stageHistory.empty));
   if (!list || !empty) {
     return;
   }
@@ -32,9 +39,10 @@ export function renderStageHistory(host, { markup = "", emptyText = "暂无阶�
 }
 
 export function renderEvents(host, { markup = "", count = 0, emptyText = "暂无事件", hasItems = false } = {}) {
-  const list = host.querySelector("#events-list");
-  const empty = host.querySelector("#events-empty");
-  const status = host.querySelector("#events-status");
+  const { events } = STATUS_DETAIL_DIALOG.ids;
+  const list = host.querySelector(idSelector(events.list));
+  const empty = host.querySelector(idSelector(events.empty));
+  const status = host.querySelector(idSelector(events.status));
   if (!list || !empty || !status) {
     return;
   }
@@ -52,19 +60,20 @@ export function renderEvents(host, { markup = "", count = 0, emptyText = "暂无
 }
 
 export function setRuntimeDetails(host, details = {}) {
+  const { runtime } = STATUS_DETAIL_DIALOG.ids;
   const entries = [
-    ["runtime-current-stage", details.currentStage],
-    ["runtime-stage-elapsed", details.stageElapsed],
-    ["runtime-total-elapsed", details.totalElapsed],
-    ["runtime-retry-count", details.retryCount],
-    ["runtime-last-transition", details.lastTransition],
-    ["runtime-terminal-reason", details.terminalReason],
-    ["runtime-input-protocol", details.inputProtocol],
-    ["runtime-stage-spec-version", details.stageSpecVersion],
-    ["runtime-math-mode", details.mathMode],
+    [runtime.currentStage, details.currentStage],
+    [runtime.stageElapsed, details.stageElapsed],
+    [runtime.totalElapsed, details.totalElapsed],
+    [runtime.retryCount, details.retryCount],
+    [runtime.lastTransition, details.lastTransition],
+    [runtime.terminalReason, details.terminalReason],
+    [runtime.inputProtocol, details.inputProtocol],
+    [runtime.stageSpecVersion, details.stageSpecVersion],
+    [runtime.mathMode, details.mathMode],
   ];
   entries.forEach(([id, value]) => {
-    const el = host.querySelector(`#${id}`);
+    const el = host.querySelector(idSelector(id));
     if (el) {
       el.textContent = value ?? "-";
     }
@@ -72,17 +81,18 @@ export function setRuntimeDetails(host, details = {}) {
 }
 
 export function setFailureDetails(host, details = {}) {
+  const { failure } = STATUS_DETAIL_DIALOG.ids;
   const entries = [
-    ["failure-summary", details.summary],
-    ["failure-category", details.category],
-    ["failure-stage", details.stage],
-    ["failure-root-cause", details.rootCause],
-    ["failure-suggestion", details.suggestion],
-    ["failure-last-log-line", details.lastLogLine],
-    ["failure-retryable", details.retryable],
+    [failure.summary, details.summary],
+    [failure.category, details.category],
+    [failure.stage, details.stage],
+    [failure.rootCause, details.rootCause],
+    [failure.suggestion, details.suggestion],
+    [failure.lastLogLine, details.lastLogLine],
+    [failure.retryable, details.retryable],
   ];
   entries.forEach(([id, value]) => {
-    const el = host.querySelector(`#${id}`);
+    const el = host.querySelector(idSelector(id));
     if (el) {
       el.textContent = value ?? "-";
     }
@@ -90,8 +100,9 @@ export function setFailureDetails(host, details = {}) {
 }
 
 export function setRerunAction(host, { enabled = false, status = "" } = {}) {
-  const button = host.querySelector("#failure-rerun-btn");
-  const statusEl = host.querySelector("#failure-rerun-status");
+  const { failure } = STATUS_DETAIL_DIALOG.ids;
+  const button = host.querySelector(idSelector(failure.rerunButton));
+  const statusEl = host.querySelector(idSelector(failure.rerunStatus));
   if (button) {
     button.disabled = !enabled;
   }

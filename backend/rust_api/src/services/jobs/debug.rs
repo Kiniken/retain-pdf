@@ -1,3 +1,5 @@
+#[path = "debug/artifacts.rs"]
+mod artifacts;
 #[path = "debug/common.rs"]
 mod common;
 #[path = "debug/diagnostics.rs"]

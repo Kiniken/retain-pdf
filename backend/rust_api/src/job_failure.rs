@@ -3,7 +3,7 @@ mod job_failure_structured;
 #[path = "job_failure_support.rs"]
 mod job_failure_support;
 
-use crate::models::{JobFailureInfo, JobSnapshot, JobStatusKind};
+use crate::models::domain::{JobFailureInfo, JobSnapshot, JobStatusKind};
 
 use self::job_failure_structured::{
     classify_provider_auth_failure, classify_structured_failure, extract_structured_failure,
@@ -352,16 +352,17 @@ pub fn classify_job_failure(job: &JobSnapshot) -> Option<JobFailureInfo> {
 #[cfg(test)]
 mod tests {
     use super::classify_job_failure;
-    use crate::models::CreateJobInput;
+    use crate::models::domain::{JobSnapshot, JobStatusKind};
+    use crate::models::request::CreateJobInput;
 
     #[test]
     fn classify_job_failure_maps_placeholder_instability() {
-        let mut job = crate::models::JobSnapshot::new(
+        let mut job = JobSnapshot::new(
             "job-failure".to_string(),
             CreateJobInput::default(),
             vec!["python".to_string()],
         );
-        job.status = crate::models::JobStatusKind::Failed;
+        job.status = JobStatusKind::Failed;
         job.error = Some("PlaceholderInventoryError: placeholder inventory mismatch".to_string());
         job.stage = Some("translation".to_string());
         job.stage_detail = Some("正在翻译".to_string());
@@ -373,12 +374,12 @@ mod tests {
 
     #[test]
     fn classify_job_failure_does_not_treat_render_mode_log_as_render_failure() {
-        let mut job = crate::models::JobSnapshot::new(
+        let mut job = JobSnapshot::new(
             "job-failure".to_string(),
             CreateJobInput::default(),
             vec!["python".to_string()],
         );
-        job.status = crate::models::JobStatusKind::Failed;
+        job.status = JobStatusKind::Failed;
         job.error = Some("PlaceholderInventoryError: placeholder inventory mismatch".to_string());
         job.stage = Some("translation".to_string());
         job.stage_detail = Some("正在翻译".to_string());
@@ -394,12 +395,12 @@ mod tests {
 
     #[test]
     fn classify_job_failure_maps_typst_compile_error_to_render_stage() {
-        let mut job = crate::models::JobSnapshot::new(
+        let mut job = JobSnapshot::new(
             "job-failure".to_string(),
             CreateJobInput::default(),
             vec!["python".to_string()],
         );
-        job.status = crate::models::JobStatusKind::Failed;
+        job.status = JobStatusKind::Failed;
         job.error = Some("typst compile failed: font not found".to_string());
         job.stage = Some("translation".to_string());
         job.stage_detail = Some("正在翻译".to_string());
@@ -411,12 +412,12 @@ mod tests {
 
     #[test]
     fn classify_job_failure_maps_typst_package_download_failure() {
-        let mut job = crate::models::JobSnapshot::new(
+        let mut job = JobSnapshot::new(
             "job-failure".to_string(),
             CreateJobInput::default(),
             vec!["python".to_string()],
         );
-        job.status = crate::models::JobStatusKind::Failed;
+        job.status = JobStatusKind::Failed;
         job.error = Some(
             "RuntimeError: downloading @preview/cmarker:0.1.8\nerror: failed to download package (https://packages.typst.org/preview/cmarker-0.1.8.tar.gz: Connection Failed)"
                 .to_string(),

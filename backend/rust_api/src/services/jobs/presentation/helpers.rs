@@ -1,9 +1,10 @@
 use std::path::Path;
 
 use crate::db::Db;
-use crate::models::{
-    to_absolute_url, BookSummaryView, JobFailureDiagnosticView, JobSnapshot, OcrJobSummaryView,
+use crate::models::api::{
+    to_absolute_url, BookSummaryView, JobFailureDiagnosticView, OcrJobSummaryView,
 };
+use crate::models::domain::{JobFailureInfo, JobSnapshot};
 use crate::storage_paths::resolve_source_pdf;
 
 pub(super) fn derive_display_name(db: &Db, job: &JobSnapshot) -> String {
@@ -132,13 +133,11 @@ pub(super) fn build_ocr_job_summary(
         trace_id: artifacts.ocr_trace_id.clone(),
         provider_trace_id: artifacts.ocr_provider_trace_id.clone(),
         detail_path: detail_path.clone(),
-        detail_url: crate::models::to_absolute_url(base_url, &detail_path),
+        detail_url: to_absolute_url(base_url, &detail_path),
     })
 }
 
-pub(super) fn job_failure_to_legacy_view(
-    failure: &crate::models::JobFailureInfo,
-) -> JobFailureDiagnosticView {
+pub(super) fn job_failure_to_legacy_view(failure: &JobFailureInfo) -> JobFailureDiagnosticView {
     let failure = failure.clone().with_formal_fields();
     JobFailureDiagnosticView {
         failed_stage: failure.failed_stage_value().to_string(),

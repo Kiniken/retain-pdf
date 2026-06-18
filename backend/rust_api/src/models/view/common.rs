@@ -13,13 +13,36 @@ pub struct JobSubmissionView {
     pub actions: JobActionsView,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct JobProgressView {
     pub current: Option<i64>,
     pub total: Option<i64>,
     pub percent: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unit: Option<String>,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum JobStageStateView {
+    Pending,
+    InProgress,
+    Completed,
+    Failed,
+    Skipped,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct JobStageRuntimeView {
+    pub state: JobStageStateView,
+    pub progress: JobProgressView,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct JobStagesView {
+    pub ocr: JobStageRuntimeView,
+    pub translation: JobStageRuntimeView,
+    pub render: JobStageRuntimeView,
 }
 
 #[derive(Debug, Serialize)]

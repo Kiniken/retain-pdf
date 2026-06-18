@@ -152,4 +152,9 @@ def has_material_payload_prewarm(payload_prewarm) -> bool:
         or payload_prewarm.bbox_text_strip_candidates is not None
         or payload_prewarm.background_render_page_specs is not None
         or payload_prewarm.render_colors_by_item_id
+        or (payload_prewarm.visual_profile_path is not None and payload_prewarm.visual_profile_path.exists())
+        or (
+            payload_prewarm.pdf_structure_profile_path is not None
+            and payload_prewarm.pdf_structure_profile_path.exists()
+        )
     )

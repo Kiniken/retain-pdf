@@ -5,6 +5,7 @@ import re
 from services.rendering.layout.model.models import RenderBlock
 from services.rendering.layout.inline_content.core.markdown import build_direct_typst_passthrough_text
 from services.rendering.layout.payload.formula_safety import formula_safety_insets_pt
+from services.rendering.layout.payload.formula_safety import has_long_inline_math_layout_risk
 from services.rendering.output.typst.block_fit import fit_dimensions
 from services.rendering.output.typst import block_config as typst_config
 from services.rendering.output.typst.block_fields import typst_block_fields
@@ -231,9 +232,15 @@ def build_typst_block(block_id: str, block: RenderBlock, *, include_fill: bool =
         font_size_pt=fields.font_size,
         box_height_pt=fields.height,
     )
+    long_inline_math_risk = has_long_inline_math_layout_risk(
+        markdown,
+        block.math_map,
+        font_size_pt=fields.font_size,
+        box_width_pt=fields.width,
+    )
     content_fit_height = max(typst_config.MIN_BLOCK_SIZE_PT, fields.height - formula_insets.total_pt)
     first_line_indent = typst_config.first_line_indent_pt(block.first_line_indent_pt)
-    justify_text = typst_config.typst_bool(block.justify_text)
+    justify_text = typst_config.typst_bool(block.justify_text and not long_inline_math_risk)
     if block.toc_entries:
         return _build_toc_entry_typst(block_id, block, text_fill=text_fill)
     if block.preserve_line_breaks and block.preserved_line_boxes:
@@ -301,8 +308,16 @@ def build_typst_block(block_id: str, block: RenderBlock, *, include_fill: bool =
             height=content_fit_height,
             font_size=fields.font_size,
             leading=fields.leading,
-            fit_min_font_size_pt=block.fit_min_font_size_pt,
-            fit_min_leading_em=block.fit_min_leading_em,
+            fit_min_font_size_pt=(
+                min(block.fit_min_font_size_pt or fields.font_size, fields.font_size * 0.72)
+                if long_inline_math_risk
+                else block.fit_min_font_size_pt
+            ),
+            fit_min_leading_em=(
+                max(block.fit_min_leading_em or fields.leading, min(fields.leading, 0.62))
+                if long_inline_math_risk
+                else block.fit_min_leading_em
+            ),
             fit_max_height_pt=min(content_fit_height, block.fit_max_height_pt or content_fit_height),
         )
         fit_call = typst_markdown_fit_call(

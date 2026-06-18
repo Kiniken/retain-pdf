@@ -1,0 +1,30 @@
+@layer components {
+  .desktop-dialog {
+    @apply fixed inset-0 m-auto overflow-visible border-0 bg-transparent p-0;
+    width: min(720px, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+    border-radius: 24px;
+  }
+
+  .desktop-dialog::backdrop {
+    background: rgba(15, 23, 42, 0.3);
+  }
+
+  .desktop-shell {
+    @apply overflow-hidden rounded-[28px] border bg-white p-0 shadow-panel;
+    border-color: var(--line);
+  }
+
+  .desktop-head {
+    @apply flex items-center justify-between gap-3 border-b px-6 py-5;
+    border-color: var(--line);
+  }
+
+  .dialog-close-btn {
+    @apply inline-flex h-[34px] min-h-[34px] w-[34px] min-w-[34px] items-center justify-center rounded-full border border-[#d2d2d7] bg-white p-0 text-[22px] leading-none text-[#1d1d1f] shadow-none;
+  }
+
+  .desktop-body {
+    @apply grid gap-4 p-6;
+  }
+}

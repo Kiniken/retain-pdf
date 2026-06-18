@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 use crate::db::Db;
 use crate::error::AppError;
 use crate::job_events::persist_job_with_resources;
-use crate::models::{now_iso, JobSnapshot, JobStatusKind};
+use crate::models::domain::{now_iso, JobSnapshot, JobStatusKind, WorkflowKind};
 use crate::services::runtime_gateway::terminate_runtime_process;
 
 use super::creation::context::ControlDeps;
@@ -58,7 +58,7 @@ pub(crate) async fn cancel_job(
     ocr_only: bool,
 ) -> Result<JobSnapshot, AppError> {
     let mut job = load_job_or_404(deps.db, job_id)?;
-    if ocr_only && !matches!(job.workflow, crate::models::WorkflowKind::Ocr) {
+    if ocr_only && !matches!(job.workflow, WorkflowKind::Ocr) {
         return Err(AppError::not_found(format!("ocr job not found: {job_id}")));
     }
     if !matches!(job.status, JobStatusKind::Queued | JobStatusKind::Running) {

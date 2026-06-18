@@ -1,3 +1,8 @@
+import {
+  READER_DIALOG_BUTTON_IDS,
+  READER_DIALOG_IDS,
+} from "./reader-dialog-contract.js";
+
 export function bindReaderDialogEvents(host, {
   onClose,
   onFrameLoad,
@@ -24,9 +29,9 @@ export function bindReaderDialogEvents(host, {
     onTranslatedDownload,
   };
   const handlers = () => host.__retainPdfReaderDialogHandlers || {};
-  host.querySelector("#reader-source-download-btn")?.addEventListener("click", () => handlers().onSourceDownload?.());
-  host.querySelector("#reader-merged-download-btn")?.addEventListener("click", () => handlers().onMergedDownload?.());
-  host.querySelector("#reader-translated-download-btn")?.addEventListener("click", () => handlers().onTranslatedDownload?.());
-  host.querySelector("#reader-dialog-close-btn")?.addEventListener("click", () => handlers().onClose?.());
-  host.querySelector("#reader-dialog-frame")?.addEventListener("load", () => handlers().onFrameLoad?.());
+  host.querySelector(`#${READER_DIALOG_BUTTON_IDS.source}`)?.addEventListener("click", () => handlers().onSourceDownload?.());
+  host.querySelector(`#${READER_DIALOG_BUTTON_IDS.merged}`)?.addEventListener("click", () => handlers().onMergedDownload?.());
+  host.querySelector(`#${READER_DIALOG_BUTTON_IDS.translated}`)?.addEventListener("click", () => handlers().onTranslatedDownload?.());
+  host.querySelector(`#${READER_DIALOG_IDS.closeButton}`)?.addEventListener("click", () => handlers().onClose?.());
+  host.querySelector(`#${READER_DIALOG_IDS.frame}`)?.addEventListener("load", () => handlers().onFrameLoad?.());
 }

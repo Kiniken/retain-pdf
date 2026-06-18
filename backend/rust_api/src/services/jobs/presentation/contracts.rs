@@ -1,8 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use crate::models::{
-    JobContractsView, JobSnapshot, JobStageContractArtifactView, JobStageContractView,
-};
+use crate::models::api::{JobContractsView, JobStageContractArtifactView, JobStageContractView};
+use crate::models::domain::JobSnapshot;
 use crate::storage_paths::{resolve_data_path, TRANSLATION_MANIFEST_FILE_NAME};
 
 const CONTRACT_SCHEMA_VERSION: &str = "job_stage_contracts.v1";

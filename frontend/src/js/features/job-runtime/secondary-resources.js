@@ -1,43 +1,25 @@
-import { normalizeJobPayload } from "../../job.js";
 import {
-  cacheSecondaryResource,
-  cachedEventsFor,
-  cachedManifestFor,
-  fetchAllJobEvents,
-  fetchRecentJobEvents,
-  cachedStageActionsFor,
-  clearSecondaryFetchInFlightForCurrentJob,
-  currentJobSnapshotFor,
-  isCurrentJobGeneration,
-  isSecondaryFetchInFlight,
+  createCurrentJobStatePort,
+} from "./current-job-state.js";
+import {
+  createJobRenderContextPort,
+} from "./render-context.js";
+import {
   JOB_EVENTS_REFRESH_MS,
   JOB_MANIFEST_REFRESH_MS,
   JOB_STAGE_ACTIONS_REFRESH_MS,
-  secondaryResourceFetchedAt,
-  setSecondaryFetchInFlight,
-  shouldRefreshSecondary,
-} from "./runtime-state.js";
+} from "./secondary-resource-policy.js";
+import { createRuntimePollingStatePort } from "./runtime-polling-state.js";
+import {
+  createJobEventsResource,
+  mergeJobEventsPayload,
+} from "./job-events-resource.js";
+import {
+  createSecondaryResourceStatePort,
+} from "./secondary-resource-cache.js";
 
-function latestJobPayloadFor(state, jobId, fallbackPayload) {
-  const snapshot = currentJobSnapshotFor(state, jobId);
-  return snapshot || fallbackPayload;
-}
-
-function renderLatestJob({
-  state,
-  jobId,
-  fallbackPayload,
-  eventsPayload,
-  manifestPayload,
-  stageActionsPayload,
-  renderJob,
-}) {
-  renderJob(
-    latestJobPayloadFor(state, jobId, fallbackPayload),
-    eventsPayload,
-    manifestPayload,
-    stageActionsPayload,
-  );
+function defaultBuildJobPatchWithDisplayState(job = {}) {
+  return job;
 }
 
 export function scheduleSecondaryResourceFetches({
@@ -48,95 +30,143 @@ export function scheduleSecondaryResourceFetches({
   generation,
   terminal,
   fetchJobEvents,
+  jobEventsResource = null,
   fetchJobArtifactsManifest,
   fetchJobStageActions,
-  renderJob,
+  renderJobSecondaryPatch,
   notifyLibraryJobUpdated,
+  pollingPort = createRuntimePollingStatePort(state),
+  currentJobPort = createCurrentJobStatePort(state),
+  secondaryResourcePort = createSecondaryResourceStatePort(state),
+  renderContextPort = createJobRenderContextPort(state),
+  jobPresentationPort = {},
 }) {
-  const cachedEvents = cachedEventsFor(state, jobId);
-  const cachedManifest = cachedManifestFor(state, jobId);
-  const cachedStageActions = cachedStageActionsFor(state, jobId);
+  const buildJobPatchWithDisplayState = jobPresentationPort.buildJobPatchWithDisplayState
+    || defaultBuildJobPatchWithDisplayState;
+  const cachedManifest = secondaryResourcePort.cachedFor("manifest", jobId);
+  const cachedStageActions = secondaryResourcePort.cachedFor("stageActions", jobId);
 
-  if (!isSecondaryFetchInFlight(state, "events") && shouldRefreshSecondary(secondaryResourceFetchedAt(state, "events"), JOB_EVENTS_REFRESH_MS, terminal || !cachedEvents)) {
-    setSecondaryFetchInFlight(state, "events", true);
+  if (!secondaryResourcePort.isInFlight("events") && secondaryResourcePort.shouldRefresh("events", JOB_EVENTS_REFRESH_MS, true)) {
+    secondaryResourcePort.setInFlight("events", true);
     const eventsGeneration = generation;
-    const fetchEvents = terminal ? fetchAllJobEvents : fetchRecentJobEvents;
-    void fetchEvents({ fetchJobEvents, apiPrefix, jobId })
-      .then((eventsPayload) => {
-        if (!isCurrentJobGeneration(state, jobId, eventsGeneration)) {
+    const eventsResource = jobEventsResource || createJobEventsResource({
+      fetchJobEvents,
+      apiPrefix,
+    });
+    void eventsResource.load({ jobId, terminal }, { cache: false })
+      .then((eventsSnapshot) => {
+        if (!pollingPort.isCurrentGeneration(jobId, eventsGeneration)) {
           return;
         }
-        cacheSecondaryResource(state, "events", jobId, eventsPayload);
-        renderLatestJob({
-          state,
-          jobId,
-          fallbackPayload: payload,
-          eventsPayload,
-          manifestPayload: cachedManifestFor(state, jobId),
-          stageActionsPayload: cachedStageActionsFor(state, jobId),
-          renderJob,
+        if (eventsSnapshot?.status === "error") {
+          throw eventsSnapshot.error || new Error("job events resource failed");
+        }
+        const eventsPayload = eventsSnapshot?.data || { items: [] };
+        const mergedEventsPayload = mergeJobEventsPayload(secondaryResourcePort.cachedFor("events", jobId), eventsPayload);
+        secondaryResourcePort.cache("events", jobId, mergedEventsPayload);
+        renderJobSecondaryPatch?.({
+          context: renderContextPort.currentFor(jobId),
+          source: "events",
         });
-        notifyLibraryJobUpdated(currentJobSnapshotFor(state, jobId) || normalizeJobPayload(payload));
+        notifyLibraryJobUpdated(buildJobPatchWithDisplayState(
+          currentJobPort.snapshotFor(jobId) || payload,
+          mergedEventsPayload,
+        ));
       })
       .catch(() => {
         // Event stream is secondary; keep main status usable even if events fail.
       })
       .finally(() => {
-        clearSecondaryFetchInFlightForCurrentJob(state, "events", jobId);
+        secondaryResourcePort.clearInFlightForCurrentJob("events", jobId);
       });
   }
 
-  if (!isSecondaryFetchInFlight(state, "manifest") && shouldRefreshSecondary(secondaryResourceFetchedAt(state, "manifest"), JOB_MANIFEST_REFRESH_MS, terminal || !cachedManifest)) {
-    setSecondaryFetchInFlight(state, "manifest", true);
+  if (!secondaryResourcePort.isInFlight("manifest") && secondaryResourcePort.shouldRefresh("manifest", JOB_MANIFEST_REFRESH_MS, terminal || !cachedManifest)) {
+    secondaryResourcePort.setInFlight("manifest", true);
     const manifestGeneration = generation;
     void fetchJobArtifactsManifest(jobId, apiPrefix)
       .then((manifestPayload) => {
-        if (!isCurrentJobGeneration(state, jobId, manifestGeneration)) {
+        if (!pollingPort.isCurrentGeneration(jobId, manifestGeneration)) {
           return;
         }
-        cacheSecondaryResource(state, "manifest", jobId, manifestPayload);
-        renderLatestJob({
-          state,
-          jobId,
-          fallbackPayload: payload,
-          eventsPayload: cachedEventsFor(state, jobId),
-          manifestPayload,
-          stageActionsPayload: cachedStageActionsFor(state, jobId),
-          renderJob,
+        secondaryResourcePort.cache("manifest", jobId, manifestPayload);
+        renderJobSecondaryPatch?.({
+          context: renderContextPort.currentFor(jobId),
+          source: "manifest",
         });
       })
       .catch(() => {
         // Artifacts manifest is secondary; keep main status usable even if manifest fails.
       })
       .finally(() => {
-        clearSecondaryFetchInFlightForCurrentJob(state, "manifest", jobId);
+        secondaryResourcePort.clearInFlightForCurrentJob("manifest", jobId);
       });
   }
 
-  if (fetchJobStageActions && !isSecondaryFetchInFlight(state, "stageActions") && shouldRefreshSecondary(secondaryResourceFetchedAt(state, "stageActions"), JOB_STAGE_ACTIONS_REFRESH_MS, terminal || !cachedStageActions)) {
-    setSecondaryFetchInFlight(state, "stageActions", true);
+  if (fetchJobStageActions && !secondaryResourcePort.isInFlight("stageActions") && secondaryResourcePort.shouldRefresh("stageActions", JOB_STAGE_ACTIONS_REFRESH_MS, terminal || !cachedStageActions)) {
+    secondaryResourcePort.setInFlight("stageActions", true);
     const stageActionsGeneration = generation;
     void fetchJobStageActions(jobId, apiPrefix)
       .then((stageActionsPayload) => {
-        if (!isCurrentJobGeneration(state, jobId, stageActionsGeneration)) {
+        if (!pollingPort.isCurrentGeneration(jobId, stageActionsGeneration)) {
           return;
         }
-        cacheSecondaryResource(state, "stageActions", jobId, stageActionsPayload);
-        renderLatestJob({
-          state,
-          jobId,
-          fallbackPayload: payload,
-          eventsPayload: cachedEventsFor(state, jobId),
-          manifestPayload: cachedManifestFor(state, jobId),
-          stageActionsPayload,
-          renderJob,
+        secondaryResourcePort.cache("stageActions", jobId, stageActionsPayload);
+        renderJobSecondaryPatch?.({
+          context: renderContextPort.currentFor(jobId),
+          source: "stageActions",
         });
       })
       .catch(() => {
         // Stage actions are secondary; keep main status usable even if action discovery fails.
       })
       .finally(() => {
-        clearSecondaryFetchInFlightForCurrentJob(state, "stageActions", jobId);
+        secondaryResourcePort.clearInFlightForCurrentJob("stageActions", jobId);
       });
   }
+}
+
+export function createSecondaryResourceSchedulerPort({
+  state,
+  apiPrefix,
+  fetchJobEvents,
+  jobEventsResource = null,
+  fetchJobArtifactsManifest,
+  fetchJobStageActions,
+  renderJobSecondaryPatch,
+  notifyLibraryJobUpdated,
+  pollingPort = createRuntimePollingStatePort(state),
+  currentJobPort = createCurrentJobStatePort(state),
+  secondaryResourcePort = createSecondaryResourceStatePort(state),
+  renderContextPort = createJobRenderContextPort(state),
+  jobPresentationPort = {},
+}) {
+  return Object.freeze({
+    schedule({
+      jobId,
+      payload,
+      generation,
+      terminal,
+    }) {
+      return scheduleSecondaryResourceFetches({
+        state,
+        apiPrefix,
+        jobId,
+        payload,
+        generation,
+        terminal,
+        fetchJobEvents,
+        jobEventsResource,
+        fetchJobArtifactsManifest,
+        fetchJobStageActions,
+        renderJobSecondaryPatch,
+        notifyLibraryJobUpdated,
+        pollingPort,
+        currentJobPort,
+        secondaryResourcePort,
+        renderContextPort,
+        jobPresentationPort,
+      });
+    },
+  });
 }

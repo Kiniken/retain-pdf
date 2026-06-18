@@ -4,7 +4,7 @@ use crate::config::WorkerProcessRuntimeConfig;
 use crate::job_runner::cancel_registry::is_cancel_requested_any;
 use crate::job_runner::process_contract::validate_successful_worker_outputs;
 use crate::job_runner::ProcessRuntimeDeps;
-use crate::models::JobRuntimeState;
+use crate::models::domain::JobRuntimeState;
 
 use super::completion::{
     apply_process_completion, classify_process_completion, should_treat_shutdown_noise_as_success,

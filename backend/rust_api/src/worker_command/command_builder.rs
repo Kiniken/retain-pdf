@@ -27,12 +27,6 @@ impl CommandBuilder {
         Self { parts }
     }
 
-    pub(super) fn flag(&mut self, name: &str, enabled: bool) {
-        if enabled {
-            self.parts.push(name.to_string());
-        }
-    }
-
     pub(super) fn arg(&mut self, name: &str, value: impl ToString) {
         self.parts.push(name.to_string());
         self.parts.push(value.to_string());

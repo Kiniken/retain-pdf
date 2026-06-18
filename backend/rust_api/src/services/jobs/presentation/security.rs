@@ -1,10 +1,10 @@
 use std::path::Path;
 
 use crate::job_failure::classify_job_failure;
-use crate::models::{
+use crate::models::api::{
     redact_json_value, redact_optional_text, redact_text, sensitive_values, JobEventRecord,
-    JobFailureInfo, JobSnapshot,
 };
+use crate::models::domain::{JobFailureInfo, JobSnapshot};
 
 use super::contracts::build_job_contracts_view;
 

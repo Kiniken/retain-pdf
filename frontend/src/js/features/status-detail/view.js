@@ -1,7 +1,10 @@
-import { $ } from "../../dom.js";
+import { $ } from "../../dom/query.js";
+import {
+  STATUS_DETAIL_DIALOG,
+} from "../../components/dialogs/status-detail-dialog-dom-contract.js";
 
 export function dialogComponent() {
-  return document.querySelector("status-detail-dialog");
+  return document.querySelector(STATUS_DETAIL_DIALOG.hostSelector);
 }
 
 export function activateDetailTabView(name = "overview") {
@@ -10,15 +13,15 @@ export function activateDetailTabView(name = "overview") {
     component.activateTab(name);
     return true;
   }
-  const tabs = document.querySelectorAll(".detail-tab");
-  const panels = document.querySelectorAll(".detail-tab-panel");
+  const tabs = document.querySelectorAll(STATUS_DETAIL_DIALOG.selectors.tabs);
+  const panels = document.querySelectorAll(STATUS_DETAIL_DIALOG.selectors.panels);
   tabs.forEach((tab) => {
-    const active = tab.dataset.tab === name;
+    const active = tab.dataset[STATUS_DETAIL_DIALOG.dataset.tab] === name;
     tab.classList.toggle("is-active", active);
     tab.setAttribute("aria-selected", active ? "true" : "false");
   });
   panels.forEach((panel) => {
-    const active = panel.dataset.panel === name;
+    const active = panel.dataset[STATUS_DETAIL_DIALOG.dataset.panel] === name;
     panel.classList.toggle("is-active", active);
     panel.hidden = !active;
   });
@@ -32,7 +35,7 @@ export function openStatusDetailDialogView(tabName = "overview") {
     return true;
   }
   activateDetailTabView(tabName);
-  const dialog = $("status-detail-dialog");
+  const dialog = $(STATUS_DETAIL_DIALOG.dialogId);
   if (dialog && !dialog.open) {
     dialog.showModal();
   }
@@ -40,7 +43,7 @@ export function openStatusDetailDialogView(tabName = "overview") {
 }
 
 export function setRerunButtonDisabled(disabled) {
-  const button = $("failure-rerun-btn");
+  const button = $(STATUS_DETAIL_DIALOG.ids.failure.rerunButton);
   if (button) {
     button.disabled = disabled;
   }
@@ -66,9 +69,9 @@ export function renderStatusDetailHeadline(headline) {
     component.setHeadline(headline);
     return;
   }
-  safeSetHtml("status-detail-head-icon", headline.iconMarkup);
-  safeSetText("status-detail-job-id", headline.jobId);
-  safeSetText("status-detail-head-note", headline.note);
+  safeSetHtml(STATUS_DETAIL_DIALOG.ids.headline.icon, headline.iconMarkup);
+  safeSetText(STATUS_DETAIL_DIALOG.ids.headline.jobId, headline.jobId);
+  safeSetText(STATUS_DETAIL_DIALOG.ids.headline.note, headline.note);
 }
 
 export function renderStatusDetailRuntime(details) {
@@ -77,15 +80,16 @@ export function renderStatusDetailRuntime(details) {
     component.setRuntimeDetails(details);
     return;
   }
-  safeSetText("runtime-current-stage", details.currentStage);
-  safeSetText("runtime-stage-elapsed", details.stageElapsed);
-  safeSetText("runtime-total-elapsed", details.totalElapsed);
-  safeSetText("runtime-retry-count", details.retryCount);
-  safeSetText("runtime-last-transition", details.lastTransition);
-  safeSetText("runtime-terminal-reason", details.terminalReason);
-  safeSetText("runtime-input-protocol", details.inputProtocol);
-  safeSetText("runtime-stage-spec-version", details.stageSpecVersion);
-  safeSetText("runtime-math-mode", details.mathMode);
+  const { runtime } = STATUS_DETAIL_DIALOG.ids;
+  safeSetText(runtime.currentStage, details.currentStage);
+  safeSetText(runtime.stageElapsed, details.stageElapsed);
+  safeSetText(runtime.totalElapsed, details.totalElapsed);
+  safeSetText(runtime.retryCount, details.retryCount);
+  safeSetText(runtime.lastTransition, details.lastTransition);
+  safeSetText(runtime.terminalReason, details.terminalReason);
+  safeSetText(runtime.inputProtocol, details.inputProtocol);
+  safeSetText(runtime.stageSpecVersion, details.stageSpecVersion);
+  safeSetText(runtime.mathMode, details.mathMode);
 }
 
 export function renderStatusDetailFailure(details) {
@@ -94,13 +98,14 @@ export function renderStatusDetailFailure(details) {
     component.setFailureDetails(details);
     return;
   }
-  safeSetText("failure-summary", details.summary);
-  safeSetText("failure-category", details.category);
-  safeSetText("failure-stage", details.stage);
-  safeSetText("failure-root-cause", details.rootCause);
-  safeSetText("failure-suggestion", details.suggestion);
-  safeSetText("failure-last-log-line", details.lastLogLine);
-  safeSetText("failure-retryable", details.retryable);
+  const { failure } = STATUS_DETAIL_DIALOG.ids;
+  safeSetText(failure.summary, details.summary);
+  safeSetText(failure.category, details.category);
+  safeSetText(failure.stage, details.stage);
+  safeSetText(failure.rootCause, details.rootCause);
+  safeSetText(failure.suggestion, details.suggestion);
+  safeSetText(failure.lastLogLine, details.lastLogLine);
+  safeSetText(failure.retryable, details.retryable);
 }
 
 export function renderStatusDetailStageHistory(stageHistory) {
@@ -109,8 +114,9 @@ export function renderStatusDetailStageHistory(stageHistory) {
     component.renderStageHistory(stageHistory);
     return;
   }
-  const list = $("overview-stage-list");
-  const empty = $("overview-stage-empty");
+  const stageHistoryIds = STATUS_DETAIL_DIALOG.ids.stageHistory;
+  const list = $(stageHistoryIds.list);
+  const empty = $(stageHistoryIds.empty);
   if (!list || !empty) {
     return;
   }
@@ -132,9 +138,10 @@ export function renderStatusDetailEvents(events) {
     component.renderEvents(events);
     return;
   }
-  const list = $("events-list");
-  const empty = $("events-empty");
-  const status = $("events-status");
+  const { events: eventIds } = STATUS_DETAIL_DIALOG.ids;
+  const list = $(eventIds.list);
+  const empty = $(eventIds.empty);
+  const status = $(eventIds.status);
   if (!list || !empty || !status) {
     return;
   }
@@ -161,76 +168,51 @@ export function renderStatusDetailSnapshotSections(snapshot) {
 
 export function readTranslationFilterQuery() {
   return {
-    finalStatus: `${$("translation-filter-final-status")?.value || ""}`.trim(),
-    q: `${$("translation-filter-query")?.value || ""}`.trim(),
+    finalStatus: `${$(STATUS_DETAIL_DIALOG.ids.translation.filterFinalStatus)?.value || ""}`.trim(),
+    q: `${$(STATUS_DETAIL_DIALOG.ids.translation.filterQuery)?.value || ""}`.trim(),
   };
 }
 
 export function bindStatusDetailEvents({
-  openStatusDetailDialog,
-  activateDetailTab,
-  handleTranslationApply,
-  changeTranslationPage,
-  loadTranslationItem,
-  replayCurrentItem,
-  rerunCurrentJob,
-  currentJobId,
-  renderTranslationItemDetail,
-  renderTranslationReplay,
-  renderTextBlock,
+  commands,
 }) {
   document.addEventListener("click", (event) => {
-    const button = event.target?.closest?.("#status-detail-btn");
+    const button = event.target?.closest?.(STATUS_DETAIL_DIALOG.selectors.openButton);
     if (!button) {
       return;
     }
     event.preventDefault();
-    openStatusDetailDialog("overview");
+    commands.openOverview();
   });
-  document.querySelectorAll(".detail-tab").forEach((tab) => {
+  document.querySelectorAll(STATUS_DETAIL_DIALOG.selectors.tabs).forEach((tab) => {
     tab.addEventListener("click", () => {
-      activateDetailTab(tab.dataset.tab || "overview");
+      commands.activateTab(tab.dataset[STATUS_DETAIL_DIALOG.dataset.tab] || "overview");
     });
   });
-  $("translation-filter-apply")?.addEventListener("click", () => {
-    void handleTranslationApply();
+  $(STATUS_DETAIL_DIALOG.ids.translation.filterApply)?.addEventListener("click", () => {
+    void commands.applyTranslationFilter();
   });
-  $("translation-filter-query")?.addEventListener("keydown", (event) => {
+  $(STATUS_DETAIL_DIALOG.ids.translation.filterQuery)?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      void handleTranslationApply();
+      void commands.applyTranslationFilter();
     }
   });
-  $("translation-items-prev")?.addEventListener("click", () => {
-    void changeTranslationPage("prev");
+  $(STATUS_DETAIL_DIALOG.ids.translation.itemsPrev)?.addEventListener("click", () => {
+    void commands.changeTranslationPage("prev");
   });
-  $("translation-items-next")?.addEventListener("click", () => {
-    void changeTranslationPage("next");
+  $(STATUS_DETAIL_DIALOG.ids.translation.itemsNext)?.addEventListener("click", () => {
+    void commands.changeTranslationPage("next");
   });
-  $("translation-items-list")?.addEventListener("click", (event) => {
-    const button = event.target?.closest?.("[data-translation-item-id]");
-    const itemId = `${button?.dataset?.translationItemId || ""}`.trim();
-    if (!itemId) {
-      return;
-    }
-    void loadTranslationItem(currentJobId(), itemId).catch((error) => {
-      renderTranslationItemDetail({
-        emptyText: error.message || String(error),
-      });
-    });
+  $(STATUS_DETAIL_DIALOG.ids.translation.itemsList)?.addEventListener("click", (event) => {
+    const button = event.target?.closest?.(STATUS_DETAIL_DIALOG.selectors.translationItem);
+    const itemId = `${button?.dataset?.[STATUS_DETAIL_DIALOG.dataset.translationItemId] || ""}`.trim();
+    void commands.selectTranslationItem(itemId);
   });
-  $("translation-item-replay")?.addEventListener("click", () => {
-    void replayCurrentItem().catch((error) => {
-      renderTranslationReplay({
-        hasResult: true,
-        status: "重放失败",
-        markup: renderTextBlock("replay_error", {
-          message: error.message || String(error),
-        }),
-      });
-    });
+  $(STATUS_DETAIL_DIALOG.ids.translation.itemReplay)?.addEventListener("click", () => {
+    void commands.replayCurrentTranslationItem();
   });
-  $("failure-rerun-btn")?.addEventListener("click", () => {
-    void rerunCurrentJob();
+  $(STATUS_DETAIL_DIALOG.ids.failure.rerunButton)?.addEventListener("click", () => {
+    void commands.rerunCurrentJob();
   });
 }

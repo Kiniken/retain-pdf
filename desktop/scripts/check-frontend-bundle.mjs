@@ -47,9 +47,10 @@ assertExists("index.html");
 assertExists("detail.html");
 assertExists("reader.html");
 assertExists("runtime-config.js");
+assertExists("app-bundle-entry.js");
 assertExists("dist/app.bundle.js");
-assertExists("dist/app.bundle.css");
-assertExists("src/js/main.js");
+assertExists("styles.css");
+assertExists("src/js/bootstrap/app-initializer.js");
 assertExists("src/js/reader/index.js");
 assertExists("src/js/reader/pdf-controller.js");
 assertExists("src/js/reader/pdf-document.js");
@@ -76,13 +77,13 @@ const indexHtml = readFile("index.html");
 if (!indexHtml.includes("./dist/app.bundle.js")) {
   fail("Desktop index.html is not using the production app bundle");
 }
-if (!indexHtml.includes("./dist/app.bundle.css")) {
-  fail("Desktop index.html is not loading the production app bundle CSS");
+if (!indexHtml.includes("./styles.css")) {
+  fail("Desktop index.html is not loading the production stylesheet");
 }
 
-const mainHelpersJs = readFile("src/js/bootstrap/main-helpers.js");
-if (!mainHelpersJs.includes("./vendor/pdfjs-dist/build/pdf.mjs")) {
-  fail("Desktop bootstrap/main-helpers.js is missing root-relative pdfjs vendor path");
+const uploadPdfPageCountJs = readFile("src/js/features/upload/pdf-page-count.js");
+if (!uploadPdfPageCountJs.includes("../../../vendor/pdfjs-dist/build/pdf.mjs")) {
+  fail("Desktop upload/pdf-page-count.js is missing root-relative pdfjs vendor path");
 }
 
 const readerPdfDocumentJs = readFile("src/js/reader/pdf-document.js");

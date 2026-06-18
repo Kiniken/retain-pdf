@@ -1,4 +1,5 @@
-import { $ } from "../../dom.js";
+import { $ } from "../../dom/query.js";
+import { APP_DIALOG_IDS } from "../../contracts/app-contract.js";
 
 const DEVELOPER_EASTER_EGG_SEQUENCE = "bbpp";
 
@@ -16,7 +17,7 @@ export function activateDeveloperTabView(tabName = "model") {
 }
 
 export function openDeveloperDialogView() {
-  const dialog = $("developer-dialog");
+  const dialog = $(APP_DIALOG_IDS.developerSettings);
   if (!dialog || dialog.open) {
     return;
   }

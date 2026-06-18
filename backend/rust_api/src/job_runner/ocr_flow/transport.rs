@@ -3,13 +3,13 @@ use std::path::{Path, PathBuf};
 use anyhow::{anyhow, Result};
 
 use crate::db::Db;
-use crate::models::JobRuntimeState;
+use crate::models::domain::JobRuntimeState;
 use crate::ocr_provider::OcrProviderKind;
 
 use super::artifacts::{download_source_pdf, ensure_source_pdf_from_bundle};
 use super::page_subset::prepare_uploaded_source_pdf;
 
-fn resolve_local_upload_path(db: &Db, job: &JobRuntimeState) -> Result<Option<PathBuf>> {
+pub(super) fn resolve_local_upload_path(db: &Db, job: &JobRuntimeState) -> Result<Option<PathBuf>> {
     let upload_id = job.request_payload.source.upload_id.trim();
     if upload_id.is_empty() {
         return Ok(None);

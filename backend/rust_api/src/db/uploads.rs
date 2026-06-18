@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use rusqlite::params;
 
-use crate::models::UploadRecord;
+use crate::models::domain::UploadRecord;
 use crate::storage_paths::{resolve_data_path, to_relative_data_path};
 
 use super::Db;

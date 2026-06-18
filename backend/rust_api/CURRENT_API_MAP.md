@@ -91,12 +91,14 @@
 当前 provider 分发口径：
 
 - `workflow = book`
-- `ocr.provider = mineru | paddle`
+- `ocr.provider = mineru | paddle | local | <configured local_command provider>`
 
 也就是：
 
 - `workflow` 决定跑哪条大流程
 - `ocr.provider` 决定 OCR 用哪个 provider
+- `GET /api/v1/providers/ocr` 是前端和外部集成方发现 provider credential/options/capabilities 的入口
+- provider-specific 非密钥参数统一放在 `ocr.options`；multipart helper 使用 JSON 字符串字段 `ocr_options`
 
 关键代码：
 
@@ -193,8 +195,8 @@ Rust 根据 workflow 选择运行计划：
 - `DATA_ROOT/jobs/<job_id>/specs/translate.spec.json`
 - `DATA_ROOT/jobs/<job_id>/specs/render.spec.json`
 
-`provider.spec.json` / `provider.stage.v1` 只保留给 legacy provider-case/local helper，不是当前生产主链的
-`book` orchestrator contract。
+`provider.spec.json` / `provider.stage.v1` 用于 OCR-only provider worker 和 legacy provider-case/local helper。
+当前 `book` orchestrator 仍然走 Rust 内部 OCR child transport，再进入 normalize/translate/render stage。
 
 渲染策略也在 `render` 中集中配置。当前默认：
 
@@ -319,12 +321,14 @@ Rust API 生产主链入口。
 
 前端进度展示的推荐入口：
 
-- 全流程任务只轮询 `GET /api/v1/jobs/<job_id>/events`
+- 当前状态只读 `GET /api/v1/jobs/<job_id>` 或 `GET /api/v1/jobs` 里的 `stage_snapshot`
+- `events` 只做历史、时间线和排障，不参与当前阶段判断
 - 不需要额外轮询 `{job_id}-ocr`
-- OCR / 翻译 / 渲染统一看事件里的：
+- OCR / 翻译 / 渲染历史事件仍统一看事件里的：
   - `display_stage`
   - `stage`
   - `substage`
+  - `lane`
   - `stage_detail`
   - `event_type`
   - `progress.unit`
@@ -356,9 +360,12 @@ Rust API 生产主链入口。
 
 阶段分层规则也已经固定：
 
-- 前端显示阶段放在 `display_stage`
+- 当前前端显示阶段放在 `stage_snapshot.display_stage`
 - 机器阶段放在 `stage`
+- `stage_snapshot` 是 current stage and progress 的唯一真理
+- `background_snapshots` 只显示后台辅助进度，例如翻译期间的 `render_prewarm`
 - provider 私有状态放在 `provider_stage`
+- `message` / `stage_detail` 只当文案，不参与阶段判断
 
 ## 10. 现在最该记住的三句话
 

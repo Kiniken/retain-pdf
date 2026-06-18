@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::models::{now_iso, JobRuntimeState};
+use crate::models::domain::{now_iso, JobRuntimeState};
 use crate::ocr_provider::OcrTaskStatus;
 
 use crate::job_runner::{job_artifacts_mut, ocr_provider_diagnostics_mut, ProcessRuntimeDeps};

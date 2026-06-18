@@ -1,5 +1,8 @@
 import * as pdfjsLib from "../../../vendor/pdfjs-dist/build/pdf.mjs";
-import { apiBase, buildApiHeaders } from "../config.js";
+import { resolveResourceUrl } from "../job/artifacts.js";
+import {
+  defaultReaderPdfDocumentConfigPort,
+} from "./config-port.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "../../../vendor/pdfjs-dist/build/pdf.worker.mjs",
@@ -11,27 +14,19 @@ const PDFJS_STANDARD_FONT_DATA_URL = new URL("../../../vendor/pdfjs-dist/standar
 const READER_RANGE_CHUNK_SIZE = 512 * 1024;
 
 export function resolveReaderArtifactUrl(item) {
-  const raw = `${item?.resource_url || item?.resource_path || ""}`.trim();
-  if (!raw) {
-    return "";
-  }
-  if (/^https?:\/\//i.test(raw)) {
-    return raw;
-  }
-  if (raw.startsWith("/")) {
-    return `${apiBase()}${raw}`;
-  }
-  return `${apiBase()}/${raw.replace(/^\.?\//, "")}`;
+  return resolveResourceUrl(item?.resource_url || item?.resource_path || "");
 }
 
-export async function loadPdfDocument({ itemOrUrl }) {
-  const url = typeof itemOrUrl === "string" ? itemOrUrl : resolveReaderArtifactUrl(itemOrUrl);
+export function buildPdfDocumentOptions({
+  url,
+  configPort = defaultReaderPdfDocumentConfigPort,
+} = {}) {
   if (!url) {
     return null;
   }
-  return pdfjsLib.getDocument({
+  return {
     url,
-    httpHeaders: buildApiHeaders(),
+    httpHeaders: configPort.apiHeaders(),
     withCredentials: false,
     disableRange: false,
     disableStream: false,
@@ -39,5 +34,16 @@ export async function loadPdfDocument({ itemOrUrl }) {
     cMapUrl: PDFJS_CMAP_URL,
     cMapPacked: true,
     standardFontDataUrl: PDFJS_STANDARD_FONT_DATA_URL,
-  }).promise;
+  };
+}
+
+export async function loadPdfDocument({
+  itemOrUrl,
+  configPort = defaultReaderPdfDocumentConfigPort,
+}) {
+  const url = typeof itemOrUrl === "string" ? itemOrUrl : resolveReaderArtifactUrl(itemOrUrl);
+  if (!url) {
+    return null;
+  }
+  return pdfjsLib.getDocument(buildPdfDocumentOptions({ url, configPort })).promise;
 }

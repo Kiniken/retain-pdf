@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
 use rusqlite::params;
 
-use crate::models::{JobFailureInfo, JobRuntimeInfo, JobSnapshot, JobStatusKind, WorkflowKind};
+use crate::models::domain::{
+    JobFailureInfo, JobRuntimeInfo, JobSnapshot, JobStatusKind, WorkflowKind,
+};
 
 use super::rows::{row_to_job_snapshot, JOB_SELECT_SQL};
 use super::{Db, JobProcessRecord};

@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::{anyhow, Result};
 
 use crate::job_runner::{job_artifacts_mut, ocr_provider_diagnostics_mut, ProcessRuntimeDeps};
-use crate::models::JobRuntimeState;
+use crate::models::domain::JobRuntimeState;
 use crate::ocr_provider::mineru::MineruClient;
 
 use super::bundle_download_retry::download_mineru_bundle_with_retry;
