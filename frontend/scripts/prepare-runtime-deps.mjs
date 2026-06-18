@@ -40,6 +40,10 @@ copyPackageAssets("pdfjs-dist", [
   "web/pdf_viewer.mjs",
 ]);
 
+copyPackageAssets("pdf-lib", [
+  "dist/pdf-lib.esm.js",
+]);
+
 copyPackageAssets("lottie-web", [
   "build/player/lottie.min.js",
 ]);
