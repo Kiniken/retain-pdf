@@ -1,7 +1,9 @@
-const PDFJS_MODULE_URL = new URL("../../../vendor/pdfjs-dist/build/pdf.mjs", import.meta.url).toString();
-const PDFJS_CMAP_URL = new URL("../../../vendor/pdfjs-dist/cmaps/", import.meta.url).toString();
-const PDFJS_STANDARD_FONT_DATA_URL = new URL("../../../vendor/pdfjs-dist/standard_fonts/", import.meta.url).toString();
-const PDFJS_WORKER_URL = new URL("../../../vendor/pdfjs-dist/build/pdf.worker.mjs", import.meta.url).toString();
+import { resolvePdfjsVendorUrl } from "../../runtime/vendor-url.js";
+
+const PDFJS_MODULE_URL = resolvePdfjsVendorUrl("build/pdf.mjs");
+const PDFJS_CMAP_URL = resolvePdfjsVendorUrl("cmaps/");
+const PDFJS_STANDARD_FONT_DATA_URL = resolvePdfjsVendorUrl("standard_fonts/");
+const PDFJS_WORKER_URL = resolvePdfjsVendorUrl("build/pdf.worker.mjs");
 
 let pdfjsPromise = null;
 

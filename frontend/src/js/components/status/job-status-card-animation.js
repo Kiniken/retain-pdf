@@ -1,6 +1,7 @@
 import { resolveAnimationPathForStage } from "./job-status-card-visuals.js";
+import { resolveLottieVendorUrl } from "../../runtime/vendor-url.js";
 
-const LOTTIE_WEB_PATH = "./vendor/lottie-web/build/player/lottie.min.js";
+const LOTTIE_WEB_PATH = resolveLottieVendorUrl("build/player/lottie.min.js");
 let lottieLoaderPromise = null;
 
 function loadLottieWeb() {

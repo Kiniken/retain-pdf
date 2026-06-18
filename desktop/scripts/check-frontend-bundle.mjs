@@ -51,6 +51,7 @@ assertExists("app-bundle-entry.js");
 assertExists("dist/app.bundle.js");
 assertExists("styles.css");
 assertExists("src/js/bootstrap/app-initializer.js");
+assertExists("src/js/runtime/vendor-url.js");
 assertExists("src/js/reader/index.js");
 assertExists("src/js/reader/pdf-controller.js");
 assertExists("src/js/reader/pdf-document.js");
@@ -82,17 +83,29 @@ if (!indexHtml.includes("./styles.css")) {
 }
 
 const uploadPdfPageCountJs = readFile("src/js/features/upload/pdf-page-count.js");
-if (!uploadPdfPageCountJs.includes("../../../vendor/pdfjs-dist/build/pdf.mjs")) {
-  fail("Desktop upload/pdf-page-count.js is missing root-relative pdfjs vendor path");
+if (!uploadPdfPageCountJs.includes("../../runtime/vendor-url.js")) {
+  fail("Desktop upload/pdf-page-count.js is missing runtime vendor resolver");
 }
 
 const readerPdfDocumentJs = readFile("src/js/reader/pdf-document.js");
-if (!readerPdfDocumentJs.includes("../../../vendor/pdfjs-dist/build/pdf.mjs")) {
-  fail("Desktop reader/pdf-document.js did not rewrite pdfjs import to vendor path");
+if (!readerPdfDocumentJs.includes("../runtime/vendor-url.js")) {
+  fail("Desktop reader/pdf-document.js is missing runtime vendor resolver");
+}
+
+const appBundleJs = readFile("dist/app.bundle.js");
+if (!appBundleJs.includes("./vendor/")) {
+  fail("Desktop app bundle is missing page-rooted vendor resolver path");
+}
+if (appBundleJs.includes("../../../vendor/pdfjs-dist/build/pdf.mjs")) {
+  fail("Desktop app bundle still contains module-depth pdfjs vendor path");
+}
+if (appBundleJs.includes("app.asar/vendor/")) {
+  fail("Desktop app bundle contains app.asar root vendor path");
 }
 
 const generatedFiles = [
   ...collectFiles(frontendRoot, new Set([".html"])),
+  ...collectFiles(path.join(frontendRoot, "dist"), new Set([".js", ".mjs"])),
   ...collectFiles(path.join(frontendRoot, "src", "js"), new Set([".js", ".mjs"])),
 ];
 const forbiddenPatterns = [

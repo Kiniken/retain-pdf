@@ -1,17 +1,31 @@
-import * as pdfjsLib from "../../../vendor/pdfjs-dist/build/pdf.mjs";
 import { resolveResourceUrl } from "../job/artifacts.js";
+import { resolvePdfjsVendorUrl } from "../runtime/vendor-url.js";
 import {
   defaultReaderPdfDocumentConfigPort,
 } from "./config-port.js";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "../../../vendor/pdfjs-dist/build/pdf.worker.mjs",
-  import.meta.url,
-).toString();
+const PDFJS_MODULE_URL = resolvePdfjsVendorUrl("build/pdf.mjs");
+const PDFJS_WORKER_URL = resolvePdfjsVendorUrl("build/pdf.worker.mjs");
+const PDFJS_CMAP_URL = resolvePdfjsVendorUrl("cmaps/");
+const PDFJS_STANDARD_FONT_DATA_URL = resolvePdfjsVendorUrl("standard_fonts/");
 
-const PDFJS_CMAP_URL = new URL("../../../vendor/pdfjs-dist/cmaps/", import.meta.url).toString();
-const PDFJS_STANDARD_FONT_DATA_URL = new URL("../../../vendor/pdfjs-dist/standard_fonts/", import.meta.url).toString();
 const READER_RANGE_CHUNK_SIZE = 512 * 1024;
+let pdfjsPromise = null;
+
+async function loadPdfjs() {
+  if (!pdfjsPromise) {
+    pdfjsPromise = import(PDFJS_MODULE_URL)
+      .then((module) => {
+        module.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+        return module;
+      })
+      .catch((error) => {
+        pdfjsPromise = null;
+        throw error;
+      });
+  }
+  return pdfjsPromise;
+}
 
 export function resolveReaderArtifactUrl(item) {
   return resolveResourceUrl(item?.resource_url || item?.resource_path || "");
@@ -45,5 +59,6 @@ export async function loadPdfDocument({
   if (!url) {
     return null;
   }
+  const pdfjsLib = await loadPdfjs();
   return pdfjsLib.getDocument(buildPdfDocumentOptions({ url, configPort })).promise;
 }
