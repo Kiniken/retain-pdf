@@ -15,11 +15,9 @@ from services.rendering.source_cleanup.pdf.stream_engine import strip_bbox_text_
 from services.rendering.source_cleanup.types import BBoxTextStripResult
 
 
-BBOX_TEXT_STRIP_PARALLEL_PAGE_THRESHOLD_MIN = 12
-BBOX_TEXT_STRIP_PARALLEL_PAGE_THRESHOLD_MAX = 64
+BBOX_TEXT_STRIP_PARALLEL_PAGE_THRESHOLD = 12
 BBOX_TEXT_STRIP_PARALLEL_MAX_WORKERS = 6
 BBOX_TEXT_STRIP_PAGES_PER_WORKER = 6
-BBOX_TEXT_STRIP_PARALLEL_MIN_STREAM_WEIGHT = 1_500_000
 
 
 @dataclass
@@ -254,8 +252,7 @@ def _strip_pages(
     skip_form_xobject_pages: bool,
     deadline: float | None,
 ) -> tuple[list[tuple[int, bytes | None, int, int]], float, frozenset[int], list[tuple[int, int, float]]]:
-    page_weights = _page_content_stream_weights(pdf, page_rects)
-    if not _should_parallel_strip(page_weights):
+    if len(page_rects) < BBOX_TEXT_STRIP_PARALLEL_PAGE_THRESHOLD:
         started = time.perf_counter()
         skipped_form_pages: set[int] = set()
         results = [
@@ -307,7 +304,7 @@ def _strip_pages(
 
     chunk_timings: list[tuple[int, int, float]] = []
     if plain_page_rects:
-        page_chunks = _page_chunks(plain_page_rects, page_protected_rects, worker_count, page_weights)
+        page_chunks = _page_chunks(pdf, plain_page_rects, page_protected_rects, worker_count)
         with ProcessPoolExecutor(max_workers=worker_count) as executor:
             futures = [
                 executor.submit(_strip_page_chunk_worker, str(source_pdf_path), chunk)
@@ -413,50 +410,7 @@ def _parallel_worker_count(page_count: int) -> int:
             pass
     cpu_count = os.cpu_count() or 1
     page_limited_workers = max(1, (page_count + BBOX_TEXT_STRIP_PAGES_PER_WORKER - 1) // BBOX_TEXT_STRIP_PAGES_PER_WORKER)
-    return max(1, min(_parallel_max_workers(), cpu_count, page_count, page_limited_workers))
-
-
-def _should_parallel_strip(page_weights: dict[int, int]) -> bool:
-    if len(page_weights) < _parallel_page_threshold():
-        return False
-    return sum(page_weights.values()) >= _parallel_min_stream_weight()
-
-
-def _parallel_page_threshold() -> int:
-    raw = str(os.environ.get("RETAIN_BBOX_TEXT_STRIP_PARALLEL_THRESHOLD", "") or "").strip()
-    if raw:
-        try:
-            return max(1, int(raw))
-        except ValueError:
-            pass
-    cpu_count = os.cpu_count() or 1
-    return max(
-        BBOX_TEXT_STRIP_PARALLEL_PAGE_THRESHOLD_MIN,
-        min(
-            BBOX_TEXT_STRIP_PARALLEL_PAGE_THRESHOLD_MAX,
-            cpu_count * BBOX_TEXT_STRIP_PAGES_PER_WORKER,
-        ),
-    )
-
-
-def _parallel_max_workers() -> int:
-    raw = str(os.environ.get("RETAIN_BBOX_TEXT_STRIP_MAX_WORKERS", "") or "").strip()
-    if raw:
-        try:
-            return max(1, int(raw))
-        except ValueError:
-            pass
-    return BBOX_TEXT_STRIP_PARALLEL_MAX_WORKERS
-
-
-def _parallel_min_stream_weight() -> int:
-    raw = str(os.environ.get("RETAIN_BBOX_TEXT_STRIP_PARALLEL_MIN_STREAM_WEIGHT", "") or "").strip()
-    if raw:
-        try:
-            return max(1, int(raw))
-        except ValueError:
-            pass
-    return BBOX_TEXT_STRIP_PARALLEL_MIN_STREAM_WEIGHT
+    return max(1, min(BBOX_TEXT_STRIP_PARALLEL_MAX_WORKERS, cpu_count, page_count, page_limited_workers))
 
 
 def _rect_tuples(rects: list[fitz.Rect]) -> tuple[tuple[float, float, float, float], ...]:
@@ -464,16 +418,19 @@ def _rect_tuples(rects: list[fitz.Rect]) -> tuple[tuple[float, float, float, flo
 
 
 def _page_chunks(
+    pdf: pikepdf.Pdf,
     page_rects: dict[int, list[fitz.Rect]],
     page_protected_rects: dict[int, list[fitz.Rect]],
     worker_count: int,
-    page_weights: dict[int, int] | None = None,
 ) -> list[list[tuple[int, int, tuple[tuple[float, float, float, float], ...], tuple[tuple[float, float, float, float], ...]]]]:
     chunks: list[list[tuple[int, int, tuple[tuple[float, float, float, float], ...], tuple[tuple[float, float, float, float], ...]]]] = [
         [] for _ in range(max(1, worker_count))
     ]
     chunk_weights = [0 for _ in chunks]
-    page_weights = page_weights or {page_idx: 1 for page_idx in page_rects}
+    page_weights = {
+        page_idx: _page_content_stream_weight(pdf, page_idx)
+        for page_idx in page_rects
+    }
     for page_idx, rects in sorted(page_rects.items(), key=lambda item: page_weights[item[0]], reverse=True):
         chunk_index = min(range(len(chunks)), key=lambda index: chunk_weights[index])
         chunks[chunk_index].append(
@@ -509,16 +466,6 @@ def _page_content_stream_weight(pdf: pikepdf.Pdf, page_idx: int) -> int:
         except Exception:
             total += _stream_declared_length(stream)
     return max(total, 1)
-
-
-def _page_content_stream_weights(
-    pdf: pikepdf.Pdf,
-    page_rects: dict[int, list[fitz.Rect]],
-) -> dict[int, int]:
-    return {
-        page_idx: _page_content_stream_weight(pdf, page_idx)
-        for page_idx in page_rects
-    }
 
 
 def _content_stream_objects(contents: object) -> list[object]:

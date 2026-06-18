@@ -25,20 +25,14 @@ class PathPaintRewriteDecision:
 
 @dataclass
 class PathTracker:
-    x0: float | None = None
-    y0: float | None = None
-    x1: float | None = None
-    y1: float | None = None
+    points: list[tuple[float, float]]
 
     @classmethod
     def empty(cls) -> "PathTracker":
-        return cls()
+        return cls(points=[])
 
     def clear(self) -> None:
-        self.x0 = None
-        self.y0 = None
-        self.x1 = None
-        self.y1 = None
+        self.points.clear()
 
     def record(self, op: str, operands: object, ctm: PdfMatrix) -> None:
         if op == "h":
@@ -47,12 +41,14 @@ class PathTracker:
             self._record_rect(operands, ctm)
             return
         for x, y in _operator_points(op, operands):
-            self._include_point(transform_point(ctm, x, y))
+            self.points.append(transform_point(ctm, x, y))
 
     def rect(self) -> RectTuple | None:
-        if self.x0 is None or self.y0 is None or self.x1 is None or self.y1 is None:
+        if not self.points:
             return None
-        return (self.x0, self.y0, self.x1, self.y1)
+        xs = [point[0] for point in self.points]
+        ys = [point[1] for point in self.points]
+        return (min(xs), min(ys), max(xs), max(ys))
 
     def _record_rect(self, operands: object, ctm: PdfMatrix) -> None:
         if len(operands) < 4:
@@ -67,20 +63,7 @@ class PathTracker:
             (x + width, y + height),
             (x, y + height),
         ):
-            self._include_point(transform_point(ctm, px, py))
-
-    def _include_point(self, point: tuple[float, float]) -> None:
-        x, y = point
-        if self.x0 is None:
-            self.x0 = x
-            self.y0 = y
-            self.x1 = x
-            self.y1 = y
-            return
-        self.x0 = min(self.x0, x)
-        self.y0 = min(self.y0, y)
-        self.x1 = max(self.x1 or x, x)
-        self.y1 = max(self.y1 or y, y)
+            self.points.append(transform_point(ctm, px, py))
 
 
 def decide_path_paint_rewrite(

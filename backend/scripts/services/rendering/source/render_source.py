@@ -44,6 +44,7 @@ def build_render_source_pdf(
     bbox_text_strip_candidates: BBoxTextStripCandidates | None = None,
     source_cleanup_strategy: str = "pikepdf_text_strip",
     document_analysis: RenderDocumentAnalysis | None = None,
+    pdf_structure_profile_path: Path | None = None,
 ) -> RenderSourcePdf:
     temp_paths: list[Path] = []
     render_source_path = source_pdf_path
@@ -208,6 +209,7 @@ def prepare_render_source_pdf(
     start_page: int = 0,
     end_page: int = -1,
     artifact_mode: bool = False,
+    pdf_structure_profile_path: Path | None = None,
 ) -> tuple[Path, list[Path]]:
     prepared = build_render_source_pdf(
         source_pdf_path=source_pdf_path,
@@ -218,5 +220,6 @@ def prepare_render_source_pdf(
         start_page=start_page,
         end_page=end_page,
         artifact_mode=artifact_mode,
+        pdf_structure_profile_path=pdf_structure_profile_path,
     )
     return prepared.path, prepared.temp_paths

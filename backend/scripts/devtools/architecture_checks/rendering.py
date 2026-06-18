@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from devtools.architecture_checks.common import SCRIPTS_ROOT
+from devtools.architecture_checks.common import imported_from_symbols
 from devtools.architecture_checks.common import imported_modules
 from devtools.architecture_checks.common import module_allowed
 from devtools.architecture_checks.common import read_text
@@ -31,9 +32,12 @@ RENDERING_ALLOWED_ROOT_DIRS = {
     "layout",
     "legacy",
     "output",
+    "pdf_structure_profile",
     "policy",
     "source",
     "source_cleanup",
+    "tools",
+    "visual_profile",
     "workflow",
 }
 RENDERING_ALLOWED_ROOT_FILES = {
@@ -53,6 +57,7 @@ RENDERING_LAYER_IMPORT_RULES: dict[str, tuple[str, ...]] = {
         "services.rendering.layout",
         "services.rendering.output",
         "services.rendering.legacy",
+        "services.rendering.visual_profile",
     ),
     "analysis": (
         "services.rendering.analysis",
@@ -84,7 +89,9 @@ RENDERING_LAYER_IMPORT_RULES: dict[str, tuple[str, ...]] = {
         # precomputed Typst page/color profiles for the render stage.
         "services.rendering.output.typst.book_support",
         "services.rendering.output.typst.color_adapt",
+        "services.rendering.pdf_structure_profile",
         "services.rendering.source_cleanup",
+        "services.rendering.visual_profile",
     ),
     "layout": (
         "services.rendering.layout",
@@ -97,6 +104,7 @@ RENDERING_LAYER_IMPORT_RULES: dict[str, tuple[str, ...]] = {
         "services.rendering.policy",
         # Output owns overlay composition and may sample/rebuild source backgrounds.
         "services.rendering.source.background",
+        "services.rendering.visual_profile",
     ),
     "policy": (
         "services.rendering.policy",
@@ -108,6 +116,23 @@ RENDERING_LAYER_IMPORT_RULES: dict[str, tuple[str, ...]] = {
         "services.rendering.policy",
         "services.rendering.source.background.detect",
         "services.rendering.source.rects",
+    ),
+    "tools": (
+        "services.rendering.tools",
+    ),
+    "pdf_structure_profile": (
+        "services.rendering.pdf_structure_profile",
+        "services.rendering.source.rects",
+        "services.rendering.source_cleanup.planning.coordinate_resolver",
+        "services.rendering.source_cleanup.planning.drawing_classifier",
+    ),
+    "visual_profile": (
+        "services.rendering.visual_profile",
+        "services.document_schema.semantics",
+        "services.rendering.layout.font_roles",
+        "services.rendering.layout.typography.geometry",
+        "services.rendering.policy",
+        "services.rendering.source.background.fill",
     ),
     "legacy": (
         "services.rendering.workflow",
@@ -147,6 +172,19 @@ REMOVED_SOURCE_PREPARATION_BBOX_MODULES = (
     "services.rendering.source.preparation.bbox_text_strip_hit_test",
     "services.rendering.source.preparation.bbox_text_strip_segments",
 )
+SOURCE_CLEANUP_NEXT_EXPERIMENTAL_MODULES = (
+    "services.rendering.source_cleanup_next",
+    "services.rendering.source_cleanup.planning.decision_builder",
+    "services.rendering.source_cleanup.planning.deletion_contract",
+    "services.rendering.source_cleanup.planning.formula_adjacency",
+    "services.rendering.source_cleanup.planning.strategy",
+    "services.rendering.source_cleanup.planning.text_groups",
+    "services.rendering.source_cleanup.pdf.document_pages",
+    "services.rendering.source_cleanup.pdf.document_parallel",
+)
+SOURCE_CLEANUP_NEXT_EXPERIMENTAL_SYMBOLS = {
+    ("services.rendering.source_cleanup", "build_source_cleanup_plan"),
+}
 
 
 def rendering_layer_for(path: Path) -> str | None:
@@ -364,6 +402,7 @@ def check_rendering_internal_boundaries(errors: list[str]) -> None:
     source_cleanup_rect_entrypoint = "strip_bbox_text_rects_from_pdf_copy"
     source_cleanup_rect_entrypoint_allowed = {
         RENDERING_ROOT / "source_cleanup" / "__init__.py",
+        RENDERING_ROOT / "source_cleanup" / "executor.py",
         RENDERING_ROOT / "source_cleanup" / "pdf" / "__init__.py",
         RENDERING_ROOT / "source_cleanup" / "pdf" / "document.py",
     }
@@ -480,6 +519,21 @@ def check_rendering_internal_boundaries(errors: list[str]) -> None:
             if module_allowed(module, REMOVED_SOURCE_PREPARATION_BBOX_MODULES):
                 errors.append(
                     f"{rel_path}: removed bbox source-preparation module '{module}'; use services.rendering.source_cleanup boundary"
+                )
+                break
+
+    for path in scan_py_files(RENDERING_ROOT):
+        rel_path = rel(path)
+        for module in imported_modules(path):
+            if module_allowed(module, SOURCE_CLEANUP_NEXT_EXPERIMENTAL_MODULES):
+                errors.append(
+                    f"{rel_path}: source_cleanup_next experiment module '{module}' must not be imported by the beta10 cleanup mainline"
+                )
+                break
+        for module, symbol in imported_from_symbols(path):
+            if (module, symbol) in SOURCE_CLEANUP_NEXT_EXPERIMENTAL_SYMBOLS:
+                errors.append(
+                    f"{rel_path}: experimental source cleanup symbol '{symbol}' must not be imported by the beta10 cleanup mainline"
                 )
                 break
 

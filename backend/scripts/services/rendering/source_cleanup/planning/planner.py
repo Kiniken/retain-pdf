@@ -40,6 +40,7 @@ def plan_source_cleanup(
     skip_formula_pages: bool = False,
     skip_form_xobject_pages: bool = True,
     document_analysis: RenderDocumentAnalysis | None = None,
+    pdf_structure_profile=None,
 ) -> BBoxTextStripCandidates:
     accumulator = BBoxTextStripCandidateAccumulator()
     doc = fitz.open(source_pdf_path)

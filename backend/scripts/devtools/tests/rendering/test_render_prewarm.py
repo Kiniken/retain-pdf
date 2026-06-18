@@ -29,7 +29,11 @@ from services.rendering.source.prewarm import try_load_render_payload_prewarm
 from services.rendering.source.prewarm import try_load_prewarmed_render_source_pdf
 from services.rendering.source.prewarm import _pages_for_prewarm_mode_probe
 from services.rendering.source.prewarm_payload import first_line_indent_from_item_lines
+from services.rendering.source.prewarm_payload import build_payload_prewarm
 from services.rendering.source.prewarm_page_specs import render_page_specs_from_manifest
+from services.rendering.pdf_structure_profile import pdf_structure_profile_path_from_prewarm_manifest
+from services.rendering.visual_profile import visual_profile_path_from_prewarm_manifest
+from services.rendering.visual_profile.contracts import VISUAL_PROFILE_ALGORITHM_VERSION
 from services.rendering.workflow.executor import execute_render_plan
 from runtime.pipeline.render_preprocess import run_ocr_render_preprocess
 
@@ -122,7 +126,7 @@ def test_render_source_prewarm_manifest_is_reused_without_temp_cleanup() -> None
         assert any(path.name.endswith(".source-bbox-text-stripped.pdf") for path in artifacts_dir.rglob("*.pdf"))
 
 
-def test_render_plan_persists_sync_source_prewarm_for_next_render() -> None:
+def test_render_plan_persists_sync_overlay_source_cleanup_for_next_render() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         source_pdf = root / "source.pdf"
@@ -150,13 +154,24 @@ def test_render_plan_persists_sync_source_prewarm_for_next_render() -> None:
         )
 
         seen_indents: list[dict[str, float]] = []
+        original_build_render_source_pdf = execute_render_plan.__globals__["build_render_source_pdf"]
 
         def _fake_overlay(*, source_pdf_path, translated_pages, context):
             assert source_pdf_path.exists()
             seen_indents.append(context.first_line_indent_lookup or {})
             return 1, {"route": "sync-cache-test"}
 
+        def _spy_build_render_source_pdf(**kwargs):
+            assert kwargs["source_cleanup_strategy"] == "bbox_text_strip"
+            profile_path = kwargs.get("pdf_structure_profile_path")
+            assert profile_path == pdf_structure_profile_path_from_prewarm_manifest(manifest_path)
+            assert profile_path.exists()
+            return original_build_render_source_pdf(**kwargs)
+
         with mock.patch(
+            "services.rendering.workflow.executor.build_render_source_pdf",
+            side_effect=_spy_build_render_source_pdf,
+        ), mock.patch(
             "services.rendering.workflow.executor.run_overlay_render",
             side_effect=_fake_overlay,
         ):
@@ -415,6 +430,8 @@ def test_sync_source_prewarm_preserves_existing_payload_prewarm() -> None:
         assert payload_prewarm.first_line_indent_lookup["p001-b001"] == 12.5
         assert payload_prewarm.render_colors_by_item_id is not None
         assert payload_prewarm.render_colors_by_item_id["p001-b001"]["text_color"] == (0.1, 0.1, 0.1)
+        assert payload_prewarm.visual_profile_path is not None
+        assert payload_prewarm.visual_profile_path.exists()
         assert seen_colors and seen_colors[0]["p001-b001"]["cover_fill"] == (0.9, 0.9, 0.9)
 
 
@@ -473,6 +490,81 @@ def test_ocr_render_preprocess_manifest_matches_translated_payload() -> None:
         assert payload is not None
         assert payload.render_colors_by_item_id
         assert payload.document_analysis is not None
+
+
+def test_payload_prewarm_writes_visual_profile_color_manifest() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source_pdf = root / "source.pdf"
+        manifest_path = root / "artifacts" / "render_prewarm" / "render_source_prewarm_manifest.json"
+        manifest_path.parent.mkdir(parents=True)
+        _source_pdf(source_pdf)
+
+        payload = build_payload_prewarm(
+            source_pdf_path=source_pdf,
+            translated_pages=_translated_page_payload(),
+            manifest_path=manifest_path,
+            effective_render_mode="overlay",
+            source_cleanup_strategy=layout.SOURCE_CLEANUP_TYPST_FILL,
+        )
+
+        color_profile = payload["render_color_profile"]
+        assert color_profile["algorithm"] == "render_color_profile_v3_visual_profile"
+        assert payload["pdf_structure_profile_path"] == "pdf_structure_profile.v1.json"
+        assert payload["visual_profile_path"] == "visual_profile.v1.json"
+        assert color_profile["visual_profile_path"] == "visual_profile.v1.json"
+        assert color_profile["colors_by_item_id"]
+        visual_profile_path = visual_profile_path_from_prewarm_manifest(manifest_path)
+        visual_profile = json.loads(visual_profile_path.read_text(encoding="utf-8"))
+        assert visual_profile["algorithm"] == VISUAL_PROFILE_ALGORITHM_VERSION
+        assert "p001-b001" in visual_profile["pages"]["0"]["items"]
+        structure_profile_path = pdf_structure_profile_path_from_prewarm_manifest(manifest_path)
+        structure_profile = json.loads(structure_profile_path.read_text(encoding="utf-8"))
+        assert structure_profile["algorithm"] == "pdf_structure_profile_v1"
+        assert structure_profile["pages"]["0"]["text_objects"]
+
+
+def test_payload_prewarm_loads_visual_profile_path_from_manifest() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source_pdf = root / "source.pdf"
+        output_pdf = root / "rendered" / "out.pdf"
+        artifacts_dir = root / "artifacts"
+        output_pdf.parent.mkdir()
+        _source_pdf(source_pdf)
+
+        handle = start_render_source_prewarm(
+            RenderPrewarmSpec(
+                source_pdf_path=source_pdf,
+                output_pdf_path=output_pdf,
+                artifacts_dir=artifacts_dir,
+                translated_pages=_translated_page_payload(),
+                render_mode="overlay",
+                start_page=0,
+                end_page=0,
+                pdf_compress_dpi=0,
+                source_cleanup_strategy=layout.SOURCE_CLEANUP_TYPST_FILL,
+            )
+        )
+        manifest_path = handle.wait()
+
+        payload_prewarm = try_load_render_payload_prewarm(
+            manifest_path=manifest_path,
+            source_pdf_path=source_pdf,
+            translated_pages=_translated_page_payload(),
+            effective_render_mode="overlay",
+            start_page=0,
+            end_page=0,
+            pdf_compress_dpi=0,
+            source_cleanup_strategy=layout.SOURCE_CLEANUP_TYPST_FILL,
+        )
+
+        assert payload_prewarm is not None
+        assert payload_prewarm.visual_profile_path == visual_profile_path_from_prewarm_manifest(manifest_path)
+        assert payload_prewarm.visual_profile_path.exists()
+        assert payload_prewarm.pdf_structure_profile_path == pdf_structure_profile_path_from_prewarm_manifest(manifest_path)
+        assert payload_prewarm.pdf_structure_profile_path.exists()
+        assert payload_prewarm.render_colors_by_item_id
 
 
 def test_prewarm_mode_probe_uses_source_text_without_mutating_payload() -> None:
@@ -665,9 +757,10 @@ def test_render_source_prewarm_keeps_no_text_overlap_pages_as_precleaned() -> No
         assert prepared.bbox_text_stripped_page_indices == frozenset()
         assert prepared.bbox_text_strip_skipped_page_indices == frozenset({0})
         assert prepared.source_text_precleaned_page_indices == frozenset()
+        assert prepared.source_cleanup_cover_fallback_page_indices == frozenset({0})
 
 
-def test_pseudo_editable_scan_pages_keep_cover_fallback_after_text_strip() -> None:
+def test_pseudo_editable_scan_pages_keep_cover_fallback_without_physical_strip() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         source_pdf = root / "source.pdf"
@@ -706,6 +799,7 @@ def test_pseudo_editable_scan_pages_keep_cover_fallback_after_text_strip() -> No
         assert prepared.bbox_text_stripped_page_indices == frozenset()
         assert prepared.bbox_text_strip_skipped_page_indices == frozenset({0})
         assert prepared.source_text_precleaned_page_indices == frozenset()
+        assert prepared.source_cleanup_cover_fallback_page_indices == frozenset({0})
 
 
 def test_payload_prewarm_default_pikepdf_text_strip_exposes_bbox_candidates() -> None:
@@ -900,6 +994,29 @@ def test_payload_prewarm_exposes_background_render_page_specs() -> None:
         assert payload_prewarm.background_render_page_specs is not None
         assert len(payload_prewarm.background_render_page_specs) == 1
         assert payload_prewarm.background_render_page_specs[0].blocks[0].plain_text
+
+
+def test_overlay_payload_prewarm_skips_background_specs_but_keeps_cover_fill() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source_pdf = root / "source.pdf"
+        manifest_path = root / "artifacts" / "render_prewarm" / "render_source_prewarm_manifest.json"
+        _source_pdf(source_pdf)
+
+        payload = build_payload_prewarm(
+            source_pdf_path=source_pdf,
+            translated_pages=_translated_page_payload(),
+            manifest_path=manifest_path,
+            effective_render_mode="overlay",
+            source_cleanup_strategy="bbox_text_strip",
+        )
+
+        assert payload["background_render_page_specs"] == {}
+        prepared_pages = payload["prepared_overlay_pages"]
+        assert prepared_pages
+        first_page_items = prepared_pages["0"]
+        assert first_page_items
+        assert first_page_items[0].get("_render_cover_fill")
 
 
 def test_execute_typst_visual_uses_prewarmed_background_page_specs() -> None:

@@ -17,9 +17,6 @@ from services.rendering.source_cleanup.pdf.xobject_ops import rewrite_xobject_do
 from services.rendering.source_cleanup.pdf.xobject_ops import xobject_dict
 
 
-BBOX_TEXT_STRIP_PATH_OP_BUDGET = 20_000
-
-
 def strip_bbox_text_from_page(
     page: pikepdf.Page,
     rects: list[fitz.Rect],
@@ -62,8 +59,6 @@ def strip_bbox_text_from_stream(
     state = ContentStreamState(ctm=initial_ctm)
     path_tracker = PathTracker.empty()
     pending_path_ops: list[tuple] = []
-    path_ops_seen = 0
-    path_tracking_enabled = True
 
     xobjects = xobject_dict(stream_obj)
 
@@ -107,17 +102,6 @@ def strip_bbox_text_from_stream(
                 continue
 
         if op in PATH_CONSTRUCTION_OPERATORS:
-            if not path_tracking_enabled:
-                output.append((operands, operator))
-                continue
-            path_ops_seen += 1
-            if path_ops_seen > BBOX_TEXT_STRIP_PATH_OP_BUDGET:
-                path_tracking_enabled = False
-                output.extend(pending_path_ops)
-                pending_path_ops.clear()
-                path_tracker.clear()
-                output.append((operands, operator))
-                continue
             path_tracker.record(op, operands, state.ctm)
             pending_path_ops.append((operands, operator))
             continue

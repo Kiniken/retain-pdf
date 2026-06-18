@@ -140,6 +140,26 @@ def test_source_cleanup_intent_strips_table_footnote_with_inline_math_markers() 
     assert intent.cleanup_action == "strip_text"
 
 
+def test_structural_toc_and_page_number_do_not_force_text_strip_in_beta10_cleanup() -> None:
+    from services.rendering.source_cleanup.planning.item_classifier import item_allows_forced_text_strip
+
+    assert not item_allows_forced_text_strip(
+        {
+            "item_id": "p001-b001",
+            "block_kind": "text",
+            "layout_role": "toc",
+            "semantic_role": "table_of_contents",
+        }
+    )
+    assert not item_allows_forced_text_strip(
+        {
+            "item_id": "p001-b002",
+            "block_kind": "text",
+            "layout_role": "page_number",
+        }
+    )
+
+
 def test_text_strip_hit_test_ignores_tiny_edge_intersections() -> None:
     strip_index = RectIndex.build([(100.0, 100.0, 160.0, 120.0)])
 
@@ -322,6 +342,56 @@ def test_bbox_text_strip_keeps_non_translated_items_even_with_render_text() -> N
 
         assert result.changed is False
         assert output_pdf.exists() is False
+
+
+def test_bbox_text_strip_deletes_safe_items_when_same_page_has_keep_origin_item() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source_pdf = root / "source.pdf"
+        output_pdf = root / "stripped.pdf"
+        doc = fitz.open()
+        page = doc.new_page(width=240, height=220)
+        page.insert_text((20, 40), "translated source", fontsize=12)
+        page.insert_text((20, 110), "keep original", fontsize=12)
+        page.insert_text((20, 180), "outside source", fontsize=12)
+        doc.save(source_pdf)
+        doc.close()
+
+        result = build_bbox_text_stripped_pdf_copy(
+            source_pdf_path=source_pdf,
+            output_pdf_path=output_pdf,
+            translated_pages={
+                0: [
+                    {
+                        "item_id": "p001-b001",
+                        "block_kind": "text",
+                        "bbox": [10.0, 20.0, 180.0, 58.0],
+                        "protected_source_text": "translated source",
+                        "protected_translated_text": "已翻译",
+                    },
+                    {
+                        "item_id": "p001-b002",
+                        "block_kind": "text",
+                        "bbox": [10.0, 90.0, 180.0, 128.0],
+                        "protected_source_text": "keep original",
+                        "protected_translated_text": "keep original",
+                        "final_status": "kept_origin",
+                        "decision": "keep_origin",
+                    },
+                ]
+            },
+        )
+
+        assert result.changed is True
+        assert result.skipped_visual_background_page_indices == frozenset()
+        stripped = fitz.open(output_pdf)
+        try:
+            text = stripped[0].get_text()
+        finally:
+            stripped.close()
+        assert "translated source" not in text
+        assert "keep original" in text
+        assert "outside source" in text
 
 
 def test_bbox_text_strip_skips_large_background_image_page_before_deletion() -> None:
@@ -940,7 +1010,7 @@ def test_source_cleanup_default_recurses_form_xobjects_for_inline_formula_text()
         assert "INLINEFORMULA" not in text
 
 
-def test_bbox_text_strip_skips_large_form_xobject_rewrite(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bbox_text_strip_recurses_large_form_xobject_in_beta10_cleanup(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RETAIN_BBOX_TEXT_STRIP_FORM_RECURSE_MAX_RAW_BYTES", "64")
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -976,14 +1046,14 @@ def test_bbox_text_strip_skips_large_form_xobject_rewrite(monkeypatch: pytest.Mo
         )
 
         assert result.changed is True
-        assert result.forms_changed == 0
+        assert result.forms_changed == 1
         stripped = fitz.open(output_pdf)
         try:
             text = stripped[0].get_text()
         finally:
             stripped.close()
         assert "PAGETEXT" not in text
-        assert "FORMTEXT" in text
+        assert "FORMTEXT" not in text
 
 
 def test_render_source_skips_physical_strip_when_document_analysis_requires_visual_cover() -> None:
@@ -1047,17 +1117,17 @@ def test_bbox_text_strip_single_worker_preserves_form_recursion(monkeypatch: pyt
         seen_recurse_forms: list[bool] = []
 
         def fake_strip_page(
+            page,
+            rects,
             *,
-            pdf: pikepdf.Pdf,
-            page_idx: int,
-            rects: list[fitz.Rect],
-            protected_rects: list[fitz.Rect],
-            recurse_forms: bool,
+            pdf,
+            protected_rects,
+            recurse_forms,
         ):
             seen_recurse_forms.append(recurse_forms)
-            return page_idx, b"", 0, 0
+            return b"", 0, 0
 
-        with mock.patch.object(source_cleanup_document, "_strip_page_in_open_pdf", side_effect=fake_strip_page):
+        with mock.patch.object(source_cleanup_document, "strip_bbox_text_from_page", side_effect=fake_strip_page):
             strip_bbox_text_rects_from_pdf_copy(
                 source_pdf_path=source_pdf,
                 output_pdf_path=output_pdf,
@@ -1077,16 +1147,16 @@ def test_bbox_text_strip_parallel_worker_count_scales_for_medium_documents() -> 
 def test_bbox_text_strip_parallel_threshold_scales_with_cpu_count(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("RETAIN_BBOX_TEXT_STRIP_PARALLEL_THRESHOLD", raising=False)
     monkeypatch.setattr(source_cleanup_document.os, "cpu_count", lambda: 4)
-    assert source_cleanup_document._parallel_page_threshold() == 24
+    assert source_cleanup_document._parallel_worker_count(500) == 4
 
     monkeypatch.setattr(source_cleanup_document.os, "cpu_count", lambda: 8)
-    assert source_cleanup_document._parallel_page_threshold() == 48
+    assert source_cleanup_document._parallel_worker_count(500) == source_cleanup_document.BBOX_TEXT_STRIP_PARALLEL_MAX_WORKERS
 
 
 def test_bbox_text_strip_parallel_threshold_can_be_overridden(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RETAIN_BBOX_TEXT_STRIP_PARALLEL_THRESHOLD", "18")
 
-    assert source_cleanup_document._parallel_page_threshold() == 18
+    assert source_cleanup_document.BBOX_TEXT_STRIP_PARALLEL_PAGE_THRESHOLD == 12
 
 
 def test_bbox_text_strip_chunks_balance_decoded_stream_weights() -> None:
@@ -1101,27 +1171,11 @@ def test_bbox_text_strip_chunks_balance_decoded_stream_weights() -> None:
         for index in range(len(sizes))
     }
 
-    page_weights = {
-        index: source_cleanup_document._page_content_stream_weight(pdf, index)
-        for index in page_rects
-    }
-    chunks = source_cleanup_document._page_chunks(page_rects, {}, 3, page_weights)
+    chunks = source_cleanup_document._page_chunks(pdf, page_rects, {}, 3)
     loads = [sum(weight for _page_idx, weight, _rects, _protected in chunk) for chunk in chunks]
 
     assert len(chunks) == 3
     assert max(loads) - min(loads) < max(sizes)
-
-
-def test_bbox_text_strip_parallel_requires_enough_stream_weight(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("RETAIN_BBOX_TEXT_STRIP_PARALLEL_THRESHOLD", "12")
-    monkeypatch.setenv("RETAIN_BBOX_TEXT_STRIP_PARALLEL_MIN_STREAM_WEIGHT", "1000")
-
-    small_pages = {index: 10 for index in range(200)}
-    heavy_pages = {index: 200 for index in range(12)}
-
-    assert source_cleanup_document._should_parallel_strip(small_pages) is True
-    assert source_cleanup_document._should_parallel_strip({index: 1 for index in range(200)}) is False
-    assert source_cleanup_document._should_parallel_strip(heavy_pages) is True
 
 
 def test_bbox_text_strip_candidates_manifest_preserves_runtime_skip_metadata() -> None:

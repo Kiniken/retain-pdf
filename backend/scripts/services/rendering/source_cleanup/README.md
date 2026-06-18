@@ -1,55 +1,44 @@
 # Source Cleanup
 
-This package owns the boundary between render semantics and PDF source cleanup.
+This package owns PDF source-text cleanup before Typst/overlay rendering.
 
-External callers should use this package instead of importing
-`services.rendering.source.preparation.bbox_text_strip_*` directly.
+Current mainline behavior is the `v4.1.6-beta10` cleanup model:
 
-## Contract
+- `planning/planner.py` builds page-level `BBoxTextStripCandidates` from translated items and PDF page facts.
+- `executor.py` applies a `SourceCleanupRequest` and returns a `SourceCleanupResult`.
+- `pdf/document.py` rewrites matching PDF content streams through pikepdf.
+- `contracts.py` and `types.py` are the stable runtime boundary for callers.
 
-- `planner.py` turns translated render items and a source PDF into cleanup candidates.
-- `executor.py` applies a cleanup request to a PDF and returns a cleanup result.
-- `contracts.py` defines the request, options, and result objects.
+## Current Contract
 
-The implementation owns bbox cleanup end to end. Old
-`source.preparation.bbox_text_strip_*` modules have been removed; render-source
-and prewarm callers should only depend on this package boundary.
+- Physical deletion is an optimization for editable PDF text streams.
+- Visual-background or pseudo-editable pages may skip physical deletion and use render cover fallback instead.
+- Display/formula regions are protected through candidate protected rects.
+- `formula` / `display_formula` blocks are not treated as body text to delete.
+- Items without translated replacement text should preserve source text.
+- Render prewarm may cache `BBoxTextStripCandidates`, but execution still consumes the beta10 candidate shape.
+- Compatibility for newer manifest fields belongs in `source/prewarm_manifest_io.py`, not in the execution layer.
 
-## Boundary Rules
+## Main Entry Points
 
-- `intents.py` defines the cleanup contract consumed by the planner.
-- `planning/evidence.py` collects item facts from translated payloads.
-- `planning/intent_classifier.py` maps evidence to cleanup intent. This is the
-  only layer that should decide whether an item strips source text, protects
-  source content, or does nothing.
-- OCR block type, translation status, and formula protection are separate
-  signals. Do not treat `block_kind=formula` as automatically protected source.
-- Source text stripping must be driven by replacement intent. If an item has no
-  translated overlay or other replacement, preserve the source instead of
-  guessing from OCR labels or token patterns.
-- Text items with embedded display/block math are preserved until the pipeline
-  can split them into text and formula subregions. Inline math inside ordinary
-  translated text remains deletable because the translated overlay replaces the
-  whole text item.
-- Business semantics belong in the planner layer.
-- Geometry and formula guards belong below the planner.
-- PDF content stream mutation belongs in the executor layer.
-- `pdf/stream_engine.py` is the content stream coordinator.
-- `pdf/stream_state.py` owns PDF graphics/text state transitions.
-- `pdf/text_removal.py` owns text-show hit testing and protected-region checks.
-- `pdf/xobject_ops.py` owns Form XObject clone-on-write recursion.
-- Prewarm may ask this package for candidates, but should not build cleanup
-  candidates by importing preparation modules directly.
+- `plan_source_cleanup(...)`
+- `execute_source_cleanup(SourceCleanupRequest(...))`
+- `build_bbox_text_stripped_pdf_copy(...)`
+- `strip_bbox_text_rects_from_pdf_copy(...)`
 
-## Performance Contract
+External callers should go through these package-level boundaries rather than importing old
+`services.rendering.source.preparation.bbox_text_strip_*` modules.
 
-- Physical pikepdf text stripping is an exact cleanup optimization, not a
-  mandatory whole-book render prerequisite.
-- Large overlay renders use Typst cover blocks for visual source hiding, so
-  source prewarm skips whole-book physical stripping on that path.
-- Form XObject recursion is enabled by default because some editable PDFs place
-  inline formulas inside Form streams while surrounding text lives in the page
-  stream. Skipping Forms leaves those formulas visible after source cleanup.
-- Low-level `strip_bbox_text_rects_from_pdf_copy()` still supports
-  `skip_form_xobject_pages=True` for explicit fast-path tests or emergency
-  fallbacks.
+## Fallback Rules
+
+When a page is classified as visual background or otherwise unsuitable for exact text stripping, cleanup should report skip metadata and let the render workflow apply visual cover fallback. Do not force physical deletion on pseudo-editable or image-backed pages in the current mainline.
+
+## Experimental Cleanup
+
+The newer pdf-structure-profile / item-decision cleanup design is not part of the current mainline. Its tests live under:
+
+```text
+backend/scripts/devtools/experiments/source_cleanup_next/
+```
+
+Do not reintroduce `build_source_cleanup_plan`, `decision_builder`, `deletion_contract`, `formula_adjacency`, `document_pages`, or `document_parallel` into the mainline unless the cleanup engine is explicitly switched away from beta10 behavior.

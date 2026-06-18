@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import os
 from typing import Callable
 
 import fitz
@@ -25,9 +24,6 @@ StreamRewrite = Callable[
     ],
     tuple[bytes | None, int, int],
 ]
-
-
-BBOX_TEXT_STRIP_FORM_RECURSE_MAX_RAW_BYTES = 1_000_000
 
 
 @dataclass(frozen=True)
@@ -109,8 +105,6 @@ def _form_context(
     xobject = _lookup_xobject(xobjects, xobject_name)
     if xobject is None or not _is_form_xobject(xobject):
         return None
-    if _form_stream_too_large_for_rewrite(xobject):
-        return None
     form_key = _form_identity(xobject)
     active_forms = visited_forms if visited_forms is not None else set()
     if form_key in active_forms:
@@ -177,32 +171,6 @@ def _is_form_xobject(xobject: pikepdf.Object) -> bool:
         return str(xobject.get(Name("/Subtype"))) == "/Form"
     except Exception:
         return False
-
-
-def _form_stream_too_large_for_rewrite(xobject: pikepdf.Object) -> bool:
-    max_bytes = _form_recurse_max_raw_bytes()
-    if max_bytes <= 0:
-        return False
-    try:
-        length = int(xobject.get(Name("/Length")) or 0)
-        if length > max_bytes:
-            return True
-    except Exception:
-        pass
-    try:
-        return len(xobject.read_raw_bytes()) > max_bytes
-    except Exception:
-        return False
-
-
-def _form_recurse_max_raw_bytes() -> int:
-    raw = str(os.environ.get("RETAIN_BBOX_TEXT_STRIP_FORM_RECURSE_MAX_RAW_BYTES", "") or "").strip()
-    if raw:
-        try:
-            return max(0, int(raw))
-        except ValueError:
-            pass
-    return BBOX_TEXT_STRIP_FORM_RECURSE_MAX_RAW_BYTES
 
 
 def _form_identity(xobject: pikepdf.Object) -> tuple[int, int]:

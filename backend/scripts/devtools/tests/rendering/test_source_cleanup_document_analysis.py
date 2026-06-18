@@ -17,7 +17,7 @@ from devtools.tests.rendering_support.page_profiles import sample_render_page_pr
 from services.rendering.source_cleanup.planning.planner import plan_source_cleanup
 
 
-def test_source_cleanup_uses_document_analysis_to_skip_visual_pages() -> None:
+def test_source_cleanup_skips_physical_delete_when_document_analysis_requires_visual_cover() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         source_pdf = Path(tmp) / "source.pdf"
         write_source_pdf(source_pdf)
