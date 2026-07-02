@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 
@@ -15,9 +17,46 @@ def translation_manifest_path(translations_dir: Path) -> Path:
 
 def _relative_payload_path(translations_dir: Path, translation_path: Path) -> str:
     try:
-        return translation_path.relative_to(translations_dir).as_posix()
+        return translation_path.resolve().relative_to(translations_dir.resolve()).as_posix()
     except ValueError:
-        return translation_path.as_posix()
+        raise RuntimeError(
+            f"Translation payload path must be under translations_dir: {translation_path}"
+        )
+
+
+def _atomic_write_json(path: Path, payload: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+        text=True,
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+        _fsync_parent_dir(path)
+    except Exception:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _fsync_parent_dir(path: Path) -> None:
+    try:
+        dir_fd = os.open(path.parent, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
 
 
 def write_translation_manifest(
@@ -46,14 +85,14 @@ def write_translation_manifest(
         payload["glossary"] = glossary
     if summary:
         payload.update(summary)
-    with manifest_path.open("w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+    _atomic_write_json(manifest_path, payload)
     return manifest_path
 
 
 def load_translation_manifest_file(manifest_path: Path, *, translations_dir: Path | None = None) -> dict[int, Path]:
     manifest_path = Path(manifest_path)
-    base_dir = translations_dir if translations_dir is not None else manifest_path.parent
+    base_dir = Path(translations_dir) if translations_dir is not None else manifest_path.parent
+    resolved_base_dir = base_dir.resolve()
 
     with manifest_path.open("r", encoding="utf-8") as f:
         payload = json.load(f)
@@ -75,8 +114,17 @@ def load_translation_manifest_file(manifest_path: Path, *, translations_dir: Pat
         if not raw_path:
             raise RuntimeError(f"Translation manifest page {page_index} is missing path")
         translation_path = Path(raw_path)
-        if not translation_path.is_absolute():
-            translation_path = base_dir / translation_path
+        if translation_path.is_absolute():
+            raise RuntimeError(
+                f"Translation manifest page {page_index} uses absolute payload path: {raw_path}"
+            )
+        translation_path = base_dir / translation_path
+        try:
+            translation_path.resolve().relative_to(resolved_base_dir)
+        except ValueError as exc:
+            raise RuntimeError(
+                f"Translation manifest page {page_index} payload path escapes translations_dir: {raw_path}"
+            ) from exc
         if page_index in translation_paths:
             raise RuntimeError(f"Duplicate translation manifest page index: {page_index}")
         translation_paths[page_index] = translation_path

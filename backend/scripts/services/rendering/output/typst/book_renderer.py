@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
+import shutil
 import time
 from typing import Callable
 
@@ -22,6 +25,7 @@ from services.rendering.output.typst.book_support import prepare_translated_page
 from services.rendering.output.typst.book_support import resolve_typst_temp_root
 from services.rendering.output.typst.book_support import save_background_pdf_to_output
 from services.rendering.layout.page_specs import build_render_page_specs
+from services.rendering.layout.model.models import RenderLayoutBlock
 from services.rendering.layout.model.models import RenderPageSpec
 from services.rendering.output.typst.compiler import compile_typst_render_pages_pdf
 from services.rendering.output.typst.color_adapt import apply_adaptive_overlay_colors
@@ -29,12 +33,134 @@ from services.rendering.output.typst.overlay_ops import overlay_translated_items
 from services.rendering.output.typst.overlay_ops import overlay_translated_pages_on_doc
 from services.rendering.output.typst.sanitize import sanitize_page_specs_for_typst_book_background
 from services.rendering.visual_profile import merge_visual_profile_colors
+from services.rendering.visual_profile import load_visual_profile_runtime
+from services.rendering.visual_profile import VisualProfileRuntime
+from services.rendering.visual_profile.contracts import VISUAL_PROFILE_ALGORITHM_VERSION
 from services.pipeline_shared.events import emit_render_compile_progress
 from services.pipeline_shared.events import emit_render_page_progress
 
 
 _BACKGROUND_SANITIZE_ALL_THRESHOLD = 64
+_BACKGROUND_CLEANUP_CACHE_VERSION = 2
 TypstRepairRequestFn = Callable[..., str]
+
+
+def _visual_profile_cache_fingerprint(visual_profile_runtime: VisualProfileRuntime | None) -> object:
+    if visual_profile_runtime is None:
+        return {
+            "current_algorithm": VISUAL_PROFILE_ALGORITHM_VERSION,
+            "loaded": False,
+            "reason": "not_loaded",
+        }
+    path_fingerprint: object = None
+    if visual_profile_runtime.path is not None:
+        try:
+            path_stat = visual_profile_runtime.path.stat()
+            path_fingerprint = {
+                "path": str(visual_profile_runtime.path.resolve()),
+                "size": path_stat.st_size,
+                "mtime_ns": path_stat.st_mtime_ns,
+            }
+        except Exception:
+            path_fingerprint = str(visual_profile_runtime.path)
+    profile = visual_profile_runtime.profile
+    if profile is None:
+        return {
+            "current_algorithm": VISUAL_PROFILE_ALGORITHM_VERSION,
+            "loaded": False,
+            "path": path_fingerprint,
+            "diagnostics": visual_profile_runtime.diagnostics,
+        }
+    pages = {
+        page_index: {
+            "background_rgb": [round(float(value), 6) for value in page.background_rgb],
+            "items": {
+                item_id: {
+                    "bbox": [round(float(value), 3) for value in item.bbox],
+                    "background_rgb": [round(float(value), 6) for value in item.background_rgb],
+                    "text_rgb": [round(float(value), 6) for value in item.text_rgb],
+                    "confidence": round(float(item.confidence), 6),
+                    "method": item.method,
+                    "bbox_source": item.bbox_source,
+                }
+                for item_id, item in sorted(page.items.items())
+            },
+        }
+        for page_index, page in sorted(profile.pages.items())
+    }
+    return {
+        "current_algorithm": VISUAL_PROFILE_ALGORITHM_VERSION,
+        "profile_algorithm": profile.algorithm,
+        "path": path_fingerprint,
+        "pages": pages,
+    }
+
+
+def _background_cache_key(
+    *,
+    source_pdf_path: Path,
+    translated_pages: dict[int, list[dict]],
+    page_specs: list[RenderPageSpec],
+    redaction_strategy: str | None,
+    source_text_precleaned_page_indices: frozenset[int],
+    visual_profile_runtime: VisualProfileRuntime | None = None,
+) -> str:
+    def _block_cover_rect(block: RenderLayoutBlock) -> list[float]:
+        rect = getattr(block, "background_rect", None) or getattr(block, "content_rect", None) or []
+        return [round(float(value), 3) for value in rect[:4]] if len(rect) >= 4 else []
+
+    try:
+        source_stat = source_pdf_path.stat()
+        source_fingerprint: object = {
+            "path": str(source_pdf_path.resolve()),
+            "size": source_stat.st_size,
+            "mtime_ns": source_stat.st_mtime_ns,
+        }
+    except Exception:
+        source_fingerprint = str(source_pdf_path)
+    spec_fingerprint = [
+        {
+            "page": spec.page_index,
+            "width": round(float(spec.page_width_pt), 3),
+            "height": round(float(spec.page_height_pt), 3),
+            "blocks": [
+                {
+                    "id": block.block_id,
+                    "cover": _block_cover_rect(block),
+                }
+                for block in spec.blocks
+            ],
+        }
+        for spec in page_specs
+    ]
+    translated_fingerprint = {
+        page_idx: [
+            {
+                "id": item.get("item_id") or item.get("id"),
+                "bbox": [round(float(value), 3) for value in item.get("bbox", [])[:4]]
+                if len(item.get("bbox", [])) >= 4
+                else [],
+                "formula_count": len(item.get("formula_map") or item.get("render_formula_map") or []),
+            }
+            for item in items
+        ]
+        for page_idx, items in sorted(translated_pages.items())
+    }
+    payload = {
+        "version": _BACKGROUND_CLEANUP_CACHE_VERSION,
+        "source": source_fingerprint,
+        "redaction_strategy": redaction_strategy,
+        "precleaned": sorted(source_text_precleaned_page_indices),
+        "visual_profile": _visual_profile_cache_fingerprint(visual_profile_runtime),
+        "specs": spec_fingerprint,
+        "translated": translated_fingerprint,
+    }
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _cached_background_pdf_path(work_dir: Path, cache_key: str) -> Path:
+    return work_dir.parent / "background-cache" / f"{cache_key}.pdf"
 
 
 def _emit_page_spec_progress(completed: int, total_pages: int, page_index: int) -> None:
@@ -158,6 +284,8 @@ def _compile_render_pages_pdf_resilient(
     font_family: str = fonts.TYPST_DEFAULT_FONT_FAMILY,
     font_paths: list[Path] | None = None,
     work_dir: Path,
+    precomputed_colors_by_item_id: dict[str, dict[str, tuple[float, float, float]]] | None = None,
+    visual_profile_path: Path | None = None,
     request_chat_content_fn: TypstRepairRequestFn | None = None,
 ) -> tuple[Path, dict[str, object]]:
     diagnostics: dict[str, object] = {
@@ -256,6 +384,8 @@ def _compile_render_pages_pdf_resilient(
         sanitized_pages = _apply_background_page_color_adapt(
             sample_pdf_path=color_sample_pdf_path,
             translated_pages=sanitized_pages,
+            precomputed_colors_by_item_id=precomputed_colors_by_item_id,
+            visual_profile_path=visual_profile_path,
         )
         sanitized_render_page_specs = build_render_page_specs(
             source_pdf_path=source_pdf_path,
@@ -501,6 +631,7 @@ def build_book_typst_background_pdf(
     prebuilt_page_specs: list[RenderPageSpec] | None = None,
     precomputed_colors_by_item_id: dict[str, dict[str, tuple[float, float, float]]] | None = None,
     visual_profile_path: Path | None = None,
+    fast_save: bool = False,
     request_chat_content_fn: TypstRepairRequestFn | None = None,
 ) -> dict[str, object]:
     del compile_workers
@@ -541,15 +672,41 @@ def build_book_typst_background_pdf(
         diagnostics["background_page_specs_elapsed_seconds"] = time.perf_counter() - specs_started
         diagnostics["background_page_specs_prewarm_hit"] = False
     page_map = RenderPageMap.from_page_specs(page_specs)
+    visual_profile_runtime = load_visual_profile_runtime(visual_profile_path)
+    diagnostics["background_visual_profile"] = visual_profile_runtime.diagnostics
     cleanup_started = time.perf_counter()
-    cleaned_background_pdf = build_clean_background_pdf(
+    cleaned_background_pdf = work_dir / "book-background-cleaned.pdf"
+    cache_key = _background_cache_key(
         source_pdf_path=source_pdf_path,
         translated_pages=translated_pages,
-        output_pdf_path=work_dir / "book-background-cleaned.pdf",
-        redaction_strategy=redaction_strategy,
         page_specs=page_specs,
+        redaction_strategy=redaction_strategy,
         source_text_precleaned_page_indices=source_text_precleaned_page_indices,
+        visual_profile_runtime=visual_profile_runtime,
     )
+    cached_background_pdf = _cached_background_pdf_path(work_dir, cache_key)
+    diagnostics["background_source_cleanup_cache_key"] = cache_key
+    if cached_background_pdf.exists() and cached_background_pdf.stat().st_size > 0:
+        cleaned_background_pdf.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(cached_background_pdf, cleaned_background_pdf)
+        diagnostics["background_source_cleanup_cache_hit"] = True
+        print(f"background cleanup cache hit: {cached_background_pdf}", flush=True)
+    else:
+        diagnostics["background_source_cleanup_cache_hit"] = False
+        cleaned_background_pdf = build_clean_background_pdf(
+            source_pdf_path=source_pdf_path,
+            translated_pages=translated_pages,
+            output_pdf_path=cleaned_background_pdf,
+            redaction_strategy=redaction_strategy,
+            page_specs=page_specs,
+            source_text_precleaned_page_indices=source_text_precleaned_page_indices,
+            visual_profile=visual_profile_runtime,
+        )
+        try:
+            cached_background_pdf.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(cleaned_background_pdf, cached_background_pdf)
+        except Exception as exc:
+            diagnostics["background_source_cleanup_cache_store_error"] = f"{type(exc).__name__}: {exc}"
     diagnostics["background_source_cleanup_elapsed_seconds"] = time.perf_counter() - cleanup_started
     background_pdf, compile_diagnostics = _compile_render_pages_pdf_resilient(
         source_pdf_path=source_pdf_path,
@@ -563,6 +720,8 @@ def build_book_typst_background_pdf(
         font_family=font_family,
         font_paths=font_paths,
         work_dir=work_dir,
+        precomputed_colors_by_item_id=precomputed_colors_by_item_id,
+        visual_profile_path=visual_profile_path,
         request_chat_content_fn=request_chat_content_fn,
     )
     diagnostics.update(compile_diagnostics)
@@ -572,6 +731,7 @@ def build_book_typst_background_pdf(
         output_pdf_path,
         source_pdf_path=source_pdf_path,
         page_map=page_map,
+        fast_save=fast_save,
     )
     diagnostics["background_save_elapsed_seconds"] = time.perf_counter() - save_started
     diagnostics["background_total_elapsed_seconds"] = time.perf_counter() - total_started

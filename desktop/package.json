@@ -17,8 +17,8 @@
     "sync-frontend": "npm --prefix ../frontend run build && node scripts/prepare-app.mjs --frontend-only",
     "verify-frontend-sync": "npm run sync-frontend && npm run smoke:frontend-desktop",
     "prepare-app": "npm --prefix ../frontend run build && node scripts/prepare-app.mjs",
-    "dist:win32": "npm run prepare-app && electron-builder --win portable --ia32 --config.directories.output=win",
-    "dist:win32-installer": "npm run prepare-app && electron-builder --win nsis --ia32 --config.directories.output=win",
+    "dist:win32": "npm run prepare-app && electron-builder --win portable --x64 --config.directories.output=win",
+    "dist:win32-installer": "npm run prepare-app && electron-builder --win nsis --x64 --config.directories.output=win",
     "dist:mac": "RETAIN_PDF_BUNDLE_MAC_PYTHON=1 npm run prepare-app && RETAIN_PDF_BUNDLE_MAC_PYTHON=1 electron-builder --mac dmg --publish never --config.directories.output=mac",
     "dist:linux": "npm run prepare-app && electron-builder --linux deb --publish never --config.directories.output=linux"
   },
@@ -37,6 +37,7 @@
       "assets/**/*",
       "main.js",
       "preload.js",
+      "src/main/**/*",
       "splash.html",
       "package.json"
     ],
@@ -53,7 +54,7 @@
         {
           "target": "portable",
           "arch": [
-            "ia32"
+            "x64"
           ]
         }
       ],

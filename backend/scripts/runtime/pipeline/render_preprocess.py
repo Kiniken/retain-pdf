@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
+from services.pipeline_shared.events import emit_stage_progress
 from services.rendering.analysis.document import build_render_document_analysis
 from services.rendering.source.prewarm import RenderPrewarmSpec
 from services.rendering.source.prewarm import RenderPrewarmHandle
@@ -106,9 +108,93 @@ def start_ocr_render_preprocess(
     )
 
 
+def run_post_translation_render_prewarm(
+    *,
+    source_pdf_path: Path,
+    output_pdf_path: Path,
+    artifacts_dir: Path,
+    translated_pages: dict,
+    render_mode: str,
+    start_page: int,
+    end_page: int,
+    pdf_compress_dpi: int,
+    source_cleanup_strategy: str,
+) -> dict:
+    if not translated_pages:
+        return {"ready": False, "reason": "empty_translated_pages"}
+    manifest_path = prewarm_manifest_path_from_artifacts_dir(artifacts_dir)
+    started = time.perf_counter()
+    emit_stage_progress(
+        stage="render_preprocess",
+        substage="render_prewarm",
+        message="正在准备渲染资源",
+        progress_current=1,
+        progress_total=3,
+        payload={"user_stage": "render", "progress_unit": "step"},
+    )
+    try:
+        document_analysis = build_render_document_analysis(
+            source_pdf_path=source_pdf_path,
+            translated_pages=translated_pages,
+            start_page=start_page,
+            end_page=end_page,
+        )
+        handle = start_render_source_prewarm(
+            RenderPrewarmSpec(
+                source_pdf_path=source_pdf_path,
+                output_pdf_path=output_pdf_path,
+                artifacts_dir=artifacts_dir,
+                translated_pages=translated_pages,
+                render_mode=render_mode,
+                start_page=start_page,
+                end_page=end_page,
+                pdf_compress_dpi=pdf_compress_dpi,
+                source_cleanup_strategy=source_cleanup_strategy,
+                document_analysis=document_analysis,
+                include_source_cleanup=True,
+            )
+        )
+        result_path = handle.wait()
+        ready = result_path is not None and Path(result_path).exists()
+        return {
+            "ready": ready,
+            "manifest_path": str(result_path or manifest_path),
+            "elapsed": time.perf_counter() - started,
+            "source_cleanup_strategy": source_cleanup_strategy,
+        }
+    except Exception as exc:
+        error_type = type(exc).__name__
+        error = str(exc)
+        print(f"post-translation render prewarm failed: {error_type}: {error}", flush=True)
+        emit_stage_progress(
+            stage="render_preprocess",
+            substage="render_prewarm",
+            message=f"渲染资源预热失败，将在渲染阶段同步准备: {error_type}",
+            progress_current=1,
+            progress_total=3,
+            payload={
+                "user_stage": "render",
+                "progress_unit": "step",
+                "ready": False,
+                "failure_category": "render_prewarm",
+                "error_type": error_type,
+                "error": error,
+            },
+        )
+        return {
+            "ready": False,
+            "manifest_path": str(manifest_path),
+            "elapsed": time.perf_counter() - started,
+            "failure_category": "render_prewarm",
+            "error_type": error_type,
+            "error": error,
+        }
+
+
 __all__ = [
     "build_source_render_preprocess_pages",
     "prewarm_manifest_path_from_artifacts_dir",
+    "run_post_translation_render_prewarm",
     "run_ocr_render_preprocess",
     "start_ocr_render_preprocess",
 ]

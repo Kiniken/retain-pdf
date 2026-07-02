@@ -6,6 +6,7 @@ from typing import Callable
 import fitz
 
 from foundation.config import fonts
+from services.rendering.output.pdf_writer import save_fast_pdf
 from services.rendering.output.pdf_writer import save_optimized_pdf
 from services.rendering.layout.payload.prepare import prepare_render_payloads_by_page
 from services.rendering.document.page_map import RenderPageMap
@@ -169,6 +170,7 @@ def save_background_pdf_to_output(
     *,
     source_pdf_path: Path | None = None,
     page_map: RenderPageMap | None = None,
+    fast_save: bool = False,
 ) -> None:
     background_doc = fitz.open(background_pdf)
     source_doc = fitz.open(source_pdf_path) if source_pdf_path else None
@@ -178,7 +180,10 @@ def save_background_pdf_to_output(
                 copy_toc_for_page_map(source_doc, background_doc, page_map=page_map)
             else:
                 copy_toc(source_doc, background_doc)
-        save_optimized_pdf(background_doc, output_pdf_path)
+        if fast_save:
+            save_fast_pdf(background_doc, output_pdf_path)
+        else:
+            save_optimized_pdf(background_doc, output_pdf_path)
     finally:
         if source_doc is not None:
             source_doc.close()

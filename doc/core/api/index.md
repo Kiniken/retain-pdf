@@ -35,6 +35,8 @@
 - `40100`：鉴权失败
 - `40400`：资源不存在
 - `40900`：状态冲突
+- `42900`：模型或外部服务限流
+- `50200`：模型或外部服务失败
 - `50000`：内部错误
 
 `X-API-Key` 是访问 Rust API 的后端白名单 key，不是 OCR Provider token，也不是模型 API key。
@@ -57,6 +59,7 @@
 3. `GET /api/v1/jobs/{job_id}`
 4. `GET /api/v1/jobs/{job_id}/events`
 5. 根据 `actions` / `artifacts` / `artifacts_display` 下载产物
+6. 已完成任务的阅读问答使用 `POST /api/v1/jobs/{job_id}/reader/ai/chat`
 
 ## 3. 图书馆接口
 

@@ -50,7 +50,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          architecture: "x86"
+          architecture: "x64"
 
       - name: Verify generated Python requirement snapshots
         shell: pwsh
@@ -59,11 +59,11 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: i686-pc-windows-msvc
+          targets: x86_64-pc-windows-msvc
 
       - name: Build Rust API for Windows
         shell: pwsh
-        run: cargo build --release --target i686-pc-windows-msvc --manifest-path backend/rust_api/Cargo.toml
+        run: cargo build --release --target x86_64-pc-windows-msvc --manifest-path backend/rust_api/Cargo.toml
 
       - name: Assemble bundled Typst runtime
         shell: pwsh

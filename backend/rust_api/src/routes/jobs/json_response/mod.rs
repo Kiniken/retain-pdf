@@ -13,7 +13,7 @@ pub use read::{
     job_artifact_manifest_response, job_artifacts_response, job_detail_response,
     job_events_response, list_jobs_response,
 };
-pub use reader::{reader_metadata_response, reader_regions_response};
+pub use reader::{reader_ai_chat_response, reader_metadata_response, reader_regions_response};
 pub use translation_debug::{
     replay_translation_item_response, translation_diagnostics_response, translation_item_response,
     translation_items_response,

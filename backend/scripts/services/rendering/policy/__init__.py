@@ -18,6 +18,7 @@ from services.rendering.policy.compat import item_overlay_fill
 from services.rendering.policy.compat import item_render_policy
 from services.rendering.policy.compat import item_render_policy_reason
 from services.rendering.policy.compat import item_requires_visual_cover_only
+from services.rendering.policy.compat import item_uses_explicit_white_overlay_fill
 from services.rendering.policy.compat import item_uses_white_overlay_fill
 from services.rendering.policy.cleanup_plan import RenderCleanupItemPlan
 from services.rendering.policy.cleanup_plan import build_cleanup_item_plan
@@ -47,6 +48,7 @@ __all__ = [
     "item_render_output_text",
     "item_render_source_text",
     "item_requires_visual_cover_only",
+    "item_uses_explicit_white_overlay_fill",
     "item_should_bbox_text_strip",
     "item_will_render_translated_overlay",
     "item_uses_white_overlay_fill",

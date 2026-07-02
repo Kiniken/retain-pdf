@@ -105,8 +105,18 @@ def detect_ocr_provider(payload: dict) -> str:
 def detect_ocr_provider_with_report(payload: dict) -> dict:
     attempts: list[dict] = []
     for provider, detector in _ADAPTER_DETECTORS:
-        matched = bool(detector(payload))
-        attempts.append({"provider": provider, "matched": matched})
+        try:
+            matched = bool(detector(payload))
+            attempts.append({"provider": provider, "matched": matched})
+        except Exception as exc:
+            attempts.append(
+                {
+                    "provider": provider,
+                    "matched": False,
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
+            )
+            continue
         if matched:
             return {
                 "matched": True,
@@ -173,12 +183,14 @@ def adapt_path_to_document_v1(
     document_id: str,
     provider: str | None = None,
     provider_version: str = "",
+    allow_provider_mismatch: bool = False,
 ) -> dict:
     document, _report = adapt_path_to_document_v1_with_report(
         source_json_path=source_json_path,
         document_id=document_id,
         provider=provider,
         provider_version=provider_version,
+        allow_provider_mismatch=allow_provider_mismatch,
     )
     return document
 
@@ -189,12 +201,25 @@ def adapt_path_to_document_v1_with_report(
     document_id: str,
     provider: str | None = None,
     provider_version: str = "",
+    allow_provider_mismatch: bool = False,
 ) -> tuple[dict, dict]:
     payload = _load_json(source_json_path)
     detection_report = detect_ocr_provider_with_report(payload)
     resolved_provider = provider or str(detection_report.get("provider", "") or "")
     if not resolved_provider:
         raise RuntimeError("Unable to detect OCR provider for non-normalized payload.")
+    detected_provider = str(detection_report.get("provider", "") or "")
+    if (
+        provider
+        and detected_provider
+        and detected_provider != resolved_provider
+        and not allow_provider_mismatch
+    ):
+        raise RuntimeError(
+            "Explicit OCR provider does not match detected provider: "
+            f"provider={resolved_provider} detected={detected_provider}. "
+            "Pass allow_provider_mismatch=True only for a configured raw-provider override."
+        )
     document, report = adapt_payload_to_document_v1_with_report(
         payload=payload,
         provider=resolved_provider,
@@ -202,9 +227,10 @@ def adapt_path_to_document_v1_with_report(
         source_json_path=source_json_path,
         provider_version=provider_version,
     )
-    report["detected_provider"] = str(detection_report.get("provider", "") or resolved_provider)
+    report["detected_provider"] = detected_provider or resolved_provider
     report["detection"] = detection_report
     report["provider_was_explicit"] = bool(provider)
+    report["provider_mismatch_allowed"] = bool(allow_provider_mismatch)
     return document, report
 
 

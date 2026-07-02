@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use anyhow::Result;
+
 use crate::config::WorkerCommandRuntimeConfig;
 use crate::models::domain::ResolvedJobSpec;
 use crate::storage_paths::JobPaths;
@@ -37,7 +39,7 @@ pub(crate) fn build_worker_stage_command(
     request: &ResolvedJobSpec,
     job_paths: &JobPaths,
     command: WorkerStageCommand<'_>,
-) -> Vec<String> {
+) -> Result<Vec<String>> {
     match command {
         WorkerStageCommand::NormalizeOcr {
             source_json_path,
@@ -87,16 +89,15 @@ fn build_translate_only_command(
     source_json_path: &Path,
     source_pdf_path: &Path,
     layout_json_path: Option<&Path>,
-) -> Vec<String> {
+) -> Result<Vec<String>> {
     let spec_path = write_translate_stage_spec(
         request,
         job_paths,
         source_json_path,
         source_pdf_path,
         layout_json_path,
-    )
-    .expect("write translate stage spec");
-    build_translate_only_entrypoint(config, &spec_path)
+    )?;
+    Ok(build_translate_only_entrypoint(config, &spec_path))
 }
 
 fn build_render_only_command(
@@ -105,10 +106,9 @@ fn build_render_only_command(
     job_paths: &JobPaths,
     source_pdf_path: &Path,
     translations_dir: &Path,
-) -> Vec<String> {
-    let spec_path = write_render_stage_spec(request, job_paths, source_pdf_path, translations_dir)
-        .expect("write render stage spec");
-    build_render_only_entrypoint(config, &spec_path)
+) -> Result<Vec<String>> {
+    let spec_path = write_render_stage_spec(request, job_paths, source_pdf_path, translations_dir)?;
+    Ok(build_render_only_entrypoint(config, &spec_path))
 }
 
 fn build_normalize_ocr_command(
@@ -120,7 +120,7 @@ fn build_normalize_ocr_command(
     provider_result_json_path: &Path,
     provider_zip_path: &Path,
     provider_raw_dir: &Path,
-) -> Vec<String> {
+) -> Result<Vec<String>> {
     let spec_path = write_normalize_stage_spec(
         request,
         job_paths,
@@ -129,7 +129,6 @@ fn build_normalize_ocr_command(
         provider_result_json_path,
         provider_zip_path,
         provider_raw_dir,
-    )
-    .expect("write normalize stage spec");
-    build_normalize_entrypoint(config, &spec_path)
+    )?;
+    Ok(build_normalize_entrypoint(config, &spec_path))
 }

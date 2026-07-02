@@ -23,7 +23,7 @@ pub(super) async fn run_render_job_from_artifacts(
             source_pdf_path: &render_inputs.source_pdf_path,
             translations_dir: &render_inputs.translations_dir,
         },
-    );
+    )?;
     job.status = JobStatusKind::Running;
     job.started_at = Some(now_iso());
     job.updated_at = now_iso();

@@ -76,6 +76,9 @@ export function jobStatusCardTemplate({
             <a id="${STATUS_CARD_IDS.markdownBundleButton}" class="status-action-btn task-toolbar-btn-result hidden disabled" href="#" target="_blank" rel="noopener noreferrer" aria-label="下载 Markdown" title="下载 Markdown" aria-disabled="true">
               <span>下载 Markdown</span>
             </a>
+            <a id="${STATUS_CARD_IDS.sourcePdfButton}" class="status-action-btn task-toolbar-btn-result hidden disabled" href="#" target="_blank" rel="noopener noreferrer" aria-label="下载原始 PDF" title="下载原始 PDF" aria-disabled="true">
+              <span>原始 PDF</span>
+            </a>
             <a id="${STATUS_CARD_IDS.readerButton}" class="status-action-btn task-toolbar-btn-result hidden disabled" href="#" aria-label="对照阅读" title="对照阅读" aria-disabled="true">
               <span>对照阅读</span>
             </a>

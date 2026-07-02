@@ -105,6 +105,8 @@ import {
   renderRecentJobCardElements,
   renderRecentJobsMarkupList,
 } from "../src/js/features/recent-jobs/list-rendering.js";
+import { bindRecentJobsListEvents } from "../src/js/features/recent-jobs/list-events.js";
+import { recentJobCardMarkup } from "../src/js/features/recent-jobs/card-template.js";
 import {
   renderRecentJobsList as renderRecentJobsViewList,
 } from "../src/js/features/recent-jobs/view.js";
@@ -200,6 +202,141 @@ test("recent jobs contract centralizes host ids and private callback keys", () =
   assert.equal(RECENT_JOBS_SELECTORS.libraryList, "#library-view #recent-jobs-list");
   assert.equal(RECENT_JOBS_PRIVATE_KEYS.select, "__retainPdfRecentJobSelect");
   assert.equal(RECENT_JOBS_PRIVATE_KEYS.cardBound, "__retainPdfRecentJobCardBound");
+});
+
+test("recent job card markup keeps cover-first actions and hides delete confirmation from focus", () => {
+  const markup = recentJobCardMarkup({
+    job_id: "job-actions",
+    title: "Persistent Actions",
+    page_count: 12,
+    updated_at: "2026-07-02",
+    status: "completed",
+  });
+
+  assert.match(markup, /class="recent-job-hover-actions"/);
+  assert.match(markup, /class="recent-job-hover-btn recent-job-reader"/);
+  assert.match(markup, /class="recent-job-delete" aria-label="删除任务" title="删除" aria-expanded="false"/);
+  assert.match(markup, /class="recent-job-delete-popover" role="group" aria-label="确认删除" hidden inert/);
+  assert.doesNotMatch(markup, /recent-job-card-actions/);
+  assert.doesNotMatch(markup, />阅读</);
+});
+
+test("recent jobs list actions keep delete confirmation out of focus until delete is opened", () => {
+  const classes = new Set(["recent-job-item"]);
+  const popover = { hidden: true, inert: true };
+  const deleteButton = {
+    attributes: {},
+    setAttribute(name, value) {
+      this.attributes[name] = value;
+    },
+  };
+  const item = {
+    dataset: { jobId: "job-actions" },
+    closest(selector) {
+      return selector === ".recent-job-item" ? item : null;
+    },
+    classList: {
+      contains(name) {
+        return classes.has(name);
+      },
+      toggle(name, force) {
+        const shouldHave = force === undefined ? !classes.has(name) : Boolean(force);
+        if (shouldHave) {
+          classes.add(name);
+        } else {
+          classes.delete(name);
+        }
+        return shouldHave;
+      },
+      remove(name) {
+        classes.delete(name);
+      },
+    },
+    querySelector(selector) {
+      if (selector === ".recent-job-delete") {
+        return deleteButton;
+      }
+      if (selector === ".recent-job-delete-popover") {
+        return popover;
+      }
+      return null;
+    },
+  };
+  const targets = {
+    delete: {
+      closest(selector) {
+        if (selector === ".recent-job-delete" || selector === ".recent-job-item") {
+          return selector === ".recent-job-delete" ? targets.delete : item;
+        }
+        return null;
+      },
+    },
+    reader: {
+      closest(selector) {
+        if (selector === ".recent-job-reader" || selector === ".recent-job-item") {
+          return selector === ".recent-job-reader" ? targets.reader : item;
+        }
+        return null;
+      },
+    },
+    confirm: {
+      closest(selector) {
+        if (selector === ".recent-job-delete-confirm" || selector === ".recent-job-item") {
+          return selector === ".recent-job-delete-confirm" ? targets.confirm : item;
+        }
+        return null;
+      },
+    },
+  };
+  const listeners = new Map();
+  const list = {
+    addEventListener(type, handler) {
+      listeners.set(type, handler);
+    },
+    contains(node) {
+      return node === item || Object.values(targets).includes(node);
+    },
+    querySelectorAll(selector) {
+      return selector === ".recent-job-item.is-confirming-delete" && classes.has("is-confirming-delete") ? [item] : [];
+    },
+  };
+  const selected = [];
+  const opened = [];
+  const deleted = [];
+
+  bindRecentJobsListEvents(list, {
+    onSelect: (jobId) => selected.push(jobId),
+    onReader: (jobId) => opened.push(jobId),
+    onDelete: (jobId) => deleted.push(jobId),
+  });
+  const click = listeners.get("click");
+  const eventFor = (target) => ({
+    target,
+    preventDefault() {},
+    stopPropagation() {},
+  });
+
+  click(eventFor(targets.delete));
+  assert.equal(classes.has("is-confirming-delete"), true);
+  assert.equal(popover.hidden, false);
+  assert.equal(popover.inert, false);
+  assert.equal(deleteButton.attributes["aria-expanded"], "true");
+
+  click(eventFor(item));
+  assert.deepEqual(selected, ["job-actions"]);
+  assert.equal(popover.hidden, true);
+  assert.equal(popover.inert, true);
+  assert.equal(deleteButton.attributes["aria-expanded"], "false");
+
+  click(eventFor(targets.delete));
+  click(eventFor(targets.reader));
+  assert.deepEqual(opened, ["job-actions"]);
+  assert.equal(popover.hidden, true);
+
+  click(eventFor(targets.delete));
+  click(eventFor(targets.confirm));
+  assert.deepEqual(deleted, ["job-actions"]);
+  assert.equal(popover.inert, true);
 });
 
 test("translation workflow view owns close button lookup", () => {

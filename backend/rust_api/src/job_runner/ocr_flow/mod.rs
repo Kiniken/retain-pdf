@@ -74,7 +74,7 @@ pub async fn execute_ocr_job(
         upload_path.as_deref(),
         &job.request_payload,
         &workspace.job_paths,
-    );
+    )?;
     save_ocr_job(&deps, &job, parent_job_id.as_deref()).await?;
 
     if is_command_provider {
@@ -130,7 +130,7 @@ pub async fn execute_ocr_job(
             provider_zip_path: &workspace.provider_zip_path,
             provider_raw_dir: &workspace.provider_raw_dir,
         },
-    );
+    )?;
     job.stage = Some("normalizing".to_string());
     job.stage_detail = Some("OCR provider 已完成，开始标准化 document.v1".to_string());
     job.updated_at = now_iso();

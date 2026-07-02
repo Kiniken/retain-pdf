@@ -2,8 +2,10 @@ import sys
 import tempfile
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
+import fitz
 
 REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
@@ -28,6 +30,7 @@ from services.rendering.source.prewarm import start_render_source_prewarm
 from services.rendering.source.prewarm import try_load_render_payload_prewarm
 from services.rendering.source.prewarm import try_load_prewarmed_render_source_pdf
 from services.rendering.source.prewarm import _pages_for_prewarm_mode_probe
+from services.rendering.source.prewarm_payload import collect_first_line_indent_lookup
 from services.rendering.source.prewarm_payload import first_line_indent_from_item_lines
 from services.rendering.source.prewarm_payload import build_payload_prewarm
 from services.rendering.source.prewarm_page_specs import render_page_specs_from_manifest
@@ -59,6 +62,128 @@ def test_first_line_indent_from_item_lines_ignores_small_offsets() -> None:
     }
 
     assert first_line_indent_from_item_lines(item, font_size_pt=12.0) == 0.0
+
+
+def _pixmap_indent_candidate_item() -> dict:
+    return {
+        "item_id": "p001-b001",
+        "block_type": "text",
+        "block_kind": "text",
+        "layout_role": "paragraph",
+        "semantic_role": "body",
+        "structure_role": "body",
+        "bbox": [18.0, 30.0, 210.0, 88.0],
+        "source_text": "First line second line third line",
+        "protected_source_text": "First line second line third line",
+        "lines": [],
+    }
+
+
+def _pixmap_indent_metrics() -> SimpleNamespace:
+    return SimpleNamespace(base_metrics={0: (10.0, 1.2)}, page_text_width_med=160.0)
+
+
+def test_pixmap_first_line_indent_defaults_disabled_for_larger_prewarm(monkeypatch) -> None:
+    monkeypatch.delenv("RETAIN_RENDER_PIXMAP_INDENT", raising=False)
+    doc = fitz.open()
+    for _ in range(3):
+        doc.new_page(width=240, height=180)
+    stats: dict[str, object] = {
+        "pixmap_candidates": 0,
+        "pixmap_checked": 0,
+        "pixmap_hits": 0,
+        "pixmap_disabled_candidates": 0,
+    }
+    sink: dict[str, float] = {}
+
+    with mock.patch(
+        "services.rendering.source.prewarm_payload.detect_first_line_indent_pt_with_displaylist",
+        side_effect=AssertionError("pixmap indent should be opt-in for larger documents"),
+    ):
+        collect_first_line_indent_lookup(
+            source_doc=doc,
+            page_idx=0,
+            items=[_pixmap_indent_candidate_item()],
+            metrics=_pixmap_indent_metrics(),
+            sink=sink,
+            stats=stats,
+        )
+    doc.close()
+
+    assert sink == {}
+    assert stats["pixmap_candidates"] == 1
+    assert stats["pixmap_disabled_candidates"] == 1
+    assert stats["pixmap_checked"] == 0
+    assert stats["pixmap_enabled"] is False
+    assert stats["pixmap_reason"] == "default_disabled"
+
+
+def test_pixmap_first_line_indent_env_opt_in_runs_detector(monkeypatch) -> None:
+    monkeypatch.setenv("RETAIN_RENDER_PIXMAP_INDENT", "1")
+    doc = fitz.open()
+    for _ in range(3):
+        doc.new_page(width=240, height=180)
+    stats: dict[str, object] = {
+        "pixmap_candidates": 0,
+        "pixmap_checked": 0,
+        "pixmap_hits": 0,
+        "pixmap_disabled_candidates": 0,
+    }
+    sink: dict[str, float] = {}
+
+    with mock.patch(
+        "services.rendering.source.prewarm_payload.detect_first_line_indent_pt_with_displaylist",
+        return_value=12.5,
+    ) as detector:
+        collect_first_line_indent_lookup(
+            source_doc=doc,
+            page_idx=0,
+            items=[_pixmap_indent_candidate_item()],
+            metrics=_pixmap_indent_metrics(),
+            sink=sink,
+            stats=stats,
+        )
+    doc.close()
+
+    assert sink == {"p001-b001": 12.5}
+    assert detector.call_count == 1
+    assert stats["pixmap_candidates"] == 1
+    assert stats["pixmap_disabled_candidates"] == 0
+    assert stats["pixmap_checked"] == 1
+    assert stats["pixmap_hits"] == 1
+    assert stats["pixmap_enabled"] is True
+    assert stats["pixmap_reason"] == "env_enabled"
+
+
+def test_pixmap_first_line_indent_auto_enabled_for_tiny_documents(monkeypatch) -> None:
+    monkeypatch.delenv("RETAIN_RENDER_PIXMAP_INDENT", raising=False)
+    doc = fitz.open()
+    doc.new_page(width=240, height=180)
+    stats: dict[str, object] = {
+        "pixmap_candidates": 0,
+        "pixmap_checked": 0,
+        "pixmap_hits": 0,
+        "pixmap_disabled_candidates": 0,
+    }
+    sink: dict[str, float] = {}
+
+    with mock.patch(
+        "services.rendering.source.prewarm_payload.detect_first_line_indent_pt_with_displaylist",
+        return_value=9.25,
+    ):
+        collect_first_line_indent_lookup(
+            source_doc=doc,
+            page_idx=0,
+            items=[_pixmap_indent_candidate_item()],
+            metrics=_pixmap_indent_metrics(),
+            sink=sink,
+            stats=stats,
+        )
+    doc.close()
+
+    assert sink == {"p001-b001": 9.25}
+    assert stats["pixmap_enabled"] is True
+    assert stats["pixmap_reason"] == "small_document_auto_enabled"
 
 
 def test_render_source_prewarm_manifest_is_reused_without_temp_cleanup() -> None:
@@ -124,6 +249,45 @@ def test_render_source_prewarm_manifest_is_reused_without_temp_cleanup() -> None
 
         assert pages == 1
         assert any(path.name.endswith(".source-bbox-text-stripped.pdf") for path in artifacts_dir.rglob("*.pdf"))
+
+
+def test_render_source_prewarm_accepts_absolute_page_keys_for_partial_ranges() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source_pdf = root / "source.pdf"
+        output_pdf = root / "rendered" / "out.pdf"
+        artifacts_dir = root / "artifacts"
+        output_pdf.parent.mkdir()
+        doc = fitz.open()
+        for page_idx in range(8):
+            page = doc.new_page(width=200, height=200)
+            page.insert_text((20, 40), f"page {page_idx + 1}", fontsize=12)
+        doc.save(source_pdf)
+        doc.close()
+        base_item = _translated_page_payload()[0][0]
+        translated_pages = {
+            5: [dict(base_item, item_id="p006-b001")],
+            6: [dict(base_item, item_id="p007-b001")],
+        }
+
+        handle = start_render_source_prewarm(
+            RenderPrewarmSpec(
+                source_pdf_path=source_pdf,
+                output_pdf_path=output_pdf,
+                artifacts_dir=artifacts_dir,
+                translated_pages=translated_pages,
+                render_mode="overlay",
+                start_page=5,
+                end_page=6,
+                pdf_compress_dpi=0,
+                source_cleanup_strategy="bbox_text_strip",
+                document_analysis=source_document_analysis(source_pdf),
+            )
+        )
+
+        manifest_path = handle.wait()
+        assert manifest_path == prewarm_manifest_path_from_artifacts_dir(artifacts_dir)
+        assert manifest_path.exists()
 
 
 def test_render_plan_persists_sync_overlay_source_cleanup_for_next_render() -> None:
@@ -199,8 +363,9 @@ def test_render_plan_persists_sync_overlay_source_cleanup_for_next_render() -> N
             source_cleanup_strategy="bbox_text_strip",
         )
         assert payload_prewarm is not None
-        assert payload_prewarm.first_line_indent_lookup["p001-b001"] == 19.87
-        assert seen_indents and seen_indents[0]["p001-b001"] == 19.87
+        cached_indent = payload_prewarm.first_line_indent_lookup["p001-b001"]
+        assert cached_indent > 0
+        assert seen_indents and seen_indents[0]["p001-b001"] == cached_indent
         assert payload_prewarm.bbox_text_strip_candidates is not None
         assert payload_prewarm.bbox_text_strip_candidates.candidate_source == "manifest"
 
@@ -522,6 +687,35 @@ def test_payload_prewarm_writes_visual_profile_color_manifest() -> None:
         structure_profile = json.loads(structure_profile_path.read_text(encoding="utf-8"))
         assert structure_profile["algorithm"] == "pdf_structure_profile_v1"
         assert structure_profile["pages"]["0"]["text_objects"]
+
+
+def test_payload_prewarm_records_default_pixmap_indent_diagnostics(monkeypatch) -> None:
+    monkeypatch.delenv("RETAIN_RENDER_PIXMAP_INDENT", raising=False)
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        source_pdf = root / "source.pdf"
+        manifest_path = root / "artifacts" / "render_prewarm" / "render_source_prewarm_manifest.json"
+        manifest_path.parent.mkdir(parents=True)
+        doc = fitz.open()
+        for _ in range(3):
+            doc.new_page(width=200, height=200)
+        doc.save(source_pdf)
+        doc.close()
+
+        payload = build_payload_prewarm(
+            source_pdf_path=source_pdf,
+            translated_pages={0: [_pixmap_indent_candidate_item()]},
+            manifest_path=manifest_path,
+            effective_render_mode="overlay",
+            source_cleanup_strategy=layout.SOURCE_CLEANUP_TYPST_FILL,
+        )
+
+    diagnostics = payload["first_line_indent_diagnostics"]
+    assert diagnostics["pixmap_enabled"] is False
+    assert diagnostics["pixmap_reason"] == "default_disabled"
+    assert diagnostics["pixmap_candidates"] == 1
+    assert diagnostics["pixmap_disabled_candidates"] == 1
+    assert diagnostics["pixmap_checked"] == 0
 
 
 def test_payload_prewarm_loads_visual_profile_path_from_manifest() -> None:

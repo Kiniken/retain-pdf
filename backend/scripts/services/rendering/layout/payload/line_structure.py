@@ -7,6 +7,8 @@ from services.document_schema.text_flow import classify_text_flow
 from services.document_schema.text_flow import line_texts_from_lines
 from services.document_schema.semantics import is_caption_like_block
 from services.rendering.layout.model.models import RenderLineBox
+from services.rendering.layout.text_analysis import RAW_MATH_TOKEN_KINDS
+from services.rendering.layout.text_analysis import analyze_text
 
 TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*|[^\S\r\n]+|.")
 PUNCTUATION_RE = re.compile(r"^[，。！？；：、,.!?;:()\[\]{}<>《》“”‘’\"']$")
@@ -150,7 +152,10 @@ def split_text_by_source_line_weights(translated_text: str, source_lines: list[s
     source_weights = [max(1.0, _text_units(line)) for line in source_lines if line.strip()]
     if not source_weights:
         return [translated_text.strip()] if translated_text.strip() else []
-    tokens = TOKEN_RE.findall(translated_text or "")
+    marker_chunks = _split_text_by_source_line_markers(translated_text, source_lines)
+    if marker_chunks is not None:
+        return marker_chunks
+    tokens = _line_split_tokens(translated_text or "")
     if not tokens:
         return []
     token_units = [_token_units(token) for token in tokens]
@@ -177,6 +182,74 @@ def split_text_by_source_line_weights(translated_text: str, source_lines: list[s
         start = split_index
     chunks.append(_clean_line(tokens[start:]))
     return [chunk for chunk in chunks if chunk]
+
+
+def _line_split_tokens(text: str) -> list[str]:
+    tokens: list[str] = []
+    for token in analyze_text(text or "").tokens:
+        if token.kind in RAW_MATH_TOKEN_KINDS:
+            tokens.append(token.value)
+        else:
+            tokens.extend(TOKEN_RE.findall(token.value))
+    return [token for token in tokens if token]
+
+
+def _split_text_by_source_line_markers(
+    translated_text: str,
+    source_lines: list[str],
+) -> list[str] | None:
+    materialized_lines = [str(line or "").strip() for line in source_lines if str(line or "").strip()]
+    if len(materialized_lines) < 2:
+        return None
+    markers: list[str] = []
+    for line in materialized_lines:
+        match = re.match(r"^\s*((?:\d{1,4}|[A-Za-z])\s*[\.)、])\s+", line)
+        if match is None:
+            return None
+        markers.append(re.sub(r"\s+", "", match.group(1)))
+    if len(set(markers)) != len(markers) or not _ordered_line_markers_are_increasing(markers):
+        return None
+
+    text = str(translated_text or "").strip()
+    if not text:
+        return None
+    marker_positions: list[int] = []
+    for marker in markers:
+        marker_pattern = r"(?<!\S)" + r"\s*".join(re.escape(char) for char in marker) + r"\s+"
+        match = re.search(marker_pattern, text)
+        if match is None:
+            return None
+        marker_positions.append(match.start())
+    if marker_positions != sorted(marker_positions) or marker_positions[0] > 2:
+        return None
+
+    chunks: list[str] = []
+    for index, start in enumerate(marker_positions):
+        end = marker_positions[index + 1] if index + 1 < len(marker_positions) else len(text)
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+    return chunks if len(chunks) == len(markers) else None
+
+
+def _ordered_line_markers_are_increasing(markers: list[str]) -> bool:
+    parsed: list[tuple[str, int]] = []
+    for marker in markers:
+        match = re.fullmatch(r"(?P<body>\d{1,4}|[A-Za-z])(?P<suffix>[\.)、])", marker)
+        if match is None:
+            return False
+        body = match.group("body")
+        suffix = match.group("suffix")
+        if body.isdigit():
+            parsed.append((f"number:{suffix}", int(body)))
+        elif len(body) == 1 and body.isalpha():
+            parsed.append((f"alpha:{suffix}:{'upper' if body.isupper() else 'lower'}", ord(body.lower()) - ord("a") + 1))
+        else:
+            return False
+    if len({kind for kind, _value in parsed}) != 1:
+        return False
+    values = [value for _kind, value in parsed]
+    return all(right > left for left, right in zip(values, values[1:]))
 
 
 def maybe_preserve_structured_line_breaks(item: dict, translated_text: str) -> str:

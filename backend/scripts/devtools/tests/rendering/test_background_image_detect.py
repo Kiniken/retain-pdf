@@ -12,6 +12,7 @@ sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from services.rendering.source.background.detect import page_has_large_background_image
 from services.rendering.source.background.detect import page_has_tiled_background_images
+from services.rendering.source.background.detect import pick_primary_background_image
 
 
 def test_tiled_background_images_are_detected(tmp_path) -> None:
@@ -42,3 +43,26 @@ def test_sparse_images_are_not_treated_as_tiled_background(tmp_path) -> None:
 
     assert not page_has_tiled_background_images(page)
     assert not page_has_large_background_image(page)
+
+
+def test_primary_background_image_falls_back_to_image_rects_when_info_xref_is_zero() -> None:
+    class FakePage:
+        rect = fitz.Rect(0, 0, 200, 300)
+
+        def get_image_info(self, *, hashes: bool = False, xrefs: bool = False) -> list[dict]:
+            assert hashes is False
+            assert xrefs is True
+            return [{"xref": 0, "bbox": (0, 0, 200, 300)}]
+
+        def get_images(self, full: bool = False) -> list[tuple]:
+            assert full is True
+            return [(42, 0, 200, 300, 8, "DeviceRGB", "", "Im0", "DCTDecode", 0)]
+
+        def get_image_rects(self, xref: int) -> list[fitz.Rect]:
+            assert xref == 42
+            return [fitz.Rect(0, 0, 200, 300)]
+
+    page = FakePage()
+
+    assert page_has_large_background_image(page) is True
+    assert pick_primary_background_image(page) == (42, fitz.Rect(0, 0, 200, 300))

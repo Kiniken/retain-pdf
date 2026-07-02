@@ -185,10 +185,22 @@ test("job source pdf fallback is encoded and absolute", () => {
   const action = jobActions.resolveJobSourcePdfAction({
     job_id: "job 1/2",
   });
-  assert.equal(action.ready, true);
+  assert.equal(action.ready, false);
   assert.equal(
     action.url,
     "http://retainpdf.local:41000/api/v1/jobs/job%201%2F2/artifacts/source_pdf",
+  );
+});
+
+test("job source pdf action becomes ready only from explicit readiness signals", () => {
+  const action = jobActions.resolveJobSourcePdfAction({
+    job_id: "job-ready",
+    source_pdf_ready: true,
+  });
+  assert.equal(action.ready, true);
+  assert.equal(
+    action.url,
+    "http://retainpdf.local:41000/api/v1/jobs/job-ready/artifacts/source_pdf",
   );
 });
 

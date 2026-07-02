@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sys
 
+from devtools.architecture_checks.common import ArchitectureCheckSyntaxError
 from devtools.architecture_checks.entrypoints import check_entrypoint_stable_imports
 from devtools.architecture_checks.entrypoints import check_stage_spec_contract_checker
 from devtools.architecture_checks.providers import check_ocr_provider_boundaries
@@ -20,19 +21,22 @@ from devtools.architecture_checks.translation import check_translation_worker_pr
 
 def main() -> int:
     errors: list[str] = []
-    check_pipeline_provider_leaks(errors)
-    check_service_provider_raw_leaks(errors)
-    check_entrypoint_stable_imports(errors)
-    check_ocr_provider_boundaries(errors)
-    check_translation_worker_protocol(errors)
-    check_stage_spec_contract_checker(errors)
-    check_translation_pipeline_facade_boundary(errors)
-    check_translation_public_surface_usage(errors)
-    check_devtools_translation_internal_usage(errors)
-    check_render_pipeline_facade_boundary(errors)
-    check_rendering_internal_boundaries(errors)
-    check_translation_rendering_separation(errors)
-    check_translation_internal_boundaries(errors)
+    try:
+        check_pipeline_provider_leaks(errors)
+        check_service_provider_raw_leaks(errors)
+        check_entrypoint_stable_imports(errors)
+        check_ocr_provider_boundaries(errors)
+        check_translation_worker_protocol(errors)
+        check_stage_spec_contract_checker(errors)
+        check_translation_pipeline_facade_boundary(errors)
+        check_translation_public_surface_usage(errors)
+        check_devtools_translation_internal_usage(errors)
+        check_render_pipeline_facade_boundary(errors)
+        check_rendering_internal_boundaries(errors)
+        check_translation_rendering_separation(errors)
+        check_translation_internal_boundaries(errors)
+    except ArchitectureCheckSyntaxError as exc:
+        errors.append(str(exc))
     if errors:
         print("pipeline architecture check failed:", file=sys.stderr)
         for item in errors:

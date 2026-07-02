@@ -192,6 +192,38 @@ def execute_render_plan(
                 merged_sync_payload_prewarm,
                 document_analysis=getattr(render_source_pdf, "document_analysis", None),
             )
+    elif payload_prewarm is None and not no_cache and render_prewarm_manifest_path is not None:
+        sync_prepare_started = time.perf_counter()
+        sync_payload_prewarm = build_full_sync_payload_prewarm(
+            manifest_path=render_prewarm_manifest_path,
+            prepared=render_source_pdf,
+            source_pdf_path=render_plan.render_inputs.source_pdf_path,
+            translated_pages=render_plan.selected_pages,
+            effective_render_mode=render_plan.effective_render_mode,
+            source_cleanup_strategy=cleanup_strategy,
+        )
+        merged_sync_payload_prewarm = build_sync_payload_prewarm(
+            manifest_path=render_prewarm_manifest_path,
+            prepared=render_source_pdf,
+            payload_prewarm=sync_payload_prewarm,
+        )
+        render_source_sync_cache_written = persist_sync_render_source_prewarm(
+            manifest_path=render_prewarm_manifest_path,
+            prepared=render_source_pdf,
+            source_pdf_path=render_plan.render_inputs.source_pdf_path,
+            translated_pages=render_plan.selected_pages,
+            effective_render_mode=render_plan.effective_render_mode,
+            start_page=start,
+            end_page=stop,
+            pdf_compress_dpi=pdf_compress_dpi,
+            source_cleanup_strategy=cleanup_strategy,
+            elapsed=time.perf_counter() - sync_prepare_started,
+            payload_prewarm=merged_sync_payload_prewarm,
+        )
+        payload_prewarm = render_payload_prewarm_from_manifest_payload(
+            merged_sync_payload_prewarm,
+            document_analysis=getattr(render_source_pdf, "document_analysis", None),
+        )
 
     cover_fallback_plan = TypstCoverFallbackPlan.build(
         source_pdf_path=render_plan.render_inputs.source_pdf_path,

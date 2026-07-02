@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use anyhow::Result;
+
 use crate::config::WorkerCommandRuntimeConfig;
 use crate::models::domain::ResolvedJobSpec;
 use crate::storage_paths::JobPaths;
@@ -12,8 +14,7 @@ pub(crate) fn build_ocr_command(
     upload_path: Option<&Path>,
     request: &ResolvedJobSpec,
     job_paths: &JobPaths,
-) -> Vec<String> {
-    let spec_path =
-        write_provider_stage_spec(request, job_paths, upload_path).expect("write provider spec");
-    build_provider_ocr_entrypoint(config, &spec_path)
+) -> Result<Vec<String>> {
+    let spec_path = write_provider_stage_spec(request, job_paths, upload_path)?;
+    Ok(build_provider_ocr_entrypoint(config, &spec_path))
 }

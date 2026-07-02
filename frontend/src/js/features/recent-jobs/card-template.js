@@ -26,7 +26,7 @@ function activeOverlayMarkup(item) {
   `;
 }
 
-function hoverActionsMarkup(item) {
+function hoverActionsMarkup() {
   return `
     <div class="recent-job-hover-actions">
       <button type="button" class="recent-job-hover-btn recent-job-reader" title="对照阅读" aria-label="对照阅读">
@@ -41,12 +41,12 @@ function hoverActionsMarkup(item) {
 
 function deleteControlsMarkup() {
   return `
-    <button type="button" class="recent-job-delete" aria-label="删除任务" title="删除">
+    <button type="button" class="recent-job-delete" aria-label="删除任务" title="删除" aria-expanded="false">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 7h16M10 11v6M14 11v6M9 7l1-2h4l1 2M6 7l1 14h10l1-14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
-    <div class="recent-job-delete-popover" role="group" aria-label="确认删除">
+    <div class="recent-job-delete-popover" role="group" aria-label="确认删除" hidden inert>
       <div>删除这本书？</div>
       <div class="recent-job-delete-actions">
         <button type="button" class="recent-job-delete-cancel">取消</button>
@@ -67,7 +67,7 @@ export function recentJobCardMarkup(item) {
         <div class="recent-job-cover" data-image-url="${recentJobImageUrl(item)}">
           <span class="recent-job-cover-fallback">${escapeHtml(title.slice(0, 1))}</span>
           ${activeOverlayMarkup(item)}
-          ${hoverActionsMarkup(item)}
+          ${hoverActionsMarkup()}
         </div>
         <span class="recent-job-status">${escapeHtml(active ? recentJobStageLabel(item) : recentJobStatusLabel(item.status))}</span>
         ${deleteControlsMarkup()}

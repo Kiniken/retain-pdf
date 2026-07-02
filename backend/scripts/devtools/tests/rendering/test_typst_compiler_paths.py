@@ -147,6 +147,29 @@ def test_typst_compile_error_carries_structured_context() -> None:
     assert payload["typ_path"].endswith("probe.typ")
 
 
+def test_typst_compile_error_wraps_runtime_start_failure() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        work_dir = Path(tmp)
+        with mock.patch(
+            "services.rendering.output.typst.compiler.subprocess.run",
+            side_effect=FileNotFoundError("typst missing"),
+        ):
+            with pytest.raises(TypstCompileError) as exc_info:
+                compile_typst_overlay_pdf(
+                    200.0,
+                    300.0,
+                    [{"item_id": "b1", "bbox": [0, 0, 40, 20], "translated_text": "x", "protected_translated_text": "x"}],
+                    stem="probe",
+                    work_dir=work_dir,
+                )
+
+    payload = exc_info.value.to_dict()
+    assert payload["return_code"] == -1
+    assert "Typst runtime failed to start: FileNotFoundError" in payload["stderr"]
+    assert payload["extra"]["runtime_error_type"] == "FileNotFoundError"
+    assert payload["extra"]["typst_bin"]
+
+
 def test_book_overlay_compile_falls_back_when_prebuilt_source_is_missing() -> None:
     completed = mock.Mock(returncode=0, stdout="", stderr="")
     with tempfile.TemporaryDirectory() as tmp:
@@ -226,5 +249,4 @@ def test_background_book_compile_uses_job_root_as_project_root() -> None:
         command = run_mock.call_args.args[0]
         root_index = command.index("--root")
         assert Path(command[root_index + 1]) == root
-
 

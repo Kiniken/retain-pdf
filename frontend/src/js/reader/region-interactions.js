@@ -55,6 +55,10 @@ function findTranslatedRegionAtPoint(event) {
   return null;
 }
 
+export function isReaderTranslatedRegionEvent(event) {
+  return Boolean(findTranslatedRegionAtPoint(event));
+}
+
 function drawRegionBox(controller, regionPart, layerClassName, boxClassName) {
   if (!controller || !regionPart) {
     return;
@@ -266,9 +270,15 @@ export function bindReaderRegionHover({
     translatedController.viewerElement.addEventListener("mouseleave", handleTranslatedRegionMouseLeave);
     translatedController.viewerElement.addEventListener("click", handleTranslatedRegionClick);
     translatedController.viewerElement.addEventListener("dblclick", handleTranslatedRegionDoubleClick);
+    translatedController.viewerElement.addEventListener("mousedown", (event) => {
+      if (event.button === 2 && findTranslatedRegionAtPoint(event)) {
+        event.stopPropagation();
+      }
+    });
     translatedController.viewerElement.addEventListener("contextmenu", (event) => {
       const region = findTranslatedRegionAtPoint(event);
       if (region) {
+        event.stopPropagation();
         showReaderRegionMarkdown(event, region);
       }
     });

@@ -49,7 +49,7 @@ def _run_render_source_prewarm(spec: RenderPrewarmSpec, manifest_path: Path) -> 
         prewarm_dir = manifest_path.parent
         prewarm_dir.mkdir(parents=True, exist_ok=True)
         resolved_start, resolved_stop = resolve_page_range(
-            len(spec.translated_pages),
+            _prewarm_page_range_total(spec),
             spec.start_page,
             spec.end_page,
         )
@@ -218,6 +218,15 @@ def _pages_for_prewarm_mode_probe(translated_pages: dict[int, list[dict]]) -> di
             probed_items.append(clone)
         probed[page_idx] = probed_items
     return probed
+
+
+def _prewarm_page_range_total(spec: RenderPrewarmSpec) -> int:
+    candidates = [len(spec.translated_pages), spec.start_page + 1]
+    if spec.end_page >= 0:
+        candidates.append(spec.end_page + 1)
+    if spec.translated_pages:
+        candidates.append(max(spec.translated_pages.keys()) + 1)
+    return max(candidates)
 
 
 def _protected_pages_for_prewarm(artifacts_dir: Path) -> dict[int, list[dict]]:

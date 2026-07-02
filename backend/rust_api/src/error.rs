@@ -15,6 +15,10 @@ pub enum AppError {
     #[error("{0}")]
     Conflict(String),
     #[error("{0}")]
+    TooManyRequests(String),
+    #[error("{0}")]
+    BadGateway(String),
+    #[error("{0}")]
     Internal(String),
 }
 
@@ -41,6 +45,14 @@ impl AppError {
         Self::Conflict(msg.into())
     }
 
+    pub fn too_many_requests(msg: impl Into<String>) -> Self {
+        Self::TooManyRequests(msg.into())
+    }
+
+    pub fn bad_gateway(msg: impl Into<String>) -> Self {
+        Self::BadGateway(msg.into())
+    }
+
     pub fn internal(msg: impl Into<String>) -> Self {
         Self::Internal(msg.into())
     }
@@ -53,6 +65,8 @@ impl IntoResponse for AppError {
             AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, 40000),
             AppError::NotFound(_) => (StatusCode::NOT_FOUND, 40400),
             AppError::Conflict(_) => (StatusCode::CONFLICT, 40900),
+            AppError::TooManyRequests(_) => (StatusCode::TOO_MANY_REQUESTS, 42900),
+            AppError::BadGateway(_) => (StatusCode::BAD_GATEWAY, 50200),
             AppError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, 50000),
         };
         let body = ErrorBody {

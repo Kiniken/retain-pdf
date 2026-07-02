@@ -87,7 +87,7 @@ def _build_default_cover_fill_page_policy(
         policies[item_id] = RenderItemPolicy(
             item_id=item_id,
             cleanup_mode=cleanup_mode,
-            overlay_fill="white",
+            overlay_fill="sampled",
             reason="default_text_overlay_cover_fill",
         )
     return RenderPagePolicy(
@@ -107,7 +107,7 @@ def _build_typst_fill_page_policy(translated_items: list[dict]) -> RenderPagePol
         policies[item_id] = RenderItemPolicy(
             item_id=item_id,
             cleanup_mode="visual_cover",
-            overlay_fill="white",
+            overlay_fill="sampled",
             reason="typst_fill_default",
         )
     return RenderPagePolicy(
@@ -161,7 +161,7 @@ def apply_typst_cover_fallback_fields(
                         item,
                         RenderItemPolicy(
                             item_id=item_id,
-                            overlay_fill="white",
+                            overlay_fill="sampled",
                             reason="typst_cover_fallback" if page_needs_cover else "typst_item_cover_fallback",
                         ),
                     )

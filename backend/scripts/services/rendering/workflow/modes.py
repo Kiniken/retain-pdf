@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import fitz
@@ -27,7 +28,10 @@ def _compress_final_pdf_if_needed(context: RenderExecutionContext, *, mode: str)
 
 
 def _should_fast_save(context: RenderExecutionContext) -> bool:
-    return context.source_image_compressed or context.pdf_compress_dpi <= 0
+    optimized = str(os.environ.get("RETAINPDF_RENDER_OPTIMIZED_SAVE", "") or "").strip().lower()
+    if optimized in {"1", "true", "yes", "on"}:
+        return False
+    return True
 
 
 def _indent_detection_pdf_path(context: RenderExecutionContext, fallback: Path) -> Path:
@@ -185,6 +189,7 @@ def run_background_typst_render(
         prebuilt_page_specs=context.background_render_page_specs,
         precomputed_colors_by_item_id=context.render_colors_by_item_id,
         visual_profile_path=context.visual_profile_path,
+        fast_save=_should_fast_save(context),
         request_chat_content_fn=None,
     )
     mode = "typst_visual" if visual_only_background else "typst"

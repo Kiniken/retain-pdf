@@ -203,7 +203,6 @@ export function resolveJobSourcePdfAction(job, manifestPayload = null) {
     || artifacts.source_pdf?.ready
     || artifacts.source_pdf_ready
     || job?.source_pdf_ready
-    || url
   );
   return {
     ready,

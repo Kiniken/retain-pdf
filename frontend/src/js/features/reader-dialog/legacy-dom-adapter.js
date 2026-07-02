@@ -112,6 +112,13 @@ export function restoreLegacyReaderButton(id, markup) {
   }
 }
 
+function closeLegacyDownloadMenu(button) {
+  const menu = button?.closest?.(".reader-dialog-download-menu");
+  if (menu) {
+    menu.open = false;
+  }
+}
+
 export function bindLegacyReaderDialogEvents({
   onClose,
   onFrameLoad,
@@ -119,9 +126,18 @@ export function bindLegacyReaderDialogEvents({
   onMergedDownload,
   onTranslatedDownload,
 } = {}) {
-  readerDialogElement(READER_DIALOG_BUTTON_IDS.source)?.addEventListener("click", () => onSourceDownload?.());
-  readerDialogElement(READER_DIALOG_BUTTON_IDS.merged)?.addEventListener("click", () => onMergedDownload?.());
-  readerDialogElement(READER_DIALOG_BUTTON_IDS.translated)?.addEventListener("click", () => onTranslatedDownload?.());
+  readerDialogElement(READER_DIALOG_BUTTON_IDS.source)?.addEventListener("click", (event) => {
+    closeLegacyDownloadMenu(event.currentTarget);
+    onSourceDownload?.();
+  });
+  readerDialogElement(READER_DIALOG_BUTTON_IDS.merged)?.addEventListener("click", (event) => {
+    closeLegacyDownloadMenu(event.currentTarget);
+    onMergedDownload?.();
+  });
+  readerDialogElement(READER_DIALOG_BUTTON_IDS.translated)?.addEventListener("click", (event) => {
+    closeLegacyDownloadMenu(event.currentTarget);
+    onTranslatedDownload?.();
+  });
   readerDialogElement(READER_DIALOG_IDS.closeButton)?.addEventListener("click", () => onClose?.());
   readerDialogElement(READER_DIALOG_IDS.frame)?.addEventListener("load", () => onFrameLoad?.());
 }

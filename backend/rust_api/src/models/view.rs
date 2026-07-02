@@ -2,6 +2,8 @@
 mod common;
 #[path = "view/job.rs"]
 mod job;
+#[path = "view/reader_ai.rs"]
+mod reader_ai;
 #[cfg(test)]
 #[path = "view/test_support.rs"]
 mod test_support;
@@ -13,6 +15,7 @@ mod translation;
 
 pub use common::*;
 pub use job::*;
+pub use reader_ai::*;
 pub use translation::*;
 
 pub fn to_absolute_url(base_url: &str, path: &str) -> String {

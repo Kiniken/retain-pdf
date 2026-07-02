@@ -285,6 +285,69 @@ async fn running_job_detail_does_not_select_premature_done_event_over_active_sta
 }
 
 #[tokio::test]
+async fn running_job_detail_prefers_latest_retry_stage_over_old_higher_rank_stage() {
+    let state = test_state("running-live-stage-retry-latest-stage");
+    let mut job = JobSnapshot::new(
+        "job-route-running-retry-latest-stage".to_string(),
+        CreateJobInput::default(),
+        vec!["python".to_string()],
+    );
+    job.status = crate::models::JobStatusKind::Running;
+    job.stage = Some("translating".to_string());
+    let job_root: PathBuf = state.config.data_root.join("jobs").join(&job.job_id);
+    fs::create_dir_all(job_root.join("logs")).expect("create logs dir");
+    job.artifacts
+        .get_or_insert_with(crate::models::JobArtifacts::default)
+        .job_root = Some(job_root.to_string_lossy().to_string());
+    state.db.save_job(&job).expect("save job");
+    fs::write(
+        job_root.join("logs").join("pipeline_events.jsonl"),
+        concat!(
+            r#"{"job_id":"job-route-running-retry-latest-stage","seq":1,"ts":"2026-04-24T01:00:00Z","level":"info","stage":"rendering","stage_detail":"旧运行正在渲染第 8/10 页","event":"stage_progress","message":"旧运行正在渲染第 8/10 页","progress_current":8,"progress_total":10,"progress_unit":"page","payload":{"attempt":1}}"#,
+            "\n",
+            r#"{"job_id":"job-route-running-retry-latest-stage","seq":2,"ts":"2026-04-24T01:01:00Z","level":"info","stage":"translating","stage_detail":"重试正在翻译第 1/5 批","event":"stage_progress","message":"重试正在翻译第 1/5 批","progress_current":1,"progress_total":5,"progress_unit":"batch","payload":{"attempt":2}}"#,
+            "\n"
+        ),
+    )
+    .expect("write pipeline events");
+
+    let response = build_app(state)
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/jobs/{}", job.job_id))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("detail request"),
+        )
+        .await
+        .expect("detail response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let detail_json = read_json(response).await;
+    assert_eq!(detail_json["data"]["status"], "running");
+    assert_no_legacy_top_level_stage_fields(&detail_json["data"]);
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["display_stage"],
+        "translation"
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["stage"],
+        "translating"
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["stage_detail"],
+        "重试正在翻译第 1/5 批"
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["progress"]["unit"],
+        "batch"
+    );
+    assert_eq!(
+        detail_json["data"]["stage_snapshot"]["progress"]["current"],
+        1
+    );
+}
+
+#[tokio::test]
 async fn terminal_job_detail_uses_status_not_done_display_stage() {
     let state = test_state("terminal-live-stage-has-null-snapshot");
     let mut job = JobSnapshot::new(

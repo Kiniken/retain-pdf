@@ -15,9 +15,32 @@ from services.translation.core.item_reader import item_policy_translate
 from services.translation.core.item_reader import item_semantic_role
 from services.translation.core.item_reader import item_structure_role
 from services.translation.core.ocr.models import TextItem
+import services.translation.core.payload.translations as translations_module
 from services.translation.core.payload.translations import ensure_translation_template
 from services.translation.core.payload.translations import export_translation_template
 from services.translation.core.payload.translations import load_translations
+
+
+def _text_item(item_id: str, text: str = "Body paragraph") -> TextItem:
+    return TextItem(
+        item_id=item_id,
+        page_idx=0,
+        block_idx=1,
+        block_type="text",
+        bbox=[0, 0, 10, 10],
+        text=text,
+        segments=[],
+        lines=[],
+        metadata={},
+        block_kind="text",
+        layout_role="paragraph",
+        semantic_role="body",
+        structure_role="body",
+        policy_translate=True,
+        reading_order=7,
+        raw_block_type="paragraph",
+        normalized_sub_type="body",
+    )
 
 
 def test_item_reader_prefers_top_level_contract_fields_over_metadata() -> None:
@@ -202,6 +225,51 @@ def test_ensure_translation_template_rebuilds_legacy_payload_instead_of_upgradin
     assert payload[0]["block_kind"] == "text"
     assert payload[0]["raw_block_type"] == "paragraph"
     assert payload[0]["normalized_sub_type"] == "body"
+
+
+def test_ensure_translation_template_rebuilds_corrupt_json(tmp_path) -> None:
+    path = tmp_path / "page-001-deepseek.json"
+    path.write_text("{not json", encoding="utf-8")
+    item = _text_item("p001-b001", "Recovered paragraph")
+
+    ensure_translation_template([item], path, page_idx=0, math_mode="direct_typst")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert [record["item_id"] for record in payload] == ["p001-b001"]
+    assert payload[0]["source_text"] == "Recovered paragraph"
+
+
+def test_ensure_translation_template_prunes_removed_records(tmp_path) -> None:
+    path = tmp_path / "page-001-deepseek.json"
+    current_item = _text_item("p001-b001", "Current paragraph")
+    removed_item = _text_item("p001-b999", "Removed paragraph")
+    export_translation_template([current_item, removed_item], path, page_idx=0, math_mode="direct_typst")
+
+    ensure_translation_template([current_item], path, page_idx=0, math_mode="direct_typst")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert [record["item_id"] for record in payload] == ["p001-b001"]
+
+
+def test_export_translation_template_uses_same_directory_atomic_replace(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "page-001-deepseek.json"
+    item = _text_item("p001-b001")
+    real_replace = translations_module.os.replace
+    replace_calls: list[tuple[Path, Path]] = []
+
+    def capture_replace(src, dst):
+        replace_calls.append((Path(src), Path(dst)))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(translations_module.os, "replace", capture_replace)
+
+    export_translation_template([item], path, page_idx=0, math_mode="direct_typst")
+
+    assert replace_calls
+    tmp_path_used, target_path = replace_calls[-1]
+    assert tmp_path_used.parent == path.parent
+    assert target_path == path
+    assert not tmp_path_used.exists()
 
 
 def test_load_translations_rejects_payload_missing_strict_contract_fields(tmp_path) -> None:

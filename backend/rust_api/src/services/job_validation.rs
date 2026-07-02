@@ -1,5 +1,7 @@
 use crate::config::ProviderLimitsConfig;
 use crate::error::AppError;
+use std::path::Path;
+
 use crate::models::domain::{OcrProviderKind, UploadRecord, SOURCE_CLEANUP_STRATEGIES};
 use crate::models::request::CreateJobInput;
 use crate::ocr_provider::{
@@ -44,6 +46,10 @@ pub fn validate_translation_credentials(input: &CreateJobInput) -> Result<(), Ap
 }
 
 pub fn validate_render_options(input: &CreateJobInput) -> Result<(), AppError> {
+    validate_optional_output_filename(
+        "render.translated_pdf_name",
+        &input.render.translated_pdf_name,
+    )?;
     validate_allowed_value(
         "render.render_mode",
         &input.render.render_mode,
@@ -93,6 +99,24 @@ pub fn validate_render_options(input: &CreateJobInput) -> Result<(), AppError> {
         "render.inner_bbox_dense_shrink_y",
         input.render.inner_bbox_dense_shrink_y,
     )?;
+    Ok(())
+}
+
+fn validate_optional_output_filename(field: &str, value: &str) -> Result<(), AppError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+    let path = Path::new(trimmed);
+    if path.is_absolute()
+        || path.components().count() != 1
+        || trimmed.contains('/')
+        || trimmed.contains('\\')
+    {
+        return Err(AppError::bad_request(format!(
+            "{field} must be a file name, not a path"
+        )));
+    }
     Ok(())
 }
 
@@ -343,5 +367,25 @@ mod tests {
         assert!(err
             .to_string()
             .contains("render.pdf_compress_dpi must be greater than or equal to 0"));
+    }
+
+    #[test]
+    fn render_options_reject_translated_pdf_name_path_escape() {
+        let mut input = CreateJobInput::default();
+        input.render.translated_pdf_name = "../outside.pdf".to_string();
+        let err = validate_render_options(&input).expect_err("path output should fail");
+        assert!(err
+            .to_string()
+            .contains("render.translated_pdf_name must be a file name"));
+    }
+
+    #[test]
+    fn render_options_reject_translated_pdf_name_path_separator() {
+        let mut input = CreateJobInput::default();
+        input.render.translated_pdf_name = "nested/out.pdf".to_string();
+        let err = validate_render_options(&input).expect_err("nested output should fail");
+        assert!(err
+            .to_string()
+            .contains("render.translated_pdf_name must be a file name"));
     }
 }

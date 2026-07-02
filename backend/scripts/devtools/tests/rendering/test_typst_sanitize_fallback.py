@@ -189,6 +189,53 @@ def test_sanitize_items_can_disable_llm_repair(monkeypatch) -> None:
     assert diagnostics["final_mode"] == "selective_plain_text"
 
 
+def test_sanitize_items_uses_math_token_fallback_for_math_blocks(monkeypatch) -> None:
+    monkeypatch.setenv("RETAIN_RENDER_TYPST_LLM_REPAIR", "0")
+    item = {
+        "item_id": "b1",
+        "bbox": [0, 0, 120, 40],
+        "protected_translated_text": r"矩阵元 $ \broken{A} $ 导致编译失败。",
+    }
+
+    def _fake_compile(*args, **kwargs):
+        stem = kwargs.get("stem", "")
+        items = args[2]
+        if stem.endswith("-math-token-plain"):
+            assert items[0].get("_typst_math_token_plain_text") is True
+            assert items[0].get("_force_plain_line") is not True
+            assert "$" not in items[0]["protected_translated_text"]
+            return Path("/tmp/math-token-plain.pdf")
+        raise TypstCompileError(
+            phase="overlay_page",
+            stem=stem,
+            typ_path=Path(f"/tmp/{stem}.typ"),
+            pdf_path=Path(f"/tmp/{stem}.pdf"),
+            command=["typst", "compile"],
+            return_code=1,
+            stdout="",
+            stderr="bad formula",
+            work_dir=Path("/tmp"),
+        )
+
+    with mock.patch("services.rendering.output.typst.sanitize.compile_typst_overlay_pdf", side_effect=_fake_compile), mock.patch(
+        "services.rendering.output.typst.sanitize_steps.compile_typst_overlay_pdf",
+        side_effect=_fake_compile,
+    ):
+        diagnostics: dict = {}
+        sanitized = sanitize_items_for_typst_compile(
+            200.0,
+            300.0,
+            [item],
+            stem="page-000",
+            diagnostics=diagnostics,
+        )
+
+    assert sanitized[0].get("_force_plain_line") is not True
+    assert sanitized[0].get("_typst_math_token_plain_text") is True
+    assert diagnostics["final_mode"] == "selective_math_token_plain_text"
+    assert diagnostics["selective_llm_repair_skipped"] == "disabled_by_env"
+
+
 def test_extract_failed_overlay_indices_from_typst_error() -> None:
     page_specs = [
         (page_idx, 200.0, 300.0, [{"item_id": f"p{page_idx + 1:03d}-b001"}], f"book-overlay-{page_idx:03d}")
@@ -236,4 +283,3 @@ def test_sanitize_book_overlay_can_limit_to_candidate_pages() -> None:
     assert sanitized_specs[0][3][0]["protected_translated_text"] == "page 1"
     assert sanitized_specs[1][3][0]["protected_translated_text"] == "sanitized book-overlay-001"
     assert sanitized_specs[2][3][0]["protected_translated_text"] == "page 3"
-

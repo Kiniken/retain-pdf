@@ -1,0 +1,135 @@
+.reader-ai-body {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px;
+}
+
+.reader-ai-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  border-radius: 999px;
+  background: #fff;
+}
+
+.reader-ai-scope button {
+  flex: 1 1 0;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.reader-ai-scope button.is-active {
+  background: #1d1d1f;
+  color: #fff;
+}
+
+.reader-ai-context {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid rgba(29, 29, 31, 0.08);
+  border-radius: 10px;
+  background: rgba(245, 245, 247, 0.82);
+  color: #424245;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.reader-ai-thread {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid rgba(29, 29, 31, 0.08);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.reader-ai-message {
+  display: grid;
+  gap: 6px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #f5f5f7;
+  white-space: pre-wrap;
+}
+
+.reader-ai-message-user {
+  margin-left: 24px;
+  background: #eaf3ff;
+}
+
+.reader-ai-message-assistant {
+  margin-right: 18px;
+}
+
+.reader-ai-message span {
+  color: #1d1d1f;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reader-ai-message p {
+  margin: 0;
+  color: #424245;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.reader-ai-composer {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.reader-ai-composer textarea {
+  min-height: 72px;
+  resize: none;
+  border-radius: 10px;
+  padding: 10px 11px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.reader-ai-composer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.reader-ai-composer-foot span {
+  color: #86868b;
+  font-size: 11px;
+}
+
+.reader-ai-composer-foot button {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  border-radius: 999px;
+  background: #1d1d1f;
+  color: #fff;
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.reader-ai-composer-foot button:disabled {
+  background: #f5f5f7;
+  color: #86868b;
+}

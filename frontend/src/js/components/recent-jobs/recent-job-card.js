@@ -50,10 +50,13 @@ function createDeleteControls() {
       </svg>
     `,
   });
+  button.setAttribute("aria-expanded", "false");
   const popover = document.createElement("div");
   popover.className = "recent-job-delete-popover";
   popover.setAttribute("role", "group");
   popover.setAttribute("aria-label", "确认删除");
+  popover.hidden = true;
+  popover.inert = true;
   popover.innerHTML = `
     <div>删除这本书？</div>
     <div class="recent-job-delete-actions">
@@ -65,11 +68,24 @@ function createDeleteControls() {
   return fragment;
 }
 
+function syncDeletePopover(card, open = card.classList.contains("is-confirming-delete")) {
+  card.classList.toggle("is-confirming-delete", open);
+  const deleteButton = card.querySelector(".recent-job-delete");
+  if (deleteButton) {
+    deleteButton.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  const popover = card.querySelector(".recent-job-delete-popover");
+  if (popover) {
+    popover.hidden = !open;
+    popover.inert = !open;
+  }
+}
+
 function closeSiblingDeletePopovers(card) {
   card.parentElement?.querySelectorAll?.("recent-job-card.is-confirming-delete, .recent-job-item.is-confirming-delete")
     .forEach((node) => {
       if (node !== card) {
-        node.classList.remove("is-confirming-delete");
+        syncDeletePopover(node, false);
       }
     });
 }
@@ -110,7 +126,7 @@ export class RecentJobCard extends HTMLElement {
     if (cancelButton && this.contains(cancelButton)) {
       event.preventDefault();
       event.stopPropagation();
-      this.classList.remove("is-confirming-delete");
+      syncDeletePopover(this, false);
       return;
     }
 
@@ -118,7 +134,7 @@ export class RecentJobCard extends HTMLElement {
     if (confirmButton && this.contains(confirmButton)) {
       event.preventDefault();
       event.stopPropagation();
-      this.classList.remove("is-confirming-delete");
+      syncDeletePopover(this, false);
       this.#emit("recent-job-delete");
       return;
     }
@@ -128,7 +144,7 @@ export class RecentJobCard extends HTMLElement {
       event.preventDefault();
       event.stopPropagation();
       closeSiblingDeletePopovers(this);
-      this.classList.toggle("is-confirming-delete");
+      syncDeletePopover(this, !this.classList.contains("is-confirming-delete"));
       return;
     }
 
@@ -136,7 +152,7 @@ export class RecentJobCard extends HTMLElement {
     if (readerButton && this.contains(readerButton)) {
       event.preventDefault();
       event.stopPropagation();
-      this.classList.remove("is-confirming-delete");
+      syncDeletePopover(this, false);
       this.#emit("recent-job-reader");
       return;
     }
@@ -150,7 +166,11 @@ export class RecentJobCard extends HTMLElement {
     if (event.key !== "Enter" && event.key !== " ") {
       return;
     }
+    if (event.target?.closest?.("button")) {
+      return;
+    }
     event.preventDefault();
+    syncDeletePopover(this, false);
     this.#emit("recent-job-select");
   }
 
@@ -212,6 +232,7 @@ export class RecentJobCard extends HTMLElement {
 
     this.replaceChildren(coverWrap, titleWrap);
     this.#loadCoverImage(cover, imageUrls, imageCacheVersionOf(item));
+    syncDeletePopover(this, false);
   }
 
   #createHoverActions() {

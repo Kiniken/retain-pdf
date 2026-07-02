@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 from statistics import median
 import time
 from typing import Any
@@ -34,6 +35,10 @@ from services.rendering.visual_profile import build_document_visual_profile
 from services.rendering.visual_profile import visual_profile_path_from_prewarm_manifest
 from services.rendering.visual_profile import write_document_visual_profile
 
+PIXMAP_INDENT_DEFAULT_MAX_CANDIDATES_PER_PAGE = 10
+PIXMAP_INDENT_DEFAULT_MAX_SECONDS = 8.0
+PIXMAP_INDENT_AUTO_ENABLE_MAX_PAGES = 2
+
 
 def build_payload_prewarm(
     *,
@@ -49,10 +54,22 @@ def build_payload_prewarm(
     prepared_pages = seed_pages_for_payload_prewarm(translated_pages)
     first_line_indent_by_item_id: dict[str, float] = {}
     effective_inner_bbox_by_item_id: dict[str, list[float]] = {}
-    indent_stats: dict[str, int] = {"line_hits": 0, "pixmap_candidates": 0, "pixmap_hits": 0}
+    indent_stats: dict[str, Any] = {
+        "line_hits": 0,
+        "pixmap_candidates": 0,
+        "pixmap_checked": 0,
+        "pixmap_hits": 0,
+        "pixmap_budget_exhausted": 0,
+        "pixmap_disabled_candidates": 0,
+    }
     geometry_started = time.perf_counter()
+    pixmap_indent_deadline = geometry_started + _pixmap_first_line_indent_max_seconds()
     page_widths = page_widths_by_index(source_pdf_path)
     with fitz.open(source_pdf_path) as source_doc:
+        pixmap_policy = _pixmap_first_line_indent_policy(page_count=len(source_doc))
+        indent_stats["pixmap_enabled"] = pixmap_policy["enabled"]
+        indent_stats["pixmap_reason"] = pixmap_policy["reason"]
+        indent_stats["pixmap_auto_max_pages"] = PIXMAP_INDENT_AUTO_ENABLE_MAX_PAGES
         for page_idx, items in prepared_pages.items():
             page_width = page_widths.get(page_idx)
             try:
@@ -73,6 +90,8 @@ def build_payload_prewarm(
                 metrics=metrics,
                 sink=first_line_indent_by_item_id,
                 stats=indent_stats,
+                pixmap_deadline=pixmap_indent_deadline,
+                pixmap_policy=pixmap_policy,
             )
     timings["geometry_indent"] = time.perf_counter() - geometry_started
     structure_started = time.perf_counter()
@@ -196,6 +215,7 @@ def build_payload_prewarm(
     return {
         "first_line_indent_algorithm": FIRST_LINE_INDENT_ALGORITHM_VERSION,
         "first_line_indent_by_item_id": first_line_indent_by_item_id,
+        "first_line_indent_diagnostics": dict(indent_stats),
         "geometry_adjustment_algorithm": GEOMETRY_ADJUSTMENT_ALGORITHM_VERSION,
         "payload_render_algorithm": PAYLOAD_RENDER_ALGORITHM_VERSION,
         "effective_render_mode": mode,
@@ -268,11 +288,20 @@ def collect_first_line_indent_lookup(
     items: list[dict],
     metrics,
     sink: dict[str, float],
-    stats: dict[str, int] | None = None,
+    stats: dict[str, Any] | None = None,
+    pixmap_deadline: float | None = None,
+    pixmap_policy: dict[str, Any] | None = None,
 ) -> None:
     if page_idx < 0 or page_idx >= len(source_doc):
         return
     candidates: list[tuple[dict, float]] = []
+    max_candidates = _pixmap_first_line_indent_max_candidates_per_page()
+    policy = pixmap_policy or _pixmap_first_line_indent_policy(page_count=len(source_doc))
+    pixmap_enabled = bool(policy.get("enabled"))
+    if stats is not None:
+        stats.setdefault("pixmap_enabled", pixmap_enabled)
+        stats.setdefault("pixmap_reason", str(policy.get("reason", "")))
+        stats.setdefault("pixmap_disabled_candidates", 0)
     for index, item in enumerate(items):
         item_id = str(item.get("item_id", "") or "")
         if not item_id:
@@ -293,15 +322,29 @@ def collect_first_line_indent_lookup(
             if stats is not None:
                 stats["line_hits"] = int(stats.get("line_hits", 0)) + 1
             continue
-        if _enable_pixmap_first_line_indent_detection():
+        if stats is not None:
+            stats["pixmap_candidates"] = int(stats.get("pixmap_candidates", 0)) + 1
+        if not pixmap_enabled:
             if stats is not None:
-                stats["pixmap_candidates"] = int(stats.get("pixmap_candidates", 0)) + 1
+                stats["pixmap_disabled_candidates"] = int(stats.get("pixmap_disabled_candidates", 0)) + 1
+            continue
+        if len(candidates) < max_candidates:
             candidates.append((item, font_size_pt))
     if not candidates:
         return
+    if pixmap_deadline is not None and time.perf_counter() >= pixmap_deadline:
+        if stats is not None:
+            stats["pixmap_budget_exhausted"] = int(stats.get("pixmap_budget_exhausted", 0)) + len(candidates)
+        return
     displaylist = source_doc[page_idx].get_displaylist()
     for item, font_size_pt in candidates:
+        if pixmap_deadline is not None and time.perf_counter() >= pixmap_deadline:
+            if stats is not None:
+                stats["pixmap_budget_exhausted"] = int(stats.get("pixmap_budget_exhausted", 0)) + 1
+            break
         item_id = str(item.get("item_id", "") or "")
+        if stats is not None:
+            stats["pixmap_checked"] = int(stats.get("pixmap_checked", 0)) + 1
         indent_pt = detect_first_line_indent_pt_with_displaylist(
             source_doc,
             displaylist,
@@ -353,15 +396,31 @@ def page_widths_by_index(source_pdf_path: Path) -> dict[int, float]:
         return {}
 
 
-def _enable_pixmap_first_line_indent_detection() -> bool:
-    import os
+def _pixmap_first_line_indent_policy(*, page_count: int) -> dict[str, Any]:
+    value = str(os.environ.get("RETAIN_RENDER_PIXMAP_INDENT", "") or "").strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return {"enabled": True, "reason": "env_enabled"}
+    if value in {"0", "false", "no", "off"}:
+        return {"enabled": False, "reason": "env_disabled"}
+    if 0 <= int(page_count) <= PIXMAP_INDENT_AUTO_ENABLE_MAX_PAGES:
+        return {"enabled": True, "reason": "small_document_auto_enabled"}
+    return {"enabled": False, "reason": "default_disabled"}
 
-    return str(os.environ.get("RETAIN_RENDER_PIXMAP_INDENT", "") or "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+
+def _pixmap_first_line_indent_max_candidates_per_page() -> int:
+    raw = str(os.environ.get("RETAIN_RENDER_PIXMAP_INDENT_MAX_CANDIDATES_PER_PAGE", "") or "").strip()
+    try:
+        return max(0, int(raw)) if raw else PIXMAP_INDENT_DEFAULT_MAX_CANDIDATES_PER_PAGE
+    except ValueError:
+        return PIXMAP_INDENT_DEFAULT_MAX_CANDIDATES_PER_PAGE
+
+
+def _pixmap_first_line_indent_max_seconds() -> float:
+    raw = str(os.environ.get("RETAIN_RENDER_PIXMAP_INDENT_MAX_SECONDS", "") or "").strip()
+    try:
+        return max(0.0, float(raw)) if raw else PIXMAP_INDENT_DEFAULT_MAX_SECONDS
+    except ValueError:
+        return PIXMAP_INDENT_DEFAULT_MAX_SECONDS
 
 
 __all__ = [

@@ -30,7 +30,11 @@ def item_requires_visual_cover_only(item: dict) -> bool:
 
 
 def item_uses_white_overlay_fill(item: dict) -> bool:
-    return item_overlay_fill(item) == "white" or bool(item.get("_render_use_cover_fill"))
+    return item_overlay_fill(item) in {"white", "sampled"} or bool(item.get("_render_use_cover_fill"))
+
+
+def item_uses_explicit_white_overlay_fill(item: dict) -> bool:
+    return item_overlay_fill(item) == "white"
 
 
 def _item_policy_dict(item: dict) -> dict:

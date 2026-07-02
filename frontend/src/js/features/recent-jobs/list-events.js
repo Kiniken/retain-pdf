@@ -5,9 +5,23 @@ import {
 function closeDeletePopovers(list, exceptItem = null) {
   list.querySelectorAll(".recent-job-item.is-confirming-delete").forEach((node) => {
     if (node !== exceptItem) {
-      node.classList.remove("is-confirming-delete");
+      syncDeletePopover(node, false);
     }
   });
+}
+
+function syncDeletePopover(item, open = item?.classList?.contains?.("is-confirming-delete")) {
+  if (!item) {
+    return;
+  }
+  item.classList.toggle("is-confirming-delete", open);
+  const deleteButton = item.querySelector?.(".recent-job-delete");
+  deleteButton?.setAttribute?.("aria-expanded", open ? "true" : "false");
+  const popover = item.querySelector?.(".recent-job-delete-popover");
+  if (popover) {
+    popover.hidden = !open;
+    popover.inert = !open;
+  }
 }
 
 export function bindRecentJobsListEvents(list, { onSelect, onDelete, onReader } = {}) {
@@ -26,7 +40,7 @@ export function bindRecentJobsListEvents(list, { onSelect, onDelete, onReader } 
     if (cancelButton && list.contains(cancelButton)) {
       event.preventDefault();
       event.stopPropagation();
-      cancelButton.closest(".recent-job-item")?.classList.remove("is-confirming-delete");
+      syncDeletePopover(cancelButton.closest(".recent-job-item"), false);
       return;
     }
     const confirmButton = event.target?.closest?.(".recent-job-delete-confirm");
@@ -34,7 +48,7 @@ export function bindRecentJobsListEvents(list, { onSelect, onDelete, onReader } 
       event.preventDefault();
       event.stopPropagation();
       const item = confirmButton.closest(".recent-job-item");
-      item?.classList.remove("is-confirming-delete");
+      syncDeletePopover(item, false);
       list[RECENT_JOBS_PRIVATE_KEYS.delete]?.(item?.dataset.jobId || "");
       return;
     }
@@ -44,7 +58,7 @@ export function bindRecentJobsListEvents(list, { onSelect, onDelete, onReader } 
       event.stopPropagation();
       const item = deleteButton.closest(".recent-job-item");
       closeDeletePopovers(list, item);
-      item?.classList.toggle("is-confirming-delete");
+      syncDeletePopover(item, !item?.classList?.contains?.("is-confirming-delete"));
       return;
     }
     const readerButton = event.target?.closest?.(".recent-job-reader");
@@ -52,6 +66,7 @@ export function bindRecentJobsListEvents(list, { onSelect, onDelete, onReader } 
       event.preventDefault();
       event.stopPropagation();
       const item = readerButton.closest(".recent-job-item");
+      syncDeletePopover(item, false);
       list[RECENT_JOBS_PRIVATE_KEYS.reader]?.(item?.dataset.jobId || "");
       return;
     }
@@ -72,7 +87,11 @@ export function bindRecentJobsListEvents(list, { onSelect, onDelete, onReader } 
     if (!item || !list.contains(item)) {
       return;
     }
+    if (event.target?.closest?.("button")) {
+      return;
+    }
     event.preventDefault();
+    syncDeletePopover(item, false);
     list[RECENT_JOBS_PRIVATE_KEYS.select]?.(item.dataset.jobId || "");
   });
 }

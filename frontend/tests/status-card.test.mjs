@@ -3326,6 +3326,7 @@ test("status card template exposes the shared DOM contract ids", () => {
     STATUS_CARD_IDS.progressRing,
     STATUS_CARD_IDS.progressRingMeta,
     STATUS_CARD_IDS.markdownBundleButton,
+    STATUS_CARD_IDS.sourcePdfButton,
     STATUS_CARD_IDS.readerButton,
     STATUS_CARD_IDS.pdfButton,
     STATUS_CARD_IDS.legacyBundleButton,

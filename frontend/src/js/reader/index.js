@@ -1,8 +1,11 @@
 import {
   bindResizeRefresh,
+  scheduleScaleRefresh,
 } from "./pdf-controller.js";
+import "../components/feedback/download-toast.js";
 import {
   setReaderBootLoading,
+  setReaderModeHud,
   showBothReaderEmpty,
   showReaderPaneEmpty,
 } from "./view.js";
@@ -19,6 +22,10 @@ import {
   defaultReaderProgressPresenter,
 } from "./progress-presenter.js";
 import { bindReaderInteractions } from "./interaction-flow.js";
+import { createReaderChromeController } from "./chrome-controller.js";
+import { createReaderModeController } from "./mode-controller.js";
+import { createReaderSelectionFavorites } from "./selection-favorites.js";
+import { createReaderSideDrawers } from "./side-drawers.js";
 import {
   resolveReaderJobId,
   resolveReaderSourcePdf,
@@ -28,6 +35,19 @@ import { createReaderInitializer } from "./startup.js";
 import { mountReaderPdfPair } from "./viewer-mount-flow.js";
 
 const pageState = createReaderPageState();
+let readerInteractionController = null;
+const readerChromeController = createReaderChromeController();
+const readerModeController = createReaderModeController({
+  onModeChanged: () => {
+    readerInteractionController?.syncIndicatorForMode?.();
+    readerChromeController.wake();
+    scheduleScaleRefresh();
+  },
+  onModeHudChanged: setReaderModeHud,
+});
+const readerSideDrawers = createReaderSideDrawers({
+  onActiveChanged: () => scheduleScaleRefresh(),
+});
 
 function applyReaderBootProgress(percent, text, stage = "progress") {
   defaultReaderProgressPresenter.apply({
@@ -44,6 +64,9 @@ function syncReaderBootProgress() {
 
 export async function initializeReader() {
   bindResizeRefresh();
+  readerChromeController.bindEvents();
+  readerModeController.bindEvents();
+  readerSideDrawers.bindEvents();
   setReaderBootLoading(true);
   resetReaderProgressState(pageState);
   syncReaderBootProgress();
@@ -55,7 +78,6 @@ export async function initializeReader() {
     setReaderBootLoading(false);
     return;
   }
-
   try {
     applyReaderBootProgress(14, READER_PROGRESS_COPY.metadata, "metadata");
     const {
@@ -94,7 +116,7 @@ export async function initializeReader() {
       return;
     }
 
-    bindReaderInteractions({
+    readerInteractionController = bindReaderInteractions({
       apiPrefix: defaultReaderDataPort.apiPrefix,
       fetchTranslationItem: defaultReaderDataPort.fetchRegionTranslationItem,
       jobId,
@@ -104,6 +126,11 @@ export async function initializeReader() {
       sourceReady,
       translatedReady,
     });
+    createReaderSelectionFavorites({
+      drawerController: readerSideDrawers,
+      jobId,
+      setReaderMode: readerModeController.setMode,
+    }).bindEvents();
     applyReaderBootProgress(100, READER_PROGRESS_COPY.ready, "ready");
     setReaderBootLoading(false);
   } catch (_err) {

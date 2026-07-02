@@ -90,7 +90,7 @@ fn prepare_translation_stage(
             source_pdf_path,
             layout_json_path,
         },
-    );
+    )?;
     parent_job.stage = Some(job_stage_str(JobStage::Translating).to_string());
     parent_job.stage_detail = Some(job_stage_detail(JobStage::Translating).to_string());
     parent_job.progress_current = None;
@@ -122,7 +122,7 @@ pub(super) async fn run_render_stage_after_translation(
             source_pdf_path,
             translations_dir: &job_paths.translated_dir,
         },
-    );
+    )?;
     job.status = JobStatusKind::Running;
     job.stage = Some(job_stage_str(JobStage::Rendering).to_string());
     job.stage_detail = Some(job_stage_detail(JobStage::Rendering).to_string());

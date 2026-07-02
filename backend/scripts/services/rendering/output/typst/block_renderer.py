@@ -97,16 +97,21 @@ def _build_preserved_line_box_typst(block_id: str, block: RenderBlock, *, text_f
     for index, line in enumerate(block.preserved_line_boxes or []):
         if len(line.bbox) != 4 or not str(line.text or "").strip():
             continue
+        line_markdown = build_direct_typst_passthrough_text(str(line.text or ""))
         x0, y0, x1, y1 = [float(value) for value in line.bbox]
         width = max(typst_config.MIN_BLOCK_SIZE_PT, x1 - x0)
         height = max(typst_config.MIN_BLOCK_SIZE_PT, y1 - y0)
         max_font_pt = round(max(1.0, min(block.font_size_pt, height * 0.86)), 2)
-        min_font_pt = round(max(1.0, min(max_font_pt, height * 0.58)), 2)
+        text_units = max(1, len(line_markdown.strip()))
+        dense_single_line = text_units / max(width, 1.0) > 0.38
+        min_scale = 0.36 if dense_single_line else 0.58
+        min_floor = 4.8 if dense_single_line else 1.0
+        min_font_pt = round(max(min_floor, min(max_font_pt, height * min_scale)), 2)
         line_name = f"{block_id.replace('-', '_')}_line_{index}_md"
         body_name = f"{block_id.replace('-', '_')}_line_{index}_body"
         parts.extend(
             [
-                f'#let {line_name} = "{escape_typst_string(line.text)}"',
+                f'#let {line_name} = "{escape_typst_string(line_markdown)}"',
                 f"#let {body_name} = block(width: {width}pt, height: {height}pt{block_fill})[#{{ "
                 f"set text(fill: {text_fill}); "
                 f'pdftr_fit_single_line_markdown({line_name}, max_size: {max_font_pt}pt, '

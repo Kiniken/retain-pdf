@@ -134,6 +134,32 @@ mod tests {
         serde_json::from_str(&spec_json).expect("valid stage spec json")
     }
 
+    #[test]
+    fn stage_command_returns_error_when_spec_cannot_be_written() {
+        let config = test_config();
+        let request = build_request(WorkflowKind::Translate);
+        let job_paths = build_paths(config.as_ref());
+        std::fs::create_dir_all(&job_paths.root).expect("create job root");
+        std::fs::write(&job_paths.specs_dir, b"not a directory").expect("create specs file");
+
+        let result = build_worker_stage_command(
+            &config.worker_command_runtime(),
+            &request,
+            &job_paths,
+            WorkerStageCommand::Translate {
+                source_json_path: Path::new("/tmp/document.v1.json"),
+                source_pdf_path: Path::new("/tmp/source.pdf"),
+                layout_json_path: None,
+            },
+        );
+
+        let err = result.expect_err("spec write failure should be returned");
+        assert!(
+            err.to_string().contains("create specs dir"),
+            "unexpected error: {err:#}"
+        );
+    }
+
     fn normalize_command(
         config: &AppConfig,
         request: &ResolvedJobSpec,
@@ -156,6 +182,7 @@ mod tests {
                 provider_raw_dir,
             },
         )
+        .expect("build normalize command")
     }
 
     fn translate_command(
@@ -176,6 +203,7 @@ mod tests {
                 layout_json_path,
             },
         )
+        .expect("build translate command")
     }
 
     fn render_command(
@@ -194,6 +222,7 @@ mod tests {
                 translations_dir,
             },
         )
+        .expect("build render command")
     }
 
     fn assert_object_has_keys(value: &serde_json::Value, keys: &[&str]) {
@@ -238,6 +267,17 @@ mod tests {
         assert_eq!(
             payload["params"]["credential_ref"],
             format!("env:{TRANSLATION_API_KEY_ENV_NAME}")
+        );
+        assert_eq!(payload["params"]["render_prewarm_mode"], "typst");
+        assert_eq!(
+            payload["params"]["render_prewarm_output_pdf_path"]
+                .as_str()
+                .expect("render prewarm output path"),
+            job_paths.rendered_dir.join("out.pdf").to_string_lossy()
+        );
+        assert_eq!(
+            payload["params"]["render_prewarm_source_cleanup_strategy"],
+            "pikepdf_text_strip"
         );
         assert!(!spec_json.contains("sk-test"));
     }
@@ -479,7 +519,8 @@ mod tests {
             Some(Path::new("/tmp/source.pdf")),
             &request,
             &job_paths,
-        );
+        )
+        .expect("build OCR command");
 
         assert!(contains(
             &cmd,

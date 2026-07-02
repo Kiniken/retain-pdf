@@ -14,7 +14,7 @@ from services.rendering.source.prewarm_manifest import float_list
 from services.rendering.source.prewarm_color_profile import apply_page_color_adapt_for_prewarm
 
 
-BACKGROUND_RENDER_PAGE_SPECS_ALGORITHM_VERSION = "background_render_page_specs_v4_visual_profile"
+BACKGROUND_RENDER_PAGE_SPECS_ALGORITHM_VERSION = "background_render_page_specs_v5_inline_math_compat"
 
 
 def build_background_render_page_specs_manifest(

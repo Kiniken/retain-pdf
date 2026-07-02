@@ -4,9 +4,11 @@ import {
 } from "../api/jobs-query.js";
 import {
   fetchJobArtifactsManifest,
+  fetchJobMarkdown,
 } from "../api/jobs-artifacts.js";
 import { fetchProtected } from "../api/http.js";
 import {
+  fetchReaderAiChat,
   fetchReaderMetadata,
   fetchReaderRegions,
 } from "../api/reader.js";
@@ -18,6 +20,8 @@ export function createReaderDataPort({
   apiPrefix = API_PREFIX,
   loadJob = fetchJobPayload,
   loadManifest = fetchJobArtifactsManifest,
+  loadMarkdown = fetchJobMarkdown,
+  loadAiChat = fetchReaderAiChat,
   loadRegions = fetchReaderRegions,
   loadMetadata = fetchReaderMetadata,
   loadTranslationItem = fetchTranslationItem,
@@ -42,11 +46,21 @@ export function createReaderDataPort({
     return loadTranslationItem(jobId, itemId, apiPrefix);
   }
 
+  function loadMarkdownPayload(jobId) {
+    return loadMarkdown(jobId, apiPrefix);
+  }
+
+  function submitAiChat(jobId, payload) {
+    return loadAiChat(jobId, payload, apiPrefix);
+  }
+
   return Object.freeze({
     apiPrefix,
     fetchProtected: fetchProtectedResource,
     fetchRegionTranslationItem,
+    loadMarkdownPayload,
     loadReaderPayload,
+    submitAiChat,
   });
 }
 

@@ -1,6 +1,13 @@
 import { $ } from "../dom/query.js";
 
 let lastPageIndicatorText = "";
+let lastPagePercent = -1;
+
+const READER_MODE_LABELS = {
+  source: "原文",
+  translated: "译文",
+  compare: "对照",
+};
 
 export function setReaderBootLoading(loading) {
   const loadingEl = $("reader-boot-loading");
@@ -64,15 +71,39 @@ export function setPageIndicator(currentPage, totalPages) {
   const indicator = $("reader-page-indicator");
   if (!indicator || !totalPages) {
     lastPageIndicatorText = "";
+    lastPagePercent = -1;
     indicator?.classList.add("hidden");
     return;
   }
-  const text = `第 ${currentPage} / ${totalPages} 页`;
+  const pageNumber = Math.max(1, Number(currentPage) || 1);
+  const pageTotal = Math.max(1, Number(totalPages) || 1);
+  const pageText = `第 ${pageNumber} / ${pageTotal} 页`;
+  const percent = Math.max(0, Math.min(100, Math.round((pageNumber / pageTotal) * 100)));
+  const text = `${pageText} · ${percent}%`;
+  const pageEl = $("reader-bottom-hud-page");
+  const progressBar = $("reader-bottom-hud-progress-bar");
   if (text !== lastPageIndicatorText) {
-    indicator.textContent = text;
+    if (pageEl) {
+      pageEl.textContent = pageText;
+    } else {
+      indicator.textContent = text;
+    }
+    indicator.setAttribute("aria-label", text);
     lastPageIndicatorText = text;
   }
+  if (percent !== lastPagePercent) {
+    progressBar?.style?.setProperty?.("--reader-progress", `${percent}%`);
+    indicator.dataset.readerProgress = `${percent}`;
+    lastPagePercent = percent;
+  }
   indicator.classList.remove("hidden");
+}
+
+export function setReaderModeHud(mode) {
+  const modeEl = $("reader-bottom-hud-mode");
+  if (modeEl) {
+    modeEl.textContent = READER_MODE_LABELS[mode] || READER_MODE_LABELS.compare;
+  }
 }
 
 export function showReaderPaneEmpty(key, emptyId) {

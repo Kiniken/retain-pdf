@@ -212,6 +212,7 @@ def _materialize_normalized_document_from_local_raw(
         document_id=document_id,
         provider=provider,
         provider_version="local",
+        allow_provider_mismatch=True,
     )
     save_json(normalized_json_path, document)
     save_json(normalized_report_json_path, report)

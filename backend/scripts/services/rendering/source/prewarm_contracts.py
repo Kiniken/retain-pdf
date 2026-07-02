@@ -16,9 +16,9 @@ RENDER_PREWARM_SCHEMA = "render_source_prewarm_v1"
 BBOX_TEXT_STRIP_ALGORITHM_ID = "bbox_text_strip"
 HIDDEN_TEXT_STRIP_ALGORITHM_VERSION = "hidden_text_strip_v1"
 IMAGE_COMPRESSION_ALGORITHM_VERSION = "image_only_compress_v1"
-FIRST_LINE_INDENT_ALGORITHM_VERSION = "first_line_indent_v2_lines_only_default"
+FIRST_LINE_INDENT_ALGORITHM_VERSION = "first_line_indent_v3_pixmap_default"
 GEOMETRY_ADJUSTMENT_ALGORITHM_VERSION = "geometry_adjustments_v1"
-PAYLOAD_RENDER_ALGORITHM_VERSION = "payload_render_member_continuation_visual_profile_v15_lines_only_indent"
+PAYLOAD_RENDER_ALGORITHM_VERSION = "payload_render_member_continuation_visual_profile_v16_pixmap_indent"
 
 
 @dataclass(frozen=True)

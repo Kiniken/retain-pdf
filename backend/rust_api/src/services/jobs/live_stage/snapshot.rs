@@ -65,7 +65,7 @@ fn select_main_stage_event<'a>(
     items: &'a [JobEventRecord],
     status: &JobStatusKind,
 ) -> Option<&'a JobEventRecord> {
-    let mut candidates: Vec<&JobEventRecord> = items
+    let candidates: Vec<&JobEventRecord> = items
         .iter()
         .filter(|item| item_is_selectable_main_stage(item))
         .collect();
@@ -76,7 +76,7 @@ fn select_main_stage_event<'a>(
             .filter(|item| !item_is_terminal_done_stage(item))
             .collect();
         if !non_terminal.is_empty() {
-            candidates = non_terminal;
+            return latest_by_time(non_terminal.into_iter());
         }
     }
     candidates.into_iter().max_by(|left, right| {

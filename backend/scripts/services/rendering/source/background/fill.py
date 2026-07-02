@@ -9,8 +9,10 @@ from services.rendering.source.background.config import BACKGROUND_COVER_MIN_SAM
 from services.rendering.source.background.config import BACKGROUND_COVER_SAMPLE_MARGIN_PT
 from services.rendering.source.background.config import BACKGROUND_COVER_SAMPLE_SCALE
 from services.rendering.source.background.config import BACKGROUND_CLIP_SAMPLER_EXTRA_MARGIN_PT
+from services.rendering.source.background.config import BACKGROUND_FULL_PAGE_SAMPLER_MIN_RECTS
 from services.rendering.source.background.config import BACKGROUND_CLIP_SAMPLER_MAX_PAGE_AREA_RATIO
 from services.rendering.source.background.config import BACKGROUND_CLIP_SAMPLER_MIN_RECTS
+from services.rendering.source.background.config import BACKGROUND_COVER_MAX_SAMPLE_PIXELS
 from services.rendering.source.background.config import BACKGROUND_FILL_DOMINANT_BIN_SIZE
 from services.rendering.source.background.config import BACKGROUND_FILL_DOMINANT_MIN_RATIO
 from services.rendering.source.background.config import BACKGROUND_FILL_NONWHITE_MAX_CHANNEL
@@ -39,7 +41,7 @@ class LocalBackgroundSampler:
 
     @classmethod
     def build(cls, page: fitz.Page, rects: list[fitz.Rect]) -> "LocalBackgroundSampler | None":
-        clip_rect = _batch_sampler_clip_rect(page, rects)
+        clip_rect = _batch_sampler_clip_rect(page, rects, allow_full_page=True)
         if clip_rect is None:
             return None
         pixmap = _clip_pixmap(page, clip_rect)
@@ -123,10 +125,11 @@ class LocalBackgroundSampler:
         x0, y0, x1, y1 = bounds
         ex0, ey0, ex1, ey1 = excluded_bounds
         pixels: list[tuple[int, int, int]] = []
-        for y in range(y0, y1):
+        step = _sample_step_for_bounds(x0, y0, x1, y1)
+        for y in range(y0, y1, step):
             inside_y = ey0 <= y < ey1
             row_offset = y * self.pixmap.width * self.stride
-            for x in range(x0, x1):
+            for x in range(x0, x1, step):
                 if inside_y and ex0 <= x < ex1:
                     continue
                 offset = row_offset + x * self.stride
@@ -135,9 +138,10 @@ class LocalBackgroundSampler:
 
     def _pixels_in_bounds(self, x0: int, y0: int, x1: int, y1: int) -> list[tuple[int, int, int]]:
         pixels: list[tuple[int, int, int]] = []
-        for y in range(y0, y1):
+        step = _sample_step_for_bounds(x0, y0, x1, y1)
+        for y in range(y0, y1, step):
             row_offset = y * self.pixmap.width * self.stride
-            for x in range(x0, x1):
+            for x in range(x0, x1, step):
                 offset = row_offset + x * self.stride
                 pixels.append((self.samples[offset], self.samples[offset + 1], self.samples[offset + 2]))
         return pixels
@@ -174,7 +178,12 @@ def _background_sample_outer_rect_from_page_rect(page_rect: fitz.Rect, rect: fit
     return outer
 
 
-def _batch_sampler_clip_rect(page: fitz.Page, rects: list[fitz.Rect]) -> fitz.Rect | None:
+def _batch_sampler_clip_rect(
+    page: fitz.Page,
+    rects: list[fitz.Rect],
+    *,
+    allow_full_page: bool = False,
+) -> fitz.Rect | None:
     valid_rects = [fitz.Rect(rect) for rect in rects if not rect.is_empty and not rect.is_infinite]
     if len(valid_rects) < BACKGROUND_CLIP_SAMPLER_MIN_RECTS:
         return None
@@ -192,6 +201,8 @@ def _batch_sampler_clip_rect(page: fitz.Page, rects: list[fitz.Rect]) -> fitz.Re
     if clip is None or clip.is_empty:
         return None
     if rect_area(clip) / max(rect_area(page_rect), 1.0) > BACKGROUND_CLIP_SAMPLER_MAX_PAGE_AREA_RATIO:
+        if allow_full_page and len(valid_rects) >= BACKGROUND_FULL_PAGE_SAMPLER_MIN_RECTS:
+            return page_rect
         return None
     return clip
 
@@ -226,12 +237,22 @@ def _pixmap_rgb_pixels(pix: fitz.Pixmap) -> list[tuple[int, int, int]]:
     samples = memoryview(pix.samples)
     stride = pix.n
     pixels: list[tuple[int, int, int]] = []
-    for y in range(pix.height):
+    step = _sample_step_for_bounds(0, 0, pix.width, pix.height)
+    for y in range(0, pix.height, step):
         row_offset = y * pix.width * stride
-        for x in range(pix.width):
+        for x in range(0, pix.width, step):
             offset = row_offset + x * stride
             pixels.append((samples[offset], samples[offset + 1], samples[offset + 2]))
     return pixels
+
+
+def _sample_step_for_bounds(x0: int, y0: int, x1: int, y1: int) -> int:
+    width = max(0, x1 - x0)
+    height = max(0, y1 - y0)
+    total = width * height
+    if total <= BACKGROUND_COVER_MAX_SAMPLE_PIXELS:
+        return 1
+    return max(1, int((total / BACKGROUND_COVER_MAX_SAMPLE_PIXELS) ** 0.5))
 
 
 def _brightness_spread(pixels: list[tuple[int, int, int]]) -> int:

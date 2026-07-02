@@ -9,6 +9,7 @@ sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
 from runtime.pipeline.translation_loader import load_translated_pages
+import services.translation.core.payload.manifest as manifest_module
 from services.translation.core.payload.manifest import load_translation_manifest
 from services.translation.core.payload.manifest import load_translation_manifest_file
 from services.translation.core.payload.manifest import write_translation_manifest
@@ -50,6 +51,29 @@ def test_translation_manifest_round_trip() -> None:
 
         assert loaded == {0: payload_path}
         assert manifest_payload["pages"][0]["path"] == "custom-page-001.json"
+
+
+def test_write_translation_manifest_uses_same_directory_atomic_replace(tmp_path, monkeypatch) -> None:
+    translations_dir = tmp_path / "translations"
+    payload_path = translations_dir / "custom-page-001.json"
+    payload_path.parent.mkdir(parents=True)
+    _write_payload(payload_path, "manifest text")
+    real_replace = manifest_module.os.replace
+    replace_calls: list[tuple[Path, Path]] = []
+
+    def capture_replace(src, dst):
+        replace_calls.append((Path(src), Path(dst)))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(manifest_module.os, "replace", capture_replace)
+
+    manifest_path = write_translation_manifest(translations_dir, {0: payload_path})
+
+    assert replace_calls
+    tmp_path_used, target_path = replace_calls[-1]
+    assert tmp_path_used.parent == manifest_path.parent
+    assert target_path == manifest_path
+    assert not tmp_path_used.exists()
 
 
 def test_load_translated_pages_prefers_manifest() -> None:
@@ -103,6 +127,70 @@ def test_load_translation_manifest_file_supports_explicit_path() -> None:
         loaded = load_translation_manifest_file(manifest_path)
 
         assert loaded == {4: payload_path}
+
+
+def test_write_translation_manifest_rejects_payload_outside_translations_dir(tmp_path) -> None:
+    translations_dir = tmp_path / "translations"
+    outside_payload = tmp_path / "outside-page.json"
+    translations_dir.mkdir()
+    _write_payload(outside_payload, "outside text")
+
+    try:
+        write_translation_manifest(translations_dir, {0: outside_payload})
+    except RuntimeError as exc:
+        assert "under translations_dir" in str(exc)
+    else:
+        raise AssertionError("expected outside payload path error")
+
+
+def test_load_translation_manifest_rejects_absolute_payload_path(tmp_path) -> None:
+    translations_dir = tmp_path / "translations"
+    translations_dir.mkdir()
+    payload_path = translations_dir / "page-001.json"
+    _write_payload(payload_path, "manifest text")
+    manifest_path = translations_dir / "translation-manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": "translation_manifest_v1",
+                "schema_version": 1,
+                "pages": [{"page_index": 0, "path": str(payload_path)}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        load_translation_manifest(translations_dir)
+    except RuntimeError as exc:
+        assert "absolute payload path" in str(exc)
+    else:
+        raise AssertionError("expected absolute payload path error")
+
+
+def test_load_translation_manifest_rejects_payload_path_escape(tmp_path) -> None:
+    translations_dir = tmp_path / "translations"
+    outside_payload = tmp_path / "outside-page.json"
+    translations_dir.mkdir()
+    _write_payload(outside_payload, "outside text")
+    manifest_path = translations_dir / "translation-manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": "translation_manifest_v1",
+                "schema_version": 1,
+                "pages": [{"page_index": 0, "path": "../outside-page.json"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        load_translation_manifest(translations_dir)
+    except RuntimeError as exc:
+        assert "escapes translations_dir" in str(exc)
+    else:
+        raise AssertionError("expected path escape error")
 
 
 def test_translation_manifest_can_store_glossary_summary_without_affecting_loader() -> None:

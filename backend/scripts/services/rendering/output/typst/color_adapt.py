@@ -8,7 +8,7 @@ import fitz
 from services.rendering.layout.font_roles import is_title_like_block
 from services.rendering.layout.typography.geometry import cover_bbox
 from services.rendering.policy import item_overlay_fill
-from services.rendering.policy import item_uses_white_overlay_fill
+from services.rendering.policy import item_uses_explicit_white_overlay_fill
 from services.rendering.source.background.fill import LocalBackgroundSampler
 from services.rendering.source.background.color_sampling import sample_local_background_fill
 
@@ -342,7 +342,7 @@ def _item_needs_local_color_sampling(item: dict) -> bool:
 
 
 def _item_uses_explicit_white_fill(item: dict) -> bool:
-    return item_uses_white_overlay_fill(item) and not _item_needs_local_color_sampling(item)
+    return item_uses_explicit_white_overlay_fill(item) and not _item_needs_local_color_sampling(item)
 
 
 def _sample_item_cover_fill(

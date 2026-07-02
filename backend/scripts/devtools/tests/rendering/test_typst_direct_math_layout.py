@@ -146,6 +146,95 @@ def test_direct_typst_continuation_split_keeps_inline_math_atomic() -> None:
     assert sum("$\\mathrm{Ph(i-PrO)SiH_2}$" in chunk for chunk in chunks) == 1
 
 
+def test_preserved_line_split_keeps_direct_typst_inline_math_atomic() -> None:
+    from services.rendering.layout.payload.line_structure import split_text_by_source_line_weights
+
+    text = (
+        r"a. $ \text{H}^{79}\text{Br} $ 或 $ \text{D}^{80}\text{Br} $　"
+        r"b. $ \text{C}=\text{N} $ 或 $ \text{C}\equiv\text{N} $　"
+        r"c. $ X^{1}\Sigma^+ $ CO（键长 1.128 Å）或 $ I^{1}\Sigma^- $ CO（键长 1.391 Å）"
+    )
+
+    chunks = split_text_by_source_line_weights(
+        text,
+        [
+            r"a. $ \text{H}^{79}\text{Br} $ or $ \text{D}^{80}\text{Br} $ b. $ \text{C}=\text{N} $ or $ \text{C}\equiv\text{N} $",
+            r"c. $ X^{1}\Sigma^+ $ CO (bond length 1.128 Å) or $ I^{1}\Sigma^- $ CO (bond length 1.391 Å)",
+        ],
+    )
+
+    assert len(chunks) == 2
+    assert all(chunk.count("$") % 2 == 0 for chunk in chunks)
+    assert not chunks[1].lstrip().startswith("text{N}")
+    assert any(r"\text{C}\equiv\text{N}" in chunk for chunk in chunks)
+    assert not any("1.\n128" in chunk or chunk.strip().startswith("128 Å") for chunk in chunks)
+    assert chunks[1].startswith("c.")
+
+
+def test_preserved_line_typst_allows_dense_math_lines_to_shrink() -> None:
+    from services.rendering.layout.model.models import RenderBlock, RenderLineBox
+    from services.rendering.output.typst.block_renderer import build_typst_block
+
+    block = RenderBlock(
+        block_id="p035-b005",
+        bbox=[33.996, 140.477, 244.973, 175.971],
+        cover_bbox=[32.414, 140.127, 246.555, 176.321],
+        inner_bbox=[33.996, 140.477, 244.973, 175.971],
+        markdown_text="",
+        plain_text="",
+        render_kind="markdown",
+        font_size_pt=15.98,
+        leading_em=0.55,
+        use_cover_fill=True,
+        preserve_line_breaks=True,
+        preserved_line_boxes=[
+            RenderLineBox(
+                text=(
+                    r"a. $ \text{H}^{79}\text{Br} $ 或 $ \text{D}^{80}\text{Br} $　"
+                    r"b. $ \text{C}=\text{N} $ 或 $ \text{C}\equiv\text{N} $"
+                ),
+                bbox=[33.996, 140.477, 244.973, 158.224],
+            )
+        ],
+    )
+
+    typst = build_typst_block("p035_b005", block)
+
+    assert "min_size: 6.39pt" in typst
+    assert r"$\\text{H}^{79}\\text{Br}$" in typst
+    assert r"$ \text{H}^{79}\text{Br} $" not in typst
+
+
+def test_preserved_line_marker_split_requires_increasing_source_markers() -> None:
+    from services.rendering.layout.payload.line_structure import _split_text_by_source_line_markers
+
+    chunks = _split_text_by_source_line_markers(
+        "c. 第三项 a. 第一项",
+        [
+            "c. third item",
+            "a. first item",
+        ],
+    )
+
+    assert chunks is None
+
+
+def test_preserved_line_marker_split_rejects_mixed_marker_styles() -> None:
+    from services.rendering.layout.payload.line_structure import split_text_by_source_line_weights
+
+    text = "1. 第一项 b. 第二项"
+
+    chunks = split_text_by_source_line_weights(
+        text,
+        [
+            "1. first item",
+            "b. second item",
+        ],
+    )
+
+    assert chunks != ["1. 第一项", "b. 第二项"]
+
+
 def test_prepare_render_payloads_preserves_direct_typst_formula_at_group_boundary() -> None:
     translated_pages = {
         1: [
@@ -286,5 +375,3 @@ def test_build_render_blocks_skips_model_keep_origin_shell_commands_with_dollars
     blocks = build_render_blocks(items, page_width=595.28, page_height=841.89)
 
     assert blocks == []
-
-

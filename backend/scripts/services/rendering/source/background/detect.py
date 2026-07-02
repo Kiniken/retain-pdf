@@ -10,14 +10,29 @@ TILED_BACKGROUND_IMAGE_COVERAGE_RATIO = 0.65
 TILED_BACKGROUND_IMAGE_MIN_WIDTH_RATIO = 0.60
 
 
+def _page_image_infos(page: fitz.Page, *, xrefs: bool = False) -> list[dict]:
+    try:
+        return list(page.get_image_info(hashes=False, xrefs=xrefs))
+    except Exception:
+        return []
+
+
 def page_has_large_background_image(
     page: fitz.Page,
     *,
     coverage_ratio_threshold: float = 0.75,
 ) -> bool:
-    if pick_primary_background_image(page, coverage_ratio_threshold=coverage_ratio_threshold) is not None:
+    if _page_has_primary_background_image(page, coverage_ratio_threshold=coverage_ratio_threshold):
         return True
     return page_has_tiled_background_images(page)
+
+
+def _page_has_primary_background_image(
+    page: fitz.Page,
+    *,
+    coverage_ratio_threshold: float,
+) -> bool:
+    return pick_primary_background_image(page, coverage_ratio_threshold=coverage_ratio_threshold) is not None
 
 
 def pick_primary_background_image(
@@ -27,20 +42,56 @@ def pick_primary_background_image(
 ) -> tuple[int, fitz.Rect] | None:
     page_area = max(rect_area(page.rect), 1.0)
     best: tuple[float, int, fitz.Rect] | None = None
+
+    for info in _page_image_infos(page, xrefs=True):
+        try:
+            xref = int(info.get("xref") or 0)
+            rect = fitz.Rect(info.get("bbox"))
+        except Exception:
+            continue
+        if xref <= 0 or rect.is_empty:
+            continue
+        coverage_ratio = rect_area(rect & page.rect) / page_area
+        if coverage_ratio < coverage_ratio_threshold:
+            continue
+        candidate = (coverage_ratio, xref, rect)
+        if best is None or candidate[0] > best[0]:
+            best = candidate
+    if best is None:
+        best = _pick_primary_background_image_from_xref_rects(
+            page,
+            coverage_ratio_threshold=coverage_ratio_threshold,
+        )
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
+def _pick_primary_background_image_from_xref_rects(
+    page: fitz.Page,
+    *,
+    coverage_ratio_threshold: float,
+) -> tuple[float, int, fitz.Rect] | None:
+    page_area = max(rect_area(page.rect), 1.0)
+    best: tuple[float, int, fitz.Rect] | None = None
     try:
-        images = page.get_images(full=True)
+        image_entries = list(page.get_images(full=True))
     except Exception:
         return None
 
-    for image in images:
-        if not image:
-            continue
-        xref = image[0]
+    for entry in image_entries:
         try:
-            rects = page.get_image_rects(xref)
+            xref = int(entry[0])
         except Exception:
             continue
+        if xref <= 0:
+            continue
+        try:
+            rects = list(page.get_image_rects(xref))
+        except Exception:
+            rects = []
         for rect in rects:
+            rect = fitz.Rect(rect)
             if rect.is_empty:
                 continue
             coverage_ratio = rect_area(rect & page.rect) / page_area
@@ -49,9 +100,7 @@ def pick_primary_background_image(
             candidate = (coverage_ratio, xref, rect)
             if best is None or candidate[0] > best[0]:
                 best = candidate
-    if best is None:
-        return None
-    return best[1], best[2]
+    return best
 
 
 def page_has_tiled_background_images(
@@ -82,22 +131,14 @@ def page_has_tiled_background_images(
 
 def _image_rects(page: fitz.Page) -> list[fitz.Rect]:
     rects: list[fitz.Rect] = []
-    try:
-        images = page.get_images(full=True)
-    except Exception:
-        return rects
-    for image in images:
-        if not image:
-            continue
-        xref = image[0]
+    for info in _page_image_infos(page):
         try:
-            image_rects = page.get_image_rects(xref)
+            rect = fitz.Rect(info.get("bbox"))
         except Exception:
             continue
-        for rect in image_rects:
-            inter = rect & page.rect
-            if not inter.is_empty:
-                rects.append(inter)
+        inter = rect & page.rect
+        if not inter.is_empty:
+            rects.append(inter)
     return rects
 
 

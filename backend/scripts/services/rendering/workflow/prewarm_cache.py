@@ -102,6 +102,9 @@ def build_sync_payload_prewarm(
 def merge_payload_prewarm(existing: dict[str, object], fresh: dict[str, object]) -> dict[str, object]:
     merged = dict(existing)
     for key, value in fresh.items():
+        if key.endswith("_algorithm"):
+            merged[key] = value
+            continue
         if not _payload_value_has_material(value):
             if key not in merged:
                 merged[key] = value

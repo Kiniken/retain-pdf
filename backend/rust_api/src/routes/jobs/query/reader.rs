@@ -2,10 +2,14 @@ use axum::extract::{Path as AxumPath, State};
 use axum::Json;
 
 use crate::error::AppError;
-use crate::models::api::{ApiResponse, ReaderMetadataView, ReaderRegionsView};
+use crate::models::api::{
+    ApiResponse, ReaderAiChatRequest, ReaderAiChatView, ReaderMetadataView, ReaderRegionsView,
+};
 use crate::AppState;
 
-use super::super::json_response::{reader_metadata_response, reader_regions_response};
+use super::super::json_response::{
+    reader_ai_chat_response, reader_metadata_response, reader_regions_response,
+};
 use crate::routes::common::build_jobs_route_deps;
 
 pub async fn get_reader_regions(
@@ -20,4 +24,12 @@ pub async fn get_reader_metadata(
     AxumPath(job_id): AxumPath<String>,
 ) -> Result<Json<ApiResponse<ReaderMetadataView>>, AppError> {
     reader_metadata_response(build_jobs_route_deps(&state), &job_id)
+}
+
+pub async fn reader_ai_chat(
+    State(state): State<AppState>,
+    AxumPath(job_id): AxumPath<String>,
+    Json(payload): Json<ReaderAiChatRequest>,
+) -> Result<Json<ApiResponse<ReaderAiChatView>>, AppError> {
+    reader_ai_chat_response(build_jobs_route_deps(&state), &job_id, payload).await
 }

@@ -18,8 +18,7 @@
   .reader-dialog-shell {
     width: 100%;
     height: 100%;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    display: block;
     position: relative;
     border-radius: 0;
     overflow: hidden;
@@ -28,29 +27,41 @@
   }
 
   .reader-dialog-head {
-    position: relative;
-    display: grid;
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    z-index: 12;
+    display: flex;
     align-items: center;
-    padding: 8px 56px 4px;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 0;
     background: transparent;
     border-bottom: none;
   }
 
   .reader-dialog-toolbar {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: flex;
     align-items: center;
-    width: 100%;
+    justify-content: flex-end;
     min-width: 0;
-    gap: 8px;
   }
 
+  .reader-dialog-download-menu {
+    position: relative;
+  }
+
+  .reader-dialog-download-menu[open] .reader-dialog-download-trigger {
+    background: rgba(255, 255, 255, 0.92);
+    color: #1d1d1f;
+  }
+
+  .reader-dialog-download-trigger,
   .reader-dialog-toolbar-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    justify-self: center;
     min-height: 30px;
     padding-inline: 12px;
     border-radius: 999px;
@@ -67,6 +78,44 @@
     transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, opacity 0.18s ease;
   }
 
+  .reader-dialog-download-trigger {
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .reader-dialog-download-trigger::-webkit-details-marker {
+    display: none;
+  }
+
+  .reader-dialog-download-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    display: grid;
+    gap: 6px;
+    min-width: 144px;
+    padding: 8px;
+    border: 1px solid rgba(29, 29, 31, 0.1);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .reader-dialog-download-popover .reader-dialog-toolbar-btn {
+    width: 100%;
+    justify-content: flex-start;
+    border-radius: 10px;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .reader-dialog-download-popover .reader-dialog-toolbar-btn:hover:not(:disabled) {
+    background: rgba(29, 29, 31, 0.06);
+  }
+
+  .reader-dialog-download-trigger svg,
   .reader-dialog-toolbar-btn svg {
     width: 13px;
     height: 13px;
@@ -74,12 +123,14 @@
     opacity: 0.88;
   }
 
+  .reader-dialog-download-trigger span,
   .reader-dialog-toolbar-btn span {
     display: inline-flex;
     align-items: center;
     min-width: 0;
   }
 
+  .reader-dialog-download-trigger:hover,
   .reader-dialog-toolbar-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.82);
     border-color: rgba(29, 29, 31, 0.12);
@@ -92,9 +143,14 @@
   }
 
   .reader-dialog-head .dialog-close-btn {
-    position: absolute;
-    top: 8px;
-    right: 10px;
+    position: static;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
   .reader-dialog-frame {
@@ -107,7 +163,7 @@
 
   .reader-dialog-loading {
     position: absolute;
-    inset: 52px 0 0;
+    inset: 0;
     z-index: 5;
     display: grid;
     place-items: center;
@@ -162,24 +218,16 @@
 
   @media (max-width: 720px) {
     .reader-dialog-head {
-      padding: 8px 44px 4px 8px;
+      top: 8px;
+      right: 8px;
     }
 
     .reader-dialog-toolbar {
-      gap: 6px;
-      width: 100%;
+      max-width: calc(100vw - 58px);
     }
 
-    .reader-dialog-toolbar-btn {
-      width: calc(100% - 4px);
-      min-width: 0;
-      padding-inline: 8px;
-      font-size: 11px;
-    }
-
-    .reader-dialog-head .dialog-close-btn {
-      top: 6px;
-      right: 8px;
+    .reader-dialog-download-popover {
+      min-width: 136px;
     }
   }
 

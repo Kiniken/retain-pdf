@@ -35,19 +35,27 @@ export function readerDialogTemplate() {
     <dialog id="${READER_DIALOG_IDS.dialog}" class="desktop-dialog reader-dialog">
       <div class="reader-dialog-shell">
         <div class="reader-dialog-head">
-          <div class="reader-dialog-toolbar">
-            <button id="${READER_DIALOG_BUTTON_IDS.source}" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
-              ${downloadIconMarkup()}
-              <span>原始 PDF</span>
-            </button>
-            <button id="${READER_DIALOG_BUTTON_IDS.merged}" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
-              ${splitPdfIconMarkup()}
-              <span>对照 PDF</span>
-            </button>
-            <button id="${READER_DIALOG_BUTTON_IDS.translated}" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
-              ${downloadIconMarkup(translatedIconExtra)}
-              <span>译文 PDF</span>
-            </button>
+          <div class="reader-dialog-toolbar" data-reader-download-menu>
+            <details class="reader-dialog-download-menu">
+              <summary class="reader-dialog-download-trigger">
+                ${downloadIconMarkup()}
+                <span>下载</span>
+              </summary>
+              <div class="reader-dialog-download-popover">
+                <button id="${READER_DIALOG_BUTTON_IDS.source}" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
+                  ${downloadIconMarkup()}
+                  <span>原始 PDF</span>
+                </button>
+                <button id="${READER_DIALOG_BUTTON_IDS.merged}" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
+                  ${splitPdfIconMarkup()}
+                  <span>对照 PDF</span>
+                </button>
+                <button id="${READER_DIALOG_BUTTON_IDS.translated}" type="button" class="reader-dialog-toolbar-btn secondary" disabled>
+                  ${downloadIconMarkup(translatedIconExtra)}
+                  <span>译文 PDF</span>
+                </button>
+              </div>
+            </details>
           </div>
           <button id="${READER_DIALOG_IDS.closeButton}" type="button" class="dialog-close-btn" aria-label="关闭">×</button>
         </div>

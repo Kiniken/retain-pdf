@@ -13,6 +13,7 @@ from foundation.shared.job_dirs import job_dirs_from_explicit_args
 from foundation.shared.stage_specs import NormalizeStageSpec
 from services.document_schema import DOCUMENT_SCHEMA_REPORT_FILE_NAME
 from services.document_schema import adapt_path_to_document_v1_with_report
+from services.document_schema import build_validation_report
 from services.document_schema import validate_saved_document_path
 from services.document_schema.reporting import build_normalization_summary
 from services.ocr_provider.paddle_normalize import post_rescale_rebuild_paddle_text_geometry
@@ -63,6 +64,17 @@ def _args_from_spec(spec: NormalizeStageSpec) -> SimpleNamespace:
     )
 
 
+def _refresh_report_for_final_document(report: dict, document: dict) -> dict:
+    refreshed = dict(report)
+    pages = document.get("pages", []) or []
+    defaults_report = dict((report.get("defaults") or {}))
+    defaults_report["pages_seen"] = len(pages)
+    defaults_report["blocks_seen"] = sum(len(page.get("blocks", []) or []) for page in pages)
+    refreshed["defaults"] = defaults_report
+    refreshed["validation"] = build_validation_report(document)
+    return refreshed
+
+
 def main() -> None:
     args = parse_args()
     if not args.spec.strip():
@@ -90,6 +102,7 @@ def main() -> None:
     )
     normalized_document = rescale_document_geometry_to_pdf(normalized_document, source_pdf_path)
     normalized_document = post_rescale_rebuild_paddle_text_geometry(normalized_document)
+    normalization_report = _refresh_report_for_final_document(normalization_report, normalized_document)
     _save_json(normalized_json_path, normalized_document)
     _save_json(normalized_report_json_path, normalization_report)
 

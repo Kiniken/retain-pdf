@@ -79,7 +79,25 @@ def _run_typst_compile(
     work_dir: Path | None = None,
     extra: dict[str, Any] | None = None,
 ) -> None:
-    proc = subprocess.run(command, capture_output=True, text=True)
+    try:
+        proc = subprocess.run(command, capture_output=True, text=True)
+    except OSError as exc:
+        raise TypstCompileError(
+            phase=phase,
+            stem=stem,
+            typ_path=typ_path,
+            pdf_path=pdf_path,
+            command=command,
+            return_code=-1,
+            stdout="",
+            stderr=f"Typst runtime failed to start: {type(exc).__name__}: {exc}",
+            work_dir=work_dir,
+            extra={
+                **(extra or {}),
+                "runtime_error_type": type(exc).__name__,
+                "typst_bin": command[0] if command else "",
+            },
+        ) from exc
     if proc.returncode != 0:
         raise TypstCompileError(
             phase=phase,

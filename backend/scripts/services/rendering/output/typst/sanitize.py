@@ -8,14 +8,26 @@ from foundation.config import fonts
 from services.rendering.output.typst.compiler import compile_typst_overlay_pdf
 from services.rendering.output.typst.compiler import TypstCompileError
 from services.rendering.output.typst.shared import TYPST_OVERLAY_DIR
-from services.rendering.output.typst.shared import force_plain_text_items
 from services.rendering.output.typst.sanitize_steps import find_bad_item_indices
+from services.rendering.output.typst.sanitize_steps import replace_item_math_tokens_with_plain_text
+from services.rendering.output.typst.sanitize_steps import item_contains_raw_math
 from services.rendering.output.typst.sanitize_steps import try_selective_formula_strip
 from services.rendering.output.typst.sanitize_steps import try_selective_llm_repair
+from services.rendering.output.typst.sanitize_steps import try_selective_math_token_plain_text
 from services.rendering.output.typst.sanitize_steps import try_selective_plain_text
 from services.pipeline_shared.events import emit_stage_progress
 
 TypstRepairRequestFn = Callable[..., str]
+
+
+def _force_plain_text_items_preserving_math(translated_items: list[dict]) -> list[dict]:
+    patched: list[dict] = []
+    for item in translated_items:
+        if item_contains_raw_math(item):
+            patched.append(replace_item_math_tokens_with_plain_text(item))
+        else:
+            patched.append(dict(item, _force_plain_line=True))
+    return patched
 
 
 def _llm_repair_enabled() -> bool:
@@ -122,6 +134,23 @@ def sanitize_items_for_typst_compile(
             elif diagnostics is not None:
                 diagnostics["selective_llm_repair_skipped"] = "disabled_by_env"
 
+            patched_items = try_selective_math_token_plain_text(
+                page_width,
+                page_height,
+                translated_items,
+                bad_indices,
+                stem=stem,
+                font_family=font_family,
+                include_cover_rect=include_cover_rect,
+                font_paths=font_paths,
+                work_dir=work_dir,
+                diagnostics=diagnostics,
+            )
+            if patched_items is not None:
+                if diagnostics is not None:
+                    diagnostics["final_mode"] = "selective_math_token_plain_text"
+                return patched_items
+
             patched_items = try_selective_plain_text(
                 page_width,
                 page_height,
@@ -141,7 +170,7 @@ def sanitize_items_for_typst_compile(
 
         print(f"typst page fallback to plain text: {stem}", flush=True)
         print(str(page_error), flush=True)
-        patched_items = force_plain_text_items(translated_items)
+        patched_items = _force_plain_text_items_preserving_math(translated_items)
         try:
             compile_typst_overlay_pdf(
                 page_width,

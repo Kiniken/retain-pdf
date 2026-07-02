@@ -103,6 +103,10 @@ pub fn build_app(state: AppState) -> Router {
             get(jobs::get_reader_metadata),
         )
         .route(
+            "/api/v1/jobs/:job_id/reader/ai/chat",
+            post(jobs::reader_ai_chat),
+        )
+        .route(
             "/api/v1/jobs/:job_id/diagnostics",
             get(jobs::get_job_diagnostics),
         )

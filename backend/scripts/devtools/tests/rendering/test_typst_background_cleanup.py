@@ -23,6 +23,7 @@ from services.rendering.layout.payload.first_line_indent import detect_first_lin
 from services.rendering.layout.payload.line_structure import maybe_preserve_structured_line_breaks
 from services.rendering.layout.model.models import RenderLayoutBlock
 from services.rendering.layout.model.models import RenderPageSpec
+from services.rendering.output.typst.book_renderer import _background_cache_key
 from services.rendering.layout.page_specs import build_render_page_specs
 from services.rendering.layout.payload.continuation_split import split_protected_text_for_boxes
 from services.rendering.layout.payload.prepare import prepare_render_payloads_by_page
@@ -67,6 +68,10 @@ from services.rendering.document.pikepdf_overlay import overlay_pdf_pages_with_p
 from services.rendering.document.pikepdf_overlay import overlay_page_pdfs_with_pikepdf
 from services.rendering.document.pikepdf_pages import extract_pages_with_pikepdf
 from services.rendering.layout.inline_content.core.markdown import build_direct_typst_passthrough_text
+from services.rendering.visual_profile.contracts import DocumentVisualProfile
+from services.rendering.visual_profile.contracts import ItemVisualProfile
+from services.rendering.visual_profile.contracts import PageVisualProfile
+from services.rendering.visual_profile.runtime import VisualProfileRuntime
 from devtools.tests.rendering_support.page_specs import sample_page_spec as _page_spec
 
 
@@ -100,6 +105,82 @@ def test_background_stage_creates_cleaned_pdf() -> None:
 
         assert result == output_pdf
         assert output_pdf.exists()
+
+
+def test_background_cache_key_includes_visual_profile_payload(tmp_path: Path) -> None:
+    source_pdf = tmp_path / "source.pdf"
+    doc = fitz.open()
+    doc.new_page(width=200, height=300)
+    doc.save(source_pdf)
+    doc.close()
+    spec = RenderPageSpec(
+        page_index=0,
+        page_width_pt=200,
+        page_height_pt=300,
+        background_pdf_path=None,
+        blocks=[
+            RenderLayoutBlock(
+                block_id="p001-b001",
+                page_index=0,
+                background_rect=[10, 20, 80, 60],
+                content_rect=[10, 20, 80, 60],
+                content_kind="text",
+                content_text="hello",
+                plain_text="hello",
+                math_map=[],
+                font_size_pt=10,
+                leading_em=1.2,
+            )
+        ],
+    )
+    translated_pages = {0: [{"item_id": "p001-b001", "bbox": [10, 20, 80, 60], "translated_text": "hello"}]}
+
+    def runtime(background_rgb: tuple[float, float, float]) -> VisualProfileRuntime:
+        item = ItemVisualProfile(
+            item_id="p001-b001",
+            page_index=0,
+            bbox=(10, 20, 80, 60),
+            bbox_space="page",
+            bbox_source="test",
+            source_item_kind="text",
+            background_rgb=background_rgb,
+            text_rgb=(0.0, 0.0, 0.0),
+            confidence=1.0,
+            method="test",
+        )
+        return VisualProfileRuntime(
+            path=None,
+            profile=DocumentVisualProfile(
+                algorithm="visual_profile_v6_document_title_pixels_only",
+                pages={
+                    0: PageVisualProfile(
+                        page_index=0,
+                        background_rgb=(1.0, 1.0, 1.0),
+                        items={"p001-b001": item},
+                    )
+                },
+            ),
+            diagnostics={"loaded": True},
+        )
+
+    first = _background_cache_key(
+        source_pdf_path=source_pdf,
+        translated_pages=translated_pages,
+        page_specs=[spec],
+        redaction_strategy="pikepdf_text_strip",
+        source_text_precleaned_page_indices=frozenset(),
+        visual_profile_runtime=runtime((1.0, 1.0, 1.0)),
+    )
+    second = _background_cache_key(
+        source_pdf_path=source_pdf,
+        translated_pages=translated_pages,
+        page_specs=[spec],
+        redaction_strategy="pikepdf_text_strip",
+        source_text_precleaned_page_indices=frozenset(),
+        visual_profile_runtime=runtime((0.95, 0.96, 0.97)),
+    )
+
+    assert first != second
 
 
 def test_background_stage_uses_cover_only_redaction_for_vector_text() -> None:
@@ -319,5 +400,4 @@ def test_redaction_items_from_layout_blocks_use_background_rect() -> None:
 
     assert redaction_items[0]["bbox"] == [10.0, 30.0, 190.0, 80.0]
     assert redaction_items[0]["source_item_id"] == "p001-b001"
-
 

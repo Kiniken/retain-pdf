@@ -6,6 +6,7 @@ mod facade;
 pub(super) mod live_stage;
 mod presentation;
 mod query;
+mod reader_ai;
 mod reader_regions;
 mod readiness;
 mod stage_plan;

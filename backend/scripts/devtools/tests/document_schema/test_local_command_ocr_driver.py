@@ -163,6 +163,75 @@ target.write_text(json.dumps({
     assert normalized_payload["pages"][0]["blocks"][0]["text"] == "local raw ocr smoke"
 
 
+def test_local_command_raw_provider_override_allows_adapter_mismatch(tmp_path: Path, monkeypatch) -> None:
+    job_root = tmp_path / "20260616-local-ocr-raw-mismatch"
+    job_dirs = resolve_job_dirs(job_root)
+    ensure_job_dirs(job_dirs)
+    source_pdf = job_dirs.source_dir / "book.pdf"
+    _write_source_pdf(source_pdf)
+    script_path = tmp_path / "fake_local_raw_mismatch.py"
+    script_path.write_text(
+        """
+import json
+import os
+from pathlib import Path
+
+target = Path(os.environ["RETAIN_OCR_RAW_PAYLOAD_JSON"])
+target.parent.mkdir(parents=True, exist_ok=True)
+target.write_text(json.dumps({
+    "provider": "generic_flat_ocr",
+    "pages": [{"width": 320, "height": 480, "blocks": []}]
+}), encoding="utf-8")
+""".strip(),
+        encoding="utf-8",
+    )
+    seen: dict[str, object] = {}
+
+    def _fake_adapt_path_to_document_v1_with_report(**kwargs):
+        seen.update(kwargs)
+        return (
+            {
+                "schema": "normalized_document_v1",
+                "schema_version": "1.1",
+                "document_id": kwargs["document_id"],
+                "page_count": 0,
+                "source": {"provider": kwargs["provider"]},
+                "derived": {},
+                "markers": {},
+                "pages": [],
+            },
+            {
+                "provider": kwargs["provider"],
+                "detected_provider": "generic_flat_ocr",
+                "provider_mismatch_allowed": kwargs.get("allow_provider_mismatch"),
+            },
+        )
+
+    monkeypatch.setenv(LOCAL_OCR_COMMAND_ENV, f"{sys.executable} {script_path}")
+    monkeypatch.setenv(LOCAL_OCR_RAW_PROVIDER_ENV, "custom_flat")
+    monkeypatch.setattr(
+        "services.ocr_provider.local_command_driver.adapt_path_to_document_v1_with_report",
+        _fake_adapt_path_to_document_v1_with_report,
+    )
+
+    result = run_local_command_ocr_to_job_dir(
+        SimpleNamespace(
+            file_path=str(source_pdf),
+            job_root=str(job_dirs.root),
+            source_dir=str(job_dirs.source_dir),
+            ocr_dir=str(job_dirs.ocr_dir),
+            translated_dir=str(job_dirs.translated_dir),
+            rendered_dir=str(job_dirs.rendered_dir),
+            artifacts_dir=str(job_dirs.artifacts_dir),
+            logs_dir=str(job_dirs.logs_dir),
+        )
+    )
+
+    assert result.normalized_json_path.exists()
+    assert seen["provider"] == "custom_flat"
+    assert seen["allow_provider_mismatch"] is True
+
+
 def test_local_command_ocr_driver_accepts_command_from_args(tmp_path: Path, monkeypatch) -> None:
     job_root = tmp_path / "20260616-local-ocr-args"
     job_dirs = resolve_job_dirs(job_root)
