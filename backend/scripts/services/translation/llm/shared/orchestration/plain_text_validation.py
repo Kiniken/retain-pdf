@@ -59,6 +59,7 @@ def try_salvage_partial_english_residue(
     has_formula_placeholders_fn,
     canonicalize_batch_result_fn,
     result_entry_fn,
+    validate_placeholder_inventory_fn,
     restore_runtime_term_tokens_fn,
     attach_result_metadata_fn,
 ) -> dict[str, dict[str, str]] | None:
@@ -73,19 +74,31 @@ def try_salvage_partial_english_residue(
         or has_formula_placeholders_fn(item)
     ):
         return None
-    result = canonicalize_batch_result_fn(
-        [item],
-        {str(item.get("item_id", "") or ""): result_entry_fn("translate", translated_text)},
-    )
-    result = restore_runtime_term_tokens_fn(result, item=item)
-    return attach_result_metadata_fn(
-        result,
-        item=item,
-        context=context,
-        route_path=["block_level", "english_residue_salvage"],
-        output_mode_path=["plain_text"],
-        degradation_reason="english_residue_partial_accept",
-    )
+    item_id = str(item.get("item_id", "") or "")
+    try:
+        result = canonicalize_batch_result_fn(
+            [item],
+            {item_id: result_entry_fn("translate", translated_text)},
+        )
+        # The english-residue salvage path is, by definition, accepting text that
+        # still contains English residue, so a full validate_batch_result rerun
+        # would just immediately re-raise EnglishResidueError. Instead, verify the
+        # placeholder inventory specifically (e.g. formula ⟦F...⟧ tokens) survived
+        # canonicalization intact; a broken/dropped placeholder here would silently
+        # corrupt formula restoration and leak literal tokens into the rendered PDF.
+        canonical_text = str(result.get(item_id, {}).get("translated_text", "") or "")
+        validate_placeholder_inventory_fn(item, canonical_text)
+        result = restore_runtime_term_tokens_fn(result, item=item)
+        return attach_result_metadata_fn(
+            result,
+            item=item,
+            context=context,
+            route_path=["block_level", "english_residue_salvage"],
+            output_mode_path=["plain_text"],
+            degradation_reason="english_residue_partial_accept",
+        )
+    except Exception:
+        return None
 
 
 def finalize_plain_text_validation_failure(

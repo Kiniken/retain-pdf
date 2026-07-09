@@ -155,7 +155,7 @@ def review_translation_item(
 
     issues.extend(_review_translated_text(item, item_id, source_text, translated_text))
     if not is_direct_math_mode(item):
-        issues.extend(_review_placeholders(item_id, source_text, translated_text))
+        issues.extend(review_placeholders(item_id, source_text, translated_text))
     issues.extend(_review_glossary_terms(item_id, source_text, translated_text, normalized_glossary))
     return TranslationQualityReport(issues=issues, reviewed_item_count=1)
 
@@ -262,7 +262,7 @@ def _context_bleed_leaked_math(item: dict, source_text: str, translated_text: st
     ]
 
 
-def _review_placeholders(item_id: str, source_text: str, translated_text: str) -> list[TranslationQualityIssue]:
+def review_placeholders(item_id: str, source_text: str, translated_text: str) -> list[TranslationQualityIssue]:
     issues: list[TranslationQualityIssue] = []
     source_placeholders = placeholders(source_text)
     translated_placeholders = placeholders(translated_text)
@@ -345,6 +345,7 @@ def _review_glossary_terms(
 __all__ = [
     "TranslationQualityIssue",
     "TranslationQualityReport",
+    "review_placeholders",
     "review_translation_batch",
     "review_translation_item",
     "should_reject_keep_origin",

@@ -18,6 +18,7 @@ from services.translation.llm.validation.errors import UnexpectedPlaceholderErro
 from services.translation.core.text_rules import looks_like_code_literal_text_value
 from services.translation.core.text_rules import looks_like_url_fragment
 from services.translation.llm.validation.quality import TranslationQualityIssue
+from services.translation.llm.validation.quality import review_placeholders
 from services.translation.llm.validation.quality import review_translation_item
 from services.translation.llm.validation.quality import should_reject_keep_origin
 
@@ -134,6 +135,57 @@ def _handle_quality_issue(
         )
 
 
+def validate_placeholder_inventory(
+    item: dict,
+    translated_text: str,
+    *,
+    diagnostics: TranslationDiagnosticsCollector | None = None,
+) -> None:
+    """Validate only the placeholder inventory of a translated text against its source.
+
+    Unlike ``validate_batch_result``, this does not re-run the english-residue,
+    empty-translation, protocol-shell, or math-delimiter checks, so it is safe to
+    call on text that is known to still contain english residue (e.g. from the
+    english-residue salvage path) without immediately re-raising
+    ``EnglishResidueError``.
+    """
+
+    item_id = str(item.get("item_id", "") or "")
+    source_text = unit_source_text(item)
+    for issue in review_placeholders(item_id, source_text, translated_text):
+        if diagnostics is not None:
+            diagnostics.emit(
+                kind=issue.kind,
+                item_id=item_id,
+                page_idx=item.get("page_idx"),
+                severity=issue.severity,
+                message=issue.message,
+                retryable=issue.retryable,
+                details=issue.details,
+            )
+        if issue.severity != "error":
+            continue
+        if issue.kind == "unexpected_placeholder":
+            unexpected = list((issue.details or {}).get("unexpected") or [])
+            raise UnexpectedPlaceholderError(
+                item_id,
+                unexpected,
+                source_text=source_text,
+                translated_text=translated_text,
+            )
+        if issue.kind == "placeholder_inventory_mismatch":
+            details = issue.details or {}
+            source_sequence = list(details.get("source_sequence") or [])
+            translated_sequence = list(details.get("translated_sequence") or [])
+            raise PlaceholderInventoryError(
+                item_id,
+                source_sequence,
+                translated_sequence,
+                source_text=source_text,
+                translated_text=translated_text,
+            )
+
+
 def validate_batch_result(
     batch: list[dict],
     result: dict[str, dict[str, str]],
@@ -182,4 +234,5 @@ def validate_batch_result(
 __all__ = [
     "should_reject_keep_origin",
     "validate_batch_result",
+    "validate_placeholder_inventory",
 ]

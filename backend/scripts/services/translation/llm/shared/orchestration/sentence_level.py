@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import time
+
 from services.translation.artifacts import TranslationDiagnosticsCollector
 from services.translation.llm.result_validator import validate_batch_result
 from services.translation.llm.result_payload import result_entry
@@ -12,8 +15,40 @@ from services.translation.llm.shared.orchestration.common import SENTENCE_SPLIT_
 from services.translation.llm.shared.orchestration.metadata import formula_route_diagnostics
 import services.translation.llm.shared.orchestration.terminal_payloads as terminal_payloads
 from services.translation.llm.shared.orchestration.metadata import restore_runtime_term_tokens
+from services.translation.llm.shared.provider_runtime import is_transport_error
 from services.translation.llm.shared.provider_runtime import translate_single_item_plain_text
 from services.translation.llm.shared.provider_runtime import translate_single_item_plain_text_unstructured
+
+
+# Sentence-level fallback runs one LLM request per sentence. Without a
+# circuit breaker, a rate-limit burst or transport outage burns one call per
+# remaining sentence while it silently keeps the English original for each.
+# These knobs bound that: a small incremental sleep between failures, and a
+# hard stop after a few *consecutive* transport-level failures (repeated
+# validation failures do not trip the breaker -- they are expected and cheap).
+SENTENCE_LEVEL_TRANSPORT_FAILURE_LIMIT_ENV = "RETAIN_SENTENCE_LEVEL_TRANSPORT_FAILURE_LIMIT"
+SENTENCE_LEVEL_RETRY_BACKOFF_SECONDS_ENV = "RETAIN_SENTENCE_LEVEL_RETRY_BACKOFF_SECONDS"
+_DEFAULT_TRANSPORT_FAILURE_LIMIT = 3
+_DEFAULT_RETRY_BACKOFF_SECONDS = 0.5
+_MAX_RETRY_BACKOFF_SECONDS = 5.0
+
+
+def _transport_failure_limit() -> int:
+    raw = os.environ.get(SENTENCE_LEVEL_TRANSPORT_FAILURE_LIMIT_ENV, "").strip()
+    try:
+        value = int(raw) if raw else _DEFAULT_TRANSPORT_FAILURE_LIMIT
+    except ValueError:
+        value = _DEFAULT_TRANSPORT_FAILURE_LIMIT
+    return max(1, value)
+
+
+def _retry_backoff_seconds() -> float:
+    raw = os.environ.get(SENTENCE_LEVEL_RETRY_BACKOFF_SECONDS_ENV, "").strip()
+    try:
+        value = float(raw) if raw else _DEFAULT_RETRY_BACKOFF_SECONDS
+    except ValueError:
+        value = _DEFAULT_RETRY_BACKOFF_SECONDS
+    return max(0.0, value)
 
 
 def sentence_level_fallback(
@@ -39,10 +74,37 @@ def sentence_level_fallback(
     translated_parts: list[str] = []
     failed_indexes: list[int] = []
     translated_indexes: list[int] = []
+    failure_reasons: dict[int, str] = {}
+    consecutive_transport_failures = 0
+    transport_failure_total = 0
+    transport_failure_limit = _transport_failure_limit()
+    backoff_seconds = _retry_backoff_seconds()
+    circuit_open = False
+
+    def _emit(kind: str, *, severity: str, message: str) -> None:
+        if diagnostics is None:
+            return
+        diagnostics.emit(
+            kind=kind,
+            item_id=str(item.get("item_id", "") or ""),
+            page_idx=item.get("page_idx"),
+            severity=severity,
+            message=message,
+            retryable=severity != "error",
+        )
+
     for index, sentence in enumerate(sentences):
+        if circuit_open:
+            translated_parts.append(sentence)
+            failed_indexes.append(index)
+            failure_reasons[index] = "skipped_transport_circuit_open"
+            continue
+
         sentence_item = dict(item)
         sentence_item["translation_unit_protected_source_text"] = sentence
         sentence_item["protected_source_text"] = sentence
+        sentence_transport_failure = False
+        sentence_failure_reason = ""
         try:
             sentence_result = translate_plain(
                 sentence_item,
@@ -61,8 +123,10 @@ def sentence_level_fallback(
             if translated:
                 translated_parts.append(translated)
                 translated_indexes.append(index)
+                consecutive_transport_failures = 0
                 continue
-        except EmptyTranslationError:
+            sentence_failure_reason = "empty_translation"
+        except (EmptyTranslationError, EnglishResidueError) as exc:
             try:
                 sentence_result = translate_unstructured(
                     sentence_item,
@@ -80,34 +144,60 @@ def sentence_level_fallback(
                 if translated:
                     translated_parts.append(translated)
                     translated_indexes.append(index)
+                    consecutive_transport_failures = 0
                     continue
-            except Exception:
-                pass
-        except EnglishResidueError:
-            try:
-                sentence_result = translate_unstructured(
-                    sentence_item,
-                    api_key=api_key,
-                    model=model,
-                    base_url=base_url,
-                    request_label=f"{request_label} sent#{index + 1} raw" if request_label else "",
-                    domain_guidance=context.merged_guidance,
-                    mode=context.mode,
-                    target_language_name=context.target_language_name,
-                    diagnostics=diagnostics,
-                    timeout_s=context.timeout_policy.plain_text_seconds,
-                )
-                translated = str(sentence_result.get(item["item_id"], {}).get("translated_text", "") or "").strip()
-                if translated:
-                    translated_parts.append(translated)
-                    translated_indexes.append(index)
-                    continue
-            except Exception:
-                pass
-        except Exception:
-            pass
+                sentence_failure_reason = f"{type(exc).__name__}_then_empty_unstructured"
+            except Exception as raw_exc:
+                sentence_transport_failure = is_transport_error(raw_exc)
+                sentence_failure_reason = f"{type(exc).__name__}_then_{type(raw_exc).__name__}"
+        except Exception as exc:
+            sentence_transport_failure = is_transport_error(exc)
+            sentence_failure_reason = type(exc).__name__
+
         translated_parts.append(sentence)
         failed_indexes.append(index)
+        failure_reasons[index] = sentence_failure_reason
+
+        if sentence_transport_failure:
+            consecutive_transport_failures += 1
+            transport_failure_total += 1
+            _emit(
+                "sentence_level_fallback_transport_retry",
+                severity="warning",
+                message=(
+                    f"sentence {index + 1}/{len(sentences)} transport failure "
+                    f"({sentence_failure_reason}); consecutive={consecutive_transport_failures}"
+                ),
+            )
+            if consecutive_transport_failures >= transport_failure_limit:
+                circuit_open = True
+                remaining = len(sentences) - index - 1
+                _emit(
+                    "sentence_level_fallback_circuit_open",
+                    severity="error",
+                    message=(
+                        f"stopping sentence-level fallback after {consecutive_transport_failures} "
+                        f"consecutive transport failures; keeping original text for the "
+                        f"remaining {remaining} sentence(s) without further requests"
+                    ),
+                )
+            elif index + 1 < len(sentences):
+                sleep_seconds = min(_MAX_RETRY_BACKOFF_SECONDS, backoff_seconds * consecutive_transport_failures)
+                time.sleep(sleep_seconds)
+        else:
+            consecutive_transport_failures = 0
+
+    if failed_indexes:
+        _emit(
+            "sentence_level_fallback_summary",
+            severity="warning",
+            message=(
+                f"sentence-level fallback kept original text for {len(failed_indexes)}/{len(sentences)} "
+                f"sentence(s); transport_failures={transport_failure_total} "
+                f"reasons={failure_reasons}"
+            ),
+        )
+
     if not translated_indexes:
         raise PlaceholderInventoryError(
             str(item.get("item_id", "") or ""),

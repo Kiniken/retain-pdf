@@ -3,6 +3,7 @@ from __future__ import annotations
 from services.translation.artifacts import TranslationDiagnosticsCollector
 from services.translation.llm.placeholder_transform import has_formula_placeholders
 from services.translation.llm.result_payload import result_entry
+from services.translation.llm.result_validator import validate_placeholder_inventory
 from services.translation.llm.shared.control_context import TranslationControlContext
 from services.translation.llm.shared.orchestration.common import is_continuation_or_group_unit
 from services.translation.llm.shared.orchestration.common import sentence_level_fallback_allowed
@@ -96,6 +97,7 @@ def finalize_plain_text_failure(
             has_formula_placeholders_fn=has_formula_placeholders,
             canonicalize_batch_result_fn=runtime.canonicalize_batch_result_fn,
             result_entry_fn=result_entry,
+            validate_placeholder_inventory_fn=validate_placeholder_inventory,
             restore_runtime_term_tokens_fn=restore_runtime_term_tokens,
             attach_result_metadata_fn=attach_result_metadata,
         ),

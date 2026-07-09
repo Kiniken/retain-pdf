@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 
-REPO_SCRIPTS_ROOT = Path("/home/wxyhgk/tmp/Code/backend/scripts")
+REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
@@ -406,6 +406,71 @@ class TranslationContinuationFastPathTests(unittest.TestCase):
         self.assertIn("这是第一句话", payload["translated_text"])
         self.assertEqual(payload["translation_diagnostics"]["degradation_reason"], "english_residue_partial_accept")
         self.assertEqual(payload["translation_diagnostics"]["route_path"], ["block_level", "english_residue_salvage"])
+
+    def test_continuation_group_english_residue_salvage_rejected_on_placeholder_mismatch(self):
+        module = _load_module(
+            "services.translation.llm.shared.orchestration.fallbacks",
+            REPO_SCRIPTS_ROOT / "services" / "translation" / "llm" / "shared" / "orchestration" / "fallbacks.py",
+        )
+        control_context = _load_module(
+            "services.translation.llm.shared.control_context",
+            REPO_SCRIPTS_ROOT / "services" / "translation" / "llm" / "shared" / "control_context.py",
+        )
+        source_text = (
+            "This is the first sentence <f1-abc/>. This is the second sentence with reaction details."
+        )
+        item = {
+            "item_id": "__cg__:cg-001-003",
+            "translation_unit_id": "__cg__:cg-001-003",
+            "page_idx": 0,
+            "block_type": "text",
+            "continuation_group": "cg-001-003",
+            "metadata": {"structure_role": "body"},
+            "protected_source_text": source_text,
+            "translation_unit_protected_source_text": source_text,
+        }
+        context = control_context.build_translation_control_context(mode="sci")
+        context = replace(
+            context,
+            fallback_policy=replace(
+                context.fallback_policy,
+                plain_text_attempts=1,
+                allow_tagged_placeholder_retry=False,
+            ),
+        )
+        # Same partial-Chinese English-residue shape as the salvage-accepted test
+        # above, except the formula placeholder present in the source was dropped
+        # from the translated output. The salvage must reject this rather than
+        # ship a block whose formula placeholder inventory no longer matches the
+        # source (which would corrupt formula restoration downstream).
+        english_residue = module.EnglishResidueError(
+            item["item_id"],
+            source_text=item["translation_unit_protected_source_text"],
+            translated_text="这是第一句话。This is the second sentence with reaction details.",
+        )
+
+        with mock.patch.object(module, "translate_single_item_plain_text", side_effect=english_residue):
+            with mock.patch.object(module, "translate_single_item_plain_text_unstructured", side_effect=english_residue):
+                with mock.patch.object(module, "_sentence_level_fallback", side_effect=AssertionError("should not be called")):
+                    result = module.translate_single_item_plain_text_with_retries(
+                        item,
+                        api_key="",
+                        model="deepseek-chat",
+                        base_url="https://api.deepseek.com/v1",
+                        request_label="test",
+                        context=context,
+                        diagnostics=None,
+                    )
+
+        payload = result[item["item_id"]]
+        self.assertEqual(payload["decision"], "translate")
+        self.assertEqual(payload["translated_text"], "")
+        self.assertEqual(payload["final_status"], "failed")
+        self.assertEqual(payload["translation_diagnostics"]["degradation_reason"], "english_residue_repeated")
+        self.assertEqual(
+            payload["translation_diagnostics"]["error_trace"],
+            [{"type": "validation", "code": "ENGLISH_RESIDUE"}],
+        )
 
     def test_protocol_shell_unwrap_salvages_continuation_group_without_sentence_fallback(self):
         module = _load_module(
