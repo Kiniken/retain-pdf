@@ -371,6 +371,13 @@ def resolve_engine_profile(*, model: str = "", base_url: str = "") -> EngineProf
                 profile.fallback_policy,
                 formula_segment_attempts=2,
             ),
-            batch_policy=replace(profile.batch_policy, plain_batch_size=1),
+            # plain_batch_size=1 disabled batching entirely: every body paragraph
+            # re-sent the ~1.2k-token system prompt as its own request (~6x the
+            # tokens and ~4x the wall-clock of a batched call for equivalent
+            # output). Only low-risk body text is batched (is_low_risk_deepseek_batch_item),
+            # and a partial/invalid batch splits back to per-item retry
+            # (split_batched_plain_result_for_partial_retry), so restoring the
+            # base default is safe.
+            batch_policy=replace(profile.batch_policy, plain_batch_size=6),
         )
     return profile

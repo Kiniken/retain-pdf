@@ -40,13 +40,16 @@ def test_default_profile_enables_provider_agnostic_plain_batching() -> None:
     )
 
 
-def test_deepseek_profile_keeps_single_item_batching_by_default() -> None:
+def test_deepseek_profile_batches_low_risk_plain_text_by_default() -> None:
     context = build_translation_control_context(
         engine_profile=resolve_engine_profile(
             model="deepseek-chat",
             base_url="https://api.deepseek.com/v1",
         )
     )
+    # Low-risk body text is batched to amortize the ~1.2k-token system prompt;
+    # even when the caller sends batch_size=1 the plain-text path uses the
+    # profile's plain_batch_size.
     assert (
         _effective_translation_batch_size(
             batch_size=1,
@@ -54,9 +57,9 @@ def test_deepseek_profile_keeps_single_item_batching_by_default() -> None:
             base_url="https://api.deepseek.com/v1",
             translation_context=context,
         )
-        == 1
+        == 6
     )
-    assert context.batch_policy.plain_batch_size == 1
+    assert context.batch_policy.plain_batch_size == 6
     assert context.segmentation_policy.prefer_plain_when_segment_count_leq == 6
     assert context.fallback_policy.formula_segment_attempts == 2
     assert context.fallback_policy.main_http_retry_attempts == 1
@@ -114,7 +117,7 @@ def test_smarter_batches_group_low_risk_items_and_keep_complex_items_single() ->
     assert not batches[1][0].get("_batched_plain_candidate")
 
 
-def test_deepseek_plain_batching_keeps_every_item_single() -> None:
+def test_deepseek_plain_batching_groups_low_risk_body_and_isolates_the_rest() -> None:
     context = build_translation_control_context(
         engine_profile=resolve_engine_profile(
             model="deepseek-chat",
@@ -152,21 +155,20 @@ def test_deepseek_plain_batching_keeps_every_item_single() -> None:
         translation_context=context,
     )
 
-    assert effective_batch_size == 1
+    assert effective_batch_size == 6
     assert immediate == []
+    # The 5 low-risk plain paragraphs collapse into a single batched-plain call;
+    # formula / continuation / group / placeholder-heavy items each stay single
+    # (they fail the low-risk gate and take the per-item path).
     assert [[item["item_id"] for item in batch] for batch in batches] == [
-        ["plain-0"],
-        ["plain-1"],
-        ["plain-2"],
-        ["plain-3"],
-        ["plain-4"],
+        ["plain-0", "plain-1", "plain-2", "plain-3", "plain-4"],
         ["formula"],
         ["continuation"],
         ["group"],
         ["placeholder-heavy"],
     ]
-    assert all(batch[0].get("_batched_plain_candidate") for batch in batches[:5])
-    assert all(not batch[0].get("_batched_plain_candidate") for batch in batches[5:])
+    assert all(item.get("_batched_plain_candidate") for item in batches[0])
+    assert all(not batch[0].get("_batched_plain_candidate") for batch in batches[1:])
 
 
 def test_smarter_batches_keep_continuation_group_out_of_batched_plain_path_even_without_placeholders() -> None:
