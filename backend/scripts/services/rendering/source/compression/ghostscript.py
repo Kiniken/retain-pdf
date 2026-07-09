@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
+
+
+# Ghostscript recompressing a large scanned/image-heavy PDF can legitimately take a
+# while, so give it a generous timeout rather than letting a hung process block the job
+# forever. Override with RETAIN_PDF_GHOSTSCRIPT_TIMEOUT_SECONDS if needed.
+GHOSTSCRIPT_TIMEOUT_SECONDS = float(
+    os.environ.get("RETAIN_PDF_GHOSTSCRIPT_TIMEOUT_SECONDS", "").strip() or 300
+)
 
 
 def compress_pdf_with_ghostscript_file(
@@ -37,7 +46,15 @@ def compress_pdf_with_ghostscript_file(
         str(pdf_path),
     ]
     try:
-        proc = subprocess.run(command, capture_output=True, text=True)
+        try:
+            proc = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=GHOSTSCRIPT_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired:
+            return False
         if proc.returncode != 0 or not temp_path.exists():
             if temp_path.exists():
                 temp_path.unlink(missing_ok=True)

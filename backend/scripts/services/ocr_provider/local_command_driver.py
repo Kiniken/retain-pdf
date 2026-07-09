@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,6 +17,12 @@ from services.pipeline_shared.io import save_json
 
 LOCAL_OCR_COMMAND_ENV = "RETAIN_LOCAL_OCR_COMMAND"
 LOCAL_OCR_RAW_PROVIDER_ENV = "RETAIN_OCR_RAW_PROVIDER"
+LOCAL_OCR_COMMAND_TIMEOUT_ENV = "RETAIN_LOCAL_OCR_COMMAND_TIMEOUT_SECONDS"
+
+# A local OCR command can run a full document through a model, which may take a while
+# for large/multi-page books; default generously and let deployments override for their
+# own hardware/model. Override with RETAIN_LOCAL_OCR_COMMAND_TIMEOUT_SECONDS.
+DEFAULT_LOCAL_OCR_COMMAND_TIMEOUT_SECONDS = 1800.0
 
 
 def run_local_command_ocr_to_job_dir(args: SimpleNamespace) -> OcrProviderResult:
@@ -77,6 +84,14 @@ def run_local_command_ocr_to_job_dir(args: SimpleNamespace) -> OcrProviderResult
         }
     )
 
+    timeout_seconds = _configured_timeout_seconds(args)
+    try:
+        command_argv = shlex.split(command)
+    except ValueError as exc:
+        raise RuntimeError(f"local OCR provider command could not be parsed: {exc}") from exc
+    if not command_argv:
+        raise RuntimeError("local OCR provider command must not be empty")
+
     emit_stage_progress(
         stage="ocr_processing",
         substage="local_provider",
@@ -84,15 +99,27 @@ def run_local_command_ocr_to_job_dir(args: SimpleNamespace) -> OcrProviderResult
         stage_detail="正在执行本地 OCR provider",
         provider=provider_name,
     )
-    completed = subprocess.run(
-        command,
-        shell=True,
-        cwd=str(job_dirs.root),
-        env=env,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    try:
+        completed = subprocess.run(
+            command_argv,
+            shell=False,
+            cwd=str(job_dirs.root),
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        timeout_stdout = str(exc.stdout or "")
+        timeout_stderr = str(exc.stderr or "")
+        if timeout_stdout:
+            print(timeout_stdout, end="" if timeout_stdout.endswith("\n") else "\n", flush=True)
+        if timeout_stderr:
+            print(timeout_stderr, end="" if timeout_stderr.endswith("\n") else "\n", flush=True)
+        raise RuntimeError(
+            f"local OCR provider command timed out after {timeout_seconds:.0f}s"
+        ) from exc
     if completed.stdout:
         print(
             completed.stdout,
@@ -173,6 +200,21 @@ def _configured_text(
             return value
     source_env = env if env is not None else os.environ
     return str(source_env.get(env_name, "") or "").strip()
+
+
+def _configured_timeout_seconds(args: SimpleNamespace) -> float:
+    raw = _configured_text(
+        args,
+        "local_ocr_command_timeout_seconds",
+        env_name=LOCAL_OCR_COMMAND_TIMEOUT_ENV,
+    )
+    if not raw:
+        return DEFAULT_LOCAL_OCR_COMMAND_TIMEOUT_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        return DEFAULT_LOCAL_OCR_COMMAND_TIMEOUT_SECONDS
+    return value if value > 0 else DEFAULT_LOCAL_OCR_COMMAND_TIMEOUT_SECONDS
 
 
 def _resolve_command_source_pdf(source_pdf_path: Path | None, source_dir: Path) -> Path:

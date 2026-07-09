@@ -13,6 +13,13 @@ from services.rendering.layout.inline_content.fallback.latex_normalizer import n
 
 FORMULA_CACHE_DIR = paths.OUTPUT_DIR / "formula_cache"
 TYPST_BIN = os.environ.get("TYPST_BIN", "").strip() or shutil.which("typst") or "/snap/bin/typst"
+# A single-formula compile is small, but Typst can still stall downloading a
+# `@preview/...` package from packages.typst.org over a bad connection, so give it a
+# generous timeout rather than hanging the job forever. Override with
+# RETAIN_PDF_TYPST_FORMULA_TIMEOUT_SECONDS if needed.
+TYPST_FORMULA_TIMEOUT_SECONDS = float(
+    os.environ.get("RETAIN_PDF_TYPST_FORMULA_TIMEOUT_SECONDS", "").strip() or 300
+)
 
 GREEK_MAP = {
     r"\Delta": "Δ",
@@ -222,11 +229,19 @@ def compile_formula_png(formula_text: str) -> tuple[Path, tuple[int, int]]:
                 if font_dir:
                     command.extend(["--font-path", font_dir])
         command.extend([str(typ_path), str(png_path), "--format", "png", "--ppi", "300"])
-        proc = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            proc = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=TYPST_FORMULA_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"Typst compile (formula fallback) timed out after "
+                f"{TYPST_FORMULA_TIMEOUT_SECONDS:.0f}s (possibly stalled downloading a "
+                "@preview package from packages.typst.org)"
+            ) from exc
         if proc.returncode != 0:
             raise RuntimeError((proc.stderr or proc.stdout).strip())
 

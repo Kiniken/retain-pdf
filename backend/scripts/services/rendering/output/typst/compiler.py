@@ -15,6 +15,14 @@ from services.rendering.output.typst.source_builder import build_typst_book_back
 from services.rendering.output.typst.source_builder import build_typst_book_overlay_source
 from services.rendering.output.typst.source_builder import build_typst_overlay_source
 
+# Typst compiles can perform network I/O (downloading `@preview/...` packages from
+# packages.typst.org) and a large book can legitimately take minutes to typeset, so the
+# timeout is generous by default. Override with RETAIN_PDF_TYPST_COMPILE_TIMEOUT_SECONDS
+# for environments with slower package mirrors or very large documents.
+TYPST_COMPILE_TIMEOUT_SECONDS = float(
+    os.environ.get("RETAIN_PDF_TYPST_COMPILE_TIMEOUT_SECONDS", "").strip() or 600
+)
+
 
 class TypstCompileError(RuntimeError):
     def __init__(
@@ -80,7 +88,33 @@ def _run_typst_compile(
     extra: dict[str, Any] | None = None,
 ) -> None:
     try:
-        proc = subprocess.run(command, capture_output=True, text=True)
+        proc = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=TYPST_COMPILE_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise TypstCompileError(
+            phase=phase,
+            stem=stem,
+            typ_path=typ_path,
+            pdf_path=pdf_path,
+            command=command,
+            return_code=-1,
+            stdout=str(exc.stdout or ""),
+            stderr=(
+                f"Typst compile timed out after {TYPST_COMPILE_TIMEOUT_SECONDS:.0f}s. "
+                "This can happen when Typst stalls downloading a @preview package from "
+                "packages.typst.org over a slow or stuck connection."
+            ),
+            work_dir=work_dir,
+            extra={
+                **(extra or {}),
+                "runtime_error_type": type(exc).__name__,
+                "timeout_seconds": TYPST_COMPILE_TIMEOUT_SECONDS,
+            },
+        ) from exc
     except OSError as exc:
         raise TypstCompileError(
             phase=phase,
