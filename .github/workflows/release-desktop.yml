@@ -389,7 +389,7 @@ jobs:
           }
 
           libs_path="$(
-            find "$backend_root/python" -type d -name '.libs' -print | sort | paste -sd ':' -
+            find "$backend_root/python" -type d \( -name '.libs' -o -name '*.libs' \) -print | sort | paste -sd ':' -
           )"
           if [ -n "$libs_path" ]; then
             export LD_LIBRARY_PATH="$libs_path:${LD_LIBRARY_PATH:-}"
