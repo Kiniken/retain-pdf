@@ -170,9 +170,17 @@ jobs:
         run: |
           Get-Content desktop/app/backend/bundle-manifest.json
 
+      - name: Smoke frontend bundle before manifest validation
+        shell: pwsh
+        run: npm --prefix desktop run smoke:frontend-bundle
+
       - name: Validate desktop bundle manifest
         shell: pwsh
         run: python .github/scripts/validate_desktop_bundle.py --manifest desktop/app/backend/bundle-manifest.json
+
+      - name: Smoke frontend bundle after manifest validation
+        shell: pwsh
+        run: npm --prefix desktop run smoke:frontend-bundle
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
@@ -348,9 +356,49 @@ jobs:
         shell: bash
         run: cat desktop/app/backend/bundle-manifest.json
 
+      - name: Smoke frontend bundle before manifest validation
+        shell: bash
+        run: npm --prefix desktop run smoke:frontend-bundle
+
       - name: Validate desktop bundle manifest
         shell: bash
         run: python3 .github/scripts/validate_desktop_bundle.py --manifest desktop/app/backend/bundle-manifest.json
+
+      - name: Smoke frontend bundle after manifest validation
+        shell: bash
+        run: npm --prefix desktop run smoke:frontend-bundle
+
+      - name: Check Linux bundled native dependencies
+        shell: bash
+        run: |
+          backend_root="$PWD/desktop/app/backend"
+          ldd_log="$RUNNER_TEMP/retainpdf-linux-ldd.log"
+          : > "$ldd_log"
+
+          check_ldd() {
+            local binary="$1"
+            if [ ! -e "$binary" ]; then
+              echo "Missing expected bundled native file: $binary" >&2
+              exit 1
+            fi
+            echo "ldd $binary" | tee -a "$ldd_log"
+            ldd "$binary" 2>&1 | tee -a "$ldd_log" || true
+          }
+
+          check_ldd "$backend_root/bin/rust_api"
+          check_ldd "$backend_root/typst/bin/typst"
+          while IFS= read -r native_file; do
+            check_ldd "$native_file"
+          done < <(
+            find "$backend_root/python" \
+              -type f \( -perm -111 -o -name '*.so' \) -print | sort
+          )
+
+          if grep -Fq 'not found' "$ldd_log"; then
+            echo "Bundled Linux native dependency check found missing libraries:" >&2
+            grep -F 'not found' "$ldd_log" >&2
+            exit 1
+          fi
 
       - name: Upload Linux release assets
         uses: softprops/action-gh-release@v2
@@ -813,6 +861,41 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npm run dist:mac
 
+      - name: Check macOS bundled binary architectures
+        shell: bash
+        run: |
+          backend_root="$PWD/desktop/app/backend"
+          expected_arch="$(uname -m)"
+          required_bins=(
+            "$backend_root/bin/rust_api"
+            "$backend_root/typst/bin/typst"
+            "$backend_root/python/bin/python3"
+          )
+          expected_archs=""
+
+          for binary in "${required_bins[@]}"; do
+            if [ ! -e "$binary" ]; then
+              echo "Missing expected bundled binary: $binary" >&2
+              exit 1
+            fi
+            file "$binary"
+            archs="$(lipo -archs "$binary")"
+            echo "lipo_archs $binary: $archs"
+            if ! printf '%s\n' "$archs" | tr ' ' '\n' | grep -Fxq "$expected_arch"; then
+              echo "Bundled binary does not include expected macOS runner architecture $expected_arch: $binary" >&2
+              exit 1
+            fi
+            normalized_archs="$(printf '%s\n' "$archs" | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')"
+            if [ -z "$expected_archs" ]; then
+              expected_archs="$normalized_archs"
+            elif [ "$normalized_archs" != "$expected_archs" ]; then
+              echo "Bundled macOS binary architectures are inconsistent." >&2
+              echo "Expected: $expected_archs" >&2
+              echo "Actual for $binary: $normalized_archs" >&2
+              exit 1
+            fi
+          done
+
       - name: Probe packaged macOS bundled Python
         shell: bash
         run: |
@@ -888,9 +971,17 @@ jobs:
         shell: bash
         run: cat desktop/app/backend/bundle-manifest.json
 
+      - name: Smoke frontend bundle before manifest validation
+        shell: bash
+        run: npm --prefix desktop run smoke:frontend-bundle
+
       - name: Validate desktop bundle manifest
         shell: bash
         run: python3 .github/scripts/validate_desktop_bundle.py --manifest desktop/app/backend/bundle-manifest.json
+
+      - name: Smoke frontend bundle after manifest validation
+        shell: bash
+        run: npm --prefix desktop run smoke:frontend-bundle
 
       - name: Upload macOS release assets
         uses: softprops/action-gh-release@v2

@@ -26,6 +26,7 @@ async function preparePythonRuntime(pythonRuntime, options = {}) {
   const startupProbe = await probePythonRuntime(selectedRuntime, {
     timeoutMs: options.isPackaged ? 10000 : 8000,
     includeDependencyImports: false,
+    inheritHostPythonPath: !options.isPackaged,
   });
   if (!startupProbe.ok && selectedRuntime.bundledHome) {
     if (options.isPackaged) {
@@ -44,6 +45,7 @@ async function preparePythonRuntime(pythonRuntime, options = {}) {
     const fallbackProbe = await probePythonRuntime(fallbackRuntime, {
       timeoutMs: 10000,
       includeDependencyImports: false,
+      inheritHostPythonPath: true,
     });
     if (fallbackProbe.ok) {
       selectedRuntime = fallbackRuntime;
@@ -57,6 +59,7 @@ async function preparePythonRuntime(pythonRuntime, options = {}) {
   const dependencyProbe = await probePythonRuntime(selectedRuntime, {
     timeoutMs: options.isPackaged ? 30000 : 8000,
     includeDependencyImports: true,
+    inheritHostPythonPath: !options.isPackaged,
   });
   if (!dependencyProbe.ok) {
     if (options.isPackaged && selectedRuntime.bundledHome && dependencyProbe.timedOut) {
@@ -76,6 +79,7 @@ async function preparePythonRuntime(pythonRuntime, options = {}) {
       const fallbackProbe = await probePythonRuntime(fallbackRuntime, {
         timeoutMs: 10000,
         includeDependencyImports: true,
+        inheritHostPythonPath: true,
       });
       if (fallbackProbe.ok) {
         selectedRuntime = fallbackRuntime;
@@ -189,6 +193,7 @@ function buildPythonProbeScript(includeDependencyImports) {
 
 function probePythonRuntime(runtime, options = {}) {
   const {
+    inheritHostPythonPath = true,
     timeoutMs = 8000,
     includeDependencyImports = true,
   } = options;
@@ -206,7 +211,7 @@ function probePythonRuntime(runtime, options = {}) {
     if (pythonImportPaths.length > 0) {
       env.PYTHONPATH = [
         ...pythonImportPaths,
-        process.env.PYTHONPATH || "",
+        inheritHostPythonPath ? process.env.PYTHONPATH || "" : "",
       ].filter(Boolean).join(path.delimiter);
     }
     const bundledPythonHome = resolveBundledPythonHome(runtime.bundledHome);

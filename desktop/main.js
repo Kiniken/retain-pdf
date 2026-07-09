@@ -190,6 +190,16 @@ async function startBundledBackend() {
   const apiPortBusy = await canConnectToPort("127.0.0.1", apiPort);
   logDesktop(`[desktop] port ${apiPort} busy=${apiPortBusy}`);
   if (apiPortBusy) {
+    const allowExternalBackend = process.env.RETAINPDF_DESKTOP_ALLOW_EXTERNAL_BACKEND === "1";
+    if (app.isPackaged && !allowExternalBackend) {
+      throw new Error(
+        [
+          `端口 ${apiPort} 已被占用。`,
+          "正式桌面端不会复用已有后端，避免连接到旧版本或开发版后端导致渲染错误。",
+          "请关闭其他 RetainPDF、旧版桌面端、Docker/系统服务后再启动。",
+        ].join("\n"),
+      );
+    }
     if (await canReuseExistingBackend(apiPort)) {
       usingExternalBackend = true;
       logDesktop(`[desktop] reusing existing backend on port ${apiPort}`);
@@ -220,6 +230,7 @@ async function startBundledBackend() {
     bundledTypstFontDir,
     dataRoot,
     desktopApiKey: DESKTOP_API_KEY,
+    inheritHostPythonPath: !app.isPackaged,
     pythonRuntime,
     rustApiRoot,
     scriptsDir,

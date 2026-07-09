@@ -67,8 +67,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHON_BIN=python3 \
     TYPST_BIN=/usr/local/bin/typst \
     TYPST_PACKAGE_PATH=/app/backend/typst-packages \
+    TYPST_PACKAGE_CACHE_PATH=/data/typst-package-cache \
     RETAIN_PDF_FONT_PATH=/usr/local/share/fonts/source-han-serif/SourceHanSerifSC-Regular.otf \
     RETAIN_PDF_TITLE_BOLD_FONT_PATH=/usr/local/share/fonts/source-han-serif/SourceHanSerifSC-Bold.otf \
+    RETAIN_PDF_TYPST_FONT_DIRS=/usr/local/share/fonts/source-han-serif \
     RETAIN_PDF_TYPST_FONT_FAMILY="Source Han Serif SC" \
     RUST_API_PORT=41000 \
     RUST_API_SIMPLE_PORT=42000
@@ -105,7 +107,7 @@ COPY backend/rust_api/auth.local.example.json /app/backend/rust_api/auth.local.e
 COPY docker/entrypoint-app.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh \
-    && mkdir -p /app/backend/rust_api /app/backend/scripts /data/uploads /data/downloads /data/db /data/jobs
+    && mkdir -p /app/backend/rust_api /app/backend/scripts /data/uploads /data/downloads /data/db /data/jobs /data/typst-package-cache
 
 VOLUME ["/data"]
 

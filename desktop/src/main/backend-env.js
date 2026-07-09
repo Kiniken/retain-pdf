@@ -20,6 +20,7 @@ function buildBackendEnv(options = {}) {
     typstPackageCachePath,
     typstPackagePath,
   } = options;
+  const inheritHostPythonPath = options.inheritHostPythonPath === true;
   const env = {
     ...process.env,
     RUST_API_BIND_HOST: "127.0.0.1",
@@ -36,7 +37,7 @@ function buildBackendEnv(options = {}) {
     PYTHONPATH: [
       scriptsDir,
       ...bundledPythonImportPaths,
-      process.env.PYTHONPATH || "",
+      inheritHostPythonPath ? process.env.PYTHONPATH || "" : "",
     ].filter(Boolean).join(path.delimiter),
     PYTHONUNBUFFERED: "1",
     PYTHONUTF8: "1",
