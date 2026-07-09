@@ -8,7 +8,7 @@ sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from services.translation.artifacts.io import aggregate_payload_diagnostics
 from services.translation.artifacts.status import enforce_no_blocking_untranslated
-from runtime.pipeline.book_pipeline import _blocking_untranslated_items
+from services.translation.public import blocking_untranslated_items
 
 
 def test_aggregate_payload_diagnostics_keeps_items_with_final_status_only() -> None:
@@ -51,7 +51,7 @@ def test_aggregate_payload_diagnostics_whitelists_intentional_keep_origin_items(
 
     assert summary["status_summary"]["kept_origin"] == 2
     assert summary["unresolved_translation_count"] == 0
-    assert _blocking_untranslated_items(translated_pages_map) == []
+    assert blocking_untranslated_items(translated_pages_map) == []
 
 
 def test_translation_export_gate_allows_skipped_formula_blocks() -> None:
@@ -76,7 +76,7 @@ def test_translation_export_gate_allows_skipped_formula_blocks() -> None:
 
     assert summary["status_summary"]["kept_origin"] == 1
     assert summary["unresolved_translation_count"] == 0
-    assert _blocking_untranslated_items(translated_pages_map) == []
+    assert blocking_untranslated_items(translated_pages_map) == []
 
 
 def test_blocking_untranslated_items_keeps_non_whitelisted_failures_blocking() -> None:
@@ -93,7 +93,7 @@ def test_blocking_untranslated_items_keeps_non_whitelisted_failures_blocking() -
         ]
     }
 
-    blocked = _blocking_untranslated_items(translated_pages_map)
+    blocked = blocking_untranslated_items(translated_pages_map)
 
     assert len(blocked) == 1
     assert blocked[0]["item_id"] == "p002-b001"
@@ -115,7 +115,7 @@ def test_translated_status_without_translation_artifact_is_blocking() -> None:
     }
 
     _item_diagnostics, summary = aggregate_payload_diagnostics(translated_pages_map)
-    blocked = _blocking_untranslated_items(translated_pages_map)
+    blocked = blocking_untranslated_items(translated_pages_map)
 
     assert summary["unresolved_translation_count"] == 1
     assert summary["unresolved_items"][0]["item_id"] == "p002-b002"
@@ -147,7 +147,7 @@ def test_repaired_item_translation_artifact_overrides_stale_failed_diagnostics()
     }
 
     item_diagnostics, summary = aggregate_payload_diagnostics(translated_pages_map)
-    blocked = _blocking_untranslated_items(translated_pages_map)
+    blocked = blocking_untranslated_items(translated_pages_map)
 
     assert summary["status_summary"]["translated"] == 1
     assert summary["unresolved_translation_count"] == 0
@@ -173,7 +173,7 @@ def test_garbled_reconstructed_item_with_stale_failed_item_status_is_not_blockin
     }
 
     item_diagnostics, summary = aggregate_payload_diagnostics(translated_pages_map)
-    blocked = _blocking_untranslated_items(translated_pages_map)
+    blocked = blocking_untranslated_items(translated_pages_map)
 
     assert summary["status_summary"]["translated"] == 1
     assert summary["unresolved_translation_count"] == 0

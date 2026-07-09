@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-REPO_SCRIPTS_ROOT = Path("/home/wxyhgk/tmp/Code/backend/scripts")
+REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from services.rendering.layout.inline_content.fallback.latex_normalizer import normalize_formula_for_latex_math

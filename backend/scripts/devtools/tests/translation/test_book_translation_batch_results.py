@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-REPO_SCRIPTS_ROOT = Path("/home/wxyhgk/tmp/Code/backend/scripts")
+REPO_SCRIPTS_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from services.translation.llm.shared.control_context import build_translation_control_context
