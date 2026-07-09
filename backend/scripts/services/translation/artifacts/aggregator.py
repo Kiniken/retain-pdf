@@ -119,6 +119,18 @@ class TranslationRunDiagnostics:
     _queue_split: dict[str, int] = field(default_factory=dict, init=False, repr=False)
     _flush_stats: dict[str, int] = field(default_factory=dict, init=False, repr=False)
     _tail_retry_stats: dict[str, int] = field(default_factory=dict, init=False, repr=False)
+    _token_usage: dict[str, int] = field(
+        default_factory=lambda: {
+            "requests_with_usage": 0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 0,
+        },
+        init=False,
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
         initial_limit = max(1, int(self.configured_workers))
@@ -436,6 +448,25 @@ class TranslationRunDiagnostics:
                 slow_sample["error_class"] = error_class
             self._remember_slow_request(slow_sample)
 
+    def record_token_usage(self, usage: dict[str, Any]) -> None:
+        # Accumulates the provider-reported `usage` block (OpenAI-compatible),
+        # including DeepSeek's prompt cache hit/miss split, so runs can be
+        # costed and cache effectiveness verified from the run summary.
+        if not isinstance(usage, dict):
+            return
+        with self._lock:
+            self._token_usage["requests_with_usage"] += 1
+            for key in (
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "prompt_cache_hit_tokens",
+                "prompt_cache_miss_tokens",
+            ):
+                value = usage.get(key)
+                if isinstance(value, (int, float)):
+                    self._token_usage[key] += int(value)
+
     def _remember_slow_request(self, sample: dict[str, Any], limit: int = 12) -> None:
         self._slow_requests.append(sample)
         self._slow_requests.sort(key=lambda item: int(item.get("elapsed_ms", 0)), reverse=True)
@@ -511,6 +542,7 @@ class TranslationRunDiagnostics:
                 "result_apply": dict(self._result_stats),
                 "result_flush": dict(self._flush_stats),
                 "tail_retry": dict(self._tail_retry_stats),
+                "token_usage": dict(self._token_usage),
                 "phase_elapsed_ms": self._phase_elapsed_summary(),
                 "slow_request_samples": list(self._slow_requests),
                 "recommendations": self._recommendations(),

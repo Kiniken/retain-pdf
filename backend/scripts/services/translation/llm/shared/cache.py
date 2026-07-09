@@ -15,8 +15,10 @@ from services.translation.llm.shared.provider_runtime import extract_single_item
 from services.translation.llm.shared.provider_runtime import normalize_base_url
 
 
+# Cache writes need no process-wide lock: each writer uses a pid+thread-unique
+# temp file and os.replace is atomic, so concurrent writers cannot corrupt an
+# entry — the last replace simply wins.
 _PROMPT_HASHES: dict[str, str] = {}
-_CACHE_LOCK = threading.Lock()
 FORMULA_SEGMENT_STRATEGY_VERSION = "formula_segments_v2"
 PLAIN_TEXT_STRATEGY_VERSION = "plain_text_v2"
 TRANSLATION_PROTOCOL_VERSION = "translation_control_v5_no_reasoning_content"
@@ -149,9 +151,8 @@ def load_cached_translation(
             "translated_text": translated_text,
         }
         temp_path = path.with_name(f"{path.name}.tmp-{os.getpid()}-{threading.get_ident()}")
-        with _CACHE_LOCK:
-            temp_path.write_text(json.dumps(healed_payload, ensure_ascii=False), encoding="utf-8")
-            temp_path.replace(path)
+        temp_path.write_text(json.dumps(healed_payload, ensure_ascii=False), encoding="utf-8")
+        temp_path.replace(path)
     return {
         "decision": decision,
         "translated_text": translated_text,
@@ -192,9 +193,8 @@ def store_cached_translation(
         "translated_text": translated_text,
     }
     temp_path = path.with_name(f"{path.name}.tmp-{os.getpid()}-{threading.get_ident()}")
-    with _CACHE_LOCK:
-        temp_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
-        temp_path.replace(path)
+    temp_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    temp_path.replace(path)
 
 
 def split_cached_batch(

@@ -211,8 +211,9 @@ def _extract_stream_delta_text(data: dict[str, Any]) -> str:
     return "".join(chunks)
 
 
-def _read_streaming_chat_content(response: requests.Response) -> str:
+def _read_streaming_chat_content(response: requests.Response) -> tuple[str, dict | None]:
     chunks: list[str] = []
+    usage: dict | None = None
     for raw_line in response.iter_lines(decode_unicode=True):
         if raw_line is None:
             continue
@@ -226,7 +227,11 @@ def _read_streaming_chat_content(response: requests.Response) -> str:
         piece = _extract_stream_delta_text(data)
         if piece:
             chunks.append(piece)
-    return "".join(chunks)
+        # DeepSeek reports token usage on the final stream chunk.
+        chunk_usage = data.get("usage")
+        if isinstance(chunk_usage, dict):
+            usage = chunk_usage
+    return "".join(chunks), usage
 
 
 def request_chat_content(
@@ -300,12 +305,15 @@ def request_chat_content(
                 use_stream=use_stream,
             )
             if use_stream:
-                content = _read_streaming_chat_content(response)
+                content, usage = _read_streaming_chat_content(response)
                 if not content.strip():
                     raise ValueError("Stream response did not contain any content.")
             else:
                 data: dict[str, Any] = response.json()
                 content = data["choices"][0]["message"]["content"]
+                usage = data.get("usage")
+            if diagnostics is not None and isinstance(usage, dict):
+                diagnostics.record_token_usage(usage)
             if request_label:
                 elapsed = time.perf_counter() - started
                 print(f"{request_label}: http ok in {elapsed:.2f}s", flush=True)
