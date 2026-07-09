@@ -33,6 +33,14 @@ pub(super) fn env_usize(name: &str, fallback: usize) -> usize {
         .unwrap_or(fallback)
 }
 
+pub(super) fn env_bool(name: &str, fallback: bool) -> bool {
+    env::var(name)
+        .ok()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .map(|value| matches!(value.as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(fallback)
+}
+
 pub(super) fn env_string(name: &str, fallback: &str) -> String {
     env::var(name)
         .ok()

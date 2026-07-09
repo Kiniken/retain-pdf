@@ -1,5 +1,8 @@
+use std::net::{Ipv4Addr, Ipv6Addr};
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use url::Host;
 
 use crate::config::{DeepSeekRuntimeConfig, MineruRuntimeConfig, PaddleRuntimeConfig};
 use crate::error::AppError;
@@ -71,6 +74,87 @@ pub struct DeepSeekBalanceView {
     pub checked_at: String,
 }
 
+/// Validates a client-supplied provider `base_url` before it is used to send a
+/// Bearer-token-bearing request. Without this, a caller could point `base_url`
+/// at an internal/loopback/link-local host (or a fully attacker-controlled
+/// host) and use these probe endpoints as an SSRF primitive / credential
+/// exfiltration channel for the user's MinerU/Paddle/DeepSeek token.
+///
+/// `allow_private_urls` is the per-deployment escape hatch
+/// (`RUST_API_ALLOW_PRIVATE_PROVIDER_URLS=1`) for self-hosted setups (e.g. a
+/// local Ollama/OpenAI-compatible endpoint on `localhost`).
+fn validate_provider_base_url(raw_base_url: &str, allow_private_urls: bool) -> Result<(), AppError> {
+    let trimmed = raw_base_url.trim();
+    let parsed = url::Url::parse(trimmed)
+        .map_err(|_| AppError::bad_request("base_url must be a valid absolute http(s) URL"))?;
+
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return Err(AppError::bad_request("base_url scheme must be http or https"));
+    }
+
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err(AppError::bad_request(
+            "base_url must not contain embedded credentials",
+        ));
+    }
+
+    if allow_private_urls {
+        return Ok(());
+    }
+
+    match parsed.host() {
+        Some(Host::Domain(domain)) => {
+            if domain.eq_ignore_ascii_case("localhost") {
+                return Err(AppError::bad_request(
+                    "base_url host is not allowed; localhost/private targets are blocked",
+                ));
+            }
+        }
+        Some(Host::Ipv4(ip)) => {
+            if is_disallowed_ipv4(ip) {
+                return Err(AppError::bad_request(
+                    "base_url host is not allowed; loopback/private/link-local IPs are blocked",
+                ));
+            }
+        }
+        Some(Host::Ipv6(ip)) => {
+            if is_disallowed_ipv6(ip) {
+                return Err(AppError::bad_request(
+                    "base_url host is not allowed; loopback/private/link-local IPs are blocked",
+                ));
+            }
+        }
+        None => {
+            return Err(AppError::bad_request("base_url must include a host"));
+        }
+    }
+
+    Ok(())
+}
+
+fn is_disallowed_ipv4(ip: Ipv4Addr) -> bool {
+    ip.is_loopback() || ip.is_link_local() || ip.is_private() || ip.is_unspecified()
+}
+
+fn is_disallowed_ipv6(ip: Ipv6Addr) -> bool {
+    if ip.is_loopback() || ip.is_unspecified() {
+        return true;
+    }
+    if let Some(mapped) = ip.to_ipv4_mapped() {
+        return is_disallowed_ipv4(mapped);
+    }
+    let segments = ip.segments();
+    // fc00::/7 (unique local addresses)
+    if segments[0] & 0xfe00 == 0xfc00 {
+        return true;
+    }
+    // fe80::/10 (link-local addresses)
+    if segments[0] & 0xffc0 == 0xfe80 {
+        return true;
+    }
+    false
+}
+
 pub async fn validate_mineru_token_view(
     payload: MineruTokenValidationRequest,
     runtime: MineruRuntimeConfig,
@@ -82,7 +166,9 @@ pub async fn validate_mineru_token_view(
 
     let base_url = payload.base_url.trim().to_string();
     let model_version = payload.model_version.trim().to_string();
+    let allow_private_urls = runtime.allow_private_urls;
     let client = MineruClient::with_runtime(base_url.clone(), token.to_string(), runtime);
+    validate_provider_base_url(&client.base_url, allow_private_urls)?;
     let checked_at = now_iso();
 
     let view = match client
@@ -126,7 +212,9 @@ pub async fn validate_paddle_token_view(
     }
 
     let base_url = payload.base_url.trim().to_string();
+    let allow_private_urls = runtime.allow_private_urls;
     let client = PaddleClient::with_runtime(base_url.clone(), token.to_string(), runtime);
+    validate_provider_base_url(&client.base_url, allow_private_urls)?;
     let checked_at = now_iso();
 
     let view = match client.probe_token().await {
@@ -160,6 +248,7 @@ pub async fn validate_deepseek_token_view(
     }
 
     let base_url = normalize_deepseek_base_url(&payload.base_url, &runtime);
+    validate_provider_base_url(&base_url, runtime.allow_private_urls)?;
     let checked_at = now_iso();
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(runtime.probe_timeout_secs))
@@ -186,6 +275,7 @@ pub async fn query_deepseek_balance_view(
     }
 
     let base_url = normalize_deepseek_base_url(&payload.base_url, &runtime);
+    validate_provider_base_url(&base_url, runtime.allow_private_urls)?;
     let checked_at = now_iso();
     let Some(balance_url) = deepseek_balance_url(&base_url, &runtime) else {
         return Ok(DeepSeekBalanceView {
@@ -670,8 +760,63 @@ fn classify_paddle_probe_error(
 
 #[cfg(test)]
 mod tests {
-    use super::{classify_paddle_probe_error, classify_probe_error};
+    use super::{classify_paddle_probe_error, classify_probe_error, validate_provider_base_url};
     use crate::ocr_provider::paddle::PaddleProviderError;
+
+    #[test]
+    fn validate_provider_base_url_allows_public_https_host() {
+        assert!(validate_provider_base_url("https://api.deepseek.com/v1", false).is_ok());
+    }
+
+    #[test]
+    fn validate_provider_base_url_rejects_non_http_scheme() {
+        let err = validate_provider_base_url("ftp://example.com", false).unwrap_err();
+        assert!(err.to_string().contains("scheme"));
+    }
+
+    #[test]
+    fn validate_provider_base_url_rejects_localhost_hostname() {
+        let err = validate_provider_base_url("http://localhost:11434", false).unwrap_err();
+        assert!(err.to_string().contains("not allowed"));
+    }
+
+    #[test]
+    fn validate_provider_base_url_rejects_loopback_ip() {
+        let err = validate_provider_base_url("http://127.0.0.1:8080", false).unwrap_err();
+        assert!(err.to_string().contains("not allowed"));
+    }
+
+    #[test]
+    fn validate_provider_base_url_rejects_link_local_metadata_ip() {
+        let err = validate_provider_base_url("http://169.254.169.254/latest", false).unwrap_err();
+        assert!(err.to_string().contains("not allowed"));
+    }
+
+    #[test]
+    fn validate_provider_base_url_rejects_private_network_ranges() {
+        assert!(validate_provider_base_url("http://10.0.0.5", false).is_err());
+        assert!(validate_provider_base_url("http://172.16.0.5", false).is_err());
+        assert!(validate_provider_base_url("http://192.168.1.5", false).is_err());
+    }
+
+    #[test]
+    fn validate_provider_base_url_rejects_ipv6_loopback_and_unique_local() {
+        assert!(validate_provider_base_url("http://[::1]", false).is_err());
+        assert!(validate_provider_base_url("http://[fc00::1]", false).is_err());
+        assert!(validate_provider_base_url("http://[fe80::1]", false).is_err());
+    }
+
+    #[test]
+    fn validate_provider_base_url_rejects_embedded_credentials() {
+        let err = validate_provider_base_url("https://user:pass@example.com", false).unwrap_err();
+        assert!(err.to_string().contains("credentials"));
+    }
+
+    #[test]
+    fn validate_provider_base_url_allow_private_urls_escape_hatch() {
+        assert!(validate_provider_base_url("http://127.0.0.1:11434", true).is_ok());
+        assert!(validate_provider_base_url("http://localhost:11434", true).is_ok());
+    }
 
     #[test]
     fn classify_probe_error_maps_invalid_token() {
