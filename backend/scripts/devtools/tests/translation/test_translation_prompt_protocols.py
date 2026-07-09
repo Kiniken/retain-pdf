@@ -296,12 +296,13 @@ def test_build_messages_direct_typst_includes_inline_math_and_local_ocr_repair_g
     assert "当前启用 direct_typst 公式直出模式" in system_prompt
     assert "请先理解整句语义" in system_prompt
     assert "请主动用 `$...$` 包裹" in system_prompt
-    assert "每个 `$...$` inline 公式前后都要和正文用空格隔开" in system_prompt
-    assert "$...$ $...$" in system_prompt
-    assert "$...$$...$" in system_prompt
-    assert "只能使用单个反斜杠" in system_prompt
-    assert r"\text{g}" in system_prompt
-    assert r"\\text{g}" in system_prompt
+    assert "使用单个反斜杠" in system_prompt
+    assert r"\mathrm{M}" in system_prompt
+    # 间距、紧贴、双反斜杠等机械格式规则由 normalize_direct_typst_translation
+    # 在翻译时统一规整,不再占用提示词。
+    assert "空格隔开" not in system_prompt
+    assert "$...$$...$" not in system_prompt
+    assert r"\\text{g}" not in system_prompt
     assert r"\cite{117}" in system_prompt
     assert "Unicode 上标字符" in system_prompt
     assert "$^{117}$" in system_prompt
@@ -330,12 +331,13 @@ def test_build_single_item_fallback_messages_direct_typst_includes_inline_math_a
     assert "当前启用 direct_typst 公式直出模式" in system_prompt
     assert "请先理解整句语义" in system_prompt
     assert "请主动用 `$...$` 包裹" in system_prompt
-    assert "每个 `$...$` inline 公式前后都要和正文用空格隔开" in system_prompt
-    assert "$...$ $...$" in system_prompt
-    assert "$...$$...$" in system_prompt
-    assert "只能使用单个反斜杠" in system_prompt
-    assert r"\text{g}" in system_prompt
-    assert r"\\text{g}" in system_prompt
+    assert "使用单个反斜杠" in system_prompt
+    assert r"\mathrm{M}" in system_prompt
+    # 间距、紧贴、双反斜杠等机械格式规则由 normalize_direct_typst_translation
+    # 在翻译时统一规整,不再占用提示词。
+    assert "空格隔开" not in system_prompt
+    assert "$...$$...$" not in system_prompt
+    assert r"\\text{g}" not in system_prompt
     assert r"\cite{117}" in system_prompt
     assert "Unicode 上标字符" in system_prompt
     assert "$^{117}$" in system_prompt

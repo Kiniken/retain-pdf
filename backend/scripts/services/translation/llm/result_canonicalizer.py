@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from services.pipeline_shared.direct_typst_math import normalize_direct_typst_translation
 from services.translation.llm.placeholder_transform import repair_safe_duplicate_placeholders
 from services.translation.llm.result_payload import KEEP_ORIGIN_LABEL
 from services.translation.llm.result_payload import normalize_decision
 from services.translation.llm.result_payload import result_entry
 from services.translation.llm.shared.response_parsing import unwrap_translation_shell
+from services.translation.llm.validation.english_residue import is_direct_math_mode
 from services.translation.llm.validation.english_residue import should_force_translate_body_text
 from services.translation.llm.validation.english_residue import unit_source_text
 
@@ -30,6 +32,10 @@ def canonicalize_batch_result(batch: list[dict], result: dict[str, dict[str, str
             ):
                 decision = KEEP_ORIGIN_LABEL
                 translated_text = ""
+            # direct_typst 的机械格式规整放在 keep_origin 判定之后:规整会改动
+            # 文本,先做会破坏 translated_text == source_text 的原样检测。
+            if decision != KEEP_ORIGIN_LABEL and translated_text and is_direct_math_mode(item):
+                translated_text = normalize_direct_typst_translation(translated_text)
         canonical[item_id] = result_entry(decision, translated_text)
         if isinstance(payload, dict) and payload.get("final_status"):
             canonical[item_id]["final_status"] = str(payload.get("final_status", "") or canonical[item_id]["final_status"])
