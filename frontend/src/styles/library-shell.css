@@ -137,7 +137,7 @@
     border: 0;
     border-radius: 999px;
     background: rgba(245, 245, 247, 0.86);
-    color: #1d1d1f;
+    color: var(--ink);
     font-size: 13px;
     font-weight: 500;
     outline: none;
@@ -171,7 +171,7 @@
     border: 1px solid rgba(210, 210, 215, 0.84);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.74);
-    color: #1d1d1f;
+    color: var(--ink);
     font-size: 13px;
     font-weight: 700;
     line-height: 1;
@@ -185,15 +185,15 @@
   }
 
   .library-bottom-action.primary {
-    border-color: #1d1d1f;
-    background: #1d1d1f;
+    border-color: var(--ink);
+    background: var(--ink);
     color: #ffffff;
   }
 
   .library-bottom-action:hover {
-    border-color: #1d1d1f;
-    background: #f5f5f7;
-    color: #1d1d1f;
+    border-color: var(--ink);
+    background: var(--bg);
+    color: var(--ink);
   }
 
   .library-bottom-action.primary:hover {
@@ -216,16 +216,16 @@
   }
 
   .home-action-btn.primary {
-    border-color: #1d1d1f;
-    background: #1d1d1f;
+    border-color: var(--ink);
+    background: var(--ink);
     color: #ffffff;
   }
 
   .home-action-btn:hover,
   .recent-jobs-more-row #load-more-jobs-btn:hover {
-    border-color: #1d1d1f;
-    background: #f5f5f7;
-    color: #1d1d1f;
+    border-color: var(--ink);
+    background: var(--bg);
+    color: var(--ink);
     filter: none;
   }
 
@@ -266,7 +266,7 @@
 
   .hero-repo-link {
     @apply inline-flex items-center gap-3 text-[2.2rem] font-semibold no-underline;
-    color: #1d1d1f;
+    color: var(--ink);
     letter-spacing: -0.03em;
   }
 

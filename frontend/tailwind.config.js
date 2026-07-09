@@ -1,27 +1,29 @@
 /** @type {import('tailwindcss').Config} */
+// 颜色/字体的唯一真值在 src/styles/tokens.css,这里只做引用。
+// 注意:var() 形式的颜色不支持透明度修饰符(如 bg-accent/50),
+// 需要半透明时用 tokens.css 里的 *-weak 变量或新增 token。
 export default {
   content: ["./index.html", "./app.js", "./src/js/**/*.js", "./src/partials/**/*.html"],
   theme: {
     extend: {
       colors: {
-        bg: "#f5f1e8",
-        paper: "#fffdf8",
-        ink: "#1d1d1b",
-        muted: "#70685b",
-        line: "#d9d0c2",
-        accent: "#1c5d52",
-        "accent-weak": "#d7ebe6",
-        danger: "#a12626",
-        "danger-weak": "#f8e1e1",
-        ok: "#1b6f3a",
-        "ok-weak": "#dff3e6",
-        warn: "#8a5a00",
-        "warn-weak": "#f8e8c8",
+        bg: "var(--bg)",
+        paper: "var(--paper)",
+        ink: "var(--ink)",
+        muted: "var(--muted)",
+        line: "var(--line)",
+        accent: "var(--accent)",
+        "accent-weak": "var(--accent-weak)",
+        danger: "var(--danger)",
+        "danger-weak": "var(--danger-weak)",
+        ok: "var(--ok)",
+        "ok-weak": "var(--ok-weak)",
+        warn: "var(--warn)",
+        "warn-weak": "var(--warn-weak)",
       },
       fontFamily: {
-        sans: ['"Noto Sans CJK SC"', '"Source Han Sans SC"', "sans-serif"],
-        serif: ['"Noto Serif CJK SC"', '"Source Han Serif SC"', "serif"],
-        mono: ['"Iosevka"', '"JetBrains Mono"', "monospace"],
+        sans: ["var(--font-sans)"],
+        mono: ["var(--font-mono)"],
       },
       boxShadow: {
         soft: "0 10px 30px rgba(80, 66, 40, 0.08)",

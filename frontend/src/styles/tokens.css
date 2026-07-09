@@ -1,3 +1,5 @@
+/* 颜色与字体的唯一真值。tailwind.config.js 的 theme 引用这里的变量,
+   手写 CSS 一律用 var(--token),不要再写字面 hex/字体栈。 */
 :root {
   --bg: #f5f5f7;
   --paper: #ffffff;
@@ -13,4 +15,8 @@
   --ok-weak: rgba(52, 199, 89, 0.12);
   --warn: #ff9f0a;
   --warn-weak: rgba(255, 159, 10, 0.14);
+
+  --font-sans: "SF Pro Display", "SF Pro SC", "PingFang SC", "Helvetica Neue", "Noto Sans CJK SC", sans-serif;
+  --font-display: "SF Pro Display", "SF Pro SC", "PingFang SC", sans-serif;
+  --font-mono: "Iosevka", "JetBrains Mono", monospace;
 }

@@ -120,16 +120,16 @@
   }
 
   .status-action-btn:hover:not(:disabled):not(.disabled) {
-    border-color: #1d1d1f;
-    background: #f5f5f7;
-    color: #1d1d1f;
+    border-color: var(--ink);
+    background: var(--bg);
+    color: var(--ink);
   }
 
   .status-action-btn:disabled,
   .status-action-btn.disabled,
   .status-action-btn[aria-disabled="true"] {
-    border-color: #e5e5ea;
-    background: #f5f5f7;
+    border-color: var(--line);
+    background: var(--bg);
     color: #a1a1a6;
     cursor: not-allowed;
   }
@@ -233,7 +233,7 @@
     height: max(var(--status-spinner-size, 0px), var(--status-proportional-spinner-size));
     @apply rounded-full;
     border: clamp(3px, 0.7cqw, 5px) solid rgba(29, 29, 31, 0.1);
-    border-top-color: #1d1d1f;
+    border-top-color: var(--ink);
     animation: status-translation-spin 0.9s linear infinite;
   }
 
@@ -311,7 +311,7 @@
 
   .status-progress-bar {
     --status-progress-percent: 0%;
-    --status-progress-indicator-color: #1d1d1f;
+    --status-progress-indicator-color: var(--ink);
     @apply relative h-[var(--status-progress-track-height,5px)] w-full overflow-hidden rounded-full bg-[#ececf1];
   }
 
@@ -357,7 +357,7 @@
     display: block;
     max-width: var(--status-ring-column-width, 128px);
     overflow: hidden;
-    color: #6e6e73;
+    color: var(--muted);
     font-size: 11px;
     font-weight: 650;
     line-height: 1.25;
@@ -370,7 +370,7 @@
     --status-progress-ring-size-effective: max(var(--status-progress-ring-size, 0px), var(--status-proportional-ring-size));
     --status-progress-ring-stroke-effective: max(var(--status-progress-ring-track-width, 0px), var(--status-proportional-ring-stroke));
     --status-ring-percent: 0%;
-    --status-ring-indicator-color: #1d1d1f;
+    --status-ring-indicator-color: var(--ink);
     @apply relative grid place-items-center rounded-full text-[#1d1d1f];
     width: var(--status-progress-ring-size-effective);
     height: var(--status-progress-ring-size-effective);
@@ -423,7 +423,7 @@
     width: 0%;
     height: 100%;
     border-radius: inherit;
-    background: #1d1d1f;
+    background: var(--ink);
     transition: width 0.25s ease;
   }
 
@@ -464,7 +464,7 @@
     border-radius: 999px;
     border: 1px solid #d2d2d7;
     background: #fff;
-    color: #1d1d1f;
+    color: var(--ink);
     font-size: var(--status-retry-btn-font-size, 11px);
     font-weight: 650;
     line-height: 1;
@@ -475,9 +475,9 @@
   }
 
   .status-stage-retry-btn:hover:not(:disabled) {
-    border-color: #1d1d1f;
-    background: #f5f5f7;
-    color: #1d1d1f;
+    border-color: var(--ink);
+    background: var(--bg);
+    color: var(--ink);
   }
 
   .status-stage-retry-btn:disabled {

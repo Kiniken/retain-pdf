@@ -192,7 +192,7 @@
   .page-range-dialog label span {
     font-size: 13px;
     font-weight: 600;
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .professional-glossary-field select {
@@ -202,7 +202,7 @@
     border: 1px solid #d2d2d7;
     border-radius: 12px;
     background: #fff;
-    color: #1d1d1f;
+    color: var(--ink);
     padding: 0 12px;
     box-shadow: none;
     font-size: 14px;
@@ -282,7 +282,7 @@
     border-radius: 16px;
     border: 1px solid #d7dce4;
     background: #f8fafc;
-    color: #1d1d1f;
+    color: var(--ink);
     font-size: 13px;
   }
 
@@ -312,7 +312,7 @@
     margin: 0;
     font-size: 15px;
     font-weight: 600;
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .translation-panel-body {
@@ -359,7 +359,7 @@
     border-radius: 18px;
     background: linear-gradient(180deg, #ffffff 0%, #fcfcfd 100%);
     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.035);
-    color: #1d1d1f;
+    color: var(--ink);
     transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
   }
 
@@ -420,9 +420,9 @@
   }
 
   .translation-item-status.is-neutral {
-    background: #f5f5f7;
+    background: var(--bg);
     border-color: #e5e7eb;
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .translation-item-chip {
@@ -441,7 +441,7 @@
   .translation-item-card-footer,
   .translation-item-card-route {
     font-size: 12px;
-    color: #6e6e73;
+    color: var(--muted);
   }
 
   .translation-item-card-route strong,
@@ -458,7 +458,7 @@
     border: 1px solid #edf1f5;
     font-size: 13px;
     line-height: 1.6;
-    color: #1d1d1f;
+    color: var(--ink);
     word-break: break-word;
   }
 
@@ -552,7 +552,7 @@
   .icon-button {
     @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border bg-white p-0 shadow-none;
     border-color: #d2d2d7;
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .icon-button.is-nudged {
@@ -623,7 +623,7 @@
   select {
     @apply w-full rounded-[20px] px-4 py-3.5 text-[15px] outline-none transition;
     border: 1px solid transparent;
-    background: #f5f5f7;
+    background: var(--bg);
     color: var(--ink);
   }
 
@@ -659,7 +659,7 @@
   }
 
   .app-button {
-    background: #1d1d1f;
+    background: var(--ink);
     color: #fff;
     box-shadow: 0 6px 18px rgba(29, 29, 31, 0.14);
   }
@@ -672,7 +672,7 @@
   .app-button.secondary,
   .button-link.secondary {
     background: #fff;
-    color: #1d1d1f;
+    color: var(--ink);
     border-color: #d2d2d7;
   }
 
@@ -741,7 +741,7 @@
     align-content: start;
     background: #ffffff;
     border-color: #ececf1;
-    color: #1d1d1f;
+    color: var(--ink);
     box-shadow: 0 12px 34px rgba(15, 23, 42, 0.05);
     overflow: hidden;
     padding-top: 20px;
@@ -755,7 +755,7 @@
   .status-card .stage-pill,
   .status-card .status-note,
   .status-card .status-kicker {
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .status-card > * {
@@ -772,7 +772,7 @@
   .status-card button.secondary,
   .status-card .button-link.secondary {
     background: #fff;
-    color: #1d1d1f;
+    color: var(--ink);
     border-color: #d2d2d7;
   }
 
@@ -806,8 +806,8 @@
   }
 
   .task-toolbar-btn-primary {
-    background: #1d1d1f;
-    border-color: #1d1d1f;
+    background: var(--ink);
+    border-color: var(--ink);
     color: #fff;
     box-shadow: 0 6px 18px rgba(29, 29, 31, 0.14);
   }
@@ -831,12 +831,12 @@
     font-size: 15px;
     font-weight: 600;
     letter-spacing: -0.02em;
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .status-panel-note {
     font-size: 12px;
-    color: #6e6e73;
+    color: var(--muted);
   }
 
   .detail-grid {
@@ -863,7 +863,7 @@
   .detail-item .info-value {
     font-size: 15px;
     line-height: 1.45;
-    color: #1d1d1f;
+    color: var(--ink);
     word-break: break-word;
   }
 
@@ -887,8 +887,8 @@
 
   .stage-history-index {
     @apply inline-flex h-7 w-7 items-center justify-center rounded-full text-[12px] font-semibold;
-    background: #f5f5f7;
-    color: #1d1d1f;
+    background: var(--bg);
+    color: var(--ink);
     flex: 0 0 auto;
   }
 
@@ -898,23 +898,23 @@
 
   .stage-history-title {
     @apply text-[14px] font-medium leading-5;
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .stage-history-stage {
     @apply text-[12px] leading-5;
-    color: #6e6e73;
+    color: var(--muted);
   }
 
   .stage-history-meta {
     @apply text-[12px] leading-5;
-    color: #6e6e73;
+    color: var(--muted);
     overflow-wrap: anywhere;
   }
 
   .stage-history-duration {
     @apply text-[13px] font-semibold;
-    color: #1d1d1f;
+    color: var(--ink);
     flex: 0 0 auto;
     white-space: nowrap;
   }
@@ -923,7 +923,7 @@
     @apply rounded-[18px] px-4 py-4 text-sm;
     border: 1px solid #efeff4;
     background: #fff;
-    color: #6e6e73;
+    color: var(--muted);
     text-align: center;
   }
 
@@ -931,7 +931,7 @@
     margin: 0 0 12px;
     font-size: 13px;
     line-height: 1.6;
-    color: #6e6e73;
+    color: var(--muted);
   }
 
   .events-list {
@@ -952,8 +952,8 @@
 
   .event-badge {
     @apply inline-flex items-center rounded-full px-2 py-1 text-[11px] font-semibold;
-    background: #f5f5f7;
-    color: #1d1d1f;
+    background: var(--bg);
+    color: var(--ink);
   }
 
   .event-badge.warn {
@@ -968,7 +968,7 @@
 
   .event-title {
     @apply mt-3 text-[14px] font-medium leading-6;
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .event-payload-wrap {
@@ -980,7 +980,7 @@
     cursor: pointer;
     list-style: none;
     color: #4a4a52;
-    background: #f5f5f7;
+    background: var(--bg);
     border: 1px solid #ececf1;
   }
 
@@ -990,12 +990,12 @@
 
   .event-payload-wrap[open] .event-payload-toggle {
     background: #ececf1;
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .event-payload {
     @apply mt-3 rounded-[16px] px-3 py-3 text-[12px] leading-5;
-    background: #f5f5f7;
+    background: var(--bg);
     border: 1px solid #ececf1;
     color: #3a3a3c;
     white-space: pre-wrap;
@@ -1025,7 +1025,7 @@
 
   .status-core {
     inset: 19px;
-    background: #1d1d1f;
+    background: var(--ink);
     box-shadow: 0 0 0 10px rgba(29, 29, 31, 0.06);
   }
 
@@ -1045,12 +1045,12 @@
   }
 
   .status-card[data-status="succeeded"] .status-core {
-    background: #1d1d1f;
+    background: var(--ink);
     box-shadow: 0 0 0 10px rgba(52, 199, 89, 0.12);
   }
 
   .status-card[data-status="failed"] .status-core {
-    background: #1d1d1f;
+    background: var(--ink);
     box-shadow: 0 0 0 10px rgba(255, 59, 48, 0.12);
   }
 
@@ -1082,8 +1082,8 @@
   .stage-pill {
     @apply inline-flex items-center rounded-full px-3 py-1.5 text-sm;
     background: #ffffff;
-    color: #1d1d1f;
-    border: 1px solid #e5e5ea;
+    color: var(--ink);
+    border: 1px solid var(--line);
     width: fit-content;
   }
 
@@ -1124,7 +1124,7 @@
   .failure-hero-card .info-value {
     font-size: 15px;
     line-height: 1.55;
-    color: #1d1d1f;
+    color: var(--ink);
     word-break: break-word;
   }
 
@@ -1158,7 +1158,7 @@
   .info-row .info-value {
     font-size: 15px;
     line-height: 1.45;
-    color: #1d1d1f;
+    color: var(--ink);
     word-break: break-word;
   }
 
@@ -1168,12 +1168,12 @@
   }
 
   .status-card .progress-bar {
-    background: linear-gradient(90deg, #1d1d1f 0%, #44444a 100%);
+    background: linear-gradient(90deg, var(--ink) 0%, #44444a 100%);
     box-shadow: none;
   }
 
   .status-card .info-value {
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .mono {
@@ -1187,7 +1187,7 @@
 
   .result-primary {
     min-height: 56px;
-    background: #1d1d1f;
+    background: var(--ink);
     color: #fff;
   }
 

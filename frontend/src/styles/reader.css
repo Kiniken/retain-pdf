@@ -53,7 +53,7 @@
 
   .reader-dialog-download-menu[open] .reader-dialog-download-trigger {
     background: rgba(255, 255, 255, 0.92);
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .reader-dialog-download-trigger,
@@ -134,7 +134,7 @@
   .reader-dialog-toolbar-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.82);
     border-color: rgba(29, 29, 31, 0.12);
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .reader-dialog-toolbar-btn:disabled {
@@ -197,7 +197,7 @@
     font-variant-numeric: tabular-nums;
     font-size: 12px;
     font-weight: 700;
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .reader-dialog-loading-track {
@@ -212,7 +212,7 @@
     width: 0%;
     height: 100%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #3a3a3c 0%, #1d1d1f 100%);
+    background: linear-gradient(90deg, #3a3a3c 0%, var(--ink) 100%);
     transition: width 0.24s ease;
   }
 
@@ -234,7 +234,7 @@
   .reader-body {
     margin: 0;
     background: #eef1f5;
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   .reader-page {
@@ -280,7 +280,7 @@
   .reader-meta p {
     margin: 4px 0 0;
     font-size: 12px;
-    color: #6e6e73;
+    color: var(--muted);
   }
 
   .reader-toolbar-actions {
@@ -381,7 +381,7 @@
     margin: 14px;
     padding: 16px 18px;
     font-size: 13px;
-    color: #6e6e73;
+    color: var(--muted);
     border: 1px dashed #d8d9de;
     border-radius: 14px;
     background: #fafafc;

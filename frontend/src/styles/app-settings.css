@@ -20,7 +20,7 @@
 
   .app-settings-head h2 {
     margin: 0;
-    color: #1d1d1f;
+    color: var(--ink);
     font-size: 17px;
     font-weight: 700;
     letter-spacing: 0;
@@ -28,7 +28,7 @@
 
   .app-settings-head p {
     margin: 4px 0 0;
-    color: #6e6e73;
+    color: var(--muted);
     font-size: 12px;
   }
 
@@ -56,7 +56,7 @@
     border: 0;
     border-radius: 999px;
     background: transparent;
-    color: #6e6e73;
+    color: var(--muted);
     font-size: 12px;
     font-weight: 700;
     line-height: 1;
@@ -64,7 +64,7 @@
   }
 
   .app-settings-tabs button.is-active {
-    background: #1d1d1f;
+    background: var(--ink);
     color: #ffffff;
   }
 
@@ -94,13 +94,13 @@
     padding: 9px;
     border: 1px solid #ececf1;
     border-radius: 14px;
-    background: #f5f5f7;
-    color: #1d1d1f;
+    background: var(--bg);
+    color: var(--ink);
   }
 
   .app-settings-panel-copy strong {
     display: block;
-    color: #1d1d1f;
+    color: var(--ink);
     font-size: 14px;
     font-weight: 700;
   }
@@ -108,7 +108,7 @@
   .app-settings-panel-copy span {
     display: block;
     margin-top: 4px;
-    color: #6e6e73;
+    color: var(--muted);
     font-size: 12px;
     line-height: 1.55;
   }
@@ -117,9 +117,9 @@
     justify-self: start;
     min-height: 36px;
     padding: 0 15px;
-    border: 1px solid #1d1d1f;
+    border: 1px solid var(--ink);
     border-radius: 999px;
-    background: #1d1d1f;
+    background: var(--ink);
     color: #ffffff;
     font-size: 12px;
     font-weight: 700;

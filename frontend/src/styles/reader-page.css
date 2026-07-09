@@ -2,8 +2,8 @@
   --reader-page-bg: #f3f4f6;
   --reader-toolbar-bg: #f8fafc;
   --reader-panel-border: #dfe3e8;
-  --reader-muted-text: #6e6e73;
-  --reader-surface-border: #e5e5ea;
+  --reader-muted-text: var(--muted);
+  --reader-surface-border: var(--line);
   --reader-markdown-bg: #fffdf9;
   --reader-markdown-border: #cbd5df;
   --reader-markdown-raw-bg: #0f1720;
@@ -77,13 +77,13 @@
 }
 
 .reader-tab.is-active {
-  background: #1d1d1f;
+  background: var(--ink);
   color: #fff;
 }
 
 .reader-tab:hover {
   background: rgba(29, 29, 31, 0.06);
-  color: #1d1d1f;
+  color: var(--ink);
 }
 
 .reader-tab.is-active:hover {
@@ -130,7 +130,7 @@
   width: 0%;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #3a3a3c 0%, #1d1d1f 100%);
+  background: linear-gradient(90deg, #3a3a3c 0%, var(--ink) 100%);
   transition: width 0.24s ease;
 }
 
@@ -207,7 +207,7 @@
   width: var(--reader-progress, 0%);
   height: 100%;
   border-radius: inherit;
-  background: #1d1d1f;
+  background: var(--ink);
   transition: width 180ms ease;
 }
 

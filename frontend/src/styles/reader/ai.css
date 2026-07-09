@@ -30,7 +30,7 @@
 }
 
 .reader-ai-scope button.is-active {
-  background: #1d1d1f;
+  background: var(--ink);
   color: #fff;
 }
 
@@ -61,7 +61,7 @@
   gap: 6px;
   padding: 11px 12px;
   border-radius: 12px;
-  background: #f5f5f7;
+  background: var(--bg);
   white-space: pre-wrap;
 }
 
@@ -75,7 +75,7 @@
 }
 
 .reader-ai-message span {
-  color: #1d1d1f;
+  color: var(--ink);
   font-size: 12px;
   font-weight: 700;
 }
@@ -122,7 +122,7 @@
   padding: 0 12px;
   border: 1px solid rgba(29, 29, 31, 0.1);
   border-radius: 999px;
-  background: #1d1d1f;
+  background: var(--ink);
   color: #fff;
   box-shadow: none;
   font-size: 11px;
@@ -130,6 +130,6 @@
 }
 
 .reader-ai-composer-foot button:disabled {
-  background: #f5f5f7;
+  background: var(--bg);
   color: #86868b;
 }
