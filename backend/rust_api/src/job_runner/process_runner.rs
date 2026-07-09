@@ -507,8 +507,14 @@ print(json.dumps({{
         assert_eq!(finished.status, JobStatusKind::Succeeded);
         let result = finished.result.as_ref().expect("process result");
         assert!(result.success);
-        assert!(result.stdout.contains("\"translation\": \"sk-env-test\""));
-        assert!(result.stdout.contains("\"paddle\": \"paddle-env-test\""));
+        // The worker process genuinely received the credentials via env vars
+        // (that's what this test guards), but the raw stdout persisted into
+        // result_json must have them redacted rather than leaking them into
+        // the job's stored logs.
+        assert!(!result.stdout.contains("sk-env-test"));
+        assert!(!result.stdout.contains("paddle-env-test"));
+        assert!(result.stdout.contains("\"translation\": \"[REDACTED]\""));
+        assert!(result.stdout.contains("\"paddle\": \"[REDACTED]\""));
         assert!(result.stdout.contains("\"mineru\": \"\""));
     }
 }

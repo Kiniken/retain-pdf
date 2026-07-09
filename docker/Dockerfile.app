@@ -72,6 +72,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     RETAIN_PDF_TITLE_BOLD_FONT_PATH=/usr/local/share/fonts/source-han-serif/SourceHanSerifSC-Bold.otf \
     RETAIN_PDF_TYPST_FONT_DIRS=/usr/local/share/fonts/source-han-serif \
     RETAIN_PDF_TYPST_FONT_FAMILY="Source Han Serif SC" \
+    RUST_API_BIND_HOST=0.0.0.0 \
     RUST_API_PORT=41000 \
     RUST_API_SIMPLE_PORT=42000
 
