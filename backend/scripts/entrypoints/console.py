@@ -32,8 +32,7 @@ def run_provider_ocr() -> int:
 def run_provider_case() -> int:
     from services.ocr_provider.provider_pipeline import main
 
-    main()
-    return 0
+    return _run_structured(main, default_stage="provider", provider="ocr")
 
 
 def run_normalize_ocr() -> int:

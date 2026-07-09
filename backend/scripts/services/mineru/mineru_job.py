@@ -3,7 +3,6 @@ import argparse
 import json
 import shutil
 import sys
-import zipfile
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[2]))
@@ -11,10 +10,10 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 from foundation.shared.job_dirs import create_job_dirs
 from foundation.shared.local_env import get_secret
 from services.mineru.artifacts import download_file
+from services.mineru.artifacts import unpack_zip
 from services.mineru.mineru_api import MINERU_ENV_FILE
 from services.mineru.mineru_api import MINERU_TOKEN_ENV
 from services.mineru.mineru_api import apply_upload_url
-from services.mineru.mineru_api import build_headers
 from services.mineru.mineru_api import create_extract_task
 from services.mineru.mineru_api import find_extract_result_in_batch
 from services.mineru.mineru_api import parse_extra_formats
@@ -55,12 +54,6 @@ def parse_args() -> argparse.Namespace:
 def save_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def unpack_zip(zip_path: Path, dest_dir: Path) -> None:
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(zip_path, "r") as zf:
-        zf.extractall(dest_dir)
 
 
 def copy_local_source_pdf(file_path: Path, origin_dir: Path) -> Path:
@@ -163,7 +156,9 @@ def main() -> None:
         return
 
     zip_path = job_dirs.json_pdf_dir / "mineru_bundle.zip"
-    download_file(full_zip_url, zip_path, headers=build_headers(token))
+    # full_zip_url is a presigned CDN/object-store URL; do not forward the
+    # MinerU bearer token to it (would leak into CDN logs cross-origin).
+    download_file(full_zip_url, zip_path)
     print(f"saved zip: {zip_path}")
 
     unpack_dir = job_dirs.json_pdf_dir / "unpacked"

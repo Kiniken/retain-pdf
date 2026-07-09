@@ -14,6 +14,7 @@ sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 from services.ocr_provider import paddle_api
 from services.ocr_provider import paddle_markdown
 from services.mineru import mineru_api
+from services.network import retry as network_retry
 
 
 class _Response:
@@ -92,6 +93,38 @@ def test_mineru_request_retries_429_and_raises_rate_limit(monkeypatch: pytest.Mo
 
     assert session.calls == 2
     assert sleeps == [1.0]
+
+
+def test_sanitize_url_for_log_strips_query_and_fragment() -> None:
+    signed_url = "https://cdn.example.com/bundle.zip?X-Amz-Signature=super-secret&X-Amz-Expires=900#frag"
+    sanitized = network_retry.sanitize_url_for_log(signed_url)
+    assert sanitized.startswith("https://cdn.example.com/bundle.zip")
+    assert "super-secret" not in sanitized
+    assert "X-Amz-Signature" not in sanitized
+    assert "frag" not in sanitized
+
+
+def test_sanitize_url_for_log_leaves_url_without_query_untouched() -> None:
+    plain_url = "https://cdn.example.com/bundle.zip"
+    assert network_retry.sanitize_url_for_log(plain_url) == plain_url
+
+
+def test_mineru_request_retry_print_redacts_query_string(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    session = _Session(_Response(429, headers={"Retry-After": "1"}))
+
+    monkeypatch.setattr(mineru_api, "_get_session", lambda: session)
+    monkeypatch.setenv(mineru_api.MINERU_RETRY_ATTEMPTS_ENV, "2")
+    monkeypatch.setattr(mineru_api.time, "sleep", lambda seconds: None)
+
+    signed_url = "https://mineru.net/api/v4/extract/task/test?token=SUPER-SECRET-TOKEN"
+    with pytest.raises(mineru_api.MinerURateLimitError):
+        mineru_api.request_mineru("get", signed_url, timeout=1)
+
+    captured = capsys.readouterr()
+    assert "SUPER-SECRET-TOKEN" not in captured.out
+    assert "redacted" in captured.out
 
 
 def test_paddle_markdown_remote_image_uses_retry(monkeypatch: pytest.MonkeyPatch) -> None:

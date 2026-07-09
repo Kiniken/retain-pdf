@@ -6,6 +6,7 @@ This module owns where raw MinerU files and normalized OCR files live on disk.
 It does not parse or normalize `layout.json` itself.
 """
 
+import os
 import shutil
 import zipfile
 from dataclasses import dataclass
@@ -62,9 +63,64 @@ def download_file(url: str, path: Path, headers: dict[str, str] | None = None) -
                     f.write(chunk)
 
 
+# The MinerU bundle is downloaded from a cloud provider (or a presigned CDN
+# URL derived from it). CPython's zipfile already blocks path traversal on
+# extractall, but it will happily inflate an arbitrarily large payload onto
+# the shared job disk -- a malformed or hostile bundle (huge files, or a zip
+# bomb with a small archive but enormous declared uncompressed size) can fill
+# it. Guard on both total declared uncompressed size and entry count before
+# extracting anything.
+MINERU_BUNDLE_MAX_UNCOMPRESSED_BYTES_ENV = "RETAIN_MINERU_BUNDLE_MAX_UNCOMPRESSED_BYTES"
+MINERU_BUNDLE_MAX_ENTRIES_ENV = "RETAIN_MINERU_BUNDLE_MAX_ENTRIES"
+_DEFAULT_MAX_UNCOMPRESSED_BYTES = 4 * 1024 * 1024 * 1024  # 4 GiB: OCR bundles with page images can be large.
+_DEFAULT_MAX_ENTRIES = 50_000
+
+
+def _bundle_max_uncompressed_bytes() -> int:
+    raw = os.environ.get(MINERU_BUNDLE_MAX_UNCOMPRESSED_BYTES_ENV, "").strip()
+    try:
+        value = int(raw) if raw else _DEFAULT_MAX_UNCOMPRESSED_BYTES
+    except ValueError:
+        value = _DEFAULT_MAX_UNCOMPRESSED_BYTES
+    return max(1, value)
+
+
+def _bundle_max_entries() -> int:
+    raw = os.environ.get(MINERU_BUNDLE_MAX_ENTRIES_ENV, "").strip()
+    try:
+        value = int(raw) if raw else _DEFAULT_MAX_ENTRIES
+    except ValueError:
+        value = _DEFAULT_MAX_ENTRIES
+    return max(1, value)
+
+
+def ensure_zip_within_limits(zf: zipfile.ZipFile, *, zip_path: Path) -> None:
+    """Reject a zip bundle whose declared entry count or uncompressed size is absurd.
+
+    Must run before extractall(); it only inspects the (trusted-format)
+    central directory, never inflates anything itself.
+    """
+    max_entries = _bundle_max_entries()
+    max_uncompressed_bytes = _bundle_max_uncompressed_bytes()
+    infos = zf.infolist()
+    if len(infos) > max_entries:
+        raise RuntimeError(
+            f"MinerU bundle rejected: {len(infos)} entries exceeds limit of {max_entries} "
+            f"(zip={zip_path}); set {MINERU_BUNDLE_MAX_ENTRIES_ENV} to override."
+        )
+    total_uncompressed_bytes = sum(info.file_size for info in infos)
+    if total_uncompressed_bytes > max_uncompressed_bytes:
+        raise RuntimeError(
+            f"MinerU bundle rejected: declared uncompressed size {total_uncompressed_bytes} bytes exceeds "
+            f"limit of {max_uncompressed_bytes} bytes (zip={zip_path}); "
+            f"set {MINERU_BUNDLE_MAX_UNCOMPRESSED_BYTES_ENV} to override."
+        )
+
+
 def unpack_zip(zip_path: Path, dest_dir: Path) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path, "r") as zf:
+        ensure_zip_within_limits(zf, zip_path=zip_path)
         zf.extractall(dest_dir)
 
 
@@ -73,8 +129,10 @@ def download_and_unpack_bundle(
     full_zip_url: str,
     zip_path: Path,
     unpack_dir: Path,
-    headers: dict[str, str],
+    headers: dict[str, str] | None = None,
 ) -> None:
+    # full_zip_url is a presigned CDN/object-store URL and must not carry the
+    # MinerU API bearer token (callers should not pass headers here).
     download_file(full_zip_url, zip_path, headers=headers)
     unpack_zip(zip_path, unpack_dir)
 
@@ -119,11 +177,14 @@ def resolve_translation_source_from_artifacts(
 
 
 __all__ = [
+    "MINERU_BUNDLE_MAX_ENTRIES_ENV",
+    "MINERU_BUNDLE_MAX_UNCOMPRESSED_BYTES_ENV",
     "MinerUArtifactPaths",
     "build_mineru_artifact_paths",
     "download_and_unpack_bundle",
     "download_file",
     "ensure_source_pdf_from_bundle",
+    "ensure_zip_within_limits",
     "resolve_layout_json_path",
     "resolve_normalized_json_path",
     "resolve_translation_source_from_artifacts",

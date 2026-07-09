@@ -17,7 +17,6 @@ from services.mineru.artifacts import resolve_layout_json_path
 from services.mineru.artifacts import save_json
 from services.mineru.mineru_api import MINERU_ENV_FILE
 from services.mineru.mineru_api import MINERU_TOKEN_ENV
-from services.mineru.mineru_api import build_headers as build_mineru_headers
 from services.mineru.mineru_api import parse_extra_formats
 from services.mineru.submission import run_local_extract_task
 from services.mineru.submission import run_remote_extract_task
@@ -131,11 +130,12 @@ def run_mineru_to_job_dir(args: Namespace) -> tuple[JobDirs, Path, Path, Path]:
     if not full_zip_url:
         raise RuntimeError("MinerU result does not contain full_zip_url.")
 
+    # full_zip_url is a presigned CDN/object-store URL; the MinerU bearer token
+    # must not be forwarded to it (would leak into CDN logs cross-origin).
     download_and_unpack_bundle(
         full_zip_url=full_zip_url,
         zip_path=artifact_paths.bundle_zip_path,
         unpack_dir=artifact_paths.unpack_dir,
-        headers=build_mineru_headers(mineru_token),
     )
 
     source_pdf_path = ensure_source_pdf_from_bundle(

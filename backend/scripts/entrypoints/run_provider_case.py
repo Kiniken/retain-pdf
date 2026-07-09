@@ -11,8 +11,9 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+from foundation.shared.structured_errors import run_with_structured_failure
 from services.ocr_provider.provider_pipeline import main
 
 
 if __name__ == "__main__":
-    main()
+    run_with_structured_failure(main, default_stage="provider", provider="ocr")
