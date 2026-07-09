@@ -31,7 +31,7 @@ PollFn = Callable[..., tuple[dict, str]]
 DownloadJsonlFn = Callable[..., dict]
 MaterializeMarkdownFn = Callable[..., Path | None]
 SaveNormalizedFn = Callable[..., None]
-SaveJsonFn = Callable[[Path, object], None]
+SaveJsonFn = Callable[..., None]
 NormalizeModelNameFn = Callable[[str], str]
 BuildOptionalPayloadFn = Callable[[str], dict]
 
@@ -184,7 +184,8 @@ def run_paddle_to_job_dir(
     if trace_id:
         meta["traceId"] = trace_id
     payload["_meta"] = meta
-    save_json_file(provider_result_json_path, payload)
+    # The Paddle payload can embed base64 page images — write it compact.
+    save_json_file(provider_result_json_path, payload, compact=True)
     markdown_path = materialize_markdown(payload=payload, job_root=job_dirs.root)
     if markdown_path is not None:
         print(f"published markdown: {markdown_path}", flush=True)
@@ -195,6 +196,7 @@ def run_paddle_to_job_dir(
         normalized_report_json_path=normalized_report_json_path,
         document_id=job_dirs.root.name,
         provider_version=model_name,
+        provider_payload=payload,
     )
     print(f"source: {job_dirs.source_dir}", flush=True)
     print(f"ocr: {job_dirs.ocr_dir}", flush=True)

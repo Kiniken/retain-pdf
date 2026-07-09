@@ -9,6 +9,7 @@ from services.mineru.mineru_api import find_extract_result_in_batch
 from services.mineru.mineru_api import poll_until_done
 from services.mineru.mineru_api import query_batch_status
 from services.mineru.mineru_api import upload_file
+from services.network.retry import stepped_poll_interval
 
 
 def run_remote_extract_task(
@@ -75,10 +76,11 @@ def run_local_extract_task(
         try:
             extract_result = find_extract_result_in_batch(batch_status, file_path.name)
         except RuntimeError:
-            if time.time() - started > poll_timeout:
+            elapsed = time.time() - started
+            if elapsed > poll_timeout:
                 raise TimeoutError(f"Timed out waiting for MinerU batch result: {batch_id}")
             print(f"batch {batch_id}: waiting for extract_result", flush=True)
-            time.sleep(poll_interval)
+            time.sleep(stepped_poll_interval(elapsed, poll_interval))
             continue
 
         state = extract_result.get("state", "")
@@ -87,6 +89,7 @@ def run_local_extract_task(
             return {"code": 0, "data": extract_result, "msg": "ok"}
         if state == "failed":
             raise RuntimeError(f"MinerU batch task failed: {extract_result.get('err_msg', '') or 'unknown error'}")
-        if time.time() - started > poll_timeout:
+        elapsed = time.time() - started
+        if elapsed > poll_timeout:
             raise TimeoutError(f"Timed out waiting for MinerU batch result: {batch_id}")
-        time.sleep(poll_interval)
+        time.sleep(stepped_poll_interval(elapsed, poll_interval))

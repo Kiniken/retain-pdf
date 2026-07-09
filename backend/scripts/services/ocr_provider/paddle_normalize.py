@@ -3,8 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+from services.document_schema import DocumentSchemaValidationError
 from services.document_schema import adapt_path_to_document_v1_with_report
-from services.document_schema import validate_saved_document_path
+from services.document_schema import build_validation_report
 from services.document_schema.provider_adapters.paddle.content_extract import build_lines as build_paddle_lines
 from services.document_schema.provider_adapters.paddle.content_extract import tighten_text_bbox as tighten_paddle_text_bbox
 from services.document_schema.reporting import build_normalization_summary
@@ -14,10 +15,9 @@ from services.pipeline_shared.io import save_json
 
 
 AdaptDocumentFn = Callable[..., tuple[dict, dict]]
-ValidateDocumentFn = Callable[[Path], dict]
 BuildLinesFn = Callable[..., list]
 TightenBBoxFn = Callable[..., list[float]]
-SaveJsonFn = Callable[[Path, object], None]
+SaveJsonFn = Callable[..., None]
 
 
 def save_normalized_document_for_paddle(
@@ -28,17 +28,23 @@ def save_normalized_document_for_paddle(
     normalized_report_json_path: Path,
     document_id: str,
     provider_version: str,
+    provider_payload: dict | None = None,
     adapt_document: AdaptDocumentFn = adapt_path_to_document_v1_with_report,
-    validate_document: ValidateDocumentFn = validate_saved_document_path,
     build_lines: BuildLinesFn = build_paddle_lines,
     tighten_text_bbox: TightenBBoxFn = tighten_paddle_text_bbox,
     save_json_file: SaveJsonFn = save_json,
 ) -> None:
+    adapt_kwargs: dict = {}
+    if provider_payload is not None:
+        # Reuse the payload already held in memory instead of re-reading the
+        # (often image-laden) provider result JSON from disk.
+        adapt_kwargs["payload"] = provider_payload
     normalized_document, normalization_report = adapt_document(
         source_json_path=provider_result_json_path,
         document_id=document_id,
         provider=PROVIDER_PADDLE,
         provider_version=provider_version,
+        **adapt_kwargs,
     )
     normalized_document = rescale_document_geometry_to_pdf(normalized_document, source_pdf_path)
     normalized_document = post_rescale_rebuild_paddle_text_geometry(
@@ -46,9 +52,17 @@ def save_normalized_document_for_paddle(
         build_lines=build_lines,
         tighten_text_bbox=tighten_text_bbox,
     )
-    save_json_file(normalized_json_path, normalized_document)
+    # Validate the final (rescaled/rebuilt) document in memory — no disk
+    # read-back — and keep the persisted report in sync with what is saved.
+    try:
+        report = build_validation_report(normalized_document)
+    except DocumentSchemaValidationError as exc:
+        raise RuntimeError(
+            f"normalized document schema validation failed: path={normalized_json_path} error={exc}"
+        ) from exc
+    normalization_report["validation"] = report
+    save_json_file(normalized_json_path, normalized_document, compact=True)
     save_json_file(normalized_report_json_path, normalization_report)
-    report = validate_document(normalized_json_path)
     normalization_summary = build_normalization_summary(normalization_report)
     print(
         "normalized document validated: "

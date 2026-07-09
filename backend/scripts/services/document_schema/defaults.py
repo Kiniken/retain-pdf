@@ -238,8 +238,10 @@ def apply_document_defaults(data: dict) -> dict:
     return document
 
 
-def apply_document_defaults_with_report(data: dict) -> tuple[dict, dict]:
-    document = deepcopy(data)
+def apply_document_defaults_with_report(data: dict, *, in_place: bool = False) -> tuple[dict, dict]:
+    # deepcopy of a full document is expensive; callers that own a freshly built
+    # payload can opt into in-place mutation.
+    document = data if in_place else deepcopy(data)
     report = _build_empty_defaults_report()
     _apply_document_defaults(document, report)
 

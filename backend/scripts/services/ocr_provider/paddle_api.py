@@ -14,6 +14,7 @@ from services.network.retry import RetainNetworkError
 from services.network.retry import RetainRateLimitError
 from services.network.retry import direct_session
 from services.network.retry import request_with_retry
+from services.network.retry import stepped_poll_interval
 from services.ocr_provider.provider_config import normalize_paddle_model_name
 
 
@@ -307,6 +308,7 @@ def poll_until_done(
             return payload, jsonl_url
         if state == "failed":
             raise RuntimeError(f"Paddle task failed: {payload.get('errorMsg', '') or 'unknown error'}")
-        if time.time() - started > poll_timeout:
+        elapsed = time.time() - started
+        if elapsed > poll_timeout:
             raise TimeoutError(f"Timed out waiting for Paddle task {job_id}")
-        time.sleep(max(1, poll_interval))
+        time.sleep(stepped_poll_interval(elapsed, poll_interval))

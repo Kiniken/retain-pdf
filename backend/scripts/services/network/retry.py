@@ -16,6 +16,29 @@ RETRY_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 DEFAULT_RETRY_ATTEMPTS_ENV = "RETAIN_HTTP_RETRY_ATTEMPTS"
 DEFAULT_RETRY_BACKOFF_ENV = "RETAIN_HTTP_RETRY_BACKOFF_SECONDS"
 RATE_LIMIT_WAIT_MAX_SECONDS = 300
+POLL_INTERVAL_CAP_SECONDS = 30.0
+
+
+def stepped_poll_interval(
+    elapsed_seconds: float,
+    base_interval: float,
+    *,
+    cap_seconds: float = POLL_INTERVAL_CAP_SECONDS,
+) -> float:
+    """Poll interval that widens as a provider job keeps running.
+
+    Long OCR jobs don't finish in the first minute; polling a slow job at the
+    base interval for 30 minutes is hundreds of pointless requests. Keep the
+    base interval early (fast jobs stay responsive), then step up.
+    """
+    base = max(1.0, float(base_interval))
+    if elapsed_seconds < 60:
+        interval = base
+    elif elapsed_seconds < 300:
+        interval = base * 3
+    else:
+        interval = base * 6
+    return min(interval, max(base, float(cap_seconds)))
 
 
 def sanitize_url_for_log(url: str) -> str:

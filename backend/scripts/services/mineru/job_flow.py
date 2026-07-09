@@ -9,7 +9,6 @@ from foundation.shared.local_env import get_secret
 from services.document_schema.adapters import adapt_path_to_document_v1_with_report
 from services.document_schema.providers import PROVIDER_MINERU
 from services.document_schema.reporting import build_normalization_summary
-from services.document_schema import validate_saved_document_path
 from services.mineru.artifacts import build_mineru_artifact_paths
 from services.mineru.artifacts import download_and_unpack_bundle
 from services.mineru.artifacts import ensure_source_pdf_from_bundle
@@ -49,9 +48,11 @@ def _materialize_normalized_document(
         provider=PROVIDER_MINERU,
         provider_version=provider_version,
     )
-    save_json(normalized_json_path, normalized_document)
+    save_json(normalized_json_path, normalized_document, compact=True)
     save_json(normalized_report_json_path, normalization_report)
-    report = validate_saved_document_path(normalized_json_path)
+    # The adapter already validated the document; reuse its report instead of
+    # re-reading and re-validating the saved file.
+    report = normalization_report["validation"]
     normalization_summary = build_normalization_summary(normalization_report)
     print(
         "normalized document validated: "

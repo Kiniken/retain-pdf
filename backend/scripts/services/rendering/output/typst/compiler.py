@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -239,7 +240,8 @@ def compile_typst_book_overlay_pdf(
     typ_path = work_dir / f"{stem}.typ"
     pdf_path = work_dir / f"{stem}.pdf"
     if prebuilt_source_path is not None and Path(prebuilt_source_path).exists():
-        typ_path.write_text(Path(prebuilt_source_path).read_text(encoding="utf-8"), encoding="utf-8")
+        # Byte-for-byte copy — no need to decode/re-encode a multi-MB source file.
+        shutil.copyfile(prebuilt_source_path, typ_path)
     else:
         typ_path.write_text(
             build_typst_book_overlay_source(

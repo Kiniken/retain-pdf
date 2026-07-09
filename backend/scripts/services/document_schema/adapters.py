@@ -11,7 +11,6 @@ from services.document_schema.providers import PROVIDER_MINERU
 from services.document_schema.providers import PROVIDER_MINERU_CONTENT_LIST_V2
 from services.document_schema.providers import PROVIDER_PADDLE
 from services.document_schema.validator import build_validation_report
-from services.document_schema.validator import validate_document_payload
 
 AdapterBuilder = Callable[[dict, str, Path, str], dict]
 Detector = Callable[[dict], bool]
@@ -160,9 +159,9 @@ def adapt_payload_to_document_v1_with_report(
     if builder is None:
         raise RuntimeError(f"Unsupported OCR provider adapter: {provider}")
     document = builder(payload, document_id, source_json_path, provider_version)
-    upgraded, defaults_report = apply_document_defaults_with_report(document)
+    # Builder output is freshly constructed and never reused, so defaults may mutate in place.
+    upgraded, defaults_report = apply_document_defaults_with_report(document, in_place=True)
     upgraded = enrich_document_contract_v1(upgraded)
-    validate_document_payload(upgraded)
     report = {
         "source_json_path": str(source_json_path),
         "document_id": document_id,
@@ -202,8 +201,12 @@ def adapt_path_to_document_v1_with_report(
     provider: str | None = None,
     provider_version: str = "",
     allow_provider_mismatch: bool = False,
+    payload: dict | None = None,
 ) -> tuple[dict, dict]:
-    payload = _load_json(source_json_path)
+    # Callers that already hold the parsed provider payload can pass it in to
+    # skip re-reading the (potentially very large) JSON from disk.
+    if payload is None:
+        payload = _load_json(source_json_path)
     detection_report = detect_ocr_provider_with_report(payload)
     resolved_provider = provider or str(detection_report.get("provider", "") or "")
     if not resolved_provider:

@@ -13,6 +13,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 from foundation.shared.local_env import get_secret
 from services.network.retry import RetainNetworkError
 from services.network.retry import RetainRateLimitError
+from services.network.retry import stepped_poll_interval
 from services.network.retry import direct_session
 from services.network.retry import request_with_retry
 from services.network.retry import sanitize_url_for_log
@@ -194,9 +195,10 @@ def poll_until_done(
         if state == "failed":
             err_msg = data.get("data", {}).get("err_msg", "")
             raise RuntimeError(f"MinerU task failed: {err_msg or 'unknown error'}")
-        if time.time() - started > timeout_seconds:
+        elapsed = time.time() - started
+        if elapsed > timeout_seconds:
             raise TimeoutError(f"Timed out waiting for MinerU task {task_id}")
-        time.sleep(interval_seconds)
+        time.sleep(stepped_poll_interval(elapsed, interval_seconds))
 
 
 def parse_extra_formats(value: str) -> list[str]:

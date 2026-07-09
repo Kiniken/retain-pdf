@@ -196,6 +196,7 @@ def save_normalized_document_for_paddle(
     normalized_report_json_path: Path,
     document_id: str,
     provider_version: str,
+    provider_payload: dict | None = None,
 ) -> None:
     _save_normalized_document_for_paddle(
         provider_result_json_path=provider_result_json_path,
@@ -204,8 +205,8 @@ def save_normalized_document_for_paddle(
         normalized_report_json_path=normalized_report_json_path,
         document_id=document_id,
         provider_version=provider_version,
+        provider_payload=provider_payload,
         adapt_document=adapt_path_to_document_v1_with_report,
-        validate_document=validate_saved_document_path,
         build_lines=build_paddle_lines,
         tighten_text_bbox=tighten_paddle_text_bbox,
         save_json_file=save_json,
