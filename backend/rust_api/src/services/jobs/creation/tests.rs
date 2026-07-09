@@ -344,6 +344,101 @@ async fn store_pdf_upload_rejects_non_pdf_filename() {
 }
 
 #[tokio::test]
+async fn store_pdf_upload_rejects_path_traversal_filename() {
+    let state = test_state("store-upload-path-traversal");
+    let upload = store_pdf_upload(
+        state.db.as_ref(),
+        &state.config.uploads_dir,
+        0,
+        0,
+        &state.config.python_bin,
+        UploadedPdfInput {
+            filename: "../../../../tmp/evil.pdf".to_string(),
+            bytes: build_test_pdf_bytes(),
+            developer_mode: false,
+        },
+    )
+    .await
+    .expect("path traversal filename should still be stored safely");
+
+    // The traversal segments must never make it onto disk: the file should
+    // land inside the upload's own directory, named after the final
+    // component only.
+    assert!(upload.stored_path.ends_with("evil.pdf"));
+    assert!(upload.stored_path.contains(&upload.upload_id));
+    assert!(!upload.stored_path.contains(".."));
+}
+
+#[tokio::test]
+async fn store_pdf_upload_rejects_absolute_path_filename() {
+    let state = test_state("store-upload-absolute-path");
+    let upload = store_pdf_upload(
+        state.db.as_ref(),
+        &state.config.uploads_dir,
+        0,
+        0,
+        &state.config.python_bin,
+        UploadedPdfInput {
+            filename: "/etc/evil.pdf".to_string(),
+            bytes: build_test_pdf_bytes(),
+            developer_mode: false,
+        },
+    )
+    .await
+    .expect("absolute-path filename should still be stored safely");
+
+    assert!(upload.stored_path.ends_with("evil.pdf"));
+    assert!(upload.stored_path.contains(&upload.upload_id));
+    assert_ne!(upload.stored_path, "/etc/evil.pdf");
+}
+
+#[tokio::test]
+async fn store_pdf_upload_rejects_nul_byte_in_filename() {
+    let state = test_state("store-upload-nul-byte");
+    let err = store_pdf_upload(
+        state.db.as_ref(),
+        &state.config.uploads_dir,
+        0,
+        0,
+        &state.config.python_bin,
+        UploadedPdfInput {
+            filename: "evil.pdf\0.pdf".to_string(),
+            bytes: build_test_pdf_bytes(),
+            developer_mode: false,
+        },
+    )
+    .await
+    .expect_err("a filename containing a NUL byte should be rejected");
+    match err {
+        AppError::BadRequest(_) => {}
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn store_pdf_upload_rejects_backslash_traversal_filename() {
+    let state = test_state("store-upload-backslash-traversal");
+    let err = store_pdf_upload(
+        state.db.as_ref(),
+        &state.config.uploads_dir,
+        0,
+        0,
+        &state.config.python_bin,
+        UploadedPdfInput {
+            filename: "..\\..\\evil.pdf".to_string(),
+            bytes: build_test_pdf_bytes(),
+            developer_mode: false,
+        },
+    )
+    .await
+    .expect_err("a filename using backslash traversal should be rejected");
+    match err {
+        AppError::BadRequest(_) => {}
+        other => panic!("unexpected error: {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn store_pdf_upload_repairs_bad_xref_pdf() {
     let state = test_state("store-upload-repair-bad-xref");
     let upload = store_pdf_upload(

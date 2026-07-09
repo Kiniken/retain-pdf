@@ -20,6 +20,28 @@ pub(super) fn load_upload_or_404(db: &Db, upload_id: &str) -> Result<UploadRecor
         .map_err(|_| AppError::not_found(format!("upload not found: {upload_id}")))
 }
 
+/// Reduces a client-supplied multipart filename to a bare file-name component
+/// so it can never be used to escape the per-upload directory (e.g. via
+/// `../../etc/x.pdf` or an absolute path like `/etc/x.pdf`).
+fn sanitize_upload_filename(filename: &str) -> Result<PathBuf, AppError> {
+    if filename.contains('\0') {
+        return Err(AppError::bad_request("uploaded filename is invalid"));
+    }
+    let candidate = Path::new(filename)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| AppError::bad_request("uploaded filename is invalid"))?;
+    if candidate.is_empty()
+        || candidate == "."
+        || candidate == ".."
+        || candidate.contains('/')
+        || candidate.contains('\\')
+    {
+        return Err(AppError::bad_request("uploaded filename is invalid"));
+    }
+    Ok(PathBuf::from(candidate))
+}
+
 pub async fn store_pdf_upload(
     db: &Db,
     uploads_dir: &Path,
@@ -35,7 +57,8 @@ pub async fn store_pdf_upload(
     let upload_id = build_job_id();
     let upload_dir = uploads_dir.join(&upload_id);
     tokio::fs::create_dir_all(&upload_dir).await?;
-    let upload_path: PathBuf = upload_dir.join(&upload.filename);
+    let safe_filename = sanitize_upload_filename(&upload.filename)?;
+    let upload_path: PathBuf = upload_dir.join(&safe_filename);
     let mut f = tokio::fs::File::create(&upload_path).await?;
     f.write_all(&upload.bytes).await?;
     f.flush().await?;
