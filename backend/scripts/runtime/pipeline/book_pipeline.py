@@ -16,42 +16,12 @@ from services.rendering.source.prewarm import prewarm_manifest_path_from_artifac
 from services.rendering.source.prewarm import RenderPrewarmHandle
 from services.rendering.source.prewarm import RenderPrewarmSpec
 from services.rendering.source.prewarm import start_render_source_prewarm
-from services.translation.public import is_blocking_untranslated
-from services.translation.public import item_final_status
 from services.translation.public import resolve_page_range
 from services.translation.public import write_translation_debug_index
 from services.translation.public import write_translation_diagnostics
 from services.translation.public import GlossaryEntry
 from services.translation.public import blocking_untranslated_items
 from services.translation.public import enforce_no_blocking_review_errors
-
-
-def _blocking_untranslated_items(translated_pages_map: dict[int, list[dict]]) -> list[dict[str, object]]:
-    blocked: list[dict[str, object]] = []
-    for page_idx, items in sorted(translated_pages_map.items()):
-        for item in items:
-            diagnostics = dict(item.get("translation_diagnostics") or {})
-            if (
-                str(item.get("final_status", "") or "").strip() == "translated"
-                and (
-                    item.get("translated_text")
-                    or item.get("protected_translated_text")
-                    or item.get("translation_unit_translated_text")
-                    or item.get("translation_unit_protected_translated_text")
-                )
-            ):
-                diagnostics["final_status"] = "translated"
-            if not is_blocking_untranslated(item, diagnostics):
-                continue
-            blocked.append(
-                {
-                    "item_id": str(item.get("item_id", "") or ""),
-                    "page_idx": int(item.get("page_idx", page_idx) or page_idx),
-                    "final_status": item_final_status(item, diagnostics),
-                    "reason": str(diagnostics.get("degradation_reason", "") or diagnostics.get("fallback_to", "") or "untranslated"),
-                }
-            )
-    return blocked
 
 
 def run_book_pipeline(
