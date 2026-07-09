@@ -61,6 +61,22 @@ pub(super) async fn collect_process_execution(
                     )
                     .await;
                 }
+                // `terminate_job_process_tree` signals the process group
+                // directly via libc, bypassing tokio's own reaping. Without
+                // an explicit `wait()` here, dropping `child` below (it is
+                // not spawned with `kill_on_drop`) would leave a zombie
+                // entry around until the whole server process exits. Guard
+                // the wait so a pathological unreapable child can't hang the
+                // runner indefinitely.
+                match timeout(Duration::from_secs(5), child.wait()).await {
+                    Ok(Ok(_)) => {}
+                    Ok(Err(error)) => {
+                        tracing::warn!("failed to reap timed-out worker process: {error:#}")
+                    }
+                    Err(_) => tracing::warn!(
+                        "timed out waiting to reap worker process after termination; it may remain a zombie until the server exits"
+                    ),
+                }
                 let (stdout_text, stdout_job) = stdout_handle.await??;
                 let stderr_text = stderr_handle.await??;
                 return Ok(ProcessExecution::TimedOut(persist_timeout_failure(

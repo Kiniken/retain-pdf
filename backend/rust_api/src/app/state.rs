@@ -218,6 +218,66 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn build_state_terminates_and_fails_running_jobs_with_live_pid() {
+        use std::os::unix::process::CommandExt;
+        use std::process::Command;
+
+        let fs = TestStateFs::new("live-pid");
+        let db = fs.db();
+        db.init().expect("init db");
+
+        // Spawn a real, detached process in its own process group (mirrors
+        // `configure_child_process` for real worker processes) so that
+        // reconciliation's group-kill can only ever reach this child, never
+        // the test harness's own process group.
+        let mut command = Command::new("sleep");
+        command.arg("30");
+        unsafe {
+            command.pre_exec(|| {
+                if libc::setpgid(0, 0) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let mut child = command.spawn().expect("spawn detached sleep process");
+        let pid = child.id();
+
+        db.save_job(&sample_running_job("job-live-pid", Some(pid)))
+            .expect("save job");
+
+        let state = build_state(fs.config()).expect("build state");
+        let job = state.db.get_job("job-live-pid").expect("get job");
+
+        assert_eq!(job.status, JobStatusKind::Failed);
+        assert_eq!(job.pid, None);
+        assert_eq!(
+            job.failure
+                .as_ref()
+                .map(|failure| failure.category.as_str()),
+            Some("worker_orphaned_after_restart")
+        );
+        assert!(job
+            .error
+            .as_deref()
+            .is_some_and(|detail| detail.contains("仍在运行")));
+        assert_eq!(
+            state
+                .db
+                .count_jobs_with_status(&JobStatusKind::Running)
+                .expect("count running"),
+            0
+        );
+
+        // The orphaned process must actually have been terminated (not just
+        // marked failed in the DB), and reaped so it doesn't linger.
+        let exit_status = child.wait().expect("reap terminated child");
+        assert!(!exit_status.success());
+        assert!(!crate::job_runner::worker_process_exists(pid));
+    }
+
     #[test]
     fn build_state_reconciles_malformed_running_rows_via_raw_db_fallback() {
         let fs = TestStateFs::new("malformed-running-row");

@@ -17,7 +17,7 @@ mod stdout_parser;
 mod translation_flow;
 mod worker_process;
 
-pub(crate) use cancel_registry::request_cancel_with_registry;
+pub(crate) use cancel_registry::{clear_cancel_request_with_registry, request_cancel_with_registry};
 pub(crate) use lifecycle::spawn_job;
 pub(crate) use process_runner::execute_process_job;
 pub(crate) use runtime_deps::{JobPersistDeps, ProcessRuntimeDeps};
@@ -27,7 +27,7 @@ pub(crate) use runtime_state::{
     register_job_retry, sync_runtime_state,
 };
 pub use worker_process::terminate_job_process_tree;
-pub(crate) use worker_process::worker_process_exists;
+pub(crate) use worker_process::{terminate_job_process_tree_blocking, worker_process_exists};
 
 pub(crate) fn format_error_chain(err: &anyhow::Error) -> String {
     let causes: Vec<String> = err

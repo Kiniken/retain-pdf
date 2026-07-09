@@ -5,7 +5,9 @@ use tokio::sync::RwLock;
 
 use crate::config::JobRunnerConfig;
 use crate::error::AppError;
-use crate::job_runner::{request_cancel_with_registry, terminate_job_process_tree};
+use crate::job_runner::{
+    clear_cancel_request_with_registry, request_cancel_with_registry, terminate_job_process_tree,
+};
 
 #[derive(Clone)]
 pub struct JobRuntimeLauncher {
@@ -34,6 +36,14 @@ impl<'a> RuntimeControl<'a> {
 
     pub async fn request_cancel(&self, job_id: &str) {
         request_cancel_with_registry(self.canceled_jobs, job_id).await;
+    }
+
+    /// Removes a pending cancel-request entry for `job_id` without waiting for
+    /// a runner to consume it. Used when a cancel request races a job that
+    /// has already reached a terminal state, so the in-memory registry does
+    /// not accumulate orphaned entries that no runner will ever clear.
+    pub async fn clear_cancel(&self, job_id: &str) {
+        clear_cancel_request_with_registry(self.canceled_jobs, job_id).await;
     }
 }
 

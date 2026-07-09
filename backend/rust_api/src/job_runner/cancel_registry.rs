@@ -10,7 +10,7 @@ pub(crate) async fn request_cancel_with_registry(
     canceled_jobs.insert(job_id.to_string());
 }
 
-pub(super) async fn clear_cancel_request_with_registry(
+pub(crate) async fn clear_cancel_request_with_registry(
     canceled_jobs: &RwLock<HashSet<String>>,
     job_id: &str,
 ) {
