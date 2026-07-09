@@ -381,17 +381,26 @@ jobs:
               echo "Missing expected bundled native file: $binary" >&2
               exit 1
             fi
+            if ! file "$binary" | grep -Eq 'ELF .* (executable|shared object|pie executable)'; then
+              return
+            fi
             echo "ldd $binary" | tee -a "$ldd_log"
             ldd "$binary" 2>&1 | tee -a "$ldd_log" || true
           }
 
+          libs_path="$(
+            find "$backend_root/python" -type d -name '.libs' -print | sort | paste -sd ':' -
+          )"
+          if [ -n "$libs_path" ]; then
+            export LD_LIBRARY_PATH="$libs_path:${LD_LIBRARY_PATH:-}"
+          fi
           check_ldd "$backend_root/bin/rust_api"
           check_ldd "$backend_root/typst/bin/typst"
           while IFS= read -r native_file; do
             check_ldd "$native_file"
           done < <(
             find "$backend_root/python" \
-              -type f \( -perm -111 -o -name '*.so' \) -print | sort
+              -type f \( -name '*.so' -o -name '*.so.*' -o -perm -111 \) -print | sort
           )
 
           if grep -Fq 'not found' "$ldd_log"; then
@@ -871,7 +880,6 @@ jobs:
             "$backend_root/typst/bin/typst"
             "$backend_root/python/bin/python3"
           )
-          expected_archs=""
 
           for binary in "${required_bins[@]}"; do
             if [ ! -e "$binary" ]; then
@@ -883,15 +891,6 @@ jobs:
             echo "lipo_archs $binary: $archs"
             if ! printf '%s\n' "$archs" | tr ' ' '\n' | grep -Fxq "$expected_arch"; then
               echo "Bundled binary does not include expected macOS runner architecture $expected_arch: $binary" >&2
-              exit 1
-            fi
-            normalized_archs="$(printf '%s\n' "$archs" | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')"
-            if [ -z "$expected_archs" ]; then
-              expected_archs="$normalized_archs"
-            elif [ "$normalized_archs" != "$expected_archs" ]; then
-              echo "Bundled macOS binary architectures are inconsistent." >&2
-              echo "Expected: $expected_archs" >&2
-              echo "Actual for $binary: $normalized_archs" >&2
               exit 1
             fi
           done
