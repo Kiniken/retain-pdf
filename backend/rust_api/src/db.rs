@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use rusqlite::Connection;
@@ -13,6 +15,8 @@ mod glossaries;
 mod job_writes;
 #[path = "db/jobs.rs"]
 mod jobs;
+#[path = "db/retention.rs"]
+mod retention;
 #[path = "db/rows.rs"]
 mod rows;
 #[path = "db/schema.rs"]
@@ -25,10 +29,20 @@ use schema::{
     ensure_no_legacy_artifacts_json,
 };
 
+/// How long a connection will wait for a lock held by another writer before
+/// giving up with `SQLITE_BUSY`. Without this, concurrent writers (e.g. the
+/// job runner appending events while a route handler reads job state) can
+/// fail outright instead of just waiting briefly for the other side to
+/// finish its transaction.
+const BUSY_TIMEOUT: Duration = Duration::from_millis(5_000);
+
 #[derive(Clone)]
 pub struct Db {
     path: PathBuf,
     data_root: PathBuf,
+    /// Guards one-time (per `Db` instance) execution of the schema-creation
+    /// batch; see `ensure_schema()`.
+    schema_ready: Arc<Mutex<bool>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,19 +55,53 @@ pub struct JobProcessRecord {
 
 impl Db {
     pub fn new(path: PathBuf, data_root: PathBuf) -> Self {
-        Self { path, data_root }
+        Self {
+            path,
+            data_root,
+            schema_ready: Arc::new(Mutex::new(false)),
+        }
     }
 
+    /// Opens a connection to the database file.
+    ///
+    /// This only does cheap, strictly per-connection setup (busy timeout,
+    /// `foreign_keys`, which SQLite does not persist across connections) and
+    /// otherwise reuses the file as-is. The expensive one-time `CREATE TABLE
+    /// IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS` schema batch used to run
+    /// on every single call to `connect()` (i.e. on every DB operation);
+    /// it now runs at most once per `Db` instance via `ensure_schema()`.
     fn connect(&self) -> Result<Connection> {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("failed to create db directory: {}", parent.display()))?;
         }
         let conn = Connection::open(&self.path)?;
+        conn.busy_timeout(BUSY_TIMEOUT)?;
+        // `journal_mode=WAL` is persisted in the database file header, so it
+        // only needs to be set once ever per file (done in `ensure_schema`).
+        // `foreign_keys` is a per-connection setting that SQLite resets to
+        // off for every new connection, so it must be reapplied here.
+        conn.execute_batch("PRAGMA foreign_keys=ON;")?;
+        self.ensure_schema(&conn)?;
+        Ok(conn)
+    }
+
+    /// Runs the schema/migration-safe `CREATE TABLE IF NOT EXISTS` batch and
+    /// enables WAL mode, but only the first time it's needed for this `Db`
+    /// instance. Safe to call redundantly (all statements are idempotent);
+    /// the mutex just avoids doing that redundant work under concurrent
+    /// first callers.
+    fn ensure_schema(&self, conn: &Connection) -> Result<()> {
+        let mut ready = self
+            .schema_ready
+            .lock()
+            .expect("db schema_ready mutex poisoned");
+        if *ready {
+            return Ok(());
+        }
         conn.execute_batch(
             r#"
             PRAGMA journal_mode=WAL;
-            PRAGMA foreign_keys=ON;
             CREATE TABLE IF NOT EXISTS uploads (
                 upload_id TEXT PRIMARY KEY,
                 filename TEXT NOT NULL,
@@ -145,7 +193,8 @@ impl Db {
             CREATE INDEX IF NOT EXISTS idx_glossaries_updated_at ON glossaries(updated_at DESC);
             "#,
         )?;
-        Ok(conn)
+        *ready = true;
+        Ok(())
     }
 
     pub fn init(&self) -> Result<()> {
