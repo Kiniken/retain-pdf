@@ -292,6 +292,7 @@ mod tests {
             page_count,
             uploaded_at: now_iso(),
             developer_mode: false,
+            content_hash: String::new(),
         }
     }
 

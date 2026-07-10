@@ -6,5 +6,6 @@ pub mod job_helpers;
 pub mod job_requests;
 pub mod jobs;
 pub mod library;
+pub mod library_data;
 pub mod providers;
 pub mod uploads;

@@ -7,6 +7,8 @@ use rusqlite::Connection;
 
 #[path = "db/artifacts.rs"]
 mod artifacts;
+#[path = "db/documents.rs"]
+pub mod documents;
 #[path = "db/events.rs"]
 mod events;
 #[path = "db/glossaries.rs"]
@@ -26,7 +28,7 @@ mod uploads;
 
 use schema::{
     ensure_events_column, ensure_glossaries_column, ensure_jobs_column,
-    ensure_no_legacy_artifacts_json,
+    ensure_no_legacy_artifacts_json, ensure_uploads_column, run_versioned_migrations,
 };
 
 /// How long a connection will wait for a lock held by another writer before
@@ -109,7 +111,8 @@ impl Db {
                 bytes INTEGER NOT NULL,
                 page_count INTEGER NOT NULL,
                 uploaded_at TEXT NOT NULL,
-                developer_mode INTEGER NOT NULL
+                developer_mode INTEGER NOT NULL,
+                content_hash TEXT NOT NULL DEFAULT ''
             );
             CREATE TABLE IF NOT EXISTS jobs (
                 job_id TEXT PRIMARY KEY,
@@ -131,7 +134,8 @@ impl Db {
                 log_tail_json TEXT NOT NULL,
                 result_json TEXT,
                 runtime_json TEXT,
-                failure_json TEXT
+                failure_json TEXT,
+                document_id TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_jobs_updated_at ON jobs(updated_at DESC);
             CREATE INDEX IF NOT EXISTS idx_jobs_upload_id ON jobs(upload_id);
@@ -193,6 +197,8 @@ impl Db {
             CREATE INDEX IF NOT EXISTS idx_glossaries_updated_at ON glossaries(updated_at DESC);
             "#,
         )?;
+        // 图书馆表走版本化迁移,随 schema 保证存在(不依赖 init 被调用)
+        run_versioned_migrations(&conn)?;
         *ready = true;
         Ok(())
     }
@@ -214,6 +220,12 @@ impl Db {
         ensure_events_column(&conn, "retry_count", "INTEGER")?;
         ensure_events_column(&conn, "elapsed_ms", "INTEGER")?;
         ensure_no_legacy_artifacts_json(&conn)?;
+        ensure_uploads_column(&conn, "content_hash", "TEXT NOT NULL DEFAULT ''")?;
+        ensure_jobs_column(&conn, "document_id", "TEXT")?;
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_uploads_content_hash ON uploads(content_hash);",
+        )?;
+        self.backfill_library_records()?;
         Ok(())
     }
 

@@ -204,6 +204,7 @@ fn seed_upload(state: &AppState, upload_id: &str) -> UploadRecord {
         page_count: 1,
         uploaded_at: now_iso(),
         developer_mode: false,
+        content_hash: String::new(),
     };
     state.db.save_upload(&upload).expect("save upload");
     upload

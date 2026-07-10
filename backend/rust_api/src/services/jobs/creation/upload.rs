@@ -78,6 +78,7 @@ pub async fn store_pdf_upload(
         )));
     }
 
+    let content_hash = crate::db::documents::sha256_hex(&upload.bytes);
     let record = UploadRecord {
         upload_id,
         filename: upload.filename,
@@ -86,8 +87,11 @@ pub async fn store_pdf_upload(
         page_count,
         uploaded_at: now_iso(),
         developer_mode: upload.developer_mode,
+        content_hash,
     };
     db.save_upload(&record)?;
+    // 内容哈希即文档身份:同一 PDF 重复上传归并到同一 document
+    db.upsert_document_from_upload(&record)?;
     Ok(record)
 }
 

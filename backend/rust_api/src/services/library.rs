@@ -51,6 +51,17 @@ pub fn delete_library_book(
     }
     for job in &jobs {
         ensure_deletable(job, force)?;
+        // 锚点块空间保护:被收藏引用的 run 删除后所有锚点断链,拒绝删除
+        let referencing = deps
+            .db
+            .favorites_referencing_job(&job.job_id)
+            .unwrap_or(0);
+        if referencing > 0 {
+            return Err(AppError::conflict(format!(
+                "job {} is referenced by {referencing} favorite(s); remove the favorites first",
+                job.job_id
+            )));
+        }
     }
 
     let mut removed_paths = Vec::new();

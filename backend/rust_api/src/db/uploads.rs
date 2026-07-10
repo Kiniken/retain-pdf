@@ -15,15 +15,16 @@ impl Db {
         conn.execute(
             r#"
             INSERT INTO uploads (
-                upload_id, filename, stored_path, bytes, page_count, uploaded_at, developer_mode
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                upload_id, filename, stored_path, bytes, page_count, uploaded_at, developer_mode, content_hash
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(upload_id) DO UPDATE SET
                 filename=excluded.filename,
                 stored_path=excluded.stored_path,
                 bytes=excluded.bytes,
                 page_count=excluded.page_count,
                 uploaded_at=excluded.uploaded_at,
-                developer_mode=excluded.developer_mode
+                developer_mode=excluded.developer_mode,
+                content_hash=excluded.content_hash
             "#,
             params![
                 upload.upload_id,
@@ -33,6 +34,7 @@ impl Db {
                 upload.page_count as i64,
                 upload.uploaded_at,
                 if upload.developer_mode { 1 } else { 0 },
+                upload.content_hash,
             ],
         )?;
         Ok(())
@@ -42,7 +44,7 @@ impl Db {
         let conn = self.connect()?;
         let upload = conn
             .query_row(
-                "SELECT upload_id, filename, stored_path, bytes, page_count, uploaded_at, developer_mode FROM uploads WHERE upload_id = ?1",
+                "SELECT upload_id, filename, stored_path, bytes, page_count, uploaded_at, developer_mode, content_hash FROM uploads WHERE upload_id = ?1",
                 params![upload_id],
                 |row| {
                     Ok(UploadRecord {
@@ -53,6 +55,7 @@ impl Db {
                         page_count: row.get::<_, i64>(4)? as u32,
                         uploaded_at: row.get(5)?,
                         developer_mode: row.get::<_, i64>(6)? != 0,
+                        content_hash: row.get(7)?,
                     })
                 },
             )

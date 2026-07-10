@@ -11,6 +11,7 @@ use crate::routes::glossaries;
 use crate::routes::health;
 use crate::routes::jobs;
 use crate::routes::library;
+use crate::routes::library_data;
 use crate::routes::providers;
 use crate::routes::uploads;
 
@@ -77,6 +78,23 @@ pub fn build_app(state: AppState) -> Router {
             "/api/v1/glossaries/:glossary_id/export.csv",
             get(glossaries::export_glossary_csv_route),
         )
+        .route(
+            "/api/v1/documents",
+            get(library_data::list_documents_route),
+        )
+        .route(
+            "/api/v1/documents/:document_id",
+            get(library_data::get_document_route).patch(library_data::patch_document_route),
+        )
+        .route(
+            "/api/v1/favorites",
+            post(library_data::create_favorite_route).get(library_data::list_favorites_route),
+        )
+        .route(
+            "/api/v1/favorites/:favorite_id",
+            axum::routing::delete(library_data::delete_favorite_route),
+        )
+        .route("/api/v1/search", get(library_data::search_blocks_route))
         .route("/api/v1/library/books", get(library::list_books))
         .route("/api/v1/library/books/delete", post(library::delete_books))
         .route(

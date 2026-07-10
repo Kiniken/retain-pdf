@@ -12,6 +12,8 @@ mod glossary;
 mod input;
 #[path = "models/job.rs"]
 mod job;
+#[path = "models/library.rs"]
+pub mod library;
 #[path = "models/ocr.rs"]
 mod ocr;
 #[path = "models/public_contract.rs"]

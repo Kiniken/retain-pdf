@@ -55,7 +55,7 @@ impl Db {
         let orphans: Vec<UploadRecord> = {
             let mut stmt = conn.prepare(
                 r#"
-                SELECT upload_id, filename, stored_path, bytes, page_count, uploaded_at, developer_mode
+                SELECT upload_id, filename, stored_path, bytes, page_count, uploaded_at, developer_mode, content_hash
                 FROM uploads
                 WHERE uploaded_at < ?1
                   AND upload_id NOT IN (
@@ -72,6 +72,7 @@ impl Db {
                     page_count: row.get::<_, i64>(4)? as u32,
                     uploaded_at: row.get(5)?,
                     developer_mode: row.get::<_, i64>(6)? != 0,
+                    content_hash: row.get(7)?,
                 })
             })?;
             let mut items = Vec::new();
@@ -268,6 +269,7 @@ mod tests {
             page_count: 1,
             uploaded_at: uploaded_at.to_string(),
             developer_mode: false,
+            content_hash: String::new(),
         };
 
         db.save_upload(&make_record("upload-orphan", &old_ts))
@@ -321,6 +323,7 @@ mod tests {
             page_count: 1,
             uploaded_at: old_ts,
             developer_mode: false,
+            content_hash: String::new(),
         })
         .expect("save orphan upload");
 
