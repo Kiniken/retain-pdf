@@ -71,6 +71,18 @@ def _append_mitex_rewrite_hint(lines: list[str], item: TranslationItemContext) -
     lines.append(f"注意：渲染器不支持本段公式中的部分 LaTeX 写法，请在译文公式中替换：{pairs}。")
 
 
+def _scoped_terms_guidance(item: TranslationItemContext) -> str:
+    return str((item.raw_item or {}).get("_scoped_terms_guidance", "") or "").strip()
+
+
+def _append_scoped_terms_guidance(lines: list[str], item: TranslationItemContext) -> None:
+    # 逐条匹配的术语指引放 user 消息:放 system 会让每条请求前缀不同,
+    # 打掉 provider 前缀缓存。
+    guidance = _scoped_terms_guidance(item)
+    if guidance:
+        lines.append(f"术语要求：\n{guidance}")
+
+
 def _append_text_flow_guidance(lines: list[str], item: TranslationItemContext) -> None:
     structure_role = str((item.metadata or {}).get("structure_role", "") or "").strip().lower()
     if item.toc_entries or structure_role == "table_of_contents" or str(item.semantic_role or "").strip().lower() == "table_of_contents":
@@ -159,6 +171,7 @@ def direct_typst_single_user_prompt(
         "【当前原文结束】",
     ]
     _append_math_delimiter_damage_hint(lines, item)
+    _append_scoped_terms_guidance(lines, item)
     _append_text_flow_guidance(lines, item)
     if item.style_hint:
         lines.append(f"风格提示：{item.style_hint}")
@@ -257,6 +270,9 @@ def group_member_json_user_prompt(
     }
     if item.style_hint:
         user_payload["group"]["style_hint"] = item.style_hint
+    terms_guidance = _scoped_terms_guidance(item)
+    if terms_guidance:
+        user_payload["group"]["terms_note"] = terms_guidance
     if str(raw_item.get("math_mode", "") or "").strip() == "direct_typst":
         if not has_balanced_unescaped_dollars(item.source_for_prompt()):
             user_payload["group"]["math_delimiter_note"] = MATH_DELIMITER_DAMAGE_HINT

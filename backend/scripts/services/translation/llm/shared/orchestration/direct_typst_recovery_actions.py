@@ -161,7 +161,7 @@ def try_raw_plain_text(
         model=model,
         base_url=base_url,
         request_label=f"{request_label} raw" if request_label else "",
-        domain_guidance=context.merged_guidance,
+        domain_guidance=context.prompt_system_guidance,
         mode=context.mode,
         target_language_name=context.target_language_name,
         diagnostics=diagnostics,

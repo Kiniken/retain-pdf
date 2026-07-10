@@ -662,3 +662,22 @@ def test_context_bleed_downgraded_to_warning_for_continuation_items() -> None:
     report2 = review_translation_item(standalone, {"decision": "translate", "translated_text": "反应速率取决于常数 $k = A e^{-E_a/RT}$"})
     bleed2 = [i for i in report2.issues if i.kind == "context_bleed"]
     assert bleed2 and bleed2[0].severity == "error"
+
+
+def test_direct_typst_single_prompt_moves_scoped_terms_into_user_message() -> None:
+    # 词表按条目匹配后逐条不同,放 system 会打掉前缀缓存;
+    # 匹配到的术语经 item 注入 user 消息。
+    messages = deepseek_client.build_single_item_fallback_messages(
+        {
+            "item_id": "p001-b001",
+            "protected_source_text": "The SCF procedure converges quickly.",
+            "math_mode": "direct_typst",
+            "metadata": {"structure_role": "body"},
+            "_scoped_terms_guidance": "SCF => 自洽场",
+        },
+        mode="sci",
+        response_style="plain_text",
+    )
+    assert "SCF => 自洽场" not in messages[0]["content"]
+    assert "术语要求：" in messages[1]["content"]
+    assert "SCF => 自洽场" in messages[1]["content"]

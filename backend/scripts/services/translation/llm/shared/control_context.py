@@ -164,6 +164,25 @@ class TranslationControlContext:
         return "\n\n".join(parts).strip()
 
     @property
+    def prompt_system_guidance(self) -> str:
+        # 进 system 消息的运行期常量部分:不含 terms_guidance。词表经
+        # scoped_to_item 按条目匹配后是逐条变化的,放进 system 会让每条
+        # 请求的前缀都不同,直接打掉 provider 前缀缓存(预热白做)。
+        # 匹配到的术语改经 item 注入 user 消息;cache_guidance 仍含术语,
+        # 缓存正确性不受影响。
+        parts = []
+        for value in (
+            self.domain_guidance,
+            self.rule_guidance,
+            self.retrieval_guidance,
+            self.extra_guidance,
+        ):
+            text = (value or "").strip()
+            if text:
+                parts.append(text)
+        return "\n\n".join(parts).strip()
+
+    @property
     def cache_guidance(self) -> str:
         parts = []
         for value in (

@@ -116,6 +116,51 @@ def load_cached_domain_context(output_dir: Path | None) -> dict[str, str] | None
     }
 
 
+def _shared_domain_context_path(preview_text: str, *, model: str) -> Path:
+    import hashlib
+
+    from foundation.config.paths import DOMAIN_CONTEXT_CACHE_DIR
+
+    key = hashlib.sha256(f"{model}\n{preview_text.strip()}".encode("utf-8")).hexdigest()
+    return DOMAIN_CONTEXT_CACHE_DIR / f"{key}.json"
+
+
+def _load_shared_domain_context(preview_text: str, *, model: str) -> dict[str, str] | None:
+    # 按内容寻址的跨任务缓存:同一文档换个任务目录重跑,不必重付
+    # 4-5s 的领域识别调用(原有的 per-job 缓存只在同一任务目录内生效)。
+    path = _shared_domain_context_path(preview_text, model=model)
+    try:
+        if not path.exists():
+            return None
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    result = {
+        "domain": str(payload.get("domain", "")).strip(),
+        "summary": str(payload.get("summary", "")).strip(),
+        "translation_guidance": str(payload.get("translation_guidance", "")).strip(),
+        "preview_text": str(payload.get("preview_text", "") or ""),
+    }
+    if not (result["summary"] or result["translation_guidance"]):
+        return None
+    return result
+
+
+def _store_shared_domain_context(preview_text: str, *, model: str, context: dict[str, str]) -> None:
+    if not (str(context.get("summary", "") or "").strip() or str(context.get("translation_guidance", "") or "").strip()):
+        return
+    path = _shared_domain_context_path(preview_text, model=model)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = path.with_suffix(f".{os.getpid()}.tmp")
+        temp_path.write_text(json.dumps(context, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(temp_path, path)
+    except Exception:
+        return
+
+
 def infer_domain_context_from_preview_text(
     *,
     preview_text: str,
@@ -133,6 +178,12 @@ def infer_domain_context_from_preview_text(
     if cached is not None and str(cached.get("preview_text", "") or "").strip() == preview_text.strip():
         print("domain-infer: cache hit", flush=True)
         return cached
+    shared_cached = _load_shared_domain_context(preview_text, model=model)
+    if shared_cached is not None:
+        print("domain-infer: shared cache hit", flush=True)
+        if output_dir is not None:
+            save_domain_context(output_dir, shared_cached)
+        return shared_cached
 
     messages = build_domain_inference_messages(preview_text)
     total_timeout = _domain_context_total_timeout()
@@ -193,6 +244,7 @@ def infer_domain_context_from_preview_text(
         raise
     if output_dir is not None:
         save_domain_context(output_dir, result)
+    _store_shared_domain_context(preview_text, model=model, context=result)
     emit_stage_progress(
         stage="domain_inference",
         substage="domain_inference",
