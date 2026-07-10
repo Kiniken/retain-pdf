@@ -244,3 +244,33 @@ def test_prefix_cache_warmup_releases_gate_even_when_first_request_fails() -> No
     # 首条请求失败:预热放弃,但不能把整个运行钉死在串行
     diagnostics.release_request_slot(success=False, elapsed_ms=20000, status_code=None, error_class="ReadTimeout")
     assert diagnostics.build_summary()["adaptive_concurrency"]["current_limit"] > 1
+
+
+def test_aimd_backs_off_on_sustained_connect_timeout_storm() -> None:
+    from services.translation.artifacts.aggregator import TranslationRunDiagnostics
+
+    diagnostics = TranslationRunDiagnostics(
+        provider_family="deepseek_official",
+        model="deepseek-chat",
+        base_url="https://api.deepseek.com/v1",
+        configured_workers=100,
+        configured_batch_size=1,
+        configured_classify_batch_size=1,
+    )
+    diagnostics.configure_adaptive_concurrency(initial_limit=100)
+    # 孤立超时容忍:前 4 次不降速
+    for _ in range(4):
+        diagnostics.acquire_request_slot()
+        diagnostics.release_request_slot(success=False, elapsed_ms=20000, status_code=None, error_class="ConnectTimeout")
+    assert diagnostics.build_summary()["adaptive_concurrency"]["current_limit"] == 100
+    # 第 5 次:风暴确认,温和降速一档
+    diagnostics.acquire_request_slot()
+    diagnostics.release_request_slot(success=False, elapsed_ms=20000, status_code=None, error_class="ConnectTimeout")
+    assert diagnostics.build_summary()["adaptive_concurrency"]["current_limit"] == 85
+    # 成功清零计数,不再继续降
+    diagnostics.acquire_request_slot()
+    diagnostics.release_request_slot(success=True, elapsed_ms=5000, status_code=200)
+    for _ in range(4):
+        diagnostics.acquire_request_slot()
+        diagnostics.release_request_slot(success=False, elapsed_ms=20000, status_code=None, error_class="ConnectTimeout")
+    assert diagnostics.build_summary()["adaptive_concurrency"]["current_limit"] == 85

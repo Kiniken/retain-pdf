@@ -377,16 +377,18 @@ class TranslationRunDiagnostics:
             self._adaptive_slow_success_streak = 0
             return
         if not success and timeout_like:
-            if high_capacity_provider:
-                self._adaptive_recent_failure_count += 1
-                self._adaptive_success_streak = 0
-                self._adaptive_slow_success_streak = 0
-                return
             self._adaptive_recent_failure_count += 1
-            reduced = max(min_limit, int(math.floor(self._adaptive_limit * 0.5)))
-            self._adaptive_limit = reduced
             self._adaptive_success_streak = 0
             self._adaptive_slow_success_streak = 0
+            if high_capacity_provider:
+                # 孤立超时容忍不降速;但失败连续堆积说明网络/provider 边缘
+                # 正在劣化(实测连接超时风暴中 limit 钉死 100 只会加剧惊群),
+                # 每堆积 5 次温和降速一档。成功会清零计数。
+                if self._adaptive_recent_failure_count % 5 == 0:
+                    self._adaptive_limit = max(min_limit, int(math.floor(self._adaptive_limit * 0.85)))
+                return
+            reduced = max(min_limit, int(math.floor(self._adaptive_limit * 0.5)))
+            self._adaptive_limit = reduced
             return
         if high_capacity_provider and success:
             self._adaptive_recent_failure_count = 0

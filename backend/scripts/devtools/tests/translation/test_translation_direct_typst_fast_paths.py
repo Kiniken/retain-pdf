@@ -498,3 +498,82 @@ class TranslationDirectTypstFastPathTests(unittest.TestCase):
 
         self.assertEqual(result["p001-b002"]["decision"], "keep_origin")
 
+
+
+def test_long_text_split_partially_accepts_when_one_chunk_fails() -> None:
+    from services.translation.llm.shared.control_context import build_translation_control_context
+    from services.translation.llm.shared.orchestration.direct_typst_long_text import (
+        translate_direct_typst_long_text_chunks,
+    )
+
+    sentence = "This is a long body sentence describing the experimental protocol in detail. "
+    source = sentence * 70  # ~5500 字符,切成多块
+    item = {
+        "item_id": "p001-b001",
+        "protected_source_text": source,
+        "translation_unit_protected_source_text": source,
+        "math_mode": "direct_typst",
+        "block_type": "text",
+        "metadata": {"structure_role": "body"},
+    }
+    calls = {"n": 0}
+
+    def _translator(chunk_item, **_kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("transient failure")
+        return {chunk_item["item_id"]: {"decision": "translate", "translated_text": f"译文块{calls['n']}"}}
+
+    result = translate_direct_typst_long_text_chunks(
+        item,
+        api_key="sk-test",
+        model="deepseek-chat",
+        base_url="https://api.deepseek.com/v1",
+        request_label="",
+        context=build_translation_control_context(),
+        diagnostics=None,
+        translator=_translator,
+    )
+    assert result is not None
+    payload = result["p001-b001"]
+    diag = payload["translation_diagnostics"]
+    # 单块失败不再作废整条:失败块保留原文,其余块保留译文
+    assert diag["final_status"] == "partially_translated"
+    assert diag["degradation_reason"] == "direct_typst_long_text_split_partial"
+    assert diag["degraded_chunk_count"] == 1
+    assert "译文块1" in payload["translated_text"]
+    assert sentence.strip() in payload["translated_text"]
+
+
+def test_long_text_split_still_fails_when_all_chunks_fail() -> None:
+    from services.translation.llm.shared.control_context import build_translation_control_context
+    from services.translation.llm.shared.orchestration.direct_typst_long_text import (
+        translate_direct_typst_long_text_chunks,
+    )
+
+    sentence = "Another long body sentence describing the computational details thoroughly. "
+    source = sentence * 70
+    item = {
+        "item_id": "p001-b002",
+        "protected_source_text": source,
+        "translation_unit_protected_source_text": source,
+        "math_mode": "direct_typst",
+        "block_type": "text",
+        "metadata": {"structure_role": "body"},
+    }
+
+    def _translator(chunk_item, **_kwargs):
+        raise RuntimeError("hard failure")
+
+    result = translate_direct_typst_long_text_chunks(
+        item,
+        api_key="sk-test",
+        model="deepseek-chat",
+        base_url="https://api.deepseek.com/v1",
+        request_label="",
+        context=build_translation_control_context(),
+        diagnostics=None,
+        translator=_translator,
+    )
+    payload = result["p001-b002"]
+    assert payload["translation_diagnostics"]["degradation_reason"] == "direct_typst_long_text_split_chunk_failed"

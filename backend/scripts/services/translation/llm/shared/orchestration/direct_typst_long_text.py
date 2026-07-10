@@ -64,6 +64,7 @@ def translate_direct_typst_long_text_chunks(
 
     translated_parts: list[str] = []
     degraded_chunks = 0
+    degraded_indices: list[int] = []
     for index, chunk in enumerate(chunks):
         chunk_item = dict(item)
         chunk_item["_direct_typst_long_split_applied"] = True
@@ -89,6 +90,7 @@ def translate_direct_typst_long_text_chunks(
             translated = ""
         if not translated:
             degraded_chunks += 1
+            degraded_indices.append(index)
             if request_label:
                 print(
                     f"{request_label} long#{index + 1}: long direct_typst chunk failed",
@@ -96,7 +98,8 @@ def translate_direct_typst_long_text_chunks(
                 )
         translated_parts.append(translated)
 
-    if degraded_chunks:
+    if degraded_chunks >= len(chunks):
+        # 全部块失败才整体判失败;个别块失败走下方的部分接受。
         result = terminal_payloads.translation_failed_payload_for_validation(
             item,
             context=context,
@@ -113,6 +116,19 @@ def translate_direct_typst_long_text_chunks(
         payload["translation_diagnostics"]["degraded_chunk_count"] = degraded_chunks
         return result
 
+    if degraded_chunks:
+        # 部分接受:失败块降级为原文保留(与公式窗口路径一致),
+        # 不再因一个块的瞬时失败作废整条 4000+ 字符的大块。
+        translated_parts = [
+            part if part else chunks[index]
+            for index, part in enumerate(translated_parts)
+        ]
+        if request_label:
+            print(
+                f"{request_label}: long direct_typst partial accept, {degraded_chunks}/{len(chunks)} chunks kept as source",
+                flush=True,
+            )
+
     payload = result_entry("translate", " ".join(part for part in translated_parts if part).strip())
     payload["translation_diagnostics"] = {
         "item_id": item.get("item_id", ""),
@@ -120,14 +136,16 @@ def translate_direct_typst_long_text_chunks(
         "route_path": ["block_level", "direct_typst", "long_text_split"],
         "output_mode_path": ["plain_text"],
         "fallback_to": "",
-        "degradation_reason": "direct_typst_long_text_split",
-        "final_status": "translated",
+        "degradation_reason": (
+            "direct_typst_long_text_split_partial" if degraded_chunks else "direct_typst_long_text_split"
+        ),
+        "final_status": "partially_translated" if degraded_chunks else "translated",
         "segment_stats": {
             "expected": len(chunks),
-            "received": len(chunks),
-            "missing_ids": [],
+            "received": len(chunks) - degraded_chunks,
+            "missing_ids": [str(index + 1) for index in degraded_indices],
         },
-        "degraded_chunk_count": 0,
+        "degraded_chunk_count": degraded_chunks,
         **formula_route_diagnostics(item, context=context),
     }
     return {item["item_id"]: payload}
