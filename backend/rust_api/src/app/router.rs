@@ -10,6 +10,7 @@ use crate::auth;
 use crate::routes::glossaries;
 use crate::routes::health;
 use crate::routes::jobs;
+use crate::routes::ai_proxy;
 use crate::routes::library;
 use crate::routes::library_data;
 use crate::routes::providers;
@@ -95,6 +96,7 @@ pub fn build_app(state: AppState) -> Router {
             axum::routing::delete(library_data::delete_favorite_route),
         )
         .route("/api/v1/search", get(library_data::search_blocks_route))
+        .route("/api/v1/ai/ask", post(ai_proxy::ask_proxy))
         .route("/api/v1/library/books", get(library::list_books))
         .route("/api/v1/library/books/delete", post(library::delete_books))
         .route(

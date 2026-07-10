@@ -81,7 +81,14 @@ class RetrievalAgent:
         self._chat = chat_fn
         self._max_tool_rounds = max(1, max_tool_rounds)
 
-    def ask(self, question: str, *, document_id: str = "") -> AskResult:
+    def ask(
+        self,
+        question: str,
+        *,
+        document_id: str = "",
+        on_event: Callable[[dict[str, Any]], None] | None = None,
+    ) -> AskResult:
+        emit = on_event or (lambda event: None)
         user_content = question.strip()
         if document_id:
             user_content = f"(限定文档 document_id={document_id})\n{user_content}"
@@ -117,6 +124,7 @@ class RetrievalAgent:
                     arguments = json.loads(call.get("function", {}).get("arguments") or "{}")
                 except json.JSONDecodeError:
                     arguments = {}
+                emit({"type": "tool", "round": round_index, "tool": name, "arguments": arguments})
                 result = self._registry.invoke(name, arguments)
                 next_ref = _assign_refs(result, citations, next_ref)
                 trace.append({"round": round_index, "tool": name, "arguments": arguments})

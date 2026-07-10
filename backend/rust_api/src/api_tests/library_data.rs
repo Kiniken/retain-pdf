@@ -202,3 +202,25 @@ async fn search_returns_anchored_hits() {
     assert_eq!(hit["page_idx"], 7);
     assert_eq!(hit["block_id"], "p008-b0002");
 }
+
+#[tokio::test]
+async fn ai_proxy_returns_bad_gateway_when_upstream_is_down() {
+    // 指向必死端口:代理应干净地报 502,而不是挂起或 500
+    std::env::set_var("RUST_API_AI_SERVICE_BASE", "http://127.0.0.1:9");
+    let state = test_state("ai-proxy-down");
+    let app = build_app(state);
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/ai/ask")
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"question":"q"}"#))
+                .expect("request"),
+        )
+        .await
+        .expect("proxy response");
+    std::env::remove_var("RUST_API_AI_SERVICE_BASE");
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+}

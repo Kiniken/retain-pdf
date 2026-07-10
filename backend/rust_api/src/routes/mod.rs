@@ -1,3 +1,4 @@
+pub mod ai_proxy;
 pub mod common;
 pub(crate) mod download_response;
 pub mod glossaries;

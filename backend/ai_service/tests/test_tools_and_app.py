@@ -128,7 +128,9 @@ class FakeAgent(RetrievalAgent):
     def __init__(self):
         pass
 
-    def ask(self, question, *, document_id=""):
+    def ask(self, question, *, document_id="", on_event=None):
+        if on_event is not None:
+            on_event({"type": "tool", "round": 1, "tool": "search_fulltext", "arguments": {"query": "q"}})
         return AskResult(
             answer=f"回答:{question} [1]",
             citations=[
@@ -166,3 +168,27 @@ def test_ask_endpoint_requires_api_key_and_returns_citations():
     assert data["answer"].startswith("回答:")
     assert data["citations"][0]["block_id"] == "p003-b0001"
     assert data["rounds"] == 2
+
+
+def test_ask_endpoint_streams_sse_events():
+    settings = Settings(api_keys=frozenset({"test-key"}))
+    app = build_app(settings, agent=FakeAgent())
+    client = TestClient(app)
+
+    with client.stream(
+        "POST",
+        "/v1/ask",
+        json={"question": "流式?", "stream": True},
+        headers={"X-API-Key": "test-key"},
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        events = []
+        for line in response.iter_lines():
+            if line.startswith("data: "):
+                events.append(json.loads(line[len("data: "):]))
+    assert events[0]["type"] == "tool"
+    assert events[0]["tool"] == "search_fulltext"
+    assert events[-1]["type"] == "done"
+    assert events[-1]["answer"].startswith("回答:")
+    assert events[-1]["citations"][0]["block_id"] == "p003-b0001"

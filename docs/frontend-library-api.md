@@ -68,6 +68,44 @@ GET /api/v1/search?q=光学光谱&limit=20
 - 任意长度的 `q` 都能查(≥3 字符走 FTS5 全文索引,更短自动回退模糊匹配);
 - `limit` 上限 100。
 
+### 4. AI 问答(agentic 检索,带可跳转引用)
+
+> 前端只访问 Rust API 这一个入口:`/api/v1/ai/ask` 是到 retainpdf-ai 服务的
+> 反向代理,认证仍是同一个 X-API-Key,无需任何新配置。
+
+```
+POST /api/v1/ai/ask
+     body: { question: string, document_id?: string, stream?: boolean }
+```
+
+**非流式**(`stream` 缺省 false):等待完整回答(agent 多轮检索,通常 10-30 秒)
+```json
+{ "code": 0, "data": {
+    "answer": "…回答文本,事实句带 [n] 引用标注…",
+    "citations": [ { "ref": 1, "document_id": "…", "job_id": "…",
+                     "page_idx": 3, "block_id": "p004-b0002", "snippet": "…" } ],
+    "tool_trace": [ { "round": 1, "tool": "search_fulltext", "arguments": {…} } ],
+    "rounds": 4
+} }
+```
+
+**流式**(`stream: true`):SSE(`text/event-stream`),每行 `data: {json}`,事件类型:
+
+| type | 字段 | 说明 |
+|---|---|---|
+| `tool` | round, tool, arguments | agent 每次调用工具时实时推送——渲染成"正在检索:xxx"的过程提示 |
+| `done` | answer, citations, tool_trace, rounds | 最终结果(结构同非流式 data) |
+| `error` | message | 失败 |
+
+前端渲染要点:
+- 回答文本里的 `[n]` 对应 `citations[].ref`,渲染成可点击引用;点击用
+  `job_id + page_idx + block_id` 跳阅读器——**与收藏跳转是同一套锚点逻辑**;
+- `document_id` 传入时限定单文档问答(阅读器内的"问这篇文档"),不传则全库检索;
+- 过程事件建议展示 `tool` 的语义化文案:`search_fulltext`→"全文检索"、
+  `read_blocks`→"阅读原文上下文"、`list_documents`→"浏览图书馆"、
+  `search_favorites`→"查找收藏";
+- AI 服务未启动时反代返回 502,提示"AI 服务未运行"。
+
 ## 两个必须处理的边界
 
 1. **删除保护**:删除书籍(`DELETE /api/v1/library/books/:job_id`)时,如果该 job 被收藏
