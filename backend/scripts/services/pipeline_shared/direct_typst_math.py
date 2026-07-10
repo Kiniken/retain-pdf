@@ -178,7 +178,37 @@ def normalize_direct_typst_translation(text: str) -> str:
     return _MULTI_SPACE_RE.sub(" ", "".join(chunks))
 
 
+# mitex 不兼容写法数据库:与渲染层 sanitize_direct_typst_inline_math 的
+# 改写规则对应(services/rendering/layout/inline_content/core/inline_math.py)。
+# 用途:翻译前扫描源文本,匹配到哪条就把哪条提示给模型,由模型在语义层
+# 完成替换——复杂公式里正则改写必然出错,但"检测某命令出现过"是可靠的。
+# 渲染期正则改写保留作兜底。
+MITEX_REWRITE_DATABASE: tuple[tuple[str, str], ...] = (
+    (r"\hbar", "ℏ"),
+    (r"\partial", "∂"),
+    (r"\otimes", "⊗"),
+    (r"\mathscr", r"\mathcal"),
+    (r"\varPhi", r"\Phi"),
+    (r"\langle", "⟨"),
+    (r"\rangle", "⟩"),
+    (r"\circled", r"\otimes 或普通字符"),
+)
+
+
+def find_mitex_rewrites(text: str) -> list[tuple[str, str]]:
+    source = str(text or "")
+    if "\\" not in source:
+        return []
+    matched: list[tuple[str, str]] = []
+    for command, preferred in MITEX_REWRITE_DATABASE:
+        if re.search(re.escape(command) + r"(?![A-Za-z])", source):
+            matched.append((command, preferred))
+    return matched
+
+
 __all__ = [
+    "MITEX_REWRITE_DATABASE",
+    "find_mitex_rewrites",
     "has_balanced_unescaped_dollars",
     "normalize_direct_typst_translation",
 ]

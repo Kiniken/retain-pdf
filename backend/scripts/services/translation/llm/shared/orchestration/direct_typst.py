@@ -77,6 +77,13 @@ def translate_direct_typst_plain_text_with_retries(
         context=context,
         transport_tail_retry=not allow_transport_tail_defer,
     )
+    # 定界符修复要求模型重写整段文本,20s 档超时对长块是极限值(实测
+    # NMR 长块修复需要 ~19s,连续 4 次踩超时白烧 80s)。修复调用统一
+    # 用 transport tail 档超时。
+    repair_timeout_s = max(
+        plain_timeout_s,
+        int(getattr(context.timeout_policy, "transport_tail_retry_seconds", plain_timeout_s)),
+    )
     route_prefix = ["block_level", "direct_typst"]
     last_error: Exception | None = None
 
@@ -194,7 +201,7 @@ def translate_direct_typst_plain_text_with_retries(
                             diagnostics=diagnostics,
                             route_path=route_prefix + ["typst_repair"],
                             output_mode_path=["plain_text"],
-                            timeout_s=plain_timeout_s,
+                            timeout_s=repair_timeout_s,
                             validate_batch_result_fn=validate_batch_result_fn,
                         )
                         if repaired is not None:

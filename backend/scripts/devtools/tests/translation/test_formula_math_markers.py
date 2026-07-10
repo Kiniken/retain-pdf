@@ -261,7 +261,7 @@ def test_direct_typst_sanitizer_rewrites_unsupported_circled_command() -> None:
 
 def test_direct_typst_sanitizer_rewrites_hbar_for_mitex_compatibility() -> None:
     markdown = sanitize_direct_typst_inline_math(r"动量算符 $-i\hbar d/dq_k$ 和 $i\hbar d/dp_j$。")
-    assert markdown == r"动量算符 $-ihbar d/dq_k$ 和 $ihbar d/dp_j$。"
+    assert markdown == "动量算符 $-iℏ d/dq_k$ 和 $iℏ d/dp_j$。"
 
 
 def test_direct_typst_sanitizer_rewrites_partial_for_mitex_compatibility() -> None:
@@ -275,8 +275,9 @@ def test_direct_typst_sanitizer_rewrites_bra_ket_rangle_for_mitex_compatibility(
 
 
 def test_direct_typst_sanitizer_rewrites_varphi_for_mitex_compatibility() -> None:
+    # sanitizer 同时会剥掉 mitex 不支持的 \left/\right 尺寸修饰
     markdown = sanitize_direct_typst_inline_math(r"基态 $\left|\varPhi_{0}\right\rangle$ 保持。")
-    assert markdown == r"基态 $\left|\Phi_{0}\right⟩$ 保持。"
+    assert markdown == r"基态 $|\Phi_{0}⟩$ 保持。"
 
 
 def test_direct_typst_sanitizer_restores_spreadsheet_cell_pseudo_math() -> None:

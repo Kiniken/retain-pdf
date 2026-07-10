@@ -6,6 +6,8 @@ from typing import Any
 
 from foundation.shared.prompt_loader import load_prompt
 from foundation.shared.prompt_loader import render_prompt
+from services.pipeline_shared.direct_typst_math import find_mitex_rewrites
+from services.pipeline_shared.direct_typst_math import has_balanced_unescaped_dollars
 from services.translation.core.context import TranslationItemContext
 
 
@@ -42,6 +44,31 @@ def _append_context_lines(lines: list[str], item: TranslationItemContext) -> Non
         if _source_looks_incomplete(item.source_for_prompt()):
             lines.append("当前原文是不完整片段；译文必须保持同等不完整，不要用后文上下文补全。")
         lines.append(f"后文上下文（仅供理解，禁止翻译进输出）：{context_after}")
+
+
+MATH_DELIMITER_DAMAGE_HINT = (
+    "注意：本段原文的数学定界符 `$` 数量为奇数，说明 OCR 丢失了配对的 `$`。"
+    "请按语义判断公式的真实边界，在译文中修复补全，确保每个公式的 `$...$` 成对闭合。"
+)
+
+
+def _append_math_delimiter_damage_hint(lines: list[str], item: TranslationItemContext) -> None:
+    # 源文本 $ 不平衡时直接交给模型必然产出不平衡译文,触发整条验证/
+    # 修复链(实测一个条目烧 ~10 次 LLM 调用)。先明确提示模型按语义修复。
+    if not has_balanced_unescaped_dollars(item.source_for_prompt()):
+        lines.append(MATH_DELIMITER_DAMAGE_HINT)
+    _append_mitex_rewrite_hint(lines, item)
+
+
+def _append_mitex_rewrite_hint(lines: list[str], item: TranslationItemContext) -> None:
+    # 数据驱动的按需提示:只有源文本里真的出现了渲染器不支持的命令,
+    # 才把对应替换规则告诉模型,由模型在语义层完成替换(复杂公式里
+    # 正则改写不可靠);渲染期的正则改写保留作兜底。
+    rewrites = find_mitex_rewrites(item.source_for_prompt())
+    if not rewrites:
+        return
+    pairs = "；".join(f"`{command}` 改用 `{preferred}`" for command, preferred in rewrites)
+    lines.append(f"注意：渲染器不支持本段公式中的部分 LaTeX 写法，请在译文公式中替换：{pairs}。")
 
 
 def _append_text_flow_guidance(lines: list[str], item: TranslationItemContext) -> None:
@@ -105,6 +132,7 @@ def direct_typst_batch_user_prompt(
         lines.append("")
         lines.append(f"原文 {item.item_id}:")
         lines.append(item.source_for_prompt())
+        _append_math_delimiter_damage_hint(lines, item)
         _append_text_flow_guidance(lines, item)
         if item.style_hint:
             lines.append(f"风格提示：{item.style_hint}")
@@ -130,6 +158,7 @@ def direct_typst_single_user_prompt(
         item.source_for_prompt(),
         "【当前原文结束】",
     ]
+    _append_math_delimiter_damage_hint(lines, item)
     _append_text_flow_guidance(lines, item)
     if item.style_hint:
         lines.append(f"风格提示：{item.style_hint}")
@@ -228,6 +257,15 @@ def group_member_json_user_prompt(
     }
     if item.style_hint:
         user_payload["group"]["style_hint"] = item.style_hint
+    if str(raw_item.get("math_mode", "") or "").strip() == "direct_typst":
+        if not has_balanced_unescaped_dollars(item.source_for_prompt()):
+            user_payload["group"]["math_delimiter_note"] = MATH_DELIMITER_DAMAGE_HINT
+        rewrites = find_mitex_rewrites(item.source_for_prompt())
+        if rewrites:
+            pairs = "；".join(f"`{command}` 改用 `{preferred}`" for command, preferred in rewrites)
+            user_payload["group"]["math_rewrite_note"] = (
+                f"渲染器不支持本段公式中的部分 LaTeX 写法，请在译文公式中替换：{pairs}。"
+            )
     context_before = item.context_before_for_prompt()
     context_after = item.context_after_for_prompt()
     if context_before:

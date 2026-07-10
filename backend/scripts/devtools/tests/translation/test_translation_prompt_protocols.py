@@ -451,3 +451,214 @@ def test_prompt_builder_can_render_non_default_target_language() -> None:
     assert "直接输出英文译文" in combined_prompt
     assert "最终英文译文正文" in combined_prompt
     assert "适合论文排版的简体中文" not in combined_prompt
+
+
+def test_parse_translation_payload_accepts_well_formed_tagged_blocks() -> None:
+    content = (
+        "<<<ITEM item_id=a>>>\n译文A\n<<<END>>>\n"
+        "<<<ITEM item_id=b decision=keep_origin>>>\n\n<<<END>>>\n"
+    )
+    result = translation_client.parse_translation_payload(content)
+    assert result["a"]["translated_text"] == "译文A"
+    assert result["b"]["decision"] == "keep_origin"
+
+
+def test_parse_translation_payload_recovers_item_with_damaged_trailing_end_tag() -> None:
+    # 真实事故形态(job ffc511 batch 2/8):模型在输出末尾把 <<<END>>>
+    # 打成 <<<END>>,少一个 >。内容完好,不允许丢条目。
+    content = (
+        "<<<ITEM item_id=a>>>\n译文A\n<<<END>>>\n"
+        "<<<ITEM item_id=b>>>\n译文B,包含公式 $x^2$。\n<<<END>>"
+    )
+    result = translation_client.parse_translation_payload(content)
+    assert result["a"]["translated_text"] == "译文A"
+    assert result["b"]["translated_text"] == "译文B,包含公式 $x^2$。"
+
+
+def test_parse_translation_payload_treats_next_open_tag_as_implicit_close() -> None:
+    content = (
+        "<<<ITEM item_id=a>>>\n译文A\n"
+        "<<<ITEM item_id=b>>>\n译文B\n<<<END>>>"
+    )
+    result = translation_client.parse_translation_payload(content)
+    assert result["a"]["translated_text"] == "译文A"
+    assert result["b"]["translated_text"] == "译文B"
+
+
+def test_parse_translation_payload_does_not_cut_literal_end_text_mid_content() -> None:
+    content = "<<<ITEM item_id=a>>>\n段落提到 END 这个词以及 <标记> 符号。\n<<<END>>>"
+    result = translation_client.parse_translation_payload(content)
+    assert result["a"]["translated_text"] == "段落提到 END 这个词以及 <标记> 符号。"
+
+
+def test_direct_typst_single_prompt_warns_model_about_unbalanced_source_dollars() -> None:
+    # 源文本 $ 为奇数(OCR 丢了配对的 $)时,用户消息里要先提示模型按
+    # 语义修复,而不是直接交给模型产出必然不平衡的译文。
+    messages = deepseek_client.build_single_item_fallback_messages(
+        {
+            "item_id": "p009-b008",
+            "protected_source_text": r"5a. $ ^{1}\text{H} $ NMR (CDCl $ _3 $, 400 MHz): $ \delta = 144.35, 143.01.",
+            "math_mode": "direct_typst",
+            "metadata": {"structure_role": "body"},
+        },
+        mode="sci",
+        response_style="plain_text",
+    )
+    assert "数学定界符 `$` 数量为奇数" in messages[1]["content"]
+
+
+def test_direct_typst_single_prompt_has_no_delimiter_warning_for_balanced_source() -> None:
+    messages = deepseek_client.build_single_item_fallback_messages(
+        {
+            "item_id": "p001-b001",
+            "protected_source_text": r"The energy is $E = mc^2$ at rest.",
+            "math_mode": "direct_typst",
+            "metadata": {"structure_role": "body"},
+        },
+        mode="sci",
+        response_style="plain_text",
+    )
+    assert "数学定界符" not in messages[1]["content"]
+
+
+def test_direct_typst_single_prompt_lists_mitex_rewrites_found_in_source() -> None:
+    # 数据驱动提示:源公式匹配到数据库条目时,把需要的替换写进提示词,
+    # 由模型在语义层完成替换——复杂公式里正则改写不可靠。
+    messages = deepseek_client.build_single_item_fallback_messages(
+        {
+            "item_id": "p001-b001",
+            "protected_source_text": r"The operator $-i\hbar \partial/\partial q$ acts on $|\varPhi_0\rangle$.",
+            "math_mode": "direct_typst",
+            "metadata": {"structure_role": "body"},
+        },
+        mode="sci",
+        response_style="plain_text",
+    )
+    user_prompt = messages[1]["content"]
+    assert "渲染器不支持" in user_prompt
+    assert r"`\hbar` 改用 `ℏ`" in user_prompt
+    assert r"`\varPhi` 改用 `\Phi`" in user_prompt
+    assert r"`\rangle` 改用 `⟩`" in user_prompt
+    # 数据库里有但本段没出现的命令,不应进提示词
+    assert r"\mathscr" not in user_prompt
+
+
+def test_direct_typst_single_prompt_has_no_rewrite_hint_for_clean_source() -> None:
+    messages = deepseek_client.build_single_item_fallback_messages(
+        {
+            "item_id": "p001-b002",
+            "protected_source_text": r"The energy $E = mc^2$ stays constant.",
+            "math_mode": "direct_typst",
+            "metadata": {"structure_role": "body"},
+        },
+        mode="sci",
+        response_style="plain_text",
+    )
+    assert "渲染器不支持" not in messages[1]["content"]
+
+
+def _cg_item(**overrides):
+    item = {
+        "item_id": "__cg__:cg-010-001",
+        "translation_unit_id": "__cg__:cg-010-001",
+        "translation_unit_member_ids": ["p010-b001", "p010-b002"],
+        "protected_source_text": "The energy $E = mc^2$ starts and continues here.",
+        "translation_unit_protected_source_text": "The energy $E = mc^2$ starts and continues here.",
+        "block_type": "text",
+        "math_mode": "direct_typst",
+        "metadata": {"structure_role": "body"},
+    }
+    item.update(overrides)
+    return item
+
+
+def test_group_members_retries_when_member_ids_are_missing() -> None:
+    # 此前缺 member id 会静默退化成几何切分;现在先重试一次,第二次
+    # 返回完整就采用结构化切分。
+    responses = iter([
+        json.dumps({
+            "translated_text": "能量 $E = mc^2$ 开始并在此继续。",
+            "member_translations": [
+                {"item_id": "p010-b001", "translated_text": "能量 $E = mc^2$ 开始"},
+            ],
+        }, ensure_ascii=False),
+        json.dumps({
+            "translated_text": "能量 $E = mc^2$ 开始并在此继续。",
+            "member_translations": [
+                {"item_id": "p010-b001", "translated_text": "能量 $E = mc^2$ 开始"},
+                {"item_id": "p010-b002", "translated_text": "并在此继续。"},
+            ],
+        }, ensure_ascii=False),
+    ])
+    calls = {"n": 0}
+
+    def _fake_request(_messages, **_kwargs):
+        calls["n"] += 1
+        return next(responses)
+
+    with mock.patch.object(translation_client, "request_chat_content", side_effect=_fake_request):
+        result = translation_client.translate_continuation_group_members(_cg_item())
+
+    assert calls["n"] == 2
+    members = result["__cg__:cg-010-001"]["member_translations"]
+    assert [m["item_id"] for m in members] == ["p010-b001", "p010-b002"]
+
+
+def test_group_members_drops_splits_when_member_math_stays_unbalanced() -> None:
+    # 公式跨 member 断开:整体 $ 奇偶数正确,但逐 member 都是坏的。
+    # 重试后仍坏则丢弃 member 切分(显式走几何兜底),整体译文保留。
+    bad = json.dumps({
+        "translated_text": "能量 $E = mc^2$ 开始并在此继续。",
+        "member_translations": [
+            {"item_id": "p010-b001", "translated_text": "能量 $E = mc^2 开始"},
+            {"item_id": "p010-b002", "translated_text": "$ 并在此继续。"},
+        ],
+    }, ensure_ascii=False)
+
+    with mock.patch.object(translation_client, "request_chat_content", return_value=bad):
+        result = translation_client.translate_continuation_group_members(_cg_item())
+
+    payload = result["__cg__:cg-010-001"]
+    assert payload["translated_text"] == "能量 $E = mc^2$ 开始并在此继续。"
+    assert payload["member_translations"] == []
+
+
+def test_group_members_salvages_aggregate_text_from_broken_json() -> None:
+    # LaTeX 反斜杠转义损坏导致 JSON 无法解析:两轮解析都失败后,
+    # 抢救 translated_text 字符串,不再整段丢弃。
+    broken = (
+        '{"translated_text": "能量守恒在此继续。",\n'
+        '"member_translations": [{"item_id": "p010-b001", "translated_text": "能量 $\\alpha 守恒"'
+    )
+
+    with mock.patch.object(translation_client, "request_chat_content", return_value=broken):
+        result = translation_client.translate_continuation_group_members(_cg_item())
+
+    payload = result["__cg__:cg-010-001"]
+    assert payload["translated_text"] == "能量守恒在此继续。"
+    assert payload["member_translations"] == []
+
+
+def test_context_bleed_downgraded_to_warning_for_continuation_items() -> None:
+    from services.translation.llm.validation.quality import review_translation_item
+
+    # 连续段片段按设计无终止标点,后文公式泄漏由 apply 层机械修剪,
+    # 不应触发昂贵的错误级重试。
+    item = {
+        "item_id": "p001-b001",
+        "protected_source_text": "the reaction rate depends on",
+        "continuation_group": "cg-001",
+        "translation_context_after": "the constant $k = A e^{-E_a/RT}$ as shown",
+        "math_mode": "direct_typst",
+        "block_type": "text",
+        "metadata": {"structure_role": "body"},
+    }
+    report = review_translation_item(item, {"decision": "translate", "translated_text": "反应速率取决于常数 $k = A e^{-E_a/RT}$"})
+    bleed = [i for i in report.issues if i.kind == "context_bleed"]
+    assert bleed and bleed[0].severity == "warning"
+
+    standalone = dict(item)
+    standalone.pop("continuation_group")
+    report2 = review_translation_item(standalone, {"decision": "translate", "translated_text": "反应速率取决于常数 $k = A e^{-E_a/RT}$"})
+    bleed2 = [i for i in report2.issues if i.kind == "context_bleed"]
+    assert bleed2 and bleed2[0].severity == "error"
