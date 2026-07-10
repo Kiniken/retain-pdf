@@ -197,11 +197,15 @@ def _review_translated_text(
         )
     context_bleed = _context_bleed_leaked_math(item, source_text, translated_text)
     if context_bleed:
+        # 连续段片段按设计就是"无终止标点的不完整句",此检查对它们必然
+        # 高频触发;而 apply 层的 _sanitize_neighbor_continuation_leak 已经
+        # 能确定性修剪泄漏的后文公式。对连续段降级为警告,避免为机械层
+        # 可修复的问题反复重试;独立条目仍保持硬错误。
         issues.append(
             TranslationQualityIssue(
                 item_id=item_id,
                 kind="context_bleed",
-                severity="error",
+                severity="warning" if _is_continuation_item(item) else "error",
                 message="Translated output appears to include following context not present in current source",
                 details={"leaked_math": context_bleed[:5]},
             )
@@ -246,6 +250,12 @@ def _source_looks_incomplete(text: str) -> bool:
     if not source:
         return False
     return SOURCE_TERMINAL_RE.search(source) is None
+
+
+def _is_continuation_item(item: dict) -> bool:
+    return bool(str(item.get("continuation_group", "") or "").strip()) or str(
+        item.get("translation_unit_id", "") or ""
+    ).startswith("__cg__:")
 
 
 def _context_bleed_leaked_math(item: dict, source_text: str, translated_text: str) -> list[str]:
