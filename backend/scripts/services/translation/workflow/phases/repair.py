@@ -375,13 +375,14 @@ def _fast_agent_repair_limit(
     payload_size: int = 0,
     blocking_untranslated_count: int = 0,
 ) -> int:
-    payload_size = max(0, int(payload_size or 0))
+    del payload_size
     blocking_untranslated_count = max(0, int(blocking_untranslated_count or 0))
-    if payload_size <= 0 and blocking_untranslated_count <= 0:
+    # fast 档只在存在阻塞级未译条目时才动用 agent 修复:原先的
+    # broad_budget 会在任务完全干净时也按篇幅跑警告级候选,而这类候选
+    # (英文残留为主)修复成功率极低、重验必拒,纯烧钱。quality 档不变。
+    if blocking_untranslated_count <= 0:
         return 0
-    blocking_budget = min(FAST_AGENT_REPAIR_DEFAULT_LIMIT, max(0, blocking_untranslated_count))
-    broad_budget = min(FAST_AGENT_REPAIR_DEFAULT_LIMIT, max(1, payload_size // 500))
-    return max(1, blocking_budget, broad_budget)
+    return min(FAST_AGENT_REPAIR_DEFAULT_LIMIT, blocking_untranslated_count)
 
 
 def _repair_profile() -> str:

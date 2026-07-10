@@ -68,12 +68,25 @@ def _zh_char_count(text: str) -> int:
     return zh_char_count(strip_placeholders(text))
 
 
+def _looks_like_data_dense_segment(segment: str) -> bool:
+    # NMR 谱线、数值列表、化学计量串:数字密度高,是合法保留的数据而
+    # 不是待译散文。此前这类片段会命中长残留跨度硬错误,触发注定失败
+    # 的重试(译文本来就该保留它们)。
+    alpha = sum(1 for char in segment if char.isalpha())
+    digits = sum(1 for char in segment if char.isdigit())
+    if alpha <= 0:
+        return True
+    return digits >= max(6, int(alpha * 0.35))
+
+
 def _has_long_english_residue_span(text: str) -> bool:
     cleaned = strip_placeholders(text)
     if not cleaned:
         return False
     for match in EN_RESIDUE_SEGMENT_RE.finditer(cleaned):
         segment = " ".join((match.group(0) or "").split())
+        if _looks_like_data_dense_segment(segment):
+            continue
         if len(EN_WORD_RE.findall(segment)) >= 10 and looks_like_english_prose(segment):
             return True
     return False
@@ -86,6 +99,8 @@ def _long_english_residue_spans(text: str) -> list[str]:
     spans: list[str] = []
     for match in EN_RESIDUE_SEGMENT_RE.finditer(cleaned):
         segment = " ".join((match.group(0) or "").split())
+        if _looks_like_data_dense_segment(segment):
+            continue
         if len(EN_WORD_RE.findall(segment)) >= 10 and looks_like_english_prose(segment):
             spans.append(segment)
     return spans
@@ -176,7 +191,8 @@ def _looks_like_term_preserving_mixed_output(item: dict, translated_text: str) -
     chunk_lengths = english_chunk_word_lengths(strip_placeholders(translated))
     if not chunk_lengths:
         return False
-    if max(chunk_lengths) > 6:
+    # 7-8 词的合法英文技术短语(方法名、仪器型号)不应让术语保留豁免失效
+    if max(chunk_lengths) > 8:
         return False
     english_words = _english_word_count(translated)
     if english_words > max(24, zh_chars * 2):

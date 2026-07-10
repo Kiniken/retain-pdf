@@ -22,6 +22,17 @@ BLOCKING_REPAIR_ISSUE_KINDS = {
     "math_delimiter_unbalanced",
     "context_bleed",
 }
+RESIDUE_ISSUE_KINDS = {
+    "english_residue",
+    "mixed_english_residue",
+    "english_residue_warning",
+}
+# 重试链已对同类残留反复重试并放弃接受的标记:agent 修复重复同样的
+# 要求只会得到同样被重验拒绝的结果(实测 8 个候选 6 个失败的主因)。
+RESIDUE_EXHAUSTED_DEGRADATION_REASONS = {
+    "english_residue_repeated",
+    "english_residue_partial_accept",
+}
 DEFAULT_AGENT_REPAIR_WORKERS = 8
 MAX_AGENT_REPAIR_WORKERS = 16
 
@@ -70,6 +81,12 @@ def run_agent_repair_pipeline(
             skipped += 1
             _record_agent_repair_skip(item, "continuation_group_member", [])
             continue
+        if _already_repaired_in_flight(item):
+            # 重试链的定界符修复/乱码重建已经成功处理过,不再追打
+            # 一次 70s 档的 agent 修复调用。
+            skipped += 1
+            _record_agent_repair_skip(item, "already_repaired_in_flight", [])
+            continue
         translated_result = translated_results.get(item_id, {}) or {}
         review = coordinator.review_batch([item], {item_id: translated_result})
         reviewed += review.reviewed_item_count
@@ -79,6 +96,12 @@ def run_agent_repair_pipeline(
             continue
         issues = _repairable_review_issues(review)
         if not issues:
+            continue
+        if _is_exhausted_residue_candidate(item, issues):
+            # 候选问题全是英文残留,而重试链已对同一残留反复重试并放弃:
+            # 修复输出仍是同样的英文,重验必拒,纯浪费调用。
+            skipped += 1
+            _record_agent_repair_skip(item, "residue_retries_exhausted", issues)
             continue
         candidates.append((item, translated_result, issues))
 
@@ -204,6 +227,22 @@ def _repairable_review_issues(report: TranslationQualityReport) -> list[Translat
 
 def _has_blocking_issue(issues: list[TranslationQualityIssue]) -> bool:
     return any(issue.kind in BLOCKING_REPAIR_ISSUE_KINDS for issue in issues)
+
+
+def _already_repaired_in_flight(item: dict) -> bool:
+    from services.translation.artifacts.status import has_repaired_translation_artifact
+
+    diagnostics = dict(item.get("translation_diagnostics") or {})
+    if has_repaired_translation_artifact(item, diagnostics):
+        return True
+    return str(diagnostics.get("degradation_reason", "") or "") == "typst_math_repaired"
+
+
+def _is_exhausted_residue_candidate(item: dict, issues: list[TranslationQualityIssue]) -> bool:
+    if not issues or not all(issue.kind in RESIDUE_ISSUE_KINDS for issue in issues):
+        return False
+    diagnostics = dict(item.get("translation_diagnostics") or {})
+    return str(diagnostics.get("degradation_reason", "") or "") in RESIDUE_EXHAUSTED_DEGRADATION_REASONS
 
 
 def _is_group_member_item(item: dict) -> bool:

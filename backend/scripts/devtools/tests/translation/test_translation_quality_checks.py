@@ -9,6 +9,7 @@ sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 from services.translation.services.quality import review_translation_batch
 from services.translation.services.quality import review_translation_item
 from services.translation.services.terms import GlossaryEntry
+from services.translation.workflow.phases.repair import _fast_agent_repair_limit
 
 
 def _body_item(item_id: str, source_text: str, **overrides) -> dict:
@@ -121,3 +122,36 @@ def test_quality_still_blocks_body_empty_translation() -> None:
 
     assert report.has_errors
     assert [issue.kind for issue in report.issues] == ["empty_translation"]
+
+
+def test_long_english_residue_span_skips_data_dense_nmr_segments() -> None:
+    from services.translation.llm.validation.english_residue import _has_long_english_residue_span
+
+    # NMR 谱线数据数字密集,是合法保留的数据而非未译散文
+    nmr = (
+        "NMR (CDCl3, 400 MHz): delta = 7.90 (s, 1H), 7.55 (d, J=8.5 Hz, 1H), "
+        "7.49 (t, J=8.0 Hz, 1H), 6.64 (d, J=7.5 Hz, 1H), 4.20 (s, 2H), 3.03 (s, 3H)"
+    )
+    assert not _has_long_english_residue_span(nmr)
+    # 真正的英文散文残留仍然要抓
+    prose = "the reaction mixture was stirred at room temperature for several hours before the product was isolated by filtration"
+    assert _has_long_english_residue_span(prose)
+
+
+def test_agent_repair_skips_items_already_repaired_in_flight() -> None:
+    from services.translation.services.agents.repair_pipeline import _already_repaired_in_flight
+
+    repaired = {
+        "item_id": "p009-b008",
+        "translated_text": "已修复的译文",
+        "translation_diagnostics": {"degradation_reason": "typst_math_repaired"},
+    }
+    assert _already_repaired_in_flight(repaired)
+    fresh = {"item_id": "p001-b001", "translated_text": "正常译文", "translation_diagnostics": {}}
+    assert not _already_repaired_in_flight(fresh)
+
+
+def test_fast_agent_repair_only_runs_with_blocking_items() -> None:
+    # 任务干净时不再按篇幅跑警告级候选
+    assert _fast_agent_repair_limit(payload_size=5000, blocking_untranslated_count=0) == 0
+    assert _fast_agent_repair_limit(payload_size=5000, blocking_untranslated_count=3) == 3
