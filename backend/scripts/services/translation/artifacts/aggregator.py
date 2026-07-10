@@ -115,6 +115,8 @@ class TranslationRunDiagnostics:
     _adaptive_success_streak: int = field(default=0, init=False, repr=False)
     _adaptive_recent_failure_count: int = field(default=0, init=False, repr=False)
     _adaptive_slow_success_streak: int = field(default=0, init=False, repr=False)
+    _warmup_pending: bool = field(default=False, init=False, repr=False)
+    _warmup_restore_limit: int = field(default=0, init=False, repr=False)
     _result_stats: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
     _queue_split: dict[str, int] = field(default_factory=dict, init=False, repr=False)
     _flush_stats: dict[str, int] = field(default_factory=dict, init=False, repr=False)
@@ -243,11 +245,22 @@ class TranslationRunDiagnostics:
             self._effective["http_pool_size"] = int(max(1, pool_size))
             self._effective["http_pool_cap"] = int(max(1, pool_cap))
 
-    def configure_adaptive_concurrency(self, *, initial_limit: int, floor_limit: int | None = None) -> None:
+    def configure_adaptive_concurrency(
+        self,
+        *,
+        initial_limit: int,
+        floor_limit: int | None = None,
+        warmup: bool = False,
+    ) -> None:
         limit = max(1, min(max(1, self.configured_workers), int(initial_limit or 1)))
         floor = max(1, min(limit, int(floor_limit if floor_limit is not None else min(8, limit))))
         with self._adaptive_condition:
-            self._adaptive_limit = limit
+            # warmup:先只放行 1 条请求,让 provider 的前缀缓存写入公共
+            # 系统提示词,首条请求结束后恢复全并发——后续请求命中缓存,
+            # 同时避免全并发冷启动惊群。
+            self._warmup_pending = bool(warmup) and limit > 1
+            self._warmup_restore_limit = limit
+            self._adaptive_limit = 1 if self._warmup_pending else limit
             self._adaptive_initial_limit = limit
             self._adaptive_peak_limit = max(self._adaptive_peak_limit, limit)
             self._adaptive_floor_limit = floor
@@ -329,6 +342,11 @@ class TranslationRunDiagnostics:
     ) -> None:
         with self._adaptive_condition:
             self._adaptive_inflight = max(0, self._adaptive_inflight - 1)
+            if self._warmup_pending:
+                # 无论首条请求成败都恢复全并发:预热是尽力而为,失败时
+                # 不能把整个运行钉死在串行。
+                self._warmup_pending = False
+                self._adaptive_limit = max(self._adaptive_limit, self._warmup_restore_limit)
             self._rebalance_adaptive_limit(
                 success=success,
                 elapsed_ms=elapsed_ms,

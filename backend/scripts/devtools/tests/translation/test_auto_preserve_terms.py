@@ -160,7 +160,8 @@ def test_execution_plan_uses_high_configured_workers_for_deepseek(tmp_path: Path
     assert summary["configured_workers"] == 1000
     assert summary["adaptive_concurrency"]["configured_limit"] == 1000
     assert summary["adaptive_concurrency"]["initial_limit"] == 1000
-    assert summary["adaptive_concurrency"]["current_limit"] == 1000
+    # deepseek 默认开启前缀缓存预热:首条请求完成前 current_limit 压为 1
+    assert summary["adaptive_concurrency"]["current_limit"] == 1
     assert summary["adaptive_concurrency"]["floor_limit"] == 8
 
 
@@ -204,4 +205,42 @@ def test_execution_plan_can_cap_deepseek_initial_concurrency(tmp_path: Path, mon
 
     assert summary["adaptive_concurrency"]["configured_limit"] == 1000
     assert summary["adaptive_concurrency"]["initial_limit"] == 250
-    assert summary["adaptive_concurrency"]["current_limit"] == 250
+    # 前缀缓存预热生效期间 current_limit 为 1,首条请求完成后恢复到 250
+    assert summary["adaptive_concurrency"]["current_limit"] == 1
+
+
+def test_prefix_cache_warmup_restores_full_concurrency_after_first_release() -> None:
+    from services.translation.artifacts.aggregator import TranslationRunDiagnostics
+
+    diagnostics = TranslationRunDiagnostics(
+        provider_family="deepseek_official",
+        model="deepseek-chat",
+        base_url="https://api.deepseek.com/v1",
+        configured_workers=100,
+        configured_batch_size=1,
+        configured_classify_batch_size=1,
+    )
+    diagnostics.configure_adaptive_concurrency(initial_limit=100, warmup=True)
+    assert diagnostics.build_summary()["adaptive_concurrency"]["current_limit"] == 1
+
+    diagnostics.acquire_request_slot()
+    diagnostics.release_request_slot(success=True, elapsed_ms=1200, status_code=200)
+    assert diagnostics.build_summary()["adaptive_concurrency"]["current_limit"] == 100
+
+
+def test_prefix_cache_warmup_releases_gate_even_when_first_request_fails() -> None:
+    from services.translation.artifacts.aggregator import TranslationRunDiagnostics
+
+    diagnostics = TranslationRunDiagnostics(
+        provider_family="deepseek_official",
+        model="deepseek-chat",
+        base_url="https://api.deepseek.com/v1",
+        configured_workers=100,
+        configured_batch_size=1,
+        configured_classify_batch_size=1,
+    )
+    diagnostics.configure_adaptive_concurrency(initial_limit=100, warmup=True)
+    diagnostics.acquire_request_slot()
+    # 首条请求失败:预热放弃,但不能把整个运行钉死在串行
+    diagnostics.release_request_slot(success=False, elapsed_ms=20000, status_code=None, error_class="ReadTimeout")
+    assert diagnostics.build_summary()["adaptive_concurrency"]["current_limit"] > 1

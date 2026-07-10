@@ -14,6 +14,7 @@ from services.translation.services.context.session_context import build_translat
 from services.translation.services.terms import GlossaryEntry
 from services.translation.services.terms import normalize_glossary_entries
 from services.translation.workflow.scheduling.allocation import adaptive_floor_limit
+from services.translation.workflow.scheduling.allocation import prefix_cache_warmup_enabled
 from services.translation.workflow.scheduling.allocation import provider_adaptive_initial_limit
 from services.translation.workflow.page_range import resolve_page_range
 from services.translation.workflow.batching.plan import effective_translation_batch_size
@@ -89,6 +90,7 @@ def build_translation_execution_plan(request: TranslationExecutionRequest) -> Tr
     run_diagnostics.configure_adaptive_concurrency(
         initial_limit=initial_concurrency_limit,
         floor_limit=adaptive_floor_limit(effective_workers),
+        warmup=prefix_cache_warmup_enabled(provider_family),
     )
     run_diagnostics.set_effective_settings(
         translation_workers=effective_workers,

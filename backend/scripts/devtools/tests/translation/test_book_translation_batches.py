@@ -27,7 +27,9 @@ def _item(item_id: str, text: str, **overrides):
     return item
 
 
-def test_default_profile_enables_provider_agnostic_plain_batching() -> None:
+def test_default_profile_uses_single_item_requests() -> None:
+    # 多条目 tagged 批处理已退役(输出协议是不可消除的失败面,模型会
+    # 损坏 <<<END>>> 闭合标签导致整批作废),默认全部单条请求。
     context = build_translation_control_context()
     assert (
         _effective_translation_batch_size(
@@ -36,20 +38,17 @@ def test_default_profile_enables_provider_agnostic_plain_batching() -> None:
             base_url="https://api.openai.com/v1",
             translation_context=context,
         )
-        == 6
+        == 1
     )
 
 
-def test_deepseek_profile_batches_low_risk_plain_text_by_default() -> None:
+def test_deepseek_profile_uses_single_item_requests_for_stability() -> None:
     context = build_translation_control_context(
         engine_profile=resolve_engine_profile(
             model="deepseek-chat",
             base_url="https://api.deepseek.com/v1",
         )
     )
-    # Low-risk body text is batched to amortize the ~1.2k-token system prompt;
-    # even when the caller sends batch_size=1 the plain-text path uses the
-    # profile's plain_batch_size.
     assert (
         _effective_translation_batch_size(
             batch_size=1,
@@ -57,9 +56,9 @@ def test_deepseek_profile_batches_low_risk_plain_text_by_default() -> None:
             base_url="https://api.deepseek.com/v1",
             translation_context=context,
         )
-        == 6
+        == 1
     )
-    assert context.batch_policy.plain_batch_size == 6
+    assert context.batch_policy.plain_batch_size == 1
     assert context.segmentation_policy.prefer_plain_when_segment_count_leq == 6
     assert context.fallback_policy.formula_segment_attempts == 2
     assert context.fallback_policy.main_http_retry_attempts == 1
@@ -117,7 +116,7 @@ def test_smarter_batches_group_low_risk_items_and_keep_complex_items_single() ->
     assert not batches[1][0].get("_batched_plain_candidate")
 
 
-def test_deepseek_plain_batching_groups_low_risk_body_and_isolates_the_rest() -> None:
+def test_deepseek_builds_single_item_batches_for_stability() -> None:
     context = build_translation_control_context(
         engine_profile=resolve_engine_profile(
             model="deepseek-chat",
@@ -155,19 +154,23 @@ def test_deepseek_plain_batching_groups_low_risk_body_and_isolates_the_rest() ->
         translation_context=context,
     )
 
-    assert effective_batch_size == 6
+    assert effective_batch_size == 1
     assert immediate == []
-    # The 5 low-risk plain paragraphs collapse into a single batched-plain call;
-    # formula / continuation / group / placeholder-heavy items each stay single
-    # (they fail the low-risk gate and take the per-item path).
+    # 批处理退役后每个条目独立成批,单条 plain-text 请求没有输出协议,
+    # 不存在条目丢失的可能。
     assert [[item["item_id"] for item in batch] for batch in batches] == [
-        ["plain-0", "plain-1", "plain-2", "plain-3", "plain-4"],
+        ["plain-0"],
+        ["plain-1"],
+        ["plain-2"],
+        ["plain-3"],
+        ["plain-4"],
         ["formula"],
         ["continuation"],
         ["group"],
         ["placeholder-heavy"],
     ]
-    assert all(item.get("_batched_plain_candidate") for item in batches[0])
+    # 所有批都是单条,不存在会走多条目 tagged 协议的 batched_fast 批
+    assert all(len(batch) == 1 for batch in batches)
     assert all(not batch[0].get("_batched_plain_candidate") for batch in batches[1:])
 
 

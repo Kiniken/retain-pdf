@@ -61,7 +61,11 @@ class TimeoutPolicy:
 
 @dataclass(frozen=True)
 class BatchPolicy:
-    plain_batch_size: int = 6
+    # 多条目 tagged 批处理已退役:批越大,模型损坏输出协议(如把末尾
+    # <<<END>>> 打成 <<<END>>,实测 1/6 复现)导致整批作废重译的概率越高。
+    # 稳定性优先,生产路径一律单条 plain-text 请求;机制代码保留,
+    # 需要 A/B 时改这里即可。
+    plain_batch_size: int = 1
     batch_low_risk_min_chars: int = 16
     batch_low_risk_max_chars: int = 1200
     batch_low_risk_max_placeholders: int = 8
@@ -371,13 +375,5 @@ def resolve_engine_profile(*, model: str = "", base_url: str = "") -> EngineProf
                 profile.fallback_policy,
                 formula_segment_attempts=2,
             ),
-            # plain_batch_size=1 disabled batching entirely: every body paragraph
-            # re-sent the ~1.2k-token system prompt as its own request (~6x the
-            # tokens and ~4x the wall-clock of a batched call for equivalent
-            # output). Only low-risk body text is batched (is_low_risk_deepseek_batch_item),
-            # and a partial/invalid batch splits back to per-item retry
-            # (split_batched_plain_result_for_partial_retry), so restoring the
-            # base default is safe.
-            batch_policy=replace(profile.batch_policy, plain_batch_size=6),
         )
     return profile
