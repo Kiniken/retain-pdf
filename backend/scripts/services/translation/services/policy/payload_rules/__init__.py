@@ -1,6 +1,5 @@
 from services.translation.services.policy.payload_rules.legacy_policy_mutations import apply_cjk_source_keep_origin
 from services.translation.services.policy.payload_rules.legacy_policy_mutations import apply_metadata_fragment_skip
-from services.translation.services.policy.payload_rules.legacy_policy_mutations import apply_mixed_literal_split_policy
 from services.translation.services.policy.payload_rules.legacy_policy_mutations import apply_ref_text_skip
 from services.translation.services.policy.payload_rules.legacy_policy_mutations import apply_shared_literal_block_policy
 from services.translation.services.policy.payload_rules.policy_mutations import apply_after_last_title_skip
@@ -17,7 +16,6 @@ __all__ = [
     "apply_cjk_source_keep_origin",
     "apply_classification_labels",
     "apply_metadata_fragment_skip",
-    "apply_mixed_literal_split_policy",
     "apply_narrow_body_text_skip",
     "apply_ref_text_skip",
     "apply_reference_tail_skip",

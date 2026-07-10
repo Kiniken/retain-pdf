@@ -5,6 +5,7 @@ import json
 import os
 import re
 import threading
+import time
 from pathlib import Path
 
 from foundation.shared.prompt_loader import load_prompt
@@ -107,6 +108,65 @@ def _cache_path(cache_key: str) -> Path:
     return paths.TRANSLATION_UNIT_CACHE_DIR / cache_key[:2] / f"{cache_key}.json"
 
 
+_ENSURED_SHARD_DIRS: set[str] = set()
+_PRUNE_DONE = False
+_PRUNE_LOCK = threading.Lock()
+UNIT_CACHE_TTL_DAYS_ENV = "RETAIN_TRANSLATION_UNIT_CACHE_TTL_DAYS"
+DEFAULT_UNIT_CACHE_TTL_DAYS = 90
+
+
+def _ensure_shard_dir(path: Path) -> None:
+    shard = str(path.parent)
+    if shard in _ENSURED_SHARD_DIRS:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _ENSURED_SHARD_DIRS.add(shard)
+
+
+def _unit_cache_ttl_seconds() -> float:
+    raw = str(os.environ.get(UNIT_CACHE_TTL_DAYS_ENV, "") or "").strip()
+    try:
+        days = float(raw) if raw else float(DEFAULT_UNIT_CACHE_TTL_DAYS)
+    except ValueError:
+        days = float(DEFAULT_UNIT_CACHE_TTL_DAYS)
+    return days * 86400.0
+
+
+def _prune_expired_cache_entries_once() -> None:
+    # 缓存 key 含提示词指纹和协议版本,提示词一改旧代条目全部成为
+    # 永不命中的孤儿,此前无任何回收机制、无限增长。按 mtime TTL
+    # (默认 90 天,RETAIN_TRANSLATION_UNIT_CACHE_TTL_DAYS=0 关闭)
+    # 每进程最多清扫一次,失败静默——这是缓存卫生,不是正确性。
+    global _PRUNE_DONE
+    with _PRUNE_LOCK:
+        if _PRUNE_DONE:
+            return
+        _PRUNE_DONE = True
+    ttl = _unit_cache_ttl_seconds()
+    if ttl <= 0:
+        return
+    root = paths.TRANSLATION_UNIT_CACHE_DIR
+    try:
+        if not root.exists():
+            return
+        cutoff = time.time() - ttl
+        removed = 0
+        for shard in root.iterdir():
+            if not shard.is_dir():
+                continue
+            for entry in shard.iterdir():
+                try:
+                    if entry.is_file() and entry.stat().st_mtime < cutoff:
+                        entry.unlink()
+                        removed += 1
+                except OSError:
+                    continue
+        if removed:
+            print(f"translation unit cache pruned: {removed} expired entries", flush=True)
+    except Exception:
+        return
+
+
 def _sanitize_cached_translation_text(text: str) -> tuple[str, bool]:
     sanitized, metadata = with_sanitized_translation(str(text or "").strip(), {})
     return sanitized, bool(metadata)
@@ -185,8 +245,9 @@ def store_cached_translation(
         target_lang=target_lang,
         target_language_name=target_language_name,
     )
+    _prune_expired_cache_entries_once()
     path = _cache_path(cache_key)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_shard_dir(path)
     payload = {
         "cache_key": cache_key,
         "decision": decision,

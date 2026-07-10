@@ -121,3 +121,33 @@ def test_translation_cache_sanitizes_reasoning_leak_on_load(monkeypatch, tmp_pat
 
     assert result["translated_text"] == "时间有序响应必须与推迟响应函数加以区分，"
     assert healed["translated_text"] == "时间有序响应必须与推迟响应函数加以区分，"
+
+
+def test_unit_cache_prunes_expired_entries_once(tmp_path, monkeypatch) -> None:
+    import os
+    import time as time_module
+
+    from services.translation.llm.shared import cache as cache_module
+    from foundation.config import paths as paths_module
+
+    cache_root = tmp_path / "_translation_unit_cache"
+    shard = cache_root / "ab"
+    shard.mkdir(parents=True)
+    stale = shard / "ab" "0" * 62 + ".json" if False else shard / ("ab" + "0" * 62 + ".json")
+    fresh = shard / ("ab" + "1" * 62 + ".json")
+    stale.write_text("{}", encoding="utf-8")
+    fresh.write_text("{}", encoding="utf-8")
+    old = time_module.time() - 200 * 86400
+    os.utime(stale, (old, old))
+
+    monkeypatch.setattr(paths_module, "TRANSLATION_UNIT_CACHE_DIR", cache_root)
+    monkeypatch.setattr(cache_module, "_PRUNE_DONE", False)
+    cache_module._prune_expired_cache_entries_once()
+
+    assert not stale.exists()
+    assert fresh.exists()
+    # 每进程只清扫一次
+    stale.write_text("{}", encoding="utf-8")
+    os.utime(stale, (old, old))
+    cache_module._prune_expired_cache_entries_once()
+    assert stale.exists()

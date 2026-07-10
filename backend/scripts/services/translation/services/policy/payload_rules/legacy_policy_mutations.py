@@ -9,7 +9,6 @@ from services.translation.core.item_reader import item_raw_block_type
 from services.translation.services.policy.literal_block_rules import shared_literal_block_label
 from services.translation.services.policy.metadata_filter import find_metadata_fragment_item_ids
 from services.translation.services.policy.soft_hints import natural_word_count
-from services.translation.services.policy.mixed_literal_splitter import split_mixed_literal_items
 
 from .legacy_policy_checks import NUMBERED_REFERENCE_ENTRY_RE
 from .legacy_policy_checks import NUMBERED_SUMMARY_RE
@@ -17,7 +16,6 @@ from .legacy_policy_checks import REFERENCE_ENTRY_RE
 from .legacy_policy_checks import english_words
 from .legacy_policy_checks import looks_like_cjk_dominant_body_text
 from .legacy_policy_checks import prose_cue_match
-from .legacy_policy_checks import should_force_translate_mixed_literal_item
 from services.translation.core.payload.parts.policy_state import mark_policy_skip
 from services.translation.core.payload.parts.policy_state import mark_translation_required
 from services.translation.core.payload.parts.policy_state import preserve_source_as_translation
@@ -28,8 +26,6 @@ def _is_ref_text_like(item: dict) -> bool:
         return True
     return item_normalized_sub_type(item) == "ref_text"
 
-
-_should_force_translate_mixed_literal_item = should_force_translate_mixed_literal_item
 
 
 def apply_cjk_source_keep_origin(payload: list[dict]) -> int:
@@ -102,90 +98,6 @@ def apply_ref_text_skip(payload: list[dict]) -> int:
     return skipped
 
 
-def apply_mixed_literal_split_policy(
-    payload: list[dict],
-    *,
-    api_key: str,
-    model: str,
-    base_url: str,
-    workers: int,
-    rule_guidance: str = "",
-    request_chat_content_fn: Callable[..., str] | None = None,
-) -> dict[str, int]:
-    candidates = [
-        item
-        for item in payload
-        if item.get("should_translate", True)
-        and str(item.get("classification_label", "") or "") == "translate_literal"
-    ]
-    if not candidates:
-        return {
-            "mixed_keep_all": 0,
-            "mixed_translate_all": 0,
-            "mixed_translate_tail": 0,
-        }
-
-    decisions = split_mixed_literal_items(
-        candidates,
-        api_key=api_key,
-        model=model,
-        base_url=base_url,
-        workers=workers,
-        rule_guidance=rule_guidance,
-        request_chat_content_fn=request_chat_content_fn,
-    )
-    keep_all = 0
-    translate_all = 0
-    translate_tail = 0
-    for item in candidates:
-        item_id = str(item.get("item_id", "") or "")
-        action, prefix = decisions.get(item_id, ("translate_all", ""))
-        if action == "keep_all" and _should_force_translate_mixed_literal_item(item):
-            action, prefix = "translate_all", ""
-        item["mixed_literal_action"] = action
-        item["mixed_literal_prefix"] = prefix
-        original_protected = str(
-            item.get("mixed_original_protected_source_text", "") or item.get("protected_source_text", "") or ""
-        )
-        item["mixed_original_protected_source_text"] = original_protected
-        if action == "keep_all":
-            mark_policy_skip(item, "skip_mixed_keep_all")
-            keep_all += 1
-            continue
-        if action == "translate_tail":
-            protected_text = str(item.get("protected_source_text", "") or "")
-            tail_protected = (
-                protected_text[len(prefix) :].strip()
-                if protected_text.startswith(prefix)
-                else original_protected[len(prefix) :].strip()
-                if original_protected.startswith(prefix)
-                else protected_text
-            )
-            if not tail_protected:
-                if _should_force_translate_mixed_literal_item(item):
-                    mark_translation_required(item, label="translate_mixed_all")
-                    item["mixed_literal_action"] = "translate_all"
-                    item["mixed_literal_prefix"] = ""
-                    translate_all += 1
-                    continue
-                mark_policy_skip(item, "skip_mixed_keep_all")
-                keep_all += 1
-                continue
-            item["protected_source_text"] = tail_protected
-            if item.get("translation_unit_kind") == "single":
-                item["translation_unit_protected_source_text"] = tail_protected
-            mark_translation_required(item, label="translate_mixed_tail")
-            translate_tail += 1
-            continue
-        mark_translation_required(item, label="translate_mixed_all")
-        translate_all += 1
-    return {
-        "mixed_keep_all": keep_all,
-        "mixed_translate_all": translate_all,
-        "mixed_translate_tail": translate_tail,
-    }
-
-
 def apply_metadata_fragment_skip(payload: list[dict], *, page_idx: int, max_page_idx: int) -> int:
     if page_idx > max_page_idx:
         return 0
@@ -207,7 +119,6 @@ def apply_metadata_fragment_skip(payload: list[dict], *, page_idx: int, max_page
 __all__ = [
     "apply_cjk_source_keep_origin",
     "apply_metadata_fragment_skip",
-    "apply_mixed_literal_split_policy",
     "apply_ref_text_skip",
     "apply_shared_literal_block_policy",
     "looks_like_cjk_dominant_body_text",

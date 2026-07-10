@@ -7,7 +7,6 @@ sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 
 from services.translation.services.policy.payload_rules.legacy_policy_mutations import apply_cjk_source_keep_origin
-from services.translation.services.policy.payload_rules.legacy_policy_mutations import apply_mixed_literal_split_policy
 from services.translation.services.policy.payload_rules.policy_mutations import reset_policy_state
 from services.translation.services.policy.payload_rules.policy_mutations import apply_title_skip
 from services.translation.services.policy.config import build_translation_policy_config
@@ -310,39 +309,3 @@ def test_apply_translation_policies_translates_figure_caption_by_default() -> No
     assert payload[0]["classification_label"] == ""
 
 
-def test_apply_mixed_literal_split_policy_forces_bad_ocr_prose_to_translate_all(monkeypatch) -> None:
-    source = (
-        "ch vertices with = 1, ( c = 2 , 1 are seen. s = 0 and j < m - 1 bump i "
-        "aude s = 0 d cy j = m - 1 ) is gov k ned 0 < s < m - 1 more i < m - 1 "
-        "rules: If 0 < s < m - 1, i = m - 1 If = j and s = m - 1 1, bum i ."
-    )
-    payload = [
-        _translation_item(
-            item_id="p005-b005",
-            page_idx=4,
-            block_idx=5,
-            source_text=source,
-            mixed_original_protected_source_text=source,
-            classification_label="translate_literal",
-            translation_unit_member_ids=["p005-b005"],
-        )
-    ]
-
-    monkeypatch.setattr(
-        "services.translation.services.policy.payload_rules.legacy_policy_mutations.split_mixed_literal_items",
-        lambda *args, **kwargs: {"p005-b005": ("keep_all", "")},
-    )
-
-    summary = apply_mixed_literal_split_policy(
-        payload,
-        api_key="test",
-        model="test",
-        base_url="http://example.com",
-        workers=1,
-    )
-
-    assert summary["mixed_keep_all"] == 0
-    assert summary["mixed_translate_all"] == 1
-    assert payload[0]["classification_label"] == "translate_mixed_all"
-    assert payload[0]["should_translate"] is True
-    assert payload[0]["skip_reason"] == ""
