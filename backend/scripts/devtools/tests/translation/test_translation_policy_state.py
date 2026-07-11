@@ -10,6 +10,7 @@ sys.path.insert(0, str(REPO_SCRIPTS_ROOT))
 
 from services.translation.core.payload.parts.policy_state import mark_policy_skip
 from services.translation.core.payload.parts.policy_state import mark_translation_required
+from services.translation.core.payload.parts.common import seed_orchestration_metadata
 
 
 def test_mark_policy_skip_clears_translation_and_sets_keep_origin_state() -> None:
@@ -48,3 +49,50 @@ def test_mark_translation_required_clears_skip_state_without_touching_translatio
     assert item["should_translate"] is True
     assert item["skip_reason"] == ""
     assert item["translated_text"] == "existing text"
+
+
+def test_seed_orchestration_metadata_preserves_policy_skip_reason() -> None:
+    # 回归:编排阶段曾无条件用 classification_label 覆盖 policy 写的详细 skip_reason。
+    item = {
+        "item_id": "p1-b2",
+        "classification_label": "formula",
+        "should_translate": False,
+        "skip_reason": "保留公式原文，避免破坏 LaTeX",
+        "protected_source_text": "$x^2$",
+    }
+
+    seed_orchestration_metadata(item)
+
+    assert item["skip_reason"] == "保留公式原文，避免破坏 LaTeX"
+    # 后半段编排字段仍必须被写入(证明修复没有跳过函数其余职责)。
+    assert item["translation_unit_id"] == "p1-b2"
+    assert item["translation_unit_kind"] == "single"
+    assert item["translation_unit_member_ids"] == ["p1-b2"]
+
+
+def test_seed_orchestration_metadata_fills_skip_reason_from_label_when_empty() -> None:
+    item = {
+        "item_id": "p1-b3",
+        "classification_label": "skip_short_no_trans",
+        "should_translate": False,
+        "skip_reason": "",
+        "protected_source_text": "Fig. 1",
+    }
+
+    seed_orchestration_metadata(item)
+
+    assert item["skip_reason"] == "skip_short_no_trans"
+
+
+def test_seed_orchestration_metadata_clears_stale_skip_reason_when_translatable() -> None:
+    item = {
+        "item_id": "p1-b4",
+        "classification_label": "",
+        "should_translate": True,
+        "skip_reason": "stale reason",
+        "protected_source_text": "Hello world",
+    }
+
+    seed_orchestration_metadata(item)
+
+    assert item["skip_reason"] == ""
