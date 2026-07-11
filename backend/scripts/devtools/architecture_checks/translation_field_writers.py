@@ -31,14 +31,14 @@ PAYLOAD_FIELD_WRITER_ALLOWLIST: dict[str, frozenset[str]] = {
         {
             "services/translation/core/payload/parts/policy_state.py",  # owner
             "services/translation/core/payload/parts/common.py",  # frozen-debt: seed 补缺(只补不覆盖)
-            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: PR2b 收口
+            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: 改走 policy helper 需论证 should_translate 翻转
         }
     ),
     "classification_label": frozenset(
         {
             "services/translation/core/payload/parts/policy_state.py",  # owner
             "services/translation/core/payload/template_sync.py",  # frozen-debt: 模板同步回填
-            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: PR2b 收口
+            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: 改走 policy helper 需论证 should_translate 翻转
         }
     ),
     # ---- 最终状态:payload item 上唯一赋值点 = final_status.py::set_final_status ----
@@ -88,7 +88,6 @@ PAYLOAD_FIELD_WRITER_ALLOWLIST: dict[str, frozenset[str]] = {
             "services/translation/core/payload/parts/apply.py",  # owner
             "services/translation/core/payload/parts/policy_state.py",  # owner: clear/preserve
             "services/translation/llm/shared/orchestration/metadata.py",  # result metadata
-            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: PR2b 收口
         }
     ),
     "protected_translated_text": frozenset(
@@ -96,21 +95,18 @@ PAYLOAD_FIELD_WRITER_ALLOWLIST: dict[str, frozenset[str]] = {
             "services/translation/core/payload/parts/apply.py",  # owner
             "services/translation/core/payload/parts/policy_state.py",  # owner: clear/preserve
             "services/translation/core/payload/template_sync.py",  # frozen-debt: 模板同步回填
-            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: PR2b 收口
         }
     ),
     "translation_unit_translated_text": frozenset(
         {
             "services/translation/core/payload/parts/apply.py",  # owner
             "services/translation/core/payload/parts/policy_state.py",  # owner: clear/preserve
-            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: PR2b 收口
         }
     ),
     "translation_unit_protected_translated_text": frozenset(
         {
             "services/translation/core/payload/parts/apply.py",  # owner
             "services/translation/core/payload/parts/policy_state.py",  # owner: clear/preserve
-            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: PR2b 收口
         }
     ),
     "group_translated_text": frozenset(
@@ -118,7 +114,6 @@ PAYLOAD_FIELD_WRITER_ALLOWLIST: dict[str, frozenset[str]] = {
             "services/translation/core/payload/parts/apply.py",  # owner
             "services/translation/core/payload/parts/translation_units.py",  # owner: 分组 reset
             "services/translation/core/payload/template_sync.py",  # frozen-debt: 模板同步回填
-            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: PR2b 收口
         }
     ),
     "group_protected_translated_text": frozenset(
@@ -126,7 +121,6 @@ PAYLOAD_FIELD_WRITER_ALLOWLIST: dict[str, frozenset[str]] = {
             "services/translation/core/payload/parts/apply.py",  # owner
             "services/translation/core/payload/parts/translation_units.py",  # owner: 分组 reset
             "services/translation/core/payload/template_sync.py",  # frozen-debt: 模板同步回填
-            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: PR2b 收口
         }
     ),
 }

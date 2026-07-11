@@ -9,6 +9,7 @@ from typing import Callable
 
 from services.translation.core.item_reader import item_block_kind
 from services.translation.core.payload.formula_protection import restore_protected_tokens
+from services.translation.core.payload.parts.apply import apply_reconstructed_unit_text
 from services.translation.core.payload.parts.diagnostics import record_translation_diagnostics
 from services.translation.core.payload.parts.final_status import TRANSLATED_STATUS
 from services.translation.core.payload.parts.final_status import set_final_status
@@ -222,13 +223,8 @@ def _apply_reconstruction(items: list[dict], translated_text: str) -> None:
         for item in items:
             _record_reconstruction_rejected(item, validation_issues)
         return
+    apply_reconstructed_unit_text(items, cleaned_text)
     for item in items:
-        item["protected_translated_text"] = cleaned_text
-        item["translated_text"] = cleaned_text
-        item["translation_unit_protected_translated_text"] = cleaned_text
-        item["translation_unit_translated_text"] = cleaned_text
-        item["group_protected_translated_text"] = cleaned_text
-        item["group_translated_text"] = cleaned_text
         item["classification_label"] = "llm_reconstructed_garbled"
         item["skip_reason"] = ""
         set_final_status(item, TRANSLATED_STATUS)
