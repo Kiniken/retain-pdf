@@ -31,14 +31,12 @@ PAYLOAD_FIELD_WRITER_ALLOWLIST: dict[str, frozenset[str]] = {
         {
             "services/translation/core/payload/parts/policy_state.py",  # owner
             "services/translation/core/payload/parts/common.py",  # frozen-debt: seed 补缺(只补不覆盖)
-            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: 改走 policy helper 需论证 should_translate 翻转
         }
     ),
     "classification_label": frozenset(
         {
             "services/translation/core/payload/parts/policy_state.py",  # owner
             "services/translation/core/payload/template_sync.py",  # frozen-debt: 模板同步回填
-            "services/translation/services/postprocess/garbled_reconstruction.py",  # frozen-debt: 改走 policy helper 需论证 should_translate 翻转
         }
     ),
     # ---- 最终状态:payload item 上唯一赋值点 = final_status.py::set_final_status ----

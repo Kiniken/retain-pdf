@@ -13,6 +13,7 @@ from services.translation.core.payload.parts.apply import apply_reconstructed_un
 from services.translation.core.payload.parts.diagnostics import record_translation_diagnostics
 from services.translation.core.payload.parts.final_status import TRANSLATED_STATUS
 from services.translation.core.payload.parts.final_status import set_final_status
+from services.translation.core.payload.parts.policy_state import mark_translation_required
 from services.translation.core.payload.parts.result_entries import salvage_reasoning_leak
 from services.translation.llm.shared.structured_models import GARBLED_RECONSTRUCTION_RESPONSE_SCHEMA
 from services.translation.llm.shared.structured_parsers import parse_garbled_reconstruction_response
@@ -225,8 +226,9 @@ def _apply_reconstruction(items: list[dict], translated_text: str) -> None:
         return
     apply_reconstructed_unit_text(items, cleaned_text)
     for item in items:
-        item["classification_label"] = "llm_reconstructed_garbled"
-        item["skip_reason"] = ""
+        # 候选资格已保证 should_translate=True(verdict 会把显式 False 挡在
+        # should_skip_model_by_policy 之外),此处写 True 为恒等操作。
+        mark_translation_required(item, label="llm_reconstructed_garbled")
         set_final_status(item, TRANSLATED_STATUS)
         prior = dict(item.get("translation_diagnostics") or {})
         route_path = [str(part or "") for part in prior.get("route_path") or [] if str(part or "")]

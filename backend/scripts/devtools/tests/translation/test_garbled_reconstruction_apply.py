@@ -68,6 +68,8 @@ def test_apply_reconstruction_writes_cleaned_text_and_breadcrumb(monkeypatch) ->
 
     assert item["final_status"] == "translated"
     assert item["classification_label"] == "llm_reconstructed_garbled"
+    assert item["should_translate"] is True
+    assert item["skip_reason"] == ""
     assert item["translation_diagnostics"]["reasoning_leak_salvaged"] is True
     assert item["translation_diagnostics"]["route_path"][-1] == "garbled_reconstruction"
 
