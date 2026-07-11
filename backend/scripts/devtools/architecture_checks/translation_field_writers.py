@@ -62,6 +62,26 @@ PAYLOAD_FIELD_WRITER_ALLOWLIST: dict[str, frozenset[str]] = {
             "services/translation/services/postprocess/garbled_reconstruction.py",  # diagnostics dict
         }
     ),
+    # ---- 诊断:owner = core/payload/parts/diagnostics.py(顶层 merge + history 追加) ----
+    # 修复链(乱码重建/agent repair/最终收口)已迁移;其余为 result metadata /
+    # 初次产生诊断的路径,冻结待后续按 stage 身份逐步迁移。
+    "translation_diagnostics": frozenset(
+        {
+            "services/translation/core/payload/parts/diagnostics.py",  # owner: record_translation_diagnostics
+            "services/translation/core/payload/parts/final_status.py",  # owner: 违规面包屑
+            "services/translation/core/payload/parts/apply.py",  # frozen-debt: 回填初次写入
+            "services/translation/core/payload/parts/result_entries.py",  # result metadata
+            "services/translation/core/payload/parts/result_status.py",  # frozen-debt
+            "services/translation/llm/shared/orchestration/direct_typst_long_text.py",  # result metadata
+            "services/translation/llm/shared/orchestration/heavy_formula.py",  # result metadata
+            "services/translation/llm/shared/orchestration/metadata.py",  # result metadata
+            "services/translation/llm/shared/orchestration/sentence_level.py",  # result metadata
+            "services/translation/llm/shared/orchestration/terminal_payloads.py",  # result metadata
+            "services/translation/services/fast_path/keep_origin.py",  # frozen-debt
+            "services/translation/services/finalization/untranslated.py",  # result payload(经 apply 回填)
+            "services/translation/services/results/applier.py",  # frozen-debt
+        }
+    ),
     # ---- 译文字段:owner = core/payload/parts/apply.py ----
     "translated_text": frozenset(
         {
@@ -116,6 +136,7 @@ _FIELD_OWNER_HINT = {
     "skip_reason": "core/payload/parts/policy_state.py (mark_policy_skip / mark_translation_required)",
     "classification_label": "core/payload/parts/policy_state.py (mark_policy_skip / mark_translation_required)",
     "final_status": "core/payload/parts/final_status.py (set_final_status),或更高层的 result_status.py mark_* helper",
+    "translation_diagnostics": "core/payload/parts/diagnostics.py (record_translation_diagnostics)",
     "translated_text": "core/payload/parts/apply.py (apply_single/group_translated_entry)",
     "protected_translated_text": "core/payload/parts/apply.py (apply_single/group_translated_entry)",
     "translation_unit_translated_text": "core/payload/parts/apply.py (apply_single/group_translated_entry)",

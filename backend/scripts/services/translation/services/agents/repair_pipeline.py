@@ -5,6 +5,7 @@ from concurrent.futures import as_completed
 from dataclasses import dataclass
 
 from services.translation.core.payload import apply_translated_text_map
+from services.translation.core.payload.parts.diagnostics import record_translation_diagnostics
 from services.translation.services.agents.coordinator import TranslationAgentCoordinator
 from services.translation.services.agents.repair import TranslationRepairRequest
 from services.translation.services.agents.repair import RepairAgent
@@ -257,19 +258,27 @@ def _should_skip_policy_keep_origin_item(item: dict) -> bool:
 
 
 def _record_agent_repair_skip(item: dict, reason: str, issues: list[TranslationQualityIssue]) -> None:
-    diagnostics = dict(item.get("translation_diagnostics") or {})
-    diagnostics["agent_repair_skipped"] = True
-    diagnostics["agent_repair_skip_reason"] = reason
-    diagnostics["agent_repair_issue_kinds"] = [issue.kind for issue in issues]
-    item["translation_diagnostics"] = diagnostics
+    record_translation_diagnostics(
+        item,
+        "agent_repair",
+        {
+            "agent_repair_skipped": True,
+            "agent_repair_skip_reason": reason,
+            "agent_repair_issue_kinds": [issue.kind for issue in issues],
+        },
+    )
 
 
 def _record_agent_repair_failure(item: dict, exc: Exception) -> None:
-    diagnostics = dict(item.get("translation_diagnostics") or {})
-    diagnostics["agent_repair_failed"] = True
-    diagnostics["agent_repair_error_type"] = type(exc).__name__
-    diagnostics["agent_repair_error"] = str(exc)
-    item["translation_diagnostics"] = diagnostics
+    record_translation_diagnostics(
+        item,
+        "agent_repair",
+        {
+            "agent_repair_failed": True,
+            "agent_repair_error_type": type(exc).__name__,
+            "agent_repair_error": str(exc),
+        },
+    )
 
 
 def _validate_repair_result(item: dict, repaired_text: str) -> list[TranslationQualityIssue]:
@@ -289,13 +298,17 @@ def _validate_repair_result(item: dict, repaired_text: str) -> list[TranslationQ
 
 
 def _record_agent_repair_rejected(item: dict, issues: list[TranslationQualityIssue]) -> None:
-    diagnostics = dict(item.get("translation_diagnostics") or {})
-    diagnostics["agent_repair_failed"] = True
-    diagnostics["agent_repair_error_type"] = "RepairValidationError"
-    diagnostics["agent_repair_error"] = "Repair output failed translation quality validation."
-    diagnostics["agent_repair_issue_kinds"] = [issue.kind for issue in issues]
-    diagnostics["agent_repair_issues"] = [issue.as_dict() for issue in issues]
-    item["translation_diagnostics"] = diagnostics
+    record_translation_diagnostics(
+        item,
+        "agent_repair",
+        {
+            "agent_repair_failed": True,
+            "agent_repair_error_type": "RepairValidationError",
+            "agent_repair_error": "Repair output failed translation quality validation.",
+            "agent_repair_issue_kinds": [issue.kind for issue in issues],
+            "agent_repair_issues": [issue.as_dict() for issue in issues],
+        },
+    )
 
 
 __all__ = [

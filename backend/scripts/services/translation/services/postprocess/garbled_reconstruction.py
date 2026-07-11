@@ -9,6 +9,7 @@ from typing import Callable
 
 from services.translation.core.item_reader import item_block_kind
 from services.translation.core.payload.formula_protection import restore_protected_tokens
+from services.translation.core.payload.parts.diagnostics import record_translation_diagnostics
 from services.translation.core.payload.parts.final_status import TRANSLATED_STATUS
 from services.translation.core.payload.parts.final_status import set_final_status
 from services.translation.core.payload.parts.result_entries import salvage_reasoning_leak
@@ -231,17 +232,19 @@ def _apply_reconstruction(items: list[dict], translated_text: str) -> None:
         item["classification_label"] = "llm_reconstructed_garbled"
         item["skip_reason"] = ""
         set_final_status(item, TRANSLATED_STATUS)
-        diagnostics = dict(item.get("translation_diagnostics") or {})
-        diagnostics["final_status"] = "translated"
-        diagnostics["garbled_reconstructed"] = True
-        diagnostics["degradation_reason"] = "garbled_reconstructed"
-        diagnostics["fallback_to"] = ""
-        if salvaged:
-            diagnostics["reasoning_leak_salvaged"] = True
-        route_path = [str(part or "") for part in diagnostics.get("route_path") or [] if str(part or "")]
+        prior = dict(item.get("translation_diagnostics") or {})
+        route_path = [str(part or "") for part in prior.get("route_path") or [] if str(part or "")]
         route_path = [part for part in route_path if part != "failed"]
-        diagnostics["route_path"] = route_path + ["garbled_reconstruction"]
-        item["translation_diagnostics"] = diagnostics
+        updates = {
+            "final_status": "translated",
+            "garbled_reconstructed": True,
+            "degradation_reason": "garbled_reconstructed",
+            "fallback_to": "",
+            "route_path": route_path + ["garbled_reconstruction"],
+        }
+        if salvaged:
+            updates["reasoning_leak_salvaged"] = True
+        record_translation_diagnostics(item, "garbled_reconstruction", updates)
 
 
 def _candidate_key(item: dict) -> str:
@@ -265,11 +268,15 @@ def _validate_reconstruction(item: dict, translated_text: str) -> list:
 
 
 def _record_reconstruction_rejected(item: dict, issues: list) -> None:
-    diagnostics = dict(item.get("translation_diagnostics") or {})
-    diagnostics["garbled_reconstruction_rejected"] = True
-    diagnostics["garbled_reconstruction_issue_kinds"] = [issue.kind for issue in issues]
-    diagnostics["garbled_reconstruction_issues"] = [issue.as_dict() for issue in issues]
-    item["translation_diagnostics"] = diagnostics
+    record_translation_diagnostics(
+        item,
+        "garbled_reconstruction",
+        {
+            "garbled_reconstruction_rejected": True,
+            "garbled_reconstruction_issue_kinds": [issue.kind for issue in issues],
+            "garbled_reconstruction_issues": [issue.as_dict() for issue in issues],
+        },
+    )
 
 
 def _collect_candidates(items: list[dict]) -> tuple[dict[str, list[dict]], dict[str, dict]]:

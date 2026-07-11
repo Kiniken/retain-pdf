@@ -6,6 +6,7 @@ import os
 
 from services.translation.artifacts import blocking_untranslated_items
 from services.translation.core.payload.parts.apply import apply_single_translated_entry
+from services.translation.core.payload.parts.diagnostics import record_translation_diagnostics
 from services.translation.core.payload.parts.policy_state import mark_keep_origin
 from services.translation.llm.shared.provider_runtime import request_chat_content
 from services.translation.llm.result_payload import result_entry
@@ -243,8 +244,12 @@ def _source_text(item: dict) -> str:
 
 
 def _mark_final_dead_letter(item: dict, exc: Exception | None) -> None:
-    diagnostics = dict(item.get("translation_diagnostics") or {})
-    diagnostics.update(
+    # 先 mark 再 record:record 写入时重读 item 上的最新诊断,
+    # 避免旧快照回写盖掉 mark_keep_origin 链路刚写入的内容。
+    mark_keep_origin(item)
+    record_translation_diagnostics(
+        item,
+        "final_recovery",
         {
             "item_id": item.get("item_id", ""),
             "page_idx": item.get("page_idx"),
@@ -255,16 +260,15 @@ def _mark_final_dead_letter(item: dict, exc: Exception | None) -> None:
             "dead_letter": True,
             "final_recovery_error_type": type(exc).__name__ if exc is not None else "UnknownError",
             "final_recovery_error": str(exc or ""),
-        }
+        },
     )
-    item["translation_diagnostics"] = diagnostics
-    mark_keep_origin(item)
-    item["translation_diagnostics"] = diagnostics
 
 
 def _mark_final_policy_keep_origin(item: dict) -> None:
-    diagnostics = dict(item.get("translation_diagnostics") or {})
-    diagnostics.update(
+    mark_keep_origin(item)
+    record_translation_diagnostics(
+        item,
+        "final_recovery",
         {
             "item_id": item.get("item_id", ""),
             "page_idx": item.get("page_idx"),
@@ -272,10 +276,8 @@ def _mark_final_policy_keep_origin(item: dict) -> None:
             "fallback_to": "policy_keep_origin",
             "degradation_reason": "policy_keep_origin",
             "final_status": "kept_origin",
-        }
+        },
     )
-    mark_keep_origin(item)
-    item["translation_diagnostics"] = diagnostics
 
 
 __all__ = [
