@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from .common import clear_translation_fields
+from .final_status import FAILED_STATUS
+from .final_status import KEPT_ORIGIN_STATUS
+from .final_status import set_final_status
 
 
 KEEP_ORIGIN_LABEL = "skip_model_keep_origin"
-KEPT_ORIGIN_STATUS = "kept_origin"
-FAILED_STATUS = "failed"
 
 
 def preserve_source_as_translation(item: dict) -> None:
@@ -31,7 +32,7 @@ def mark_policy_skip(
     clear_translation_fields(item)
     if preserve_source:
         preserve_source_as_translation(item)
-    item["final_status"] = KEPT_ORIGIN_STATUS
+    set_final_status(item, KEPT_ORIGIN_STATUS)
 
 
 def mark_keep_origin(item: dict, *, reason: str = KEEP_ORIGIN_LABEL) -> None:
@@ -46,7 +47,7 @@ def mark_translation_required(item: dict, *, label: str = "") -> None:
 
 def mark_translation_failed_policy_state(item: dict) -> None:
     mark_translation_required(item)
-    item["final_status"] = FAILED_STATUS
+    set_final_status(item, FAILED_STATUS)
     clear_translation_fields(item)
 
 

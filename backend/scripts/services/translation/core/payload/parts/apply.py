@@ -8,6 +8,8 @@ from .common import (
     existing_group_unit_id,
     is_group_unit_id,
 )
+from .final_status import TRANSLATED_STATUS
+from .final_status import set_final_status
 from .group_split import math_spans
 from .group_split import split_group_protected_translation
 from .result_entries import extract_result_metadata
@@ -161,7 +163,7 @@ def apply_group_translated_entry(items: list[dict], raw_result) -> None:
             diagnostics["group_member_translation_source"] = "structured"
         if diagnostics:
             item["translation_diagnostics"] = diagnostics
-        item["final_status"] = str(metadata.get("final_status", "") or "translated")
+        set_final_status(item, str(metadata.get("final_status", "") or TRANSLATED_STATUS))
 
 
 def apply_single_translated_entry(
@@ -224,7 +226,7 @@ def apply_single_translated_entry(
     diagnostics = result_diagnostics_for_item(metadata, item)
     if diagnostics:
         item["translation_diagnostics"] = diagnostics
-    item["final_status"] = str(metadata.get("final_status", "") or "translated")
+    set_final_status(item, str(metadata.get("final_status", "") or TRANSLATED_STATUS))
 
 
 def apply_translated_text_map(payload: list[dict], translated: dict) -> None:

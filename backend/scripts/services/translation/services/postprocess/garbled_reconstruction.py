@@ -9,6 +9,8 @@ from typing import Callable
 
 from services.translation.core.item_reader import item_block_kind
 from services.translation.core.payload.formula_protection import restore_protected_tokens
+from services.translation.core.payload.parts.final_status import TRANSLATED_STATUS
+from services.translation.core.payload.parts.final_status import set_final_status
 from services.translation.core.payload.parts.result_entries import salvage_reasoning_leak
 from services.translation.llm.shared.structured_models import GARBLED_RECONSTRUCTION_RESPONSE_SCHEMA
 from services.translation.llm.shared.structured_parsers import parse_garbled_reconstruction_response
@@ -228,7 +230,7 @@ def _apply_reconstruction(items: list[dict], translated_text: str) -> None:
         item["group_translated_text"] = cleaned_text
         item["classification_label"] = "llm_reconstructed_garbled"
         item["skip_reason"] = ""
-        item["final_status"] = "translated"
+        set_final_status(item, TRANSLATED_STATUS)
         diagnostics = dict(item.get("translation_diagnostics") or {})
         diagnostics["final_status"] = "translated"
         diagnostics["garbled_reconstructed"] = True
