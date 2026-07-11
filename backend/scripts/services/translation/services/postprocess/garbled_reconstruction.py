@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from typing import Callable
 
 from services.translation.core.item_reader import item_block_kind
+from services.translation.core.payload.formula_protection import restore_protected_tokens
+from services.translation.core.payload.parts.result_entries import salvage_reasoning_leak
 from services.translation.llm.shared.structured_models import GARBLED_RECONSTRUCTION_RESPONSE_SCHEMA
 from services.translation.llm.shared.structured_parsers import parse_garbled_reconstruction_response
 from services.translation.artifacts.status import has_translation_artifact
@@ -199,21 +201,31 @@ def _repair_item_translation(item: dict, *, runtime: GarbledReconstructionRuntim
     return parse_garbled_reconstruction_response(content)
 
 
+def _clean_reconstructed_text(text: str, item: dict) -> tuple[str, bool]:
+    # 复用主翻译回填的清洗:剥离模型 reasoning 泄漏,再还原占位符。
+    # 其它翻译/修复路径都经 apply.py 做这两步,唯独乱码重建曾直接落盘模型原始输出。
+    salvaged, salvage_changed = salvage_reasoning_leak(text)
+    protected_map = item.get("protected_map") or item.get("formula_map", [])
+    return restore_protected_tokens(salvaged, protected_map), salvage_changed
+
+
 def _apply_reconstruction(items: list[dict], translated_text: str) -> None:
-    if not translated_text:
+    if not translated_text or not items:
         return
-    validation_issues = _validate_reconstruction(items[0], translated_text) if items else []
+    cleaned_text, salvaged = _clean_reconstructed_text(translated_text, items[0])
+    # 用清洗后的文本做质量校验:落盘什么就校验什么。
+    validation_issues = _validate_reconstruction(items[0], cleaned_text)
     if validation_issues:
         for item in items:
             _record_reconstruction_rejected(item, validation_issues)
         return
     for item in items:
-        item["protected_translated_text"] = translated_text
-        item["translated_text"] = translated_text
-        item["translation_unit_protected_translated_text"] = translated_text
-        item["translation_unit_translated_text"] = translated_text
-        item["group_protected_translated_text"] = translated_text
-        item["group_translated_text"] = translated_text
+        item["protected_translated_text"] = cleaned_text
+        item["translated_text"] = cleaned_text
+        item["translation_unit_protected_translated_text"] = cleaned_text
+        item["translation_unit_translated_text"] = cleaned_text
+        item["group_protected_translated_text"] = cleaned_text
+        item["group_translated_text"] = cleaned_text
         item["classification_label"] = "llm_reconstructed_garbled"
         item["skip_reason"] = ""
         item["final_status"] = "translated"
@@ -222,6 +234,8 @@ def _apply_reconstruction(items: list[dict], translated_text: str) -> None:
         diagnostics["garbled_reconstructed"] = True
         diagnostics["degradation_reason"] = "garbled_reconstructed"
         diagnostics["fallback_to"] = ""
+        if salvaged:
+            diagnostics["reasoning_leak_salvaged"] = True
         route_path = [str(part or "") for part in diagnostics.get("route_path") or [] if str(part or "")]
         route_path = [part for part in route_path if part != "failed"]
         diagnostics["route_path"] = route_path + ["garbled_reconstruction"]
