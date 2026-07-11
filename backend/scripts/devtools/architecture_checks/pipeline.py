@@ -17,6 +17,7 @@ from devtools.architecture_checks.translation import check_translation_pipeline_
 from devtools.architecture_checks.translation import check_translation_public_surface_usage
 from devtools.architecture_checks.translation import check_translation_rendering_separation
 from devtools.architecture_checks.translation import check_translation_worker_protocol
+from devtools.architecture_checks.translation_field_writers import check_translation_payload_field_writers
 
 
 def main() -> int:
@@ -35,6 +36,7 @@ def main() -> int:
         check_rendering_internal_boundaries(errors)
         check_translation_rendering_separation(errors)
         check_translation_internal_boundaries(errors)
+        check_translation_payload_field_writers(errors)
     except ArchitectureCheckSyntaxError as exc:
         errors.append(str(exc))
     if errors:
