@@ -1,24 +1,22 @@
-@layer components {
-  .app-settings-dialog {
-    width: min(520px, calc(100vw - 24px));
-  }
+@utility app-settings-dialog {
+  width: min(520px, calc(100vw - 24px));
+}
 
-  .app-settings-shell {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-    max-height: min(620px, calc(100vh - 24px));
-  }
+@utility app-settings-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: min(620px, calc(100vh - 24px));
+}
 
-  .app-settings-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 18px 20px;
-    border-bottom: 1px solid #ececf1;
-  }
+@utility app-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid #ececf1;
 
-  .app-settings-head h2 {
+  & h2 {
     margin: 0;
     color: var(--ink);
     font-size: 17px;
@@ -26,31 +24,31 @@
     letter-spacing: 0;
   }
 
-  .app-settings-head p {
+  & p {
     margin: 4px 0 0;
     color: var(--muted);
     font-size: 12px;
   }
+}
 
-  .app-settings-body {
-    display: grid;
-    gap: 14px;
-    min-height: 0;
-    padding: 16px;
-    background: #fbfbfd;
-  }
+@utility app-settings-body {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+  padding: 16px;
+  background: #fbfbfd;
+}
 
-  .app-settings-tabs {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 4px;
-    padding: 4px;
-    border: 1px solid #d2d2d7;
-    border-radius: 999px;
-    background: #ffffff;
-  }
+@utility app-settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #d2d2d7;
+  border-radius: 999px;
+  background: #ffffff;
 
-  .app-settings-tabs button {
+  & button {
     min-height: 32px;
     padding: 0 10px;
     border: 0;
@@ -63,32 +61,43 @@
     box-shadow: none;
   }
 
-  .app-settings-tabs button.is-active {
+  & button.is-active {
+    background: var(--ink);
+    color: #ffffff;
+  }
+}
+
+@utility is-active {
+  .app-settings-tabs &button {
     background: var(--ink);
     color: #ffffff;
   }
 
-  .app-settings-panel {
-    display: none;
-    gap: 14px;
-    padding: 16px;
-    border: 1px solid #ececf1;
-    border-radius: 18px;
-    background: #ffffff;
-  }
-
-  .app-settings-panel.is-active {
+  &.app-settings-panel {
     display: grid;
   }
+}
 
-  .app-settings-panel-copy {
+@utility app-settings-panel {
+  display: none;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid #ececf1;
+  border-radius: 18px;
+  background: #ffffff;
+
+  &.is-active {
     display: grid;
-    grid-template-columns: 42px minmax(0, 1fr);
-    gap: 12px;
-    align-items: start;
   }
+}
 
-  .app-settings-panel-copy svg {
+@utility app-settings-panel-copy {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+
+  & svg {
     width: 42px;
     height: 42px;
     padding: 9px;
@@ -98,36 +107,36 @@
     color: var(--ink);
   }
 
-  .app-settings-panel-copy strong {
+  & strong {
     display: block;
     color: var(--ink);
     font-size: 14px;
     font-weight: 700;
   }
 
-  .app-settings-panel-copy span {
+  & span {
     display: block;
     margin-top: 4px;
     color: var(--muted);
     font-size: 12px;
     line-height: 1.55;
   }
+}
 
-  .app-settings-action {
-    justify-self: start;
-    min-height: 36px;
-    padding: 0 15px;
-    border: 1px solid var(--ink);
-    border-radius: 999px;
-    background: var(--ink);
-    color: #ffffff;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1;
-    box-shadow: none;
-  }
+@utility app-settings-action {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 15px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: var(--ink);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: none;
 
-  .app-settings-action:hover {
+  &:hover {
     background: #000000;
     color: #ffffff;
   }

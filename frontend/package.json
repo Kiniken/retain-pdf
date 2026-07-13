@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "npm run prepare:vendor && npm run generate:version && npm run build:css && npm run build:js",
-    "build:css": "tailwindcss -c tailwind.config.js -i ./src/input.css -o ./styles.css --minify",
+    "build:css": "tailwindcss -i ./src/input.css -o ./styles.css --minify",
     "build:js": "node ./scripts/build-js-bundle.mjs",
     "generate:version": "node ./scripts/generate-app-version.mjs",
     "prepare:vendor": "node ./scripts/prepare-runtime-deps.mjs",
@@ -16,18 +16,19 @@
     "smoke:parallel-status": "python3 ./scripts/frontend-parallel-status-smoke.py",
     "smoke:status": "node ./scripts/frontend-status-smoke.mjs",
     "test": "node --import ./tests/helpers/register-jsx.mjs --test --test-force-exit tests/*.test.mjs",
-    "watch:css": "tailwindcss -c tailwind.config.js -i ./src/input.css -o ./styles.css --watch",
+    "watch:css": "tailwindcss -i ./src/input.css -o ./styles.css --watch",
     "watch:js": "node ./scripts/build-js-bundle.mjs --watch",
     "visual:check": "node ./scripts/visual-check.mjs",
     "visual:update": "node ./scripts/visual-check.mjs --update"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.2",
     "esbuild": "^0.28.0",
     "jsdom": "^29.1.1",
     "pixelmatch": "^7.2.0",
     "playwright": "^1.61.1",
     "pngjs": "^7.0.0",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^4.3.2"
   },
   "dependencies": {
     "lottie-web": "^5.13.0",

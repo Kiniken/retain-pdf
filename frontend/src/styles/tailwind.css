@@ -1,3 +1,69 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+/*
+  显式声明 content 来源(对应原 tailwind.config.js 的 content 数组),
+  不依赖 v4 的自动探测——路径相对本文件(src/styles/)解析。
+*/
+@source '../../index.html';
+@source '../../detail.html';
+@source '../../reader.html';
+@source '../js/**/*.js';
+@source '../js/**/*.jsx';
+@source '../pages/**/*.js';
+@source '../pages/**/*.jsx';
+@source '../shared/**/*.js';
+@source '../partials/**/*.html';
+
+/*
+  危险区修复(Tailwind v4 迁移):v4 的内容扫描是纯文本 token 提取,不理解 JS
+  语法。项目里大量 JSX 用 `` `class-name${cond ? " x" : ""}` `` 这种模板字符
+  串拼类名,类名和 `${` 之间没有分隔符时,扫描器会把 "class-name${cond" 当成
+  一个整体 token,提取不出 "class-name" 本身。这些类名对应的自定义类被迁移
+  工具转成了 `@utility <name> {}`(v4 里 @utility 和内置工具类一样按需生成,
+  不再像 v3 的手写 CSS 那样无条件编译进产物),于是它们的样式在 v4 下静默
+  丢失(class 还在 DOM 上,但对应 CSS 规则整条消失,不报错)。
+  下面显式 safelist 这些类名(经比对 v3 编译产物逐个确认:v3 下确有内容,
+  v4 编译产物里裸选择器规则消失)——不改 JSX 源码,把修复收在 CSS 侧,和本
+  阶段"只做 Tailwind 升级"的范围保持一致。
+*/
+@source inline("app-settings-panel credential-provider-panel credential-tabs credential-top-up-link detail-item detail-tab detail-tab-panel glossary-list-item progress-bar recent-job-cover status-result-actions status-substage-flow status-substage-step");
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-weak: var(--accent-weak);
+  --color-danger: var(--danger);
+  --color-danger-weak: var(--danger-weak);
+  --color-ok: var(--ok);
+  --color-ok-weak: var(--ok-weak);
+  --color-warn: var(--warn);
+  --color-warn-weak: var(--warn-weak);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --shadow-soft: 0 10px 30px rgba(80, 66, 40, 0.08);
+  --shadow-panel: 0 18px 48px rgba(37, 31, 20, 0.22);
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
