@@ -1,12 +1,24 @@
 @utility desktop-dialog {
-  @apply fixed inset-0 m-auto overflow-visible border-0 bg-transparent p-0;
+  @apply fixed inset-0 z-[101] m-auto overflow-visible border-0 bg-transparent p-0;
   width: min(720px, calc(100vw - 24px));
   max-height: calc(100vh - 24px);
   border-radius: 24px;
 
+  /* ::backdrop 只对原生 <dialog>(showModal 后的浏览器 top-layer)生效——
+     StatusDetailDialog/ReaderDialog/PageRangeDialog/TranslationWorkflowDialog
+     这几个还没迁移到 Radix 的对话框仍靠这条规则出背板;已迁移到 Radix
+     Dialog 的对话框(CredentialsDialog/GlossariesDialog/SettingsHubDialog/
+     AppUpdateBanner)不再是 <dialog> 元素,背板改由下面的
+     desktop-dialog-overlay 工具类(挂在 DialogPrimitive.Overlay 上)负责,
+     两者并存,互不冲突。 */
   &::backdrop {
     background: rgba(15, 23, 42, 0.3);
   }
+}
+
+@utility desktop-dialog-overlay {
+  @apply fixed inset-0 z-[100];
+  background: rgba(15, 23, 42, 0.3);
 }
 
 @utility desktop-shell {

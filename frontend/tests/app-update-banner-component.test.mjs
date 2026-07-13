@@ -8,7 +8,7 @@ import { JSDOM } from "jsdom";
 // "更新"tab 的按钮 + 详情 dialog 合并挂载、AppShellHeader 不再残留旧模板。
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/index.html" });
-for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver"]) {
+for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
   Object.defineProperty(globalThis, key, {
     value: dom.window[key] ?? dom.window,
     writable: true,
@@ -84,9 +84,12 @@ async function mountHome(services) {
   return { host, root };
 }
 
+// 阶段 C(shadcn 改造):SettingsHubDialog/AppUpdateBanner 详情 dialog 换成
+// Radix Dialog 后不 forceMount Content,关闭态下整个内容都不挂载(不再是
+// 原生 <dialog>.open 布尔属性),下面全部改用"是否挂载"判断打开态。
 async function openUpdateTab() {
   click(byId("app-settings-btn"));
-  await waitFor(() => byId("app-settings-dialog").open === true, "设置对话框打开");
+  await waitFor(() => byId("app-settings-dialog") !== null, "设置对话框打开");
   click(dom.window.document.querySelector('[data-settings-tab="update"]'));
   await wait(0);
 }
@@ -94,7 +97,7 @@ async function openUpdateTab() {
 async function openUpdateDialog() {
   await openUpdateTab();
   click(byId("app-update-btn"));
-  await waitFor(() => byId("app-update-dialog").open === true, "更新详情对话框打开");
+  await waitFor(() => byId("app-update-dialog") !== null, "更新详情对话框打开");
 }
 
 test("AppUpdateBanner：契约 id、AppShellHeader 不再残留重复模板", async () => {
@@ -105,7 +108,12 @@ test("AppUpdateBanner：契约 id、AppShellHeader 不再残留重复模板", as
   });
   const { host, root } = await mountHome(services);
 
-  await openUpdateTab();
+  // "app-update-dialog"/"app-update-status"/"app-update-check-btn" 挂在
+  // AppUpdateBanner 自己的详情 dialog(本地 useAppUpdateDialogOpen 驱动的
+  // Radix Dialog,阶段 C 换血后不 forceMount)下,只有点开"检查更新"按钮之后
+  // 才存在于 DOM——用 openUpdateDialog() 而不是 openUpdateTab(),把这一层
+  // 触发也做了才符合"契约 id 逐一存在"的断言前提。
+  await openUpdateDialog();
   for (const id of ["app-update-btn", "app-update-dialog", "app-update-status", "app-update-check-btn"]) {
     assert.ok(byId(id), `契约 id 缺失：#${id}`);
   }
@@ -173,7 +181,7 @@ test("AppUpdateBanner：启动缓存命中(fresh)直接展示,不发起网络请
   assert.equal(byId("app-update-btn").classList.contains("has-update"), true);
 
   click(byId("app-update-btn"));
-  await waitFor(() => byId("app-update-dialog").open === true, "打开详情对话框");
+  await waitFor(() => byId("app-update-dialog") !== null, "打开详情对话框");
   assert.match(byId("app-update-dialog").querySelector("h2").textContent, /RetainPDF 9\.9\.9/);
   assert.equal(byId("app-update-dialog").querySelector("p").textContent, "当前 1.0.0 · 最新 9.9.9");
   assert.equal(byId("app-update-dialog").querySelector(".app-update-link").classList.contains("hidden"), false);

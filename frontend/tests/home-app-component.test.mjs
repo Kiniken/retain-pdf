@@ -8,7 +8,7 @@ import { JSDOM } from "jsdom";
 // 状态区可见性 → 对话框模式同步、3b 回调桥接口定型。
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/index.html" });
-for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver"]) {
+for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
   Object.defineProperty(globalThis, key, {
     value: dom.window[key] ?? dom.window,
     writable: true,
@@ -94,9 +94,15 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   await wait(0);
 
   // ---- DOM 契约:三域 + 占位容器 id 逐一存在 ----
+  // 注意:"app-update-dialog"/"app-update-status"/"app-update-check-btn" 不在
+  // 这个列表里——阶段 C(shadcn 改造)后 SettingsHubDialog/AppUpdateBanner 换成
+  // Radix Dialog,不 forceMount Content,这三个 id 挂在 SettingsHubDialog 的
+  // Content 子树下,只有设置对话框被打开过之后才存在于 DOM(此前原生 <dialog>
+  // 是常驻挂载,只是原生显示态切换,详见 SettingsHubDialog.jsx 头注释的行为
+  // 变化说明)。它们的存在性挪到下面单独打开设置对话框后再断言。
   const contractIds = [
     // app-shell
-    "app-shell", "developer-btn", "open-output-btn", "app-update-dialog", "app-update-status", "app-update-check-btn",
+    "app-shell", "developer-btn", "open-output-btn",
     // library 骨架(3b 占位)
     "library-view", "recent-jobs-scroll-body", "recent-jobs-summary", "recent-jobs-empty",
     "library-grid", "recent-jobs-list", "load-more-jobs-btn", "open-query-btn", "library-search-input",
@@ -118,6 +124,22 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   for (const id of contractIds) {
     assert.ok(byId(id), `契约 id 缺失：#${id}`);
   }
+
+  // ---- app-update-* 三个契约 id:"app-update-btn" 挂在 SettingsHubDialog
+  //      Content 下(TabsPrimitive.Content 的 forceMount 让"更新"tab 面板即使
+  //      非激活也常驻挂载,只是 hidden),打开设置对话框即存在;
+  //      "app-update-dialog"/"app-update-status"/"app-update-check-btn" 则是
+  //      AppUpdateBanner 自己的详情 dialog 内容(阶段 C 换血后不
+  //      forceMount),还需要点一次"检查更新"按钮才会挂载。 ----
+  click(byId("app-settings-btn"));
+  await waitFor(() => byId("app-update-btn"), "设置对话框打开后 app-update-btn 挂载");
+  click(byId("app-update-btn"));
+  await waitFor(() => byId("app-update-dialog"), "点击检查更新后 app-update-dialog 挂载");
+  for (const id of ["app-update-status", "app-update-check-btn"]) {
+    assert.ok(byId(id), `契约 id 缺失：#${id}`);
+  }
+  services.settingsHub.dialogStore.close();
+  await waitFor(() => byId("app-update-dialog") === null, "关闭设置对话框");
 
   // ---- idle 复位链:上传瓦片回到默认态,提交按钮置灰 ----
   assert.equal(byId("file-label").textContent, "点击选择文件或拖到这里");

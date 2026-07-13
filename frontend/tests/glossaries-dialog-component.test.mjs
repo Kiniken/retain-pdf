@@ -8,7 +8,7 @@ import { JSDOM } from "jsdom";
 // 反向回调断言(mock workflow 域)、APP_EVENTS.refreshGlossaries 触发刷新。
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/index.html" });
-for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver"]) {
+for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "HTMLTextAreaElement", "HTMLSelectElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
   Object.defineProperty(globalThis, key, {
     value: dom.window[key] ?? dom.window,
     writable: true,
@@ -195,12 +195,15 @@ async function settle(services, calls) {
 }
 
 async function openGlossariesDialog() {
+  // 阶段 C(shadcn 改造):SettingsHubDialog/GlossariesDialog 换成 Radix Dialog
+  // 后不 forceMount Content,关闭态下整个内容都不挂载(不再是原生
+  // <dialog>.open 布尔属性),这里改用"是否挂载"判断打开态。
   click(byId("app-settings-btn"));
-  await waitFor(() => byId("app-settings-dialog").open === true, "设置对话框打开");
+  await waitFor(() => byId("app-settings-dialog") !== null, "设置对话框打开");
   click(dom.window.document.querySelector('[data-settings-tab="glossary"]'));
   await wait(0);
   click(byId("glossary-btn"));
-  await waitFor(() => byId("glossary-manager-dialog").open === true, "术语表对话框打开");
+  await waitFor(() => byId("glossary-manager-dialog") !== null, "术语表对话框打开");
 }
 
 test("GlossariesDialog：契约 id、打开即刷新列表、选中态、编辑器回填(preserve 词条译文留空)", async () => {

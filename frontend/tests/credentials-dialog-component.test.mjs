@@ -9,7 +9,7 @@ import { JSDOM } from "jsdom";
 // 词表/更新两个 tab 的占位 id 契约。
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/index.html" });
-for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver"]) {
+for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
   Object.defineProperty(globalThis, key, {
     value: dom.window[key] ?? dom.window,
     writable: true,
@@ -128,9 +128,15 @@ test("CredentialsDialog：契约 id、openBrowserCredentials 事件打开、setu
   const services = createServices();
   const { host, root } = await mountHome(services);
 
-  const dialog = byId("browser-credentials-dialog");
-  assert.ok(dialog, "对话框常驻挂载");
-  assert.equal(dialog.open, false, "初始未打开");
+  // 阶段 C(shadcn 改造):CredentialsDialog 换成 Radix Dialog 后不 forceMount
+  // Content——对话框关闭时整个内容(含下面这批契约 id)都不挂载,与此前原生
+  // <dialog>"常驻挂载、只是原生显示态切换"不同(CredentialsDialog.jsx 头注释
+  // 有完整说明:forceMount 会撞上 Radix modal Content 的 hideOthers 无障碍
+  // 缺陷)。这里改为断言"未打开时不挂载",契约 id 存在性挪到打开之后再查。
+  assert.equal(byId("browser-credentials-dialog"), null, "初始未打开时不挂载");
+
+  dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
+  await waitFor(() => byId("browser-credentials-dialog") !== null, "普通打开");
 
   for (const id of [
     "browser-credentials-title", "browser-credentials-close-btn", "browser-credentials-status",
@@ -142,8 +148,6 @@ test("CredentialsDialog：契约 id、openBrowserCredentials 事件打开、setu
     assert.ok(byId(id), `契约 id 缺失：#${id}`);
   }
 
-  dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
-  await waitFor(() => byId("browser-credentials-dialog").open === true, "普通打开");
   assert.equal(byId("browser-credentials-title").textContent, "接口设置");
   assert.equal(byId("browser-credentials-save-btn").textContent, "保存");
   assert.equal(byId("browser-credentials-tabs").classList.contains("hidden"), false);
@@ -167,15 +171,15 @@ test("CredentialsDialog：#credentials-btn(设置)与 #credential-gate-action(�
   const { host, root } = await mountHome(services);
 
   click(byId("app-settings-btn"));
-  await waitFor(() => byId("app-settings-dialog").open === true, "设置对话框打开");
+  await waitFor(() => byId("app-settings-dialog") !== null, "设置对话框打开");
   click(byId("credentials-btn"));
-  await waitFor(() => byId("browser-credentials-dialog").open === true, "credentials-btn 打开凭据对话框");
+  await waitFor(() => byId("browser-credentials-dialog") !== null, "credentials-btn 打开凭据对话框");
 
   services.credentials.dialogStore.close();
-  await waitFor(() => byId("browser-credentials-dialog").open === false, "关闭凭据对话框");
+  await waitFor(() => byId("browser-credentials-dialog") === null, "关闭凭据对话框");
 
   click(byId("credential-gate-action"));
-  await waitFor(() => byId("browser-credentials-dialog").open === true, "credential-gate-action 打开凭据对话框");
+  await waitFor(() => byId("browser-credentials-dialog") !== null, "credential-gate-action 打开凭据对话框");
 
   root.unmount();
   services.dispose();
@@ -187,7 +191,7 @@ test("CredentialsDialog：OCR/DeepSeek 校验三态(缺失/错误/通过)", asyn
   const { host, root } = await mountHome(services);
 
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
-  await waitFor(() => byId("browser-credentials-dialog").open === true, "打开对话框");
+  await waitFor(() => byId("browser-credentials-dialog") !== null, "打开对话框");
 
   // ---- OCR(paddle):缺失 → 错误 → 通过 ----
   click(byId("browser-paddle-validate-btn"));
@@ -212,7 +216,7 @@ test("CredentialsDialog：OCR/DeepSeek 校验三态(缺失/错误/通过)", asyn
   click(byId("browser-credentials-save-btn"));
   await waitFor(() => byId("browser-deepseek-validation").title === "请先填写 DeepSeek Key。", "DeepSeek 缺失态(经保存守卫触发)");
   assert.equal(byId("browser-deepseek-validation").classList.contains("is-error"), true);
-  assert.equal(byId("browser-credentials-dialog").open, true, "缺字段时保存应被拦截,对话框不关闭");
+  assert.notEqual(byId("browser-credentials-dialog"), null, "缺字段时保存应被拦截,对话框不关闭");
 
   typeInput(byId("browser-api-key"), "bad-key");
   click(byId("browser-deepseek-validate-btn"));
@@ -236,13 +240,13 @@ test("CredentialsDialog：保存(浏览器模式)——写隐藏 input、同步 
   const { host, root } = await mountHome(services);
 
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
-  await waitFor(() => byId("browser-credentials-dialog").open === true, "打开对话框");
+  await waitFor(() => byId("browser-credentials-dialog") !== null, "打开对话框");
 
   typeInput(byId("browser-paddle-token"), "paddle-secret");
   typeInput(byId("browser-api-key"), "deepseek-secret");
 
   click(byId("browser-credentials-save-btn"));
-  await waitFor(() => byId("browser-credentials-dialog").open === false, "保存成功后对话框关闭");
+  await waitFor(() => byId("browser-credentials-dialog") === null, "保存成功后对话框关闭");
 
   assert.equal(byId("paddle_token").value, "paddle-secret", "隐藏 input 桥接:paddle_token");
   assert.equal(byId("api_key").value, "deepseek-secret", "隐藏 input 桥接:api_key");
@@ -272,7 +276,7 @@ test("CredentialsDialog：保存(桌面模式)——走 saveDesktopConfig 分支
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials, {
     detail: { setupMode: true },
   }));
-  await waitFor(() => byId("browser-credentials-dialog").open === true, "打开对话框(setupMode)");
+  await waitFor(() => byId("browser-credentials-dialog") !== null, "打开对话框(setupMode)");
 
   typeInput(byId("browser-paddle-token"), "paddle-desktop");
   typeInput(byId("browser-api-key"), "deepseek-desktop");
@@ -283,7 +287,7 @@ test("CredentialsDialog：保存(桌面模式)——走 saveDesktopConfig 分支
   assert.equal(desktopCalls[0].modelApiKey, "deepseek-desktop");
   assert.equal(desktopCalls[0].extra.paddleToken, "paddle-desktop");
   assert.equal(desktopCalls[0].extra.markConfigured, true, "setupMode 下应标记首次配置完成");
-  await waitFor(() => byId("browser-credentials-dialog").open === false, "保存成功后对话框关闭");
+  await waitFor(() => byId("browser-credentials-dialog") === null, "保存成功后对话框关闭");
 
   root.unmount();
   services.dispose();
@@ -333,7 +337,7 @@ test("SettingsHubDialog：词表/更新两个 tab 的占位契约 id", async () 
   const { host, root } = await mountHome(services);
 
   click(byId("app-settings-btn"));
-  await waitFor(() => byId("app-settings-dialog").open === true, "设置对话框打开");
+  await waitFor(() => byId("app-settings-dialog") !== null, "设置对话框打开");
 
   const glossaryTab = dom.window.document.querySelector('[data-settings-tab="glossary"]');
   click(glossaryTab);
