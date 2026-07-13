@@ -347,6 +347,145 @@
   white-space: nowrap;
 }
 
+/* ===== 云端收藏区(服务端 favorites,独立于本地截图摘录) ===== */
+
+.reader-favorite-server-section {
+  display: none;
+  align-content: start;
+  gap: 8px;
+  max-height: 32vh;
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  user-select: none;
+}
+
+.reader-favorite-server-section::-webkit-scrollbar {
+  display: none;
+}
+
+.reader-favorites-drawer.is-populated:hover .reader-favorite-server-section:not(.is-empty),
+.reader-favorites-drawer.is-populated:focus-within .reader-favorite-server-section:not(.is-empty),
+.reader-favorites-drawer.is-open .reader-favorite-server-section:not(.is-empty) {
+  display: grid;
+}
+
+.reader-favorite-server-head {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.reader-favorite-server-card {
+  display: grid;
+  gap: 4px;
+  width: 200px;
+  padding: 8px 10px;
+  border: 1px solid rgba(29, 29, 31, 0.08);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  user-select: none;
+  transition: box-shadow 160ms ease;
+}
+
+.reader-favorite-server-card:hover {
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
+}
+
+.reader-favorite-server-card:focus-visible {
+  outline: 2px solid rgba(0, 113, 227, 0.72);
+  outline-offset: 2px;
+}
+
+.reader-favorite-server-top {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reader-favorite-server-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(29, 29, 31, 0.06);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.reader-favorite-server-meta {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.reader-favorite-server-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.reader-favorite-server-remove:hover {
+  background: var(--ink);
+  color: #fff;
+}
+
+.reader-favorite-server-remove:focus-visible {
+  outline: 2px solid rgba(0, 113, 227, 0.72);
+  outline-offset: 2px;
+}
+
+.reader-favorite-server-top .reader-delete-popover {
+  top: -4px;
+  right: 24px;
+}
+
+.reader-favorite-server-quote {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.reader-favorite-server-quote-translated {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 @media (max-width: 720px) {
   .reader-favorites-drawer {
     --reader-side-drawer-width: 100vw;
@@ -425,5 +564,16 @@
   .reader-favorites-drawer.is-populated:hover .reader-favorite-editor,
   .reader-favorites-drawer.is-populated:focus-within .reader-favorite-editor {
     display: none;
+  }
+
+  /* 移动端无 hover:云端区只要非空就展示,卡片宽度自适应 */
+  .reader-favorite-server-section:not(.is-empty) {
+    display: grid;
+    max-width: calc(100vw - 32px);
+    max-height: 28vh;
+  }
+
+  .reader-favorite-server-card {
+    width: auto;
   }
 }

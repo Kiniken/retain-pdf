@@ -2,24 +2,14 @@ import {
   createAppActionsRuntimeEnvPort,
 } from "../features/app-actions/runtime-env-port.js";
 import {
-  createAppActionsUploadStatePort,
-} from "../features/app-actions/upload-state-port.js";
-import {
   createCredentialRuntimeEnvPort,
 } from "../features/credentials/runtime-env-port.js";
 import {
-  createCredentialUploadReadinessPort,
-} from "../features/credentials/upload-readiness-port.js";
-import {
-  createCredentialBalanceStatePort,
-} from "../features/credentials/balance-state-port.js";
-import {
-  createCredentialLegacyRuntimePort,
-} from "../features/credentials/legacy-runtime-port.js";
+  defaultCredentialsStatePort,
+} from "../features/credentials/default-state-port.js";
+import { getUploadStatePort } from "../features/upload/state.js";
 import {
   legacyDesktopStateAdapter,
-  legacyCredentialRuntimeStateAdapter,
-  legacyUploadStateAdapter,
 } from "./legacy-state-helper-adapters.js";
 
 export function createCredentialActionStateAdapterPort({
@@ -27,26 +17,26 @@ export function createCredentialActionStateAdapterPort({
   state,
   uploadStatePort,
 } = {}) {
+  // credential 运行时状态已统一到 app-framework store,不再写回旧全局 state
+  const credentialsPort = credentialsStatePort || defaultCredentialsStatePort;
+  // 上传状态统一走共享单例 port(getSnapshot/reset/setSubmitBusy 均具备)
+  const uploadPort = uploadStatePort || getUploadStatePort();
   return Object.freeze({
     appActionsRuntimeEnvPort: createAppActionsRuntimeEnvPort(state, legacyDesktopStateAdapter),
-    appActionsUploadStatePort: uploadStatePort
-      || createAppActionsUploadStatePort(state, legacyUploadStateAdapter),
-    browserCredentialsBalanceStatePort: createCredentialBalanceStatePort(
-      state,
-      credentialsStatePort,
-      legacyCredentialRuntimeStateAdapter,
-    ),
-    browserCredentialsLegacyRuntimePort: createCredentialLegacyRuntimePort(
-      state,
-      legacyCredentialRuntimeStateAdapter,
-    ),
+    appActionsUploadStatePort: uploadPort,
+    browserCredentialsBalanceStatePort: {
+      resetDeepSeekBalance: () => credentialsPort.resetDeepSeekBalance?.(),
+    },
+    browserCredentialsLegacyRuntimePort: {
+      resetDeepSeekBalance: () => credentialsPort.resetDeepSeekBalance?.(),
+      resetOcrValidationCache: () => credentialsPort.resetOcrValidationCache?.(),
+      setDeepSeekBalance: (balanceCny, checked = true) => credentialsPort.setDeepSeekBalance?.(balanceCny, checked),
+      setOcrValidationCache: (payload = {}) => credentialsPort.setOcrValidationCache?.(payload),
+    },
     browserCredentialsLegacyValidationCachePort: {
-      hasValidOcrValidationCache: (payload) => (
-        legacyCredentialRuntimeStateAdapter.hasValidOcrValidationCache(state, payload)
-      ),
+      hasValidOcrValidationCache: (payload) => credentialsPort.hasValidOcrValidationCache?.(payload),
     },
     browserCredentialsRuntimeEnvPort: createCredentialRuntimeEnvPort(state, legacyDesktopStateAdapter),
-    browserCredentialsUploadStatePort: uploadStatePort
-      || createCredentialUploadReadinessPort(state, legacyUploadStateAdapter),
+    browserCredentialsUploadStatePort: uploadPort,
   });
 }

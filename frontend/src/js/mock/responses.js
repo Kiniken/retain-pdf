@@ -44,7 +44,14 @@ startxref
 }
 
 export async function fetchMockProtected(url) {
-  const normalized = `${url || ""}`.trim();
+  const raw = `${url || ""}`.trim();
+  // job/artifacts.js#resolveJobMarkdownBundleAction (镜像真实后端行为)会给
+  // markdown bundle 追加 ?include_job_dir=true 查询串,source_pdf 等其它
+  // action 理论上也可能带查询串——mock 响应表只关心资源路径本身,统一按
+  // "?" 之前的部分匹配,避免真实 URL 契约(job/actions.js#appendResourceQuery)
+  // 变化时 mock 模式下载 404(artifact-downloads 域的下载按钮在
+  // ?mock=succeeded 下实测触发过此 404,详见 dialogs 蓝图 §7 验收记录)。
+  const normalized = raw.split("?")[0];
   if (normalized === "mock://translated.pdf") {
     return new Response(mockPdfBytes("Translated PDF"), {
       status: 200,

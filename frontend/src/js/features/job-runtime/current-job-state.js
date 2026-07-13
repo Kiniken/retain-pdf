@@ -4,9 +4,6 @@ export {
   currentJobManifest,
   currentJobStageActions,
 } from "./current-job-secondary-selectors.js";
-import {
-  createLegacyCurrentJobStatePort,
-} from "./legacy-current-job-state-port.js";
 
 const CURRENT_JOB_STORE_KEY = Symbol.for("retainpdf.currentJobStore");
 
@@ -73,31 +70,18 @@ export function currentJobStoreFor(state) {
   return state[CURRENT_JOB_STORE_KEY];
 }
 
-function defaultMirrorPortFor(state) {
-  return createLegacyCurrentJobStatePort(state);
-}
-
-function syncMirrorPort(mirrorPort, snapshot) {
-  mirrorPort?.sync?.(snapshot);
-}
-
-function applyCurrentJobAction(state, action, mirrorPort = defaultMirrorPortFor(state)) {
+function applyCurrentJobAction(state, action) {
   const store = currentJobStoreFor(state);
-  const snapshot = action(store);
-  syncMirrorPort(mirrorPort, snapshot);
-  return snapshot;
+  return action(store);
 }
 
-export function createCurrentJobStatePort(state, {
-  mirrorPort = defaultMirrorPortFor(state),
-} = {}) {
+export function createCurrentJobStatePort(state) {
   const store = currentJobStoreFor(state);
-  syncMirrorPort(mirrorPort, store.getSnapshot());
   function applyBatch(callback) {
     if (typeof callback !== "function") {
       return store.getSnapshot();
     }
-    const result = store.batch(({ actions }) => callback({
+    return store.batch(({ actions }) => callback({
       actions,
       cacheDiagnostics: actions.cacheDiagnostics,
       cacheResumePlan: actions.cacheResumePlan,
@@ -105,8 +89,6 @@ export function createCurrentJobStatePort(state, {
       getSnapshot: () => store.getSnapshot(),
       syncSnapshot: actions.syncSnapshot,
     }));
-    syncMirrorPort(mirrorPort, store.getSnapshot());
-    return result;
   }
   return {
     store,
@@ -128,40 +110,38 @@ export function createCurrentJobStatePort(state, {
     syncSnapshot: (job, jobId, meta = {}) => applyCurrentJobAction(
       state,
       (currentStore) => currentStore.actions.syncSnapshot(job, jobId, meta),
-      mirrorPort,
     ),
     clearTiming: () => applyCurrentJobAction(
       state,
       (currentStore) => currentStore.actions.clearTiming(),
-      mirrorPort,
     ),
     cacheDiagnostics: (jobId, payload) => applyCurrentJobAction(
       state,
       (currentStore) => currentStore.actions.cacheDiagnostics(jobId, payload),
-      mirrorPort,
     ),
     cacheResumePlan: (jobId, payload) => applyCurrentJobAction(
       state,
       (currentStore) => currentStore.actions.cacheResumePlan(jobId, payload),
-      mirrorPort,
     ),
   };
 }
 
+// 选择器读子 store 快照(store 是唯一真值,旧 state 对象只充当身份键)
 export function currentJobId(state) {
-  return `${state.currentJobId || ""}`.trim();
+  return `${currentJobStoreFor(state).getSnapshot().jobId || ""}`.trim();
 }
 
 export function currentJobSnapshot(state) {
-  return state.currentJobSnapshot || null;
+  return currentJobStoreFor(state).getSnapshot().snapshot || null;
 }
 
 export function currentJobFinishedAt(state) {
-  return `${state.currentJobFinishedAt || ""}`.trim();
+  return `${currentJobStoreFor(state).getSnapshot().finishedAt || ""}`.trim();
 }
 
 export function currentJobSnapshotFor(state, jobId) {
-  return state.currentJobId === jobId ? state.currentJobSnapshot : null;
+  const snapshot = currentJobStoreFor(state).getSnapshot();
+  return snapshot.jobId === jobId ? snapshot.snapshot : null;
 }
 
 export function syncCurrentJobSnapshot(state, job, jobId, {

@@ -7,6 +7,7 @@
 @import "./styles/ai-assistant.css";
 @import "./styles/app-settings.css";
 @import "./styles/library-shell.css";
+@import "./styles/library-search-island.css";
 @import "./styles/upload-workflow.css";
 @import "./styles/reader.css";
 @import "./styles/job-dialogs.css";
@@ -21,4 +22,6 @@
 @import "./styles/reader/favorites.css";
 @import "./styles/reader/selection.css";
 @import "./styles/reader/ai.css";
+@import "./styles/reader/annotations.css";
+@import "./styles/reader/markdown.css";
 @import "./styles/reader/region-popover.css";

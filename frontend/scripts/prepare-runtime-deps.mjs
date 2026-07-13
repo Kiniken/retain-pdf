@@ -48,4 +48,8 @@ copyPackageAssets("lottie-web", [
   "build/player/lottie.min.js",
 ]);
 
+copyPackageAssets("marked", [
+  "lib/marked.esm.js",
+]);
+
 console.log("frontend runtime deps prepared");

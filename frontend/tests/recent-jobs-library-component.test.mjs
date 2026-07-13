@@ -1,0 +1,283 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { JSDOM } from "jsdom";
+
+// RecentJobsLibrary / RecentJobCard(Phase 3b recent-jobs 域)组件级测试。
+// 覆盖蓝图 §6 新增测试①②③:
+// ① 库网格渲染 + smoke DOM 契约(mock=parallel,走真实 mountRecentJobsFeature
+//    初次加载链路,不 mock fetch——直接验证 isMockMode() 短路路径下的端到端
+//    装配是否work);
+// ② 卡片交互(delete 确认/取消/确认删除、select、reader);
+// ③ 卡片渲染隔离(replaceItem 单卡,断言其余卡片渲染计数不变——memo 回归锚,
+//    黑盒 DOM 比对无法区分"跳过 render"与"render 了但输出相同"，必须用
+//    RecentJobCard.jsx 导出的渲染计数器)。
+
+function makeDom(search = "") {
+  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
+    url: `http://localhost/index.html${search}`,
+  });
+  for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver"]) {
+    Object.defineProperty(globalThis, key, {
+      value: dom.window[key] ?? dom.window,
+      writable: true,
+      configurable: true,
+    });
+  }
+  globalThis.window = dom.window;
+  globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(0), 0);
+  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
+  return dom;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitFor(predicate, description) {
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    if (predicate()) {
+      return;
+    }
+    await wait(15);
+  }
+  assert.fail(`等待超时：${description}`);
+}
+
+function click(dom, element) {
+  element.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+}
+
+function makeItem(index, overrides = {}) {
+  return {
+    job_id: `job-${index}`,
+    title: `Book ${index}`,
+    display_name: `Book ${index}`,
+    status: "succeeded",
+    display_stage: "done",
+    substage: "",
+    page_count: 10 + index,
+    updated_at: "2026-07-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+async function bootHomeApp(dom) {
+  const { createRoot } = await import("react-dom/client");
+  const React = await import("react");
+  const { createHomeComposition } = await import("../src/pages/home/composition.js");
+  const { HomeApp } = await import("../src/pages/home/HomeApp.jsx");
+
+  const host = dom.window.document.createElement("div");
+  host.id = "home-root";
+  dom.window.document.body.appendChild(host);
+
+  const services = createHomeComposition({
+    fetchGlossaries: async () => ({ items: [] }),
+    loadPersistedDeveloperConfig: () => ({}),
+    loadPersistedBrowserConfig: () => ({}),
+  });
+  services.initialize();
+
+  const root = createRoot(host);
+  root.render(React.createElement(HomeApp, { services }));
+  await waitFor(() => dom.window.document.getElementById("library-view"), "HomeApp 首帧渲染");
+  await wait(0);
+
+  return { services, root, host };
+}
+
+function byId(dom, id) {
+  return dom.window.document.getElementById(id);
+}
+
+test("RecentJobsLibrary：初始加载(mock=parallel)渲染网格 + DOM 契约", async () => {
+  const dom = makeDom("?mock=parallel");
+  const { services, root, host } = await bootHomeApp(dom);
+
+  // mock=parallel 走 isMockMode() 短路(fetchLibraryBookList/fetchJobList 不
+  // 打真实网络),验证 mountRecentJobsFeature 装配在 initialize() 同步链内
+  // 已生效——这正是"5 处默认参数断链"风险(蓝图风险 9)的端到端反证:如果
+  // composition.js 传入的 React viewPort 被默认 createRecentJobsViewPort()
+  // 悄悄短路,下面的 DOM 契约断言会全部失败(旧世界会去操作真实 DOM,新世界
+  // 的 store 永远拿不到数据)。
+  const contractIds = [
+    "library-view", "recent-jobs-scroll-body", "recent-jobs-summary",
+    "recent-jobs-empty", "library-grid", "recent-jobs-list", "load-more-jobs-btn",
+  ];
+  for (const id of contractIds) {
+    assert.ok(byId(dom, id), `契约 id 缺失：#${id}`);
+  }
+
+  await waitFor(() => byId(dom, "recent-jobs-list").querySelector(".recent-job-item[data-job-id]"), "网格出现至少一张卡片");
+  assert.equal(byId(dom, "recent-jobs-list").classList.contains("hidden"), false);
+  const card = byId(dom, "recent-jobs-list").querySelector(".recent-job-item[data-job-id]");
+  assert.ok(card.dataset.jobId, "卡片必须带 data-job-id");
+  assert.match(byId(dom, "recent-jobs-summary").textContent, /Stage Spec|Unknown/);
+
+  root.unmount();
+  services.dispose();
+  host.remove();
+});
+
+test("RecentJobsLibrary：卡片交互(select / reader / delete 确认与取消 / 确认删除)", async () => {
+  const dom = makeDom("?mock=parallel");
+  const { services, root, host } = await bootHomeApp(dom);
+
+  const items = [makeItem(1), makeItem(2), makeItem(3)];
+  services.library.recentJobsStore.actions.setItems(items);
+  await waitFor(() => byId(dom, "recent-jobs-list").querySelectorAll(".recent-job-item").length === 3, "三张卡片就位");
+
+  const cardOf = (jobId) => byId(dom, "recent-jobs-list").querySelector(`.recent-job-item[data-job-id="${jobId}"]`);
+
+  // ---- select:点击卡片主体 → openTranslationWorkflow + 开始轮询 ----
+  let openCount = 0;
+  dom.window.document.addEventListener(
+    (await import("../src/js/contracts/app-contract.js")).APP_EVENTS.openTranslationWorkflow,
+    () => { openCount += 1; },
+  );
+  click(dom, cardOf("job-1"));
+  await waitFor(() => openCount === 1, "select 触发 openTranslationWorkflow");
+  await waitFor(() => services.features.jobRuntimeFeature.currentJobId() === "job-1", "select 触发轮询");
+
+  // ---- reader:点击悬浮"对照阅读"按钮 → openReaderRequested ----
+  const { APP_EVENTS } = await import("../src/js/contracts/app-contract.js");
+  let readerDetail = null;
+  dom.window.document.addEventListener(APP_EVENTS.openReaderRequested, (event) => {
+    readerDetail = event.detail;
+  });
+  const readerButton = cardOf("job-2").querySelector(".recent-job-reader");
+  click(dom, readerButton);
+  await waitFor(() => readerDetail?.jobId === "job-2", "reader 按钮触发 openReaderRequested");
+
+  // ---- delete 确认 popover:开 → 取消 ----
+  const deleteButton = cardOf("job-3").querySelector(".recent-job-delete");
+  click(dom, deleteButton);
+  await waitFor(() => cardOf("job-3").querySelector(".recent-job-delete-popover").hidden === false, "删除确认弹出");
+  assert.equal(deleteButton.getAttribute("aria-expanded"), "true");
+  const cancelButton = cardOf("job-3").querySelector(".recent-job-delete-cancel");
+  click(dom, cancelButton);
+  await waitFor(() => cardOf("job-3").querySelector(".recent-job-delete-popover").hidden === true, "取消关闭弹出层");
+  assert.ok(cardOf("job-3"), "取消删除后卡片仍在");
+
+  // ---- delete 确认 popover:开 → 确认(mock 模式下 deleteLibraryBook 直接成功) ----
+  click(dom, deleteButton);
+  await waitFor(() => cardOf("job-3").querySelector(".recent-job-delete-popover").hidden === false, "再次弹出删除确认");
+  const confirmButton = cardOf("job-3").querySelector(".recent-job-delete-confirm");
+  click(dom, confirmButton);
+  await waitFor(() => !cardOf("job-3"), "确认删除后卡片从网格移除");
+  assert.equal(services.library.recentJobsStore.getSnapshot().items.some((item) => item.job_id === "job-3"), false);
+
+  root.unmount();
+  services.dispose();
+  host.remove();
+});
+
+test("RecentJobsLibrary：卡片渲染隔离(replaceItem 单卡,其余 23 张卡片渲染计数不变)", async () => {
+  const dom = makeDom("?mock=parallel");
+  const { services, root, host } = await bootHomeApp(dom);
+  const {
+    getCardRenderCountForTests,
+    resetCardRenderCountsForTests,
+  } = await import("../src/pages/home/features/library/RecentJobCard.jsx");
+
+  const items = Array.from({ length: 24 }, (_, index) => makeItem(index));
+  services.library.recentJobsStore.actions.setItems(items);
+  await waitFor(() => byId(dom, "recent-jobs-list").querySelectorAll(".recent-job-item").length === 24, "24 张卡片就位");
+  await wait(30); // 让首轮渲染的 effect/commit 完全落定
+
+  resetCardRenderCountsForTests();
+
+  const patchedJobId = "job-5";
+  const previous = items.find((item) => item.job_id === patchedJobId);
+  services.library.recentJobsStore.actions.replaceItem({
+    ...previous,
+    title: "Book 5 · 已更新标题",
+    status: "running",
+    display_stage: "translate",
+  });
+
+  await waitFor(() => {
+    const card = byId(dom, "recent-jobs-list").querySelector(`.recent-job-item[data-job-id="${patchedJobId}"]`);
+    return card?.querySelector(".recent-job-id")?.title === "Book 5 · 已更新标题";
+  }, "被补丁的卡片内容已更新");
+  await wait(30);
+
+  // 断言"至少重渲一次"而非"恰好一次":react-dom 的 useSyncExternalStore 在
+  // dev 构建下,若某个 store 在渲染进行期间(非 React 事件批处理上下文,例如
+  // 本测试直接调 store.actions 而非走 onClick)又发生一次通知,会在 commit
+  // 前做一次"防撕裂"一致性复核,对同一 fiber 重放一次 render(两次拿到的
+  // props/输出完全相同,不是过期→最新的两次真实更新)——这是 React 内部行为
+  // (可用 stack trace 验证两次调用都源自 beginWork/updateFunctionComponent),
+  // 不是这里的 memo 逻辑缺陷,断言死板的"===1"会对 React 版本升级过度敏感。
+  // 核心不变量始终是下面的"未涉及卡片 0 次"。
+  assert.ok(getCardRenderCountForTests(patchedJobId) >= 1, "被补丁的卡片应至少重渲一次");
+  for (const item of items) {
+    if (item.job_id === patchedJobId) {
+      continue;
+    }
+    assert.equal(
+      getCardRenderCountForTests(item.job_id),
+      0,
+      `未涉及的卡片 ${item.job_id} 不应重渲(memo 回归)`,
+    );
+  }
+
+  root.unmount();
+  services.dispose();
+  host.remove();
+});
+
+test("RecentJobsLibrary：workflow 挂起不死锁(开→job-updated 仍打补丁,不发起整页刷新→关→300ms 后刷新恢复)", async () => {
+  // 蓝图风险 5:workflow 打开期间 refresh-scheduler.setSuspended(true),
+  // command-handlers.js 的 onJobUpdated 仍无条件调 runtimePatches.update(单卡
+  // 补丁不受影响),但被 scheduleRefresh(整页刷新)会被挂起吞掉;关闭后
+  // scheduleRefresh({delay:300}) 应该让刷新恢复,不能永久卡死。
+  const dom = makeDom("?mock=parallel");
+  const { services, root, host } = await bootHomeApp(dom);
+  const { APP_EVENTS } = await import("../src/js/contracts/app-contract.js");
+  const { HOME_LOADING_STATES } = await import("../src/js/features/home/state.js");
+
+  await waitFor(() => services.library.recentJobsStore.getSnapshot().items.length === 1, "初次加载的单条 mock 数据就位");
+  const originalItem = services.library.recentJobsStore.getSnapshot().items[0];
+
+  services.workflowDialog.requestOpenUpload();
+  await waitFor(() => byId(dom, "translation-workflow-dialog").classList.contains("hidden") === false, "工作流对话框打开(挂起刷新)");
+
+  let sawLoadingWhileSuspended = false;
+  const unsubscribe = services.stores.homeState.subscribe((snapshot) => {
+    if (snapshot.recentJobsLoadingState === HOME_LOADING_STATES.LOADING) {
+      sawLoadingWhileSuspended = true;
+    }
+  });
+
+  dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.libraryJobUpdated, {
+    detail: { job: { ...originalItem, title: "Patched While Suspended" } },
+  }));
+
+  await waitFor(() => {
+    const card = byId(dom, "recent-jobs-list").querySelector(`.recent-job-item[data-job-id="${originalItem.job_id}"]`);
+    return card?.querySelector(".recent-job-id")?.title === "Patched While Suspended";
+  }, "挂起期间单卡补丁(runtimePatches.update)仍无条件生效");
+
+  await wait(150);
+  assert.equal(sawLoadingWhileSuspended, false, "挂起期间不应发起整页刷新(scheduleRefresh 应被 isSuspended 吞掉)");
+  unsubscribe();
+
+  // 关闭后的恢复刷新是 scheduleRefresh({delay:300}) → loadRecentJobs({reset:true,
+  // silent:true})——silent:true 意味着 loadingState 不会翻到 LOADING(静默刷新
+  // 不应该让网格闪 loading),所以这里改为直接观测 recentJobsStatePort.store
+  // 是否真的又发生了一次 setItems 通知(silent 刷新完成的唯一可见信号)。
+  let notifyCountAfterClose = 0;
+  const unsubscribe2 = services.library.recentJobsStore.subscribe(() => {
+    notifyCountAfterClose += 1;
+  });
+  services.workflowDialog.requestClose();
+  await waitFor(() => byId(dom, "translation-workflow-dialog").classList.contains("hidden") === true, "工作流对话框关闭");
+  await waitFor(() => notifyCountAfterClose > 0, "关闭后 300ms 静默刷新应恢复(不死锁)");
+  unsubscribe2();
+
+  root.unmount();
+  services.dispose();
+  host.remove();
+});

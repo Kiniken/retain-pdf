@@ -10,9 +10,6 @@ import {
   handleBrowserDeepSeekValidate,
 } from "../src/js/features/credentials/deepseek-flow.js";
 import {
-  createCredentialLegacyRuntimePort,
-} from "../src/js/features/credentials/legacy-runtime-port.js";
-import {
   createCredentialsPorts,
 } from "../src/js/bootstrap/feature-credentials-ports.js";
 import {
@@ -41,9 +38,6 @@ import {
   hasCompleteCredentials,
   ocrTokenFromCredentials,
 } from "../src/js/features/credentials/state.js";
-import {
-  createCredentialRuntimeStatePort,
-} from "../src/js/features/credentials/runtime-state-port.js";
 import {
   applyHiddenCredentialInputs,
   readHiddenCredentialInputs,
@@ -84,7 +78,7 @@ test("runOcrTokenValidation passes injected apiPrefix to OCR validation port", a
   assert.equal(messages.at(-1)[1], "valid");
 });
 
-test("runOcrTokenValidation mirrors OCR validation state through legacy runtime port", async () => {
+test("runOcrTokenValidation writes OCR validation state through credentials state port", async () => {
   const calls = [];
   const result = await runOcrTokenValidation({
     apiPrefix: "/custom/api",
@@ -92,7 +86,7 @@ test("runOcrTokenValidation mirrors OCR validation state through legacy runtime 
     token: "ocr-token",
     validateOcrToken: async () => ({ ok: true, status: "valid", summary: "ok" }),
     setOcrValidationMessage() {},
-    legacyRuntimePort: {
+    credentialsStatePort: {
       resetOcrValidationCache: () => calls.push(["reset"]),
       setOcrValidationCache: (payload) => calls.push(["set", payload]),
     },
@@ -121,7 +115,7 @@ test("runOcrTokenValidation does not call validation port without token", async 
       return { ok: true };
     },
     setOcrValidationMessage() {},
-    legacyRuntimePort: {
+    credentialsStatePort: {
       resetOcrValidationCache: () => calls.push(["reset"]),
       setOcrValidationCache: (payload) => calls.push(["set", payload]),
     },
@@ -194,7 +188,7 @@ test("runDeepSeekBalanceCheck passes injected apiPrefix to balance port", async 
   ]]);
 });
 
-test("handleBrowserDeepSeekValidate mirrors balance through legacy runtime port", async () => {
+test("handleBrowserDeepSeekValidate writes balance through credentials state port", async () => {
   const calls = [];
   const messages = [];
   const result = await handleBrowserDeepSeekValidate({
@@ -214,10 +208,6 @@ test("handleBrowserDeepSeekValidate mirrors balance through legacy runtime port"
       resetDeepSeekBalance: () => calls.push(["state-reset"]),
       setDeepSeekBalance: (balanceCny, checked) => calls.push(["state-set", balanceCny, checked]),
     },
-    legacyRuntimePort: {
-      resetDeepSeekBalance: () => calls.push(["legacy-reset"]),
-      setDeepSeekBalance: (balanceCny, checked) => calls.push(["legacy-set", balanceCny, checked]),
-    },
     viewPort: {
       elements: () => ({
         apiKeyInput: createCredentialNode({ value: "" }),
@@ -229,8 +219,7 @@ test("handleBrowserDeepSeekValidate mirrors balance through legacy runtime port"
   });
 
   assert.equal(result.ok, true);
-  assert.ok(calls.some((call) => call[0] === "legacy-reset"));
-  assert.ok(calls.some((call) => call[0] === "legacy-set" && call[1] === 3.25 && call[2] === true));
+  assert.ok(calls.some((call) => call[0] === "state-reset"));
   assert.ok(calls.some((call) => call[0] === "state-set" && call[1] === 3.25 && call[2] === true));
   assert.deepEqual(messages.at(-1), ["DeepSeek 可用，余额 CNY 3.25", "valid"]);
 });
@@ -322,107 +311,9 @@ test("credentials state port owns validation and balance runtime state", () => {
   assert.equal(mirroredRuntime.length, 4);
 });
 
-test("credentials runtime state port owns legacy mirror side effects", () => {
-  const calls = [];
-  const port = createCredentialRuntimeStatePort({
-    mirrorRuntime: (runtime) => calls.push(runtime),
-  });
 
-  port.mirrorRuntime({
-    deepseekBalanceCny: 1.5,
-    deepseekBalanceChecked: true,
-    ocrValidation: {
-      provider: "paddle",
-      token: "token",
-      status: "valid",
-    },
-  });
 
-  assert.deepEqual(calls, [{
-    deepseekBalanceCny: 1.5,
-    deepseekBalanceChecked: true,
-    ocrValidation: {
-      provider: "paddle",
-      token: "token",
-      status: "valid",
-    },
-  }]);
-});
 
-test("credentials runtime state port mirrors through narrow credential state slice", () => {
-  const legacyState = createInitialState();
-  const port = createCredentialRuntimeStatePort();
-
-  port.mirrorRuntime({
-    deepseekBalanceCny: "2.75",
-    deepseekBalanceChecked: true,
-    ocrValidation: {
-      provider: "paddle",
-      token: "ocr-token",
-      status: "valid",
-    },
-  }, legacyState);
-
-  assert.equal(legacyState.deepseekBalanceCny, 2.75);
-  assert.equal(legacyState.deepseekBalanceChecked, true);
-  assert.equal(legacyState.validatedOcrProvider, "paddle");
-  assert.equal(legacyState.validatedOcrToken, "ocr-token");
-  assert.equal(legacyState.ocrValidationStatus, "valid");
-
-  port.mirrorRuntime({
-    deepseekBalanceChecked: false,
-    ocrValidation: {},
-  }, legacyState);
-
-  assert.equal(legacyState.deepseekBalanceCny, null);
-  assert.equal(legacyState.deepseekBalanceChecked, false);
-  assert.equal(legacyState.validatedOcrProvider, "");
-  assert.equal(legacyState.validatedOcrToken, "");
-  assert.equal(legacyState.ocrValidationStatus, "");
-});
-
-test("credentials runtime state port has no implicit global legacy state fallback", () => {
-  const port = createCredentialRuntimeStatePort();
-
-  assert.doesNotThrow(() => {
-    port.mirrorRuntime({
-      deepseekBalanceCny: "2.75",
-      deepseekBalanceChecked: true,
-      ocrValidation: {
-        provider: "paddle",
-        token: "ocr-token",
-        status: "valid",
-      },
-    });
-  });
-});
-
-test("credentials legacy runtime port mirrors through narrow credential state slice", () => {
-  const legacyState = createInitialState();
-  const port = createCredentialLegacyRuntimePort(legacyState);
-
-  port.setDeepSeekBalance("4.5", true);
-  port.setOcrValidationCache({
-    provider: "paddle",
-    token: "ocr-token",
-    status: "valid",
-  });
-
-  assert.equal(legacyState.deepseekBalanceCny, 4.5);
-  assert.equal(legacyState.deepseekBalanceChecked, true);
-  assert.equal(legacyState.validatedOcrProvider, "paddle");
-  assert.equal(legacyState.validatedOcrToken, "ocr-token");
-  assert.equal(legacyState.ocrValidationStatus, "valid");
-
-  port.resetDeepSeekBalance();
-  port.resetOcrValidationCache();
-
-  assert.equal(legacyState.deepseekBalanceCny, null);
-  assert.equal(legacyState.deepseekBalanceChecked, false);
-  assert.equal(legacyState.validatedOcrProvider, "");
-  assert.equal(legacyState.validatedOcrToken, "");
-  assert.equal(legacyState.ocrValidationStatus, "");
-});
 
 test("hidden credential inputs mirror through the default credentials port", () => {
   const previousDocument = global.document;

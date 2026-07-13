@@ -65,11 +65,17 @@ test("reader dialog template exposes ids from the shared contract", () => {
     READER_DIALOG_IDS.loadingText,
     READER_DIALOG_IDS.loadingPercent,
     READER_DIALOG_IDS.loadingBar,
+  ]) {
+    assert.match(markup, new RegExp(`id="${id}"`));
+  }
+  // 下载入口已移入阅读器本体(reader.html 动作组),宿主头部只保留关闭
+  assert.doesNotMatch(markup, /reader-dialog-download-menu/);
+  for (const id of [
     READER_DIALOG_BUTTON_IDS.source,
     READER_DIALOG_BUTTON_IDS.merged,
     READER_DIALOG_BUTTON_IDS.translated,
   ]) {
-    assert.match(markup, new RegExp(`id="${id}"`));
+    assert.doesNotMatch(markup, new RegExp(`id="${id}"`));
   }
   assert.equal(READER_DIALOG_MESSAGES.progress, "retainpdf-reader-progress");
   assert.equal(READER_DIALOG_ELEMENT.hostSelector, "reader-dialog");

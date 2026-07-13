@@ -90,6 +90,13 @@ export function renderStatusDetailRuntime(details) {
   safeSetText(runtime.inputProtocol, details.inputProtocol);
   safeSetText(runtime.stageSpecVersion, details.stageSpecVersion);
   safeSetText(runtime.mathMode, details.mathMode);
+  toggleOptionalRuntimeRow(runtime.lastTransition, details.lastTransition);
+  toggleOptionalRuntimeRow(runtime.terminalReason, details.terminalReason);
+}
+
+function toggleOptionalRuntimeRow(id, value) {
+  const text = `${value ?? "-"}`.trim();
+  $(id)?.closest(".detail-item")?.classList.toggle("hidden", !text || text === "-");
 }
 
 export function renderStatusDetailFailure(details) {

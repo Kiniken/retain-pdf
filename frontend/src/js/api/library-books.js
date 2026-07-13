@@ -1,5 +1,6 @@
 import { buildApiHeaders, isMockMode } from "../config/runtime.js";
 import { unwrapEnvelope } from "../job/core.js";
+import { countMockFavoritesByJob } from "../mock/documents.js";
 import { getMockJobList } from "../mock/index.js";
 import { buildApiEndpoint } from "./http.js";
 
@@ -27,13 +28,26 @@ export async function deleteLibraryBook(apiPrefix, jobId, { force = false } = {}
   if (!normalizedJobId) {
     throw new Error("删除失败: 缺少 job_id");
   }
+  if (isMockMode()) {
+    const referenced = countMockFavoritesByJob(normalizedJobId);
+    if (referenced > 0 && !force) {
+      const conflict = new Error(`该 job 被 ${referenced} 条收藏引用(409)`);
+      conflict.status = 409;
+      throw conflict;
+    }
+    return { job_id: normalizedJobId };
+  }
   const params = force ? "?force=true" : "";
   const resp = await fetch(`${buildApiEndpoint(apiPrefix, `library/books/${encodeURIComponent(normalizedJobId)}`)}${params}`, {
     method: "DELETE",
     headers: buildApiHeaders(),
   });
   if (!resp.ok) {
-    throw new Error(`删除任务失败，请稍后重试。(${resp.status})`);
+    // 409 = 该 job 被收藏引用(删除保护),message 里带引用数量,必须透传给 UI
+    const envelope = await resp.json().catch(() => null);
+    const error = new Error(`${envelope?.message || "删除任务失败，请稍后重试。"}(${resp.status})`);
+    error.status = resp.status;
+    throw error;
   }
   return unwrapEnvelope(await resp.json());
 }

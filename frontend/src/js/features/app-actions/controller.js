@@ -53,11 +53,7 @@ export function mountAppActionsFeature({
   }
 
   function setSubmitBusyState(busy) {
-    if (uploadState.setSubmitBusy) {
-      uploadState.setSubmitBusy(busy);
-    } else {
-      state.submitBusy = !!busy;
-    }
+    uploadState.setSubmitBusy?.(busy);
     viewPort.setSubmitBusyState(busy);
   }
 

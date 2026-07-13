@@ -1,6 +1,6 @@
 import { withTimeout } from "../../utils/async-timeout.js";
 import { buildErrorDiagnostic } from "../../utils/error-diagnostics.js";
-import { createUploadStatePort } from "./state.js";
+import { getUploadStatePort } from "./state.js";
 import { defaultUploadConfigPort } from "./config-port.js";
 import { createUploadViewPort } from "./upload-view-port.js";
 
@@ -28,7 +28,7 @@ export function mountUploadFeature({
   viewPort = createUploadViewPort(),
 }) {
   const BALANCE_CHECK_TIMEOUT_MS = 12000;
-  const uploadState = uploadStatePort || createUploadStatePort(state);
+  const uploadState = uploadStatePort || getUploadStatePort();
 
   function readUploadState() {
     return uploadState.getSnapshot?.() || {};

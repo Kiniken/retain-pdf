@@ -24,7 +24,7 @@ export function buildStageHistoryPresentation(job, durationOptions = {}) {
           <span class="stage-history-index">${index + 1}</span>
           <div class="stage-history-copy">
             <div class="stage-history-title">${escapeHtml(stageDisplay.title)}</div>
-            <div class="stage-history-stage">${escapeHtml(stageDisplay.stage)}</div>
+            ${stageDisplay.stage && stageDisplay.stage !== stageDisplay.title ? `<div class="stage-history-stage">${escapeHtml(stageDisplay.stage)}</div>` : ""}
             <div class="stage-history-meta">${escapeHtml(enterAt)} → ${escapeHtml(exitAt)}${escapeHtml(terminalText)}</div>
           </div>
         </div>

@@ -6,7 +6,6 @@ import {
 } from "./validation.js";
 import { defaultCredentialsStatePort } from "./default-state-port.js";
 import { createDeepSeekCredentialViewPort } from "./deepseek-view-port.js";
-import { createCredentialLegacyRuntimePort } from "./legacy-runtime-port.js";
 
 const DEEPSEEK_LOW_BALANCE_THRESHOLD = 2;
 
@@ -28,7 +27,6 @@ export async function handleBrowserDeepSeekValidate({
   onBalanceChange,
   silent = false,
   credentialsStatePort = defaultCredentialsStatePort,
-  legacyRuntimePort = createCredentialLegacyRuntimePort(state),
   viewPort = createDeepSeekCredentialViewPort(),
 }) {
   const {
@@ -41,7 +39,6 @@ export async function handleBrowserDeepSeekValidate({
     apiKeyInput.value = modelApiKey;
   }
   const baseUrl = modelBaseUrlInput?.value?.trim() || "";
-  legacyRuntimePort.resetDeepSeekBalance();
   credentialsStatePort.resetDeepSeekBalance?.();
   onBalanceChange?.();
   if (!modelApiKey) {
@@ -80,7 +77,6 @@ export async function handleBrowserDeepSeekValidate({
     }
     const balanceSummary = summarizeDeepSeekBalance(balance);
     const balanceAmount = deepSeekBalanceAmount(balance);
-    legacyRuntimePort.setDeepSeekBalance(balanceAmount, true);
     credentialsStatePort.setDeepSeekBalance?.(balanceAmount, true);
     onBalanceChange?.();
     const shouldTopUp = balanceAmount < DEEPSEEK_LOW_BALANCE_THRESHOLD;

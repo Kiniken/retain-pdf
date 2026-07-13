@@ -1,20 +1,38 @@
 import {
   buildFrontendPageUrl,
   isTrustedWindowMessage,
+  mockScenario,
 } from "../../config/runtime.js";
 
 export function createReaderDialogConfigPort({
   buildPageUrl = buildFrontendPageUrl,
   trustWindowMessage = isTrustedWindowMessage,
   locationProvider = () => globalThis.window?.location,
+  mockScenarioProvider = mockScenario,
 } = {}) {
-  function buildReaderPageUrl(jobId) {
+  function currentMockScenarioSafe() {
+    try {
+      return `${mockScenarioProvider() || ""}`.trim();
+    } catch (_err) {
+      return "";
+    }
+  }
+
+  function buildReaderPageUrl(jobId, anchor = null) {
     const normalizedJobId = `${jobId || ""}`.trim();
     if (!normalizedJobId) {
       return "";
     }
+    // iframe 是独立文档,mock 场景需要显式透传,否则嵌入式阅读器会去请求真实后端
+    const scenario = currentMockScenarioSafe();
+    const pageIdx = Number(anchor?.pageIdx);
     return buildPageUrl("./reader.html", {
       job_id: normalizedJobId,
+      ...(Number.isFinite(pageIdx) && anchor?.pageIdx !== null && anchor?.pageIdx !== undefined
+        ? { page_idx: `${pageIdx}` }
+        : {}),
+      ...(`${anchor?.blockId || ""}`.trim() ? { block_id: `${anchor.blockId}`.trim() } : {}),
+      ...(scenario ? { mock: scenario } : {}),
     });
   }
 

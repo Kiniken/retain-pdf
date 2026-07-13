@@ -42,7 +42,7 @@ export function createReaderDialogRuntimePort({
   function currentArtifactUrls(state) {
     const requestedJobId = `${state?.readerJobId || ""}`.trim();
     const job = getCurrentJobSnapshot(state);
-    const jobId = requestedJobId || job?.job_id || state?.currentJobId || "";
+    const jobId = requestedJobId || job?.job_id || currentJobIdFor(state) || "";
     const manifest = getCachedManifestFor(state, jobId);
     const actions = job ? resolveActions(job) : null;
     const sourcePdfAction = job ? resolveSourceAction(job, manifest) : null;
@@ -62,14 +62,14 @@ export function createReaderDialogRuntimePort({
 
   function artifactNameState(state) {
     const job = getCurrentJobSnapshot(state);
-    const jobId = `${state?.readerJobId || ""}`.trim() || job?.job_id || state?.currentJobId || "";
+    const jobId = `${state?.readerJobId || ""}`.trim() || job?.job_id || currentJobIdFor(state) || "";
     const manifest = getCachedManifestFor(state, jobId);
     return {
       ...state,
       currentJobId: jobId,
-      currentJobSnapshot: job || state?.currentJobSnapshot || null,
+      currentJobSnapshot: job || getCurrentJobSnapshot(state) || null,
       currentJobManifestJobId: jobId,
-      currentJobManifest: manifest || state?.currentJobManifest || null,
+      currentJobManifest: manifest || getCachedManifestFor(state, currentJobIdFor(state)) || null,
     };
   }
 

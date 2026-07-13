@@ -145,32 +145,15 @@ export function secondaryResourceStoreFor(state) {
   return state[SECONDARY_RESOURCE_STORE_KEY];
 }
 
-function syncLegacySecondaryResourceState(state, snapshot) {
-  if (!state) {
-    return;
-  }
-  for (const type of SECONDARY_RESOURCE_TYPES) {
-    const fields = secondaryResourceFields(type);
-    const record = snapshot[type] || emptySecondaryResourceRecord();
-    state[fields.payload] = record.payload;
-    state[fields.jobId] = record.jobId;
-    state[fields.fetchedAt] = record.fetchedAt;
-    state[fields.inFlight] = Boolean(record.inFlight);
-  }
-}
-
 function applySecondaryResourceAction(state, action) {
   const store = secondaryResourceStoreFor(state);
-  const snapshot = action(store);
-  syncLegacySecondaryResourceState(state, snapshot);
-  return snapshot;
+  return action(store);
 }
 
 export function createSecondaryResourceStatePort(state, {
   now = () => Date.now(),
 } = {}) {
   const store = secondaryResourceStoreFor(state);
-  syncLegacySecondaryResourceState(state, store.getSnapshot());
   function applyBatch(callback) {
     if (typeof callback !== "function") {
       return store.getSnapshot();
@@ -182,7 +165,6 @@ export function createSecondaryResourceStatePort(state, {
       getSnapshot: () => store.getSnapshot(),
       setInFlight: actions.setInFlight,
     }));
-    syncLegacySecondaryResourceState(state, store.getSnapshot());
     return result;
   }
   return {
@@ -247,9 +229,7 @@ export function createSecondaryResourceStatePort(state, {
           },
         ]),
       );
-      const snapshot = store.reset(next);
-      syncLegacySecondaryResourceState(state, snapshot);
-      return snapshot;
+      return store.reset(next);
     },
   };
 }

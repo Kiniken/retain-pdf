@@ -1,14 +1,23 @@
 import { buildApiHeaders, isMockMode } from "../config/runtime.js";
 import { unwrapEnvelope } from "../job/core.js";
+import { currentMockScenario } from "../mock/scenario.js";
 import { buildJobDetailEndpoint, submitJson } from "./http.js";
 
 export async function fetchJobDiagnostics(jobId, apiPrefix) {
   if (isMockMode()) {
+    // 与 mock/job.js 的 failure 字段保持同源,避免详情弹窗(读 job.failure)
+    // 与 detail 页(读本端点)在 mock 下显示不一致
+    if (currentMockScenario() !== "failed") {
+      return null;
+    }
     return {
       job_id: jobId,
-      summary: "mock failure diagnostics",
+      summary: "任务失败，但这是前端 mock 场景。",
+      category: "mock_render_failure",
+      failed_stage: "render",
+      root_cause: "用于 UI 调试的模拟失败。",
+      suggestion: "切换 ?mock=succeeded 查看成功态。",
       detail: "",
-      suggestion: "",
       retryable: true,
       resume_available: true,
     };

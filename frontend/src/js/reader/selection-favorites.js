@@ -2,9 +2,11 @@ import { createReaderFavoritesStore } from "./favorites-storage.js";
 import {
   pageNumberOfElement,
 } from "./page-geometry.js";
-import { isReaderTranslatedRegionEvent } from "./region-interactions.js";
+import { isReaderTranslatedRegionEvent, jumpToReaderAnchor } from "./region-interactions.js";
 import { copyText } from "../utils/clipboard.js";
 import { renderFavorites } from "./favorites/drawer-renderer.js";
+import { renderServerFavorites } from "./favorites/server-drawer-renderer.js";
+import { dedupeServerFavorites } from "./server-favorites-port.js";
 import {
   clampRect,
   clampScale,
@@ -128,12 +130,16 @@ export function createReaderSelectionFavorites({
   root = documentRef?.getElementById?.("reader-scroll-shell"),
   setReaderMode = null,
   store = createReaderFavoritesStore({ jobId }),
+  resolveQuote = null,
+  serverFavoritesPort = null,
+  jumpToAnchor = jumpToReaderAnchor,
 } = {}) {
   let enabled = true;
   let dragState = null;
   let moveState = null;
   let peekState = null;
   let activeSelection = null;
+  let serverFavorites = [];
   const pinnedSelections = new Map();
   const listEl = documentRef?.getElementById?.("reader-favorites-list");
   const actionLayer = documentRef?.createElement?.("div");
@@ -153,9 +159,93 @@ export function createReaderSelectionFavorites({
       onRemoveFavorite: removeFavorite,
       onUpdateFavorite: updateFavoriteMetadata,
     });
+    // renderFavorites 只按本地条目切换 is-populated,云端区在其后统一修正
+    renderServerSection();
     if (preserveScroll && listEl) {
       listEl.scrollTop = scrollTop;
       listEl.scrollLeft = scrollLeft;
+    }
+  }
+
+  // ===== 云端收藏区(服务端 favorites,与本地截图摘录分区共存) =====
+
+  function ensureServerSectionEl() {
+    if (!listEl) {
+      return null;
+    }
+    const drawer = listEl.closest?.(".reader-favorites-drawer") || listEl.parentNode;
+    if (!drawer) {
+      return null;
+    }
+    let section = drawer.querySelector?.(".reader-favorite-server-section");
+    if (!section && documentRef?.createElement) {
+      section = documentRef.createElement("div");
+      section.className = "reader-favorite-server-section is-empty";
+      if (listEl.insertAdjacentElement) {
+        listEl.insertAdjacentElement("afterend", section);
+      } else {
+        drawer.appendChild(section);
+      }
+    }
+    return section || null;
+  }
+
+  function renderServerSection() {
+    const section = ensureServerSectionEl();
+    if (!section) {
+      return;
+    }
+    // 已同步为 serverFavoriteId 的本地记录不在云端区重复展示
+    const records = dedupeServerFavorites(serverFavorites, store.list());
+    renderServerFavorites(section, records, {
+      onOpenFavorite: (record) => {
+        jumpToAnchor?.({ pageIdx: record.pageIdx, blockId: record.blockId });
+      },
+      onRemoveFavorite: (record) => {
+        void removeServerFavoriteRecord(record);
+      },
+    });
+    const drawer = section.closest?.(".reader-favorites-drawer");
+    drawer?.classList?.toggle?.("is-populated", Boolean(store.list().length || records.length));
+  }
+
+  async function refreshServerFavorites() {
+    if (!serverFavoritesPort?.loadServerFavorites) {
+      return;
+    }
+    try {
+      serverFavorites = await serverFavoritesPort.loadServerFavorites() || [];
+    } catch (error) {
+      console.warn("读取服务端收藏失败", error);
+      serverFavorites = [];
+    }
+    renderServerSection();
+  }
+
+  async function removeServerFavoriteRecord(record = {}) {
+    if (!serverFavoritesPort?.removeServerFavorite) {
+      return;
+    }
+    const removed = await serverFavoritesPort.removeServerFavorite(record.favoriteId);
+    if (removed) {
+      serverFavorites = serverFavorites.filter((item) => item.favoriteId !== record.favoriteId);
+    }
+    renderServerSection();
+  }
+
+  // 本地删除即时生效;若该记录已同步到服务端,顺带删除云端收藏(尽力而为)。
+  function deleteStoredFavorite(id) {
+    if (!id || !store?.save) {
+      return;
+    }
+    const items = store.list();
+    const removedItem = items.find((item) => item.id === id) || null;
+    store.save(items.filter((item) => item.id !== id));
+    const serverFavoriteId = `${removedItem?.serverFavoriteId || ""}`.trim();
+    if (serverFavoriteId && serverFavoritesPort?.removeServerFavorite) {
+      void serverFavoritesPort.removeServerFavorite(serverFavoriteId)
+        .then(() => refreshServerFavorites())
+        .catch((error) => console.warn("删除服务端收藏失败", error));
     }
   }
 
@@ -203,7 +293,7 @@ export function createReaderSelectionFavorites({
     selection.overlay?.remove?.();
     if (selection.id) {
       pinnedSelections.delete(selection.id);
-      store.save?.(store.list().filter((item) => item.id !== selection.id));
+      deleteStoredFavorite(selection.id);
       syncDrawer();
     }
     if (activeSelection === selection || activeSelection?.id === selection.id) {
@@ -220,7 +310,7 @@ export function createReaderSelectionFavorites({
     const pinnedSelection = pinnedSelections.get(id);
     pinnedSelection?.overlay?.remove?.();
     pinnedSelections.delete(id);
-    store.save(store.list().filter((storedItem) => storedItem.id !== id));
+    deleteStoredFavorite(id);
     if (activeSelection?.id === id) {
       activeSelection = null;
       actionLayer?.replaceChildren?.();
@@ -485,6 +575,27 @@ export function createReaderSelectionFavorites({
     setOverlayPreview(selection.overlay, item.previewUrl);
     pinnedSelections.set(selection.id, selection);
     const nextItems = store.add(item);
+    // 选区取文:命中原文 region 时把引文快照同步到服务端收藏(quote 为空则仅本地)
+    if (resolveQuote && serverFavoritesPort) {
+      const quote = resolveQuote({
+        page: selection.page,
+        rect: selection.sourceRect || selection.rect,
+      });
+      if (quote) {
+        // 同步成功后把 favorite_id 回写到本地记录,后续本地删除可级联删云端,
+        // 云端区也据此去重,不重复展示同一条收藏。
+        void serverFavoritesPort.syncFavorite(quote).then((favorite) => {
+          const favoriteId = `${favorite?.favorite_id || ""}`.trim();
+          if (!favoriteId || !store?.save) {
+            return;
+          }
+          store.save(store.list().map((stored) => (
+            stored.id === item.id ? { ...stored, serverFavoriteId: favoriteId } : stored
+          )));
+          void refreshServerFavorites();
+        }).catch((error) => console.warn("同步收藏到服务端失败", error));
+      }
+    }
     syncDrawer();
     showSelectionToast(selection.pageElement, selection.rect, "已钉住");
     if (openDrawer) {
@@ -648,6 +759,8 @@ export function createReaderSelectionFavorites({
       activeSelection = activeSelection || null;
     });
     syncDrawer();
+    // bindEvents 在 regions 加载完成后调用,此时拉取服务端收藏填充云端区
+    void refreshServerFavorites();
   }
 
   return {
@@ -655,6 +768,7 @@ export function createReaderSelectionFavorites({
     clearActiveSelection,
     copySelection,
     favoriteSelection,
+    refreshServerFavorites,
     setEnabled,
     syncDrawer,
     openFavorite: pinFavorite,

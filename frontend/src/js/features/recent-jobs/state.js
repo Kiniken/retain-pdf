@@ -90,23 +90,11 @@ export function createRecentJobsStore(initialState = {}) {
   });
 }
 
-function syncLegacyRecentJobsState(targetState, snapshot) {
-  if (!targetState) {
-    return;
-  }
-  targetState.recentJobsOffset = snapshot.offset;
-  targetState.recentJobsHasMore = snapshot.hasMore;
-  targetState.recentJobsItems = snapshot.items;
-}
-
 export function createRecentJobsStatePort(targetState = {}) {
   const store = createRecentJobsStore(targetState);
-  syncLegacyRecentJobsState(targetState, store.getSnapshot());
 
   function applyStoreAction(action) {
-    const snapshot = action();
-    syncLegacyRecentJobsState(targetState, snapshot);
-    return snapshot;
+    return action();
   }
 
   function getSnapshot() {
@@ -160,7 +148,6 @@ export function createRecentJobsStatePort(targetState = {}) {
       prependItem: actions.prependItem,
       removeJobFamily: actions.removeJobFamily,
     }));
-    syncLegacyRecentJobsState(targetState, store.getSnapshot());
     return snapshot;
   }
 

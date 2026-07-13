@@ -58,9 +58,9 @@ export function renderTranslationSummary(translationState, {
   const summary = translationState.summary?.summary || {};
   viewPort.renderSummary({
     counts: summary.counts || {},
-    finalStatusCounts: summary.final_status_counts || {},
-    providerFamily: `${summary.provider_family || ""}`.trim(),
-    summaryScopeText: "当前 job 全量统计",
+    // 管线落盘的键是 status_summary(见 backend scripts/services/translation/artifacts/io.py)
+    finalStatusCounts: summary.status_summary || summary.final_status_counts || {},
+    providerFamily: `${summary.provider_family || summary.provider || ""}`.trim(),
     filterText: summarizeTranslationFilter(translationState.query),
     hidden: false,
   });
@@ -90,11 +90,17 @@ export function renderTranslationItems(
       : "第 0 / 0 页";
   const markup = list.map((item) => {
     const active = item.item_id === translationState.selectedItemId;
-    const routePath = normalizeRoutePath(routePathOf(item));
     const errorTypes = errorTypesOf(item);
-    const errorLabel = errorTypes.length ? errorTypes.join(", ") : "-";
-    const degradationReason = degradationReasonOf(item) || "-";
     const finalStatus = finalStatusOf(item);
+    // 列表项只保留扫读所需的最小信息,route/fallback/degradation 在右侧详情里看
+    const metaBits = [
+      `第 ${pageNumberOf(item)} 页`,
+      item.block_type || "",
+      item.classification_label || "",
+    ].filter(Boolean).join(" · ");
+    const errorMarkup = errorTypes.length
+      ? ` · <span class="translation-item-error">${escapeHtml(errorTypes.join(", "))}</span>`
+      : "";
     return `
       <button
         type="button"
@@ -105,18 +111,8 @@ export function renderTranslationItems(
           <span class="translation-item-id mono">${escapeHtml(item.item_id || "-")}</span>
           <span class="translation-item-status ${finalStatusClass(finalStatus)}">${escapeHtml(finalStatusLabel(finalStatus))}</span>
         </div>
-        <div class="translation-item-card-meta">
-          <span class="translation-item-chip">第 ${escapeHtml(pageNumberOf(item))} 页</span>
-          <span class="translation-item-chip">${escapeHtml(item.block_type || "-")}</span>
-          <span class="translation-item-chip">${escapeHtml(item.classification_label || "-")}</span>
-        </div>
-        <div class="translation-item-card-route"><strong>route</strong> ${escapeHtml(routePath || "-")}</div>
         <div class="translation-item-card-preview">${escapeHtml(previewText(item.source_preview || item.source_text || ""))}</div>
-        <div class="translation-item-card-footer">
-          <span><strong>fallback</strong> ${escapeHtml(fallbackToOf(item) || "-")}</span>
-          <span><strong>error</strong> ${escapeHtml(errorLabel)}</span>
-        </div>
-        <div class="translation-item-card-route"><strong>degradation</strong> ${escapeHtml(degradationReason)}</div>
+        <div class="translation-item-card-meta">${escapeHtml(metaBits)}${errorMarkup}</div>
       </button>
     `;
   }).join("");

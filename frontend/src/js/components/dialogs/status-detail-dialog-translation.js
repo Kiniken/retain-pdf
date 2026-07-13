@@ -11,15 +11,15 @@ export function renderTranslationSummary(host, {
   providerFamily = "",
   emptyText = "",
   hidden = false,
-  summaryScopeText = "-",
   filterText = "-",
 } = {}) {
   const elements = translationSummaryElements(host);
   const normalizedCounts = Object.keys(finalStatusCounts || {}).length ? finalStatusCounts : (counts || {});
   const countValues = {
     translated: normalizedCounts.translated,
+    partiallyTranslated: normalizedCounts.partially_translated,
     keptOrigin: normalizedCounts.kept_origin,
-    skipped: normalizedCounts.skipped,
+    failed: normalizedCounts.failed,
     providerFamily: providerFamily || "-",
   };
   Object.entries(countValues).forEach(([key, value]) => {
@@ -28,10 +28,7 @@ export function renderTranslationSummary(host, {
     }
   });
   if (elements.status) {
-    elements.status.textContent = hidden ? "暂无翻译调试数据" : "按 item 查看保留原文、跳过与重放结果";
-  }
-  if (elements.scope) {
-    elements.scope.textContent = `摘要统计范围：${summaryScopeText}`;
+    elements.status.textContent = hidden ? "暂无翻译调试数据" : "按 item 查看翻译结果、保留原文原因与重放";
   }
   if (elements.filter) {
     elements.filter.textContent = `当前列表筛选：${filterText}`;

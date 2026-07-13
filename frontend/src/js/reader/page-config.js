@@ -20,6 +20,21 @@ export function resolveReaderJobId({
   return isMock() ? mockJobId() : "";
 }
 
+// 锚点 (page_idx, block_id) 来自搜索命中/收藏回跳的 URL 透传
+export function resolveReaderAnchor({ search = defaultSearch() } = {}) {
+  const params = new URLSearchParams(search);
+  const rawPageIdx = `${params.get("page_idx") ?? ""}`.trim();
+  const blockId = `${params.get("block_id") || ""}`.trim();
+  const pageIdx = rawPageIdx === "" ? NaN : Number(rawPageIdx);
+  if (!Number.isFinite(pageIdx) && !blockId) {
+    return null;
+  }
+  return {
+    pageIdx: Number.isFinite(pageIdx) ? pageIdx : null,
+    blockId,
+  };
+}
+
 export function createReaderPageConfigPort({
   messageTargetOrigin = readerMessageTargetOrigin,
   isMock = isMockMode,

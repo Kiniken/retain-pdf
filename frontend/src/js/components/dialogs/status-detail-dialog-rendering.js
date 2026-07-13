@@ -59,6 +59,12 @@ export function renderEvents(host, { markup = "", count = 0, emptyText = "暂无
   list.innerHTML = markup;
 }
 
+// 仅在有值时才占一行的可选字段
+const OPTIONAL_RUNTIME_IDS = new Set([
+  STATUS_DETAIL_DIALOG.ids.runtime.lastTransition,
+  STATUS_DETAIL_DIALOG.ids.runtime.terminalReason,
+]);
+
 export function setRuntimeDetails(host, details = {}) {
   const { runtime } = STATUS_DETAIL_DIALOG.ids;
   const entries = [
@@ -74,8 +80,14 @@ export function setRuntimeDetails(host, details = {}) {
   ];
   entries.forEach(([id, value]) => {
     const el = host.querySelector(idSelector(id));
-    if (el) {
-      el.textContent = value ?? "-";
+    if (!el) {
+      return;
+    }
+    const text = value ?? "-";
+    el.textContent = text;
+    if (OPTIONAL_RUNTIME_IDS.has(id)) {
+      const row = el.closest(".detail-item");
+      row?.classList.toggle("hidden", !`${text}`.trim() || `${text}`.trim() === "-");
     }
   });
 }

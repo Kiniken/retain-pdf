@@ -83,6 +83,12 @@ class FrontendRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(encoded)
             return
         if self.path == "/runtime-config.local.js":
+            # 磁盘上已有 runtime-config.local.js(本地开发的真实配置,含 key)时优先服务它,
+            # 只有缺省时才从环境变量生成——避免动态生成的空 key 覆盖本地可用配置。
+            disk_local = Path(self.directory) / "runtime-config.local.js"
+            if disk_local.is_file() and not os.environ.get("RETAIN_PDF_FRONTEND_X_API_KEY", "").strip():
+                super().do_GET()
+                return
             payload = {
                 "apiBase": DEFAULT_API_BASE,
                 "xApiKey": DEFAULT_X_API_KEY,

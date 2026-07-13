@@ -5,6 +5,7 @@ import {
 export async function openReaderDirectly({
   fetchProtected,
   jobId,
+  anchor = null,
   ports = defaultStartupRoutePorts,
   setTextFn = ports.setText,
   state,
@@ -15,5 +16,5 @@ export async function openReaderDirectly({
     runtimePort: ports.readerDialogRuntimePort,
     setTextFn,
   });
-  feature.open({ jobId });
+  feature.open({ jobId, anchor });
 }

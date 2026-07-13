@@ -16,8 +16,8 @@ export function currentReaderArtifactUrls(state, runtimePort) {
   return runtimePort?.currentArtifactUrls?.(state) || {};
 }
 
-export function buildReaderPageUrl(jobId) {
-  return defaultReaderDialogConfigPort.buildReaderPageUrl(jobId);
+export function buildReaderPageUrl(jobId, anchor = null) {
+  return defaultReaderDialogConfigPort.buildReaderPageUrl(jobId, anchor);
 }
 
 export function buildReaderRouteUrl(jobId) {

@@ -86,28 +86,11 @@ export function createUploadStore(initialState = {}) {
   });
 }
 
-function syncLegacyUploadState(targetState, snapshot) {
-  if (!targetState) {
-    return;
-  }
-  Object.assign(targetState, {
-    uploadId: snapshot.uploadId,
-    uploadedFileName: snapshot.uploadedFileName,
-    uploadedPageCount: snapshot.uploadedPageCount,
-    uploadedBytes: snapshot.uploadedBytes,
-    appliedPageRange: snapshot.appliedPageRange,
-    submitBusy: snapshot.submitBusy,
-  });
-}
-
 export function createUploadStatePort(targetState = {}) {
   const store = createUploadStore(targetState);
-  syncLegacyUploadState(targetState, store.getSnapshot());
 
   function applyStoreAction(action) {
-    const snapshot = action();
-    syncLegacyUploadState(targetState, snapshot);
-    return snapshot;
+    return action();
   }
 
   function getSnapshot() {
@@ -147,6 +130,11 @@ export function createUploadStatePort(targetState = {}) {
 }
 
 let defaultUploadStatePort = null;
+
+// 唯一的默认实例:多个挂载点共享同一份上传状态(取代旧全局 state 的会合点角色)
+export function getUploadStatePort() {
+  return getDefaultUploadStatePort();
+}
 
 function getDefaultUploadStatePort() {
   if (!defaultUploadStatePort) {

@@ -1041,7 +1041,6 @@ test("credentials hidden inputs keep DOM and default state ownership split", () 
   assert.match(hiddenDomSource, /..\/..\/dom\/query\.js/);
   assert.match(defaultStateSource, /createCredentialsStatePort/);
   assert.match(defaultStateSource, /hidden-input-dom-port\.js/);
-  assert.match(defaultStateSource, /runtime-state-port\.js/);
   assert.match(selectorsSource, /ocrTokenFromCredentials/);
   assert.match(selectorsSource, /hasCompleteCredentials/);
 });
@@ -1822,20 +1821,20 @@ test("job runtime controller and reset flow use reset state port for legacy stat
   assert.match(jobPresentationSource, /..\/job-status\/job-display-state\.js/);
 
   const defaultJobActionsSource = readUiSource("default-job-actions-runtime.js");
-  assert.equal(defaultJobActionsSource.includes("../features/upload/state.js"), false);
+  // 上传重置改走共享单例 store(features/upload/state.js),不再依赖旧 upload slice
+  assert.match(defaultJobActionsSource, /features\/upload\/state\.js/);
+  assert.equal(defaultJobActionsSource.includes("../state/upload-state.js"), false);
   assert.match(defaultJobActionsSource, /job-runtime\/reset-state-port\.js/);
 });
 
-test("current job state mirrors legacy fields through an explicit port", () => {
+test("current job state is store-only with no legacy mirror", () => {
   const currentJobStateSource = readJobRuntimeSource("current-job-state.js");
-  const legacyMirrorSource = readJobRuntimeSource("legacy-current-job-state-port.js");
   const secondarySelectorSource = readJobRuntimeSource("current-job-secondary-selectors.js");
 
-  assert.match(currentJobStateSource, /legacy-current-job-state-port\.js/);
+  // 迁移完成:镜像 port 文件不得存在,选择器读 store 快照
+  assert.equal(existsSync(join(SOURCE_ROOTS.features, "job-runtime", "legacy-current-job-state-port.js")), false);
   assert.equal(/state\.currentJob[A-Za-z]*\s*=(?!=)/.test(currentJobStateSource), false);
-  assert.match(legacyMirrorSource, /state\.currentJobId\s*=/);
-  assert.match(legacyMirrorSource, /state\.currentJobSnapshot\s*=/);
-  assert.match(legacyMirrorSource, /state\.currentJobFinishedAt\s*=/);
+  assert.match(currentJobStateSource, /currentJobStoreFor\(state\)\.getSnapshot\(\)/);
   assert.equal(currentJobStateSource.includes("secondary-resource-cache.js"), false);
   assert.match(currentJobStateSource, /current-job-secondary-selectors\.js/);
   assert.match(secondarySelectorSource, /secondary-resource-cache\.js/);
@@ -2115,7 +2114,6 @@ test("browser credentials controller reads runtime state through explicit ports"
   assert.equal(source.includes("../../state/upload-state.js"), false);
   assert.equal(source.includes("../upload/state.js"), false);
   assert.match(source, /runtime-env-port\.js/);
-  assert.match(source, /balance-state-port\.js/);
   assert.match(source, /upload-readiness-port\.js/);
   assert.equal(uploadReadinessSource.includes("../../state/upload-state.js"), false);
   assert.match(legacyStateAdapterSource, /..\/state\/upload-state\.js/);
@@ -2148,26 +2146,16 @@ test("reader dialog reads job runtime state through reader runtime port", () => 
   assert.match(bootstrapRuntimePortSource, /job-runtime\/secondary-resource-cache\.js/);
 });
 
-test("credentials state ports use narrow credential state slice instead of aggregate actions", () => {
-  const legacyStateAdapterSource = readBootstrapSource("legacy-state-helper-adapters.js");
+test("credentials runtime state is store-only with no legacy mirror ports", () => {
+  // credential slice 已统一到 app-framework store,镜像 port 文件不应再出现
   for (const fileName of ["runtime-state-port.js", "balance-state-port.js", "legacy-runtime-port.js"]) {
-    const source = readFeatureSource("credentials", fileName);
-
-    assert.equal(source.includes("../../state/actions.js"), false);
-    assert.equal(source.includes("../../state/credential-state.js"), false);
+    assert.equal(existsSync(join(SOURCE_ROOTS.features, "credentials", fileName)), false);
   }
-  assert.match(legacyStateAdapterSource, /..\/state\/credential-state\.js/);
-
-  const runtimeStateSource = readFeatureSource("credentials", "runtime-state-port.js");
-  assert.equal(runtimeStateSource.includes("../../state/store.js"), false);
-});
-
-test("credentials validation flows mirror legacy runtime only through explicit port", () => {
-  for (const fileName of ["validation.js", "deepseek-flow.js"]) {
+  for (const fileName of ["validation.js", "deepseek-flow.js", "browser.js", "ocr-readiness-flow.js"]) {
     const source = readFeatureSource("credentials", fileName);
-
     assert.equal(source.includes("../../state/actions.js"), false);
-    assert.match(source, /legacy-runtime-port\.js/);
+    assert.equal(source.includes("legacy-runtime-port.js"), false);
+    assert.equal(source.includes("balance-state-port.js"), false);
   }
 });
 
@@ -2177,7 +2165,73 @@ test("upload controller reads upload state only through upload state port", () =
 
   assert.equal(source.includes("../../state/actions.js"), false);
   assert.equal(source.includes("../../state/upload-state.js"), false);
-  assert.match(source, /createUploadStatePort/);
+  assert.match(source, /getUploadStatePort/);
   assert.equal(stateSource.includes("../../state/store.js"), false);
   assert.equal(stateSource.includes("../../state/upload-state.js"), false);
+});
+
+// ===== React 迁移防回弹门禁(Phase 0 起生效) =====
+// 新世界(src/pages/**、src/shared/**)只能消费旧世界的纯逻辑层
+// (api/contracts/state-port/actions/view-model 等),禁止 import 旧视图层——
+// 一旦引用,旧 DOM 视图就会"回弹"进 React 树,迁移永远收不了口。
+//
+// 注:tests/esm-entry-resolution.test.mjs 已随 Phase 2b reader cutover 退役——
+// 三页(home/detail/reader)入口全部经 esbuild 打包,import 断链在 build:js
+// 构建期即失败,不再需要独立的原生 ESM 解析守卫。
+
+test("React 新世界禁止 import 旧视图层(防回弹)", () => {
+  const REACT_ROOTS = [join(PROJECT_ROOT, "src/pages"), join(PROJECT_ROOT, "src/shared")];
+  // 旧视图层路径特征:命中即违规
+  const FORBIDDEN_IMPORT_PATTERNS = [
+    // 只拦旧世界的 src/js/components/;新世界页面自身的 components/ 子目录
+    // (src/pages/*/components/,目录约定)不在此列
+    [/from\s+["'][^"']*\/js\/components\//, "src/js/components/(自定义元素/对话框视图)"],
+    [/from\s+["'][^"']*\/generated\//, "src/js/generated/(预编译产物)"],
+    [/from\s+["'][^"']*\/bootstrap\//, "src/js/bootstrap/(旧 DI 装配层)"],
+    [/from\s+["'][^"']*\/features\/[^"']*\/view\.js["']/, "features/*/view.js(旧 DOM 视图)"],
+    [/from\s+["'][^"']*\/features\/[^"']*view-port\.js["']/, "features/*view-port.js(旧 DOM 端口)"],
+    [/from\s+["'][^"']*\/features\/[^"']*dom-contract\.js["']/, "features/*dom-contract.js(旧 DOM 契约)"],
+    [/from\s+["'][^"']*\/features\/[^"']*card-markup\.js["']/, "features/*card-markup.js(字符串模板)"],
+    [/from\s+["'][^"']*\/features\/[^"']*card-template\.js["']/, "features/*card-template.js(字符串模板)"],
+    [/from\s+["'][^"']*\/js\/dom\//, "src/js/dom/(旧 DOM 工具)"],
+  ];
+
+  function walkReactFiles(root) {
+    const pending = [root];
+    const files = [];
+    while (pending.length > 0) {
+      const current = pending.pop();
+      const stat = statSync(current);
+      if (stat.isDirectory()) {
+        for (const entry of readdirSync(current)) {
+          pending.push(join(current, entry));
+        }
+        continue;
+      }
+      if (current.endsWith(".js") || current.endsWith(".jsx")) {
+        files.push(current);
+      }
+    }
+    return files.sort();
+  }
+
+  const violations = [];
+  for (const root of REACT_ROOTS) {
+    if (!existsSync(root)) {
+      continue;
+    }
+    for (const file of walkReactFiles(root)) {
+      const source = readFileSync(file, "utf8");
+      for (const [pattern, label] of FORBIDDEN_IMPORT_PATTERNS) {
+        if (pattern.test(source)) {
+          violations.push(`${relative(PROJECT_ROOT, file)} → ${label}`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(
+    violations,
+    [],
+    `React 新世界引用了旧视图层,请改为消费纯逻辑层或在 React 内重写:\n  ${violations.join("\n  ")}`,
+  );
 });

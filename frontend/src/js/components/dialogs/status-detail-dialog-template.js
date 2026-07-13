@@ -99,12 +99,12 @@ export function statusDetailDialogTemplate() {
                   <section class="translation-summary-shell">
                     <div class="translation-summary-grid">
                       <div class="translation-summary-card"><span class="label">已翻译</span><span id="${ids.translation.countTranslated}" class="info-value">-</span></div>
+                      <div class="translation-summary-card"><span class="label">部分翻译</span><span id="${ids.translation.countPartiallyTranslated}" class="info-value">-</span></div>
                       <div class="translation-summary-card"><span class="label">保留原文</span><span id="${ids.translation.countKeptOrigin}" class="info-value">-</span></div>
-                      <div class="translation-summary-card"><span class="label">已跳过</span><span id="${ids.translation.countSkipped}" class="info-value">-</span></div>
+                      <div class="translation-summary-card"><span class="label">失败</span><span id="${ids.translation.countFailed}" class="info-value">-</span></div>
                       <div class="translation-summary-card"><span class="label">Provider</span><span id="${ids.translation.providerFamily}" class="info-value">-</span></div>
                     </div>
                     <div class="translation-summary-notes">
-                      <span id="${ids.translation.summaryScope}" class="status-panel-note">摘要统计范围：-</span>
                       <span id="${ids.translation.listFilter}" class="status-panel-note">当前列表筛选：-</span>
                     </div>
                   </section>
@@ -114,10 +114,11 @@ export function statusDetailDialogTemplate() {
                       <label class="translation-filter-field">
                         <span class="label">状态</span>
                         <select id="${ids.translation.filterFinalStatus}">
-                          <option value="kept_origin" selected>保留原文</option>
+                          <option value="" selected>全部</option>
                           <option value="translated">已翻译</option>
-                          <option value="skipped">已跳过</option>
-                          <option value="">全部</option>
+                          <option value="partially_translated">部分翻译</option>
+                          <option value="kept_origin">保留原文</option>
+                          <option value="failed">失败</option>
                         </select>
                       </label>
                       <label class="translation-filter-field translation-filter-search">

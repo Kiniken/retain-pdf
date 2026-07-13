@@ -24,10 +24,14 @@ function formatEventPayload(payload) {
 
 export function buildEventsPresentation(eventsPayload) {
   const items = Array.isArray(eventsPayload?.items) ? eventsPayload.items : [];
-  const markup = items.map((item) => {
-    const record = normalizedStageEventRecord(item);
+  // 文案承诺“按时间倒序”,这里显式排序,不依赖后端返回顺序
+  const entries = items
+    .map((item) => ({ item, record: normalizedStageEventRecord(item) }))
+    .sort((a, b) => (Date.parse(b.record.timestamp) || 0) - (Date.parse(a.record.timestamp) || 0));
+  const markup = entries.map(({ item, record }) => {
     const tone = eventBadgeTone(item);
     const payloadText = formatEventPayload(item.payload);
+    const title = record.stageText || item.message || "-";
     return `
       <article class="event-item">
         <div class="event-meta">
@@ -38,8 +42,8 @@ export function buildEventsPresentation(eventsPayload) {
           ${record.lane && record.lane !== "main" ? `<span>lane:${escapeHtml(record.lane)}</span>` : ""}
           <span>${escapeHtml(item.level || "-")}</span>
         </div>
-        <div class="event-title">${escapeHtml(record.stageText || item.message || "-")}</div>
-        ${record.progressText ? `<div class="event-progress">${escapeHtml(record.progressText)}</div>` : ""}
+        <div class="event-title">${escapeHtml(title)}</div>
+        ${record.progressText && record.progressText !== title ? `<div class="event-progress">${escapeHtml(record.progressText)}</div>` : ""}
         ${payloadText ? `
           <details class="event-payload-wrap">
             <summary class="event-payload-toggle">查看 payload</summary>

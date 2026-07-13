@@ -9,12 +9,12 @@ export function translationSummaryElements(host) {
     content: host.querySelector(idSelector(translation.debugContent)),
     empty: host.querySelector(idSelector(translation.debugEmpty)),
     status: host.querySelector(idSelector(translation.debugStatus)),
-    scope: host.querySelector(idSelector(translation.summaryScope)),
     filter: host.querySelector(idSelector(translation.listFilter)),
     counts: {
       translated: host.querySelector(idSelector(translation.countTranslated)),
+      partiallyTranslated: host.querySelector(idSelector(translation.countPartiallyTranslated)),
       keptOrigin: host.querySelector(idSelector(translation.countKeptOrigin)),
-      skipped: host.querySelector(idSelector(translation.countSkipped)),
+      failed: host.querySelector(idSelector(translation.countFailed)),
       providerFamily: host.querySelector(idSelector(translation.providerFamily)),
     },
   };

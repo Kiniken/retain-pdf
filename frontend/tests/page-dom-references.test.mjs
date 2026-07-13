@@ -19,14 +19,7 @@ const KNOWN_ORPHANS = {
     // 模板生成的类,src/styles 中没有对应规则(无样式 div)
     "detail-artifact-meta",
   ]),
-  "src/js/reader": Object.freeze([
-    // ai/chat.js 未被任何产品代码接线(死代码),这些元素在页面上不存在
-    "reader-ai-input",
-    "reader-ai-status",
-    "reader-ai-submit-btn",
-    // 收藏抽屉的开关按钮已从 reader.html 移除,side-drawers.js 残留引用
-    "reader-favorites-toggle-btn",
-  ]),
+  "src/js/reader": Object.freeze([]),
 };
 
 const PAGES = [
@@ -34,11 +27,18 @@ const PAGES = [
     jsDir: "src/js/job-detail",
     prefix: "detail",
     htmlFile: "detail.html",
+    // Phase 1 cutover 后 detail.html 只剩 #detail-root 挂载点,页面骨架
+    // (id/class)改由 React 树渲染:归属校验需要扫描新世界 JSX 的
+    // id="..." 与 className="..."(保留的旧纯逻辑仍按 id 写这些节点)。
+    jsxDir: "src/pages/detail",
   },
   {
     jsDir: "src/js/reader",
     prefix: "reader",
     htmlFile: "reader.html",
+    // Phase 2b cutover 后 reader.html 只剩 #reader-root 挂载点,页面骨架
+    // (id/class)改由 React 树渲染(照 detail 先例扫描新世界 JSX)。
+    jsxDir: "src/pages/reader",
   },
 ];
 
@@ -70,11 +70,11 @@ function collectLiterals(jsFiles, prefix) {
   return literals;
 }
 
-function collectOwnership(htmlText, jsTexts, cssText) {
+function collectOwnership(htmlText, jsTexts, cssText, jsxTexts = []) {
   const ids = new Set(
     [...htmlText.matchAll(/id="([a-z0-9-]+)"/g)].map((m) => m[1]),
   );
-  for (const text of jsTexts) {
+  for (const text of [...jsTexts, ...jsxTexts]) {
     for (const match of text.matchAll(/\bid\s*=\s*"([a-z0-9-]+)"/g)) {
       ids.add(match[1]);
     }
@@ -83,6 +83,14 @@ function collectOwnership(htmlText, jsTexts, cssText) {
   for (const match of htmlText.matchAll(/class="([^"]+)"/g)) {
     for (const name of match[1].split(/\s+/)) {
       classes.add(name);
+    }
+  }
+  // React 页面骨架:JSX 的 className 等价于旧 HTML 的 class 归属
+  for (const text of jsxTexts) {
+    for (const match of text.matchAll(/className="([^"]+)"/g)) {
+      for (const name of match[1].split(/\s+/)) {
+        classes.add(name);
+      }
     }
   }
   for (const match of cssText.matchAll(/\.([a-z0-9][a-z0-9-]*)/g)) {
@@ -105,15 +113,18 @@ function isOwned(literal, ownership) {
   return false;
 }
 
-function analyzePage({ jsDir, prefix, htmlFile }) {
+function analyzePage({ jsDir, prefix, htmlFile, jsxDir = "" }) {
   const jsFiles = walkFiles(join(PROJECT_ROOT, jsDir), ".js");
   const jsTexts = jsFiles.map((file) => readFileSync(file, "utf8"));
+  const jsxTexts = jsxDir
+    ? walkFiles(join(PROJECT_ROOT, jsxDir), ".jsx").map((file) => readFileSync(file, "utf8"))
+    : [];
   const htmlText = readFileSync(join(PROJECT_ROOT, htmlFile), "utf8");
   const cssText = walkFiles(STYLES_ROOT, ".css")
     .map((file) => readFileSync(file, "utf8"))
     .join("\n");
   const literals = collectLiterals(jsFiles, prefix);
-  const ownership = collectOwnership(htmlText, jsTexts, cssText);
+  const ownership = collectOwnership(htmlText, jsTexts, cssText, jsxTexts);
   return { literals, ownership };
 }
 

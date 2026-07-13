@@ -156,7 +156,7 @@ export function mountReaderDialogFeature({
     if (input?.jobId || input?.url || typeof input?.disabled === "boolean") {
       const jobId = `${input?.jobId || ""}`.trim() || jobIdFromReaderUrl(input?.url);
       return {
-        url: `${input?.url || buildReaderPageUrl(jobId)}`.trim(),
+        url: `${input?.url || buildReaderPageUrl(jobId, input?.anchor || null)}`.trim(),
         jobId,
         disabled: !!input?.disabled,
       };

@@ -4,7 +4,7 @@ export function createTranslationState() {
     loaded: false,
     summary: null,
     query: {
-      finalStatus: "kept_origin",
+      finalStatus: "",
       q: "",
       limit: 20,
       offset: 0,

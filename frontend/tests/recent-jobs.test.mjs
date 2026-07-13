@@ -163,6 +163,7 @@ test("app contract centralizes global retainpdf events and dialog roots", () => 
       "retainpdf:library-job-updated",
       "retainpdf:library-refresh-requested",
       "retainpdf:open-browser-credentials",
+      "retainpdf:open-reader-requested",
       "retainpdf:open-translation-workflow",
       "retainpdf:refresh-glossaries",
       "retainpdf:retry-stage",
@@ -951,13 +952,15 @@ test("home state port updates state and dispatches app events", () => {
     const localState = createInitialState();
     const port = createHomeStatePort(localState);
     port.setViewMode("bad-mode");
+    assert.equal(port.getSnapshot().viewMode, "library");
+    // 迁移完成:store 是唯一真值,旧 state 对象不再被回写
     assert.equal(localState.homeViewMode, "library");
     assert.equal(events.at(-1).type, APP_EVENTS.homeViewModeChanged);
     assert.deepEqual(events.at(-1).detail, { mode: "library" });
 
     port.setRecentJobsLoadingState("error", "boom");
-    assert.equal(localState.homeRecentJobsLoadingState, "error");
-    assert.equal(localState.homeRecentJobsError, "boom");
+    assert.equal(port.getSnapshot().recentJobsLoadingState, "error");
+    assert.equal(port.getSnapshot().recentJobsError, "boom");
     assert.equal(events.at(-1).type, APP_EVENTS.homeRecentJobsStateChanged);
     assert.deepEqual(events.at(-1).detail, {
       loadingState: "error",
@@ -989,9 +992,10 @@ test("home state port normalizes initial state and tolerates missing event APIs"
     recentJobsLoadingState: "idle",
     recentJobsError: "123",
   });
-  assert.equal(localState.homeViewMode, "library");
-  assert.equal(localState.homeRecentJobsLoadingState, "idle");
-  assert.equal(localState.homeRecentJobsError, "123");
+  // 不再回写旧对象:初始值保持调用方传入的原样
+  assert.equal(localState.homeViewMode, "bad-mode");
+  assert.equal(localState.homeRecentJobsLoadingState, "bad-loading");
+  assert.equal(localState.homeRecentJobsError, 123);
 
   port.setViewMode("workflow_status");
   port.setRecentJobsLoadingState("bad-loading", "boom");
@@ -1590,7 +1594,7 @@ test("recent jobs store renderer can opt into page-level store rendering", () =>
   ]);
 });
 
-test("recent jobs state port is backed by the app-framework store and mirrors legacy state", () => {
+test("recent jobs state port is backed by the app-framework store without legacy mirror", () => {
   const localState = createInitialState();
   const port = createRecentJobsStatePort(localState);
 
@@ -1607,12 +1611,13 @@ test("recent jobs state port is backed by the app-framework store and mirrors le
     invocationSummary: { stage_spec_count: 7, unknown_count: 2 },
     items: [{ job_id: "job-store" }],
   });
-  assert.equal(localState.recentJobsOffset, 20);
+  // 迁移完成:store 是唯一真值,旧 state 对象不再被回写
+  assert.equal(localState.recentJobsOffset, 0);
   assert.equal(localState.recentJobsHasMore, true);
-  assert.deepEqual(localState.recentJobsItems, [{ job_id: "job-store" }]);
+  assert.deepEqual(localState.recentJobsItems, []);
 });
 
-test("recent jobs state port batches pagination updates and mirrors once", () => {
+test("recent jobs state port batches pagination updates into one notification", () => {
   const localState = createInitialState();
   const port = createRecentJobsStatePort(localState);
   const events = [];
@@ -1635,9 +1640,6 @@ test("recent jobs state port batches pagination updates and mirrors once", () =>
   });
   assert.equal(events.length, 1);
   assert.equal(events[0].meta.action, "setOffset");
-  assert.equal(localState.recentJobsOffset, 10);
-  assert.equal(localState.recentJobsHasMore, false);
-  assert.deepEqual(localState.recentJobsItems, [{ job_id: "job-batch" }]);
 });
 
 test("recent jobs store can be used without the legacy global state object", () => {

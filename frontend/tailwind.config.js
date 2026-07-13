@@ -3,7 +3,7 @@
 // 注意:var() 形式的颜色不支持透明度修饰符(如 bg-accent/50),
 // 需要半透明时用 tokens.css 里的 *-weak 变量或新增 token。
 export default {
-  content: ["./index.html", "./app.js", "./src/js/**/*.js", "./src/partials/**/*.html"],
+  content: ["./index.html", "./app.js", "./src/js/**/*.js", "./src/js/**/*.jsx", "./src/partials/**/*.html"],
   theme: {
     extend: {
       colors: {

@@ -40,6 +40,18 @@ export function createRecentJobActions({
     navigationPort.openJob(normalizedJobId);
   }
 
+  // 409 = 删除保护:该 job 被收藏引用,不能自动 force,必须让用户先处理收藏
+  function friendlyDeleteError(error) {
+    const message = `${error?.message || error || ""}`;
+    if (error?.status === 409 || message.includes("(409)")) {
+      const count = message.match(/\d+/)?.[0];
+      return count
+        ? `该文档有 ${count} 条收藏，请先删除收藏后再删除文档。`
+        : "该文档存在收藏引用，请先删除相关收藏后再删除文档。";
+    }
+    return message || "删除失败";
+  }
+
   async function deleteJob(jobId) {
     const normalizedJobId = `${jobId || ""}`.trim();
     if (!normalizedJobId || !deleteLibraryBook) {
@@ -48,13 +60,8 @@ export function createRecentJobActions({
     try {
       await deleteLibraryBook(apiPrefix, normalizedJobId);
     } catch (error) {
-      const message = error?.message || String(error);
-      if (message.includes("(409)")) {
-        await deleteLibraryBook(apiPrefix, normalizedJobId, { force: true });
-      } else {
-        renderRecentJobsError(message || "删除失败", { reset: false });
-        return;
-      }
+      renderRecentJobsError(friendlyDeleteError(error), { reset: false });
+      return;
     }
     statePort.removeJobFamily(normalizedJobId);
     const nextItems = statePort.getSnapshot().items;

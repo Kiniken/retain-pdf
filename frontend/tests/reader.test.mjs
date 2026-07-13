@@ -11,7 +11,6 @@ let readerProgressPresenter;
 let readerResourceResolver;
 let readerRegionInteractions;
 let readerAiMarkdown;
-let readerAiChat;
 let readerAiConfig;
 let readerAiRemote;
 let readerModeController;
@@ -19,12 +18,10 @@ let readerChromeController;
 let readerView;
 let readerFavoritesStorage;
 let readerAiContext;
-let readerSideDrawers;
-let readerStartup;
 let readerViewerMountFlow;
 let readerDialogController;
 let readerDialogRuntimePort;
-let readerDownloadActions;
+let readerDownloadResolve;
 
 before(async () => {
   if (typeof Promise.withResolvers !== "function") {
@@ -58,7 +55,6 @@ before(async () => {
   readerResourceResolver = await import("../src/js/reader/resource-resolver.js");
   readerRegionInteractions = await import("../src/js/reader/region-interactions.js");
   readerAiMarkdown = await import("../src/js/reader/ai/markdown-answerer.js");
-  readerAiChat = await import("../src/js/reader/ai/chat.js");
   readerAiConfig = await import("../src/js/reader/ai/config.js");
   readerAiRemote = await import("../src/js/reader/ai/remote-answerer.js");
   readerModeController = await import("../src/js/reader/mode-controller.js");
@@ -66,12 +62,10 @@ before(async () => {
   readerView = await import("../src/js/reader/view.js");
   readerFavoritesStorage = await import("../src/js/reader/favorites-storage.js");
   readerAiContext = await import("../src/js/reader/ai-context.js");
-  readerSideDrawers = await import("../src/js/reader/side-drawers.js");
-  readerStartup = await import("../src/js/reader/startup.js");
   readerViewerMountFlow = await import("../src/js/reader/viewer-mount-flow.js");
   readerDialogController = await import("../src/js/features/reader-dialog/controller.js");
   readerDialogRuntimePort = await import("../src/js/bootstrap/reader-dialog-runtime-port.js");
-  readerDownloadActions = await import("../src/js/reader/download-actions.js");
+  readerDownloadResolve = await import("../src/js/reader/downloads/resolve.js");
 });
 
 test("reader artifact url reuses the unified resource resolver", () => {
@@ -1097,20 +1091,31 @@ test("reader translated region right click keeps selection drag from stealing th
   global.window = previousWindow;
 });
 
-test("reader page keeps ai entry hidden while reader ai is paused", () => {
-  const markup = readFileSync(new URL("../reader.html", import.meta.url), "utf8");
+test("reader page exposes ai/favorites/download entries, keeps paused tools hidden", () => {
+  // Phase 2b cutover 后 reader.html 只剩 #reader-root 挂载点,页面骨架改由
+  // src/pages/reader 的 JSX 渲染:入口断言改扫新世界组件源码。
+  const jsxSources = [
+    "../src/pages/reader/components/ReaderSideDrawers.jsx",
+    "../src/pages/reader/components/ReaderTopbarActions.jsx",
+    "../src/pages/reader/components/ReaderDownloadMenu.jsx",
+    "../src/pages/reader/components/ReaderAiChat.jsx",
+  ].map((file) => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
 
-  assert.match(markup, /id="reader-favorites-drawer" class="reader-side-drawer reader-favorites-drawer"/);
-  assert.doesNotMatch(markup, /class="reader-tool-dock"/);
-  assert.doesNotMatch(markup, /id="reader-selection-mode-btn"/);
-  assert.doesNotMatch(markup, /id="reader-favorites-toggle-btn"/);
-  assert.doesNotMatch(markup, /class="reader-download-menu"/);
-  assert.doesNotMatch(markup, /id="reader-download-source-btn"/);
-  assert.doesNotMatch(markup, /id="reader-download-sideBySide-btn"/);
-  assert.doesNotMatch(markup, /id="reader-download-translated-btn"/);
-  assert.doesNotMatch(markup, /id="reader-ai-toggle-btn"/);
-  assert.doesNotMatch(markup, /id="reader-ai-drawer"/);
-  assert.doesNotMatch(markup, /data-reader-ai-composer/);
+  assert.match(jsxSources, /id="reader-favorites-drawer"/);
+  assert.match(jsxSources, /reader-side-drawer reader-\$\{key\}-drawer|reader-side-drawer reader-favorites-drawer/);
+  assert.match(jsxSources, /"reader-favorites-toggle-btn"/);
+  assert.match(jsxSources, /"reader-ai-toggle-btn"/);
+  assert.match(jsxSources, /id="reader-ai-drawer"/);
+  assert.match(jsxSources, /data-reader-ai-composer/);
+  assert.match(jsxSources, /id="reader-ai-thread"/);
+  assert.match(jsxSources, /className="reader-download-menu"/);
+  assert.match(jsxSources, /reader-download-\$\{action\}-btn/);
+  assert.doesNotMatch(jsxSources, /reader-tool-dock/);
+  assert.doesNotMatch(jsxSources, /reader-selection-mode-btn/);
+
+  const markup = readFileSync(new URL("../reader.html", import.meta.url), "utf8");
+  assert.match(markup, /id="reader-root"/);
+  assert.match(markup, /dist\/reader\.bundle\.js/);
 });
 
 test("reader download actions resolve artifact urls and disabled reasons", () => {
@@ -1128,7 +1133,7 @@ test("reader download actions resolve artifact urls and disabled reasons", () =>
       },
     ],
   };
-  const urls = readerDownloadActions.resolveReaderDownloadUrls({
+  const urls = readerDownloadResolve.resolveReaderDownloadUrls({
     jobId: "job-reader",
     jobPayload: { job_id: "job-reader", output_pdf_ready: true },
     manifestPayload: manifest,
@@ -1138,83 +1143,22 @@ test("reader download actions resolve artifact urls and disabled reasons", () =>
   assert.equal(urls.translated, "http://retainpdf.local:41000/api/v1/jobs/job-reader/artifacts/pdf");
   assert.equal(urls.sideBySide, "http://retainpdf.local:41000/api/v1/jobs/job-reader/pdf/side-by-side");
 
-  const buttons = new Map([
-    ["reader-download-source-btn", { dataset: {}, disabled: false, attrs: {}, setAttribute(name, value) { this.attrs[name] = value; } }],
-    ["reader-download-sideBySide-btn", { dataset: {}, disabled: false, attrs: {}, setAttribute(name, value) { this.attrs[name] = value; } }],
-    ["reader-download-translated-btn", { dataset: {}, disabled: false, attrs: {}, setAttribute(name, value) { this.attrs[name] = value; } }],
-  ]);
-  const menu = { open: true };
-  const controller = readerDownloadActions.createReaderDownloadActions({
-    documentRef: {
-      getElementById: (id) => buttons.get(id) || null,
-      querySelector: (selector) => selector === ".reader-download-menu" ? menu : null,
-    },
-    fetchProtected: async () => ({ ok: true }),
-  });
-  controller.sync({
+  // 产物缺失时的禁用原因(React 下载菜单以此作为按钮 title)
+  const emptyUrls = readerDownloadResolve.resolveReaderDownloadUrls({
     jobId: "job-reader",
     jobPayload: { job_id: "job-reader", workflow: "ocr", status: "succeeded" },
     manifestPayload: { items: [] },
   });
-
-  assert.equal(buttons.get("reader-download-source-btn").disabled, true);
-  assert.equal(buttons.get("reader-download-source-btn").attrs["aria-disabled"], "true");
-  assert.match(buttons.get("reader-download-source-btn").title, /原始 PDF/);
-  assert.equal(buttons.get("reader-download-translated-btn").disabled, true);
-  assert.match(buttons.get("reader-download-translated-btn").title, /译文 PDF/);
-  assert.equal(buttons.get("reader-download-sideBySide-btn").disabled, true);
-  assert.match(buttons.get("reader-download-sideBySide-btn").title, /PDF/);
-
-  controller.sync({
-    jobId: "",
-    jobPayload: null,
-    manifestPayload: { items: [] },
-  });
-  assert.equal(buttons.get("reader-download-source-btn").disabled, true);
-  assert.equal(buttons.get("reader-download-source-btn").attrs["aria-disabled"], "true");
-  assert.match(buttons.get("reader-download-source-btn").title, /原始 PDF/);
+  assert.equal(emptyUrls.source, "");
+  assert.equal(emptyUrls.sideBySide, "");
+  assert.equal(emptyUrls.translated, "");
+  assert.match(readerDownloadResolve.disabledReason("source", emptyUrls), /原始 PDF/);
+  assert.match(readerDownloadResolve.disabledReason("translated", emptyUrls), /译文 PDF/);
+  assert.match(readerDownloadResolve.disabledReason("sideBySide", emptyUrls), /PDF/);
 });
 
-test("reader side drawer controls favorites", () => {
-  const activeChanges = [];
-  function element() {
-    return {
-      attrs: {},
-      inert: false,
-      classList: {
-        values: new Set(),
-        toggle(name, active) {
-          active ? this.values.add(name) : this.values.delete(name);
-        },
-      },
-      addEventListener(type, handler) {
-        this[type] = handler;
-      },
-      setAttribute(name, value) {
-        this.attrs[name] = value;
-      },
-    };
-  }
-  const elements = {
-    "reader-favorites-drawer": element(),
-    "reader-favorites-close-btn": element(),
-  };
-  const controller = readerSideDrawers.createReaderSideDrawers({
-    documentRef: {
-      getElementById: (id) => elements[id] || null,
-    },
-    onActiveChanged: (active) => activeChanges.push(active),
-  });
-
-  controller.bindEvents();
-  assert.equal(elements["reader-favorites-drawer"].inert, false);
-
-  controller.open("favorites");
-  assert.equal(controller.active(), "favorites");
-  assert.equal(elements["reader-favorites-drawer"].classList.values.has("is-open"), true);
-  assert.equal(elements["reader-favorites-drawer"].inert, false);
-  assert.deepEqual(activeChanges, ["", "favorites"]);
-});
+// 抽屉互斥开合的状态语义已移入 React 世界的 drawer store,
+// DOM 写入(is-open/inert/aria-expanded)由组件渲染;见 tests/reader-drawers.test.mjs。
 
 test("reader ai context can switch to selection scope", () => {
   const calls = [];
@@ -1280,68 +1224,8 @@ test("reader markdown answerer answers from markdown sections", async () => {
   assert.deepEqual(result.citations.includes("Formula"), true);
 });
 
-test("reader ai chat submits a markdown grounded answer", async () => {
-  const appended = [];
-  const threadEl = {
-    ownerDocument: null,
-    appendChild(child) {
-      appended.push(child);
-      return child;
-    },
-    scrollHeight: 120,
-    scrollTop: 0,
-  };
-  const inputEl = { disabled: false, value: "What is RetainPDF?" };
-  const submitEl = { disabled: false, textContent: "" };
-  const statusEl = { textContent: "" };
-  const formEl = { addEventListener() {} };
-  const documentRef = {
-    createElement(tagName) {
-      return {
-        tagName,
-        children: [],
-        className: "",
-        textContent: "",
-        append(...nodes) {
-          this.children.push(...nodes);
-        },
-      };
-    },
-    getElementById(id) {
-      return {
-        "reader-ai-input": inputEl,
-        "reader-ai-submit-btn": submitEl,
-        "reader-ai-status": statusEl,
-        "reader-ai-thread": threadEl,
-      }[id] || null;
-    },
-    querySelector(selector) {
-      return selector === "[data-reader-ai-composer]" ? formEl : null;
-    },
-  };
-  threadEl.ownerDocument = documentRef;
-  const chat = readerAiChat.createReaderAiChat({
-    documentRef,
-    jobId: "job-ai",
-    aiContext: {
-      context: () => ({ page: 2 }),
-      scope: () => "page",
-    },
-    answerer: {
-      answer: async () => ({ answer: "RetainPDF answer", citations: [], scope: "page" }),
-      ensureLoaded: async () => "markdown",
-    },
-  });
-
-  const result = await chat.submit();
-
-  assert.equal(result.answer, "RetainPDF answer");
-  assert.equal(inputEl.value, "");
-  assert.equal(statusEl.textContent, "后端阅读问答已完成");
-  assert.equal(appended.length, 2);
-  assert.equal(appended[0].children[1].textContent, "What is RetainPDF?");
-  assert.equal(appended[1].children[1].textContent, "RetainPDF answer");
-});
+// chat 提交/状态流转已随 AI 问答 UI 迁入 React(use-reader-ai-chat),
+// 等价断言见 tests/reader-ai-conversations.test.mjs(React 组件版)。
 
 test("reader remote ai answerer posts backend chat payload", async () => {
   const calls = [];
@@ -1412,67 +1296,8 @@ test("reader ai config prefers persisted browser credentials", () => {
   });
 });
 
-test("reader ai chat falls back to markdown answerer when backend chat fails", async () => {
-  const appended = [];
-  const threadEl = {
-    ownerDocument: null,
-    appendChild(child) {
-      appended.push(child);
-      return child;
-    },
-    scrollHeight: 120,
-    scrollTop: 0,
-  };
-  const inputEl = { disabled: false, value: "Explain fallback" };
-  const submitEl = { disabled: false, textContent: "" };
-  const statusEl = { textContent: "" };
-  const documentRef = {
-    createElement(tagName) {
-      return {
-        tagName,
-        children: [],
-        className: "",
-        textContent: "",
-        append(...nodes) {
-          this.children.push(...nodes);
-        },
-      };
-    },
-    getElementById(id) {
-      return {
-        "reader-ai-input": inputEl,
-        "reader-ai-submit-btn": submitEl,
-        "reader-ai-status": statusEl,
-        "reader-ai-thread": threadEl,
-      }[id] || null;
-    },
-    querySelector: () => null,
-  };
-  threadEl.ownerDocument = documentRef;
-  const chat = readerAiChat.createReaderAiChat({
-    documentRef,
-    fallbackAnswerer: {
-      answer: async () => ({
-        answer: "Local fallback",
-        citations: [{ title: "Fallback", page: 2, snippet: "local snippet" }],
-      }),
-      ensureLoaded: async () => true,
-    },
-    remoteAnswerer: {
-      answer: async () => {
-        throw new Error("502 provider failed");
-      },
-      ensureLoaded: async () => true,
-    },
-  });
-
-  await chat.submit();
-
-  assert.equal(statusEl.textContent, "已回退到 Markdown 本地检索");
-  assert.match(appended[1].children[1].textContent, /Local fallback/);
-  assert.match(appended[1].children[1].textContent, /引用/);
-  assert.match(appended[1].children[1].textContent, /502 provider failed/);
-});
+// 502 回退本地 Markdown 检索的语义迁移至 React 组件测试:
+// 见 tests/reader-ai-conversations.test.mjs「后端 502 时回退本地检索」。
 
 test("reader data port owns page API orchestration and fallbacks", async () => {
   const calls = [];
@@ -1539,27 +1364,8 @@ test("reader data port owns page API orchestration and fallbacks", async () => {
   ]);
 });
 
-test("reader startup uses page runtime instead of naked initialization", async () => {
-  const calls = [];
-  const pageRuntime = {
-    start(initializer) {
-      calls.push(["start"]);
-      return initializer();
-    },
-  };
-  const startReader = readerStartup.createReaderInitializer({
-    initializeReader: async () => {
-      calls.push(["initialize-reader"]);
-    },
-    pageRuntime,
-  });
-
-  assert.equal(startReader(), pageRuntime);
-  assert.deepEqual(calls, [
-    ["start"],
-    ["initialize-reader"],
-  ]);
-});
+// startup.js(page-runtime 包装)随旧入口 index.js 一并退役:React 入口
+// (src/pages/reader/entry.jsx)由打包构建守卫,boot 编排在 use-reader-boot。
 
 test("reader page state owns boot progress snapshots", () => {
   const state = readerPageState.createReaderPageState();

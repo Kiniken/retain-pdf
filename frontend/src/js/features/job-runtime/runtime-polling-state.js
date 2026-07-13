@@ -65,20 +65,9 @@ export function runtimePollingStoreFor(state) {
   return state[RUNTIME_POLLING_STORE_KEY];
 }
 
-function syncLegacyRuntimePollingState(state, snapshot) {
-  if (!state) {
-    return;
-  }
-  state.currentJobId = snapshot.jobId;
-  state.currentJobPollGeneration = snapshot.generation;
-  state.currentJobPollInFlight = snapshot.pollInFlight;
-}
-
 function applyRuntimePollingAction(state, action) {
   const store = runtimePollingStoreFor(state);
-  const snapshot = action(store);
-  syncLegacyRuntimePollingState(state, snapshot);
-  return snapshot;
+  return action(store);
 }
 
 export function createRuntimePollingStatePort(state, {
@@ -87,7 +76,6 @@ export function createRuntimePollingStatePort(state, {
   now = () => new Date().toISOString(),
 } = {}) {
   const store = runtimePollingStoreFor(state);
-  syncLegacyRuntimePollingState(state, store.getSnapshot());
   return {
     store,
     getSnapshot: () => store.getSnapshot(),
@@ -96,13 +84,7 @@ export function createRuntimePollingStatePort(state, {
         clearIntervalFn(state.timer);
         state.timer = null;
       }
-      const snapshot = applyRuntimePollingAction(state, (currentStore) => currentStore.actions.stop());
-      if (state) {
-        state.currentJobEventsFetchInFlight = false;
-        state.currentJobManifestFetchInFlight = false;
-        state.currentJobStageActionsFetchInFlight = false;
-      }
-      return snapshot;
+      return applyRuntimePollingAction(state, (currentStore) => currentStore.actions.stop());
     },
     beginPoll() {
       const current = store.getSnapshot();

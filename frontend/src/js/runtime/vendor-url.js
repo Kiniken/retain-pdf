@@ -31,3 +31,7 @@ export function resolvePdfLibVendorUrl(relativePath = "", options = {}) {
 export function resolveLottieVendorUrl(relativePath = "", options = {}) {
   return resolveVendorUrl(`lottie-web/${normalizeVendorPath(relativePath)}`, options);
 }
+
+export function resolveMarkedVendorUrl(options = {}) {
+  return resolveVendorUrl("marked/lib/marked.esm.js", options);
+}

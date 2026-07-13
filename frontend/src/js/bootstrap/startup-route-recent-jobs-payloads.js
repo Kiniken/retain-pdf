@@ -1,6 +1,7 @@
 import {
   openReaderDirectly,
 } from "./startup-reader-open-flow.js";
+import { APP_EVENTS } from "../contracts/app-contract.js";
 import { buildErrorDiagnostic } from "../utils/error-diagnostics.js";
 
 export function buildRecentJobsStartupPorts({
@@ -19,7 +20,7 @@ export function buildRecentJobsStartupPorts({
     currentJobId: () => jobRuntimeFeature?.currentJobId?.() || "",
   });
   const readerPort = ports.createRecentJobsReaderPort({
-    openReader: (jobId) => {
+    openReader: (jobId, anchor = null) => {
       jobRuntimeFeature?.startPolling(jobId);
       void (async () => {
         if (typeof fetchJobPayload === "function") {
@@ -35,6 +36,7 @@ export function buildRecentJobsStartupPorts({
           state,
           fetchProtected,
           jobId,
+          anchor,
           ports,
           setTextFn,
         });
@@ -47,6 +49,22 @@ export function buildRecentJobsStartupPorts({
       });
     },
   });
+
+  // 库检索岛(React)经契约事件请求打开阅读器,复用同一条 openReader 链
+  if (typeof globalThis.document?.addEventListener === "function") {
+    globalThis.document.addEventListener(APP_EVENTS.openReaderRequested, (event) => {
+      const jobId = `${event?.detail?.jobId || ""}`.trim();
+      if (!jobId) {
+        return;
+      }
+      const pageIdx = Number(event?.detail?.pageIdx);
+      const blockId = `${event?.detail?.blockId || ""}`.trim();
+      const anchor = Number.isFinite(pageIdx) || blockId
+        ? { pageIdx: Number.isFinite(pageIdx) ? pageIdx : null, blockId }
+        : null;
+      readerPort.openReader(jobId, anchor);
+    });
+  }
 
   return {
     activeJobRecoveryPort: ports.activeJobRecoveryPort,

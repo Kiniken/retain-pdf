@@ -1,6 +1,7 @@
 export {
   createReaderPageConfigPort,
   defaultReaderPageConfigPort,
+  resolveReaderAnchor,
   resolveReaderJobId,
 } from "./page-config.js";
 

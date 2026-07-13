@@ -4,7 +4,6 @@ import {
   TRANSLATION_PROVIDER_DEFINITION,
 } from "../../config/providers.js";
 import {
-  resetOcrValidationCache,
   runOcrTokenValidation,
 } from "./validation.js";
 import { handleBrowserDeepSeekValidate as runBrowserDeepSeekValidate } from "./deepseek-flow.js";
@@ -24,7 +23,6 @@ import {
 import { createBrowserCredentialViewPort } from "./browser-view-port.js";
 import { createCredentialDialogElementsPort } from "./dialog-elements-port.js";
 import { createCredentialRuntimeEnvPort } from "./runtime-env-port.js";
-import { createCredentialBalanceStatePort } from "./balance-state-port.js";
 import { createCredentialUploadReadinessPort } from "./upload-readiness-port.js";
 
 export function mountBrowserCredentialsFeature({
@@ -64,7 +62,9 @@ export function mountBrowserCredentialsFeature({
 }) {
   const uploadState = uploadStatePort || createCredentialUploadReadinessPort(state);
   const runtimeEnv = runtimeEnvPort || createCredentialRuntimeEnvPort(state);
-  const balanceState = balanceStatePort || createCredentialBalanceStatePort(state, credentialsStatePort);
+  const balanceState = balanceStatePort || {
+    resetDeepSeekBalance: () => credentialsStatePort.resetDeepSeekBalance?.(),
+  };
 
   function readUploadState() {
     return uploadState.getSnapshot?.() || {};
@@ -293,12 +293,10 @@ export function mountBrowserCredentialsFeature({
 
   viewPort.bindEvents({
     resetMineruValidation: () => {
-      resetOcrValidationCache(state);
       credentialsStatePort.resetOcrValidationCache?.();
       viewPort.setOcrValidationMessage("", "", "mineru");
     },
     resetPaddleValidation: () => {
-      resetOcrValidationCache(state);
       credentialsStatePort.resetOcrValidationCache?.();
       viewPort.setOcrValidationMessage("", "", "paddle");
     },

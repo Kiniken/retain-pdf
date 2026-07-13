@@ -255,12 +255,12 @@
   }
 
   .status-detail-dialog {
-    width: calc(100vw - 4px);
-    height: calc(100vh - 4px);
+    width: min(960px, calc(100vw - 32px));
+    height: min(760px, calc(100vh - 48px));
     max-width: none;
     max-height: none;
     border: none;
-    border-radius: 0;
+    border-radius: 24px;
     padding: 0;
     background: transparent;
   }
@@ -270,10 +270,9 @@
     height: 100%;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    border-radius: 0;
+    border-radius: 24px;
     overflow: hidden;
     background: #f3f4f6;
-    box-shadow: none;
   }
 
   .status-detail-dialog .desktop-head {
@@ -423,6 +422,11 @@
     .status-detail-dialog {
       width: 100vw;
       height: 100vh;
+      border-radius: 0;
+    }
+
+    .status-detail-dialog .desktop-shell {
+      border-radius: 0;
     }
 
     .recent-jobs-dialog {

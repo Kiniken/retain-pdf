@@ -7,7 +7,7 @@ import {
   FRONT_MAX_PAGE_COUNT,
 } from "../config/upload-constants.js";
 import { countPdfPages } from "../features/upload/pdf-page-count.js";
-import { createUploadStatePort } from "../features/upload/state.js";
+import { getUploadStatePort } from "../features/upload/state.js";
 import { state } from "../state/store.js";
 import {
   clearFileInputValue,
@@ -56,7 +56,8 @@ export function createUploadRuntimeLegacyStatePort(overrides = {}) {
 
 export function createUploadRuntimeStatePort(overrides = {}) {
   return Object.freeze({
-    createUploadStatePort: (targetState = state) => createUploadStatePort(targetState),
+    // 上传状态已统一到共享单例 port,不再围绕旧全局 state 建实例
+    createUploadStatePort: () => getUploadStatePort(),
     ...overrides,
   });
 }

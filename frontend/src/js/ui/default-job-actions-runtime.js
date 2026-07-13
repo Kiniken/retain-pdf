@@ -9,15 +9,16 @@ import {
 import {
   clearAppliedPageRange,
   resetUploadState,
-} from "../state/upload-state.js";
+} from "../features/upload/state.js";
 import { state } from "../state/store.js";
 import { createJobActionsRuntime } from "./job-actions-runtime.js";
 
 const defaultResetStatePort = createJobRuntimeResetStatePort(state, {
-  clearAppliedPageRange,
+  // 上传状态已统一到共享单例 store,忽略 targetState 载体
+  clearAppliedPageRange: () => clearAppliedPageRange(),
   resetJobSecondaryState,
   resetJobState,
-  resetUploadState,
+  resetUploadState: (_target, options) => resetUploadState(options),
 });
 
 export const defaultJobActionsRuntime = createJobActionsRuntime({

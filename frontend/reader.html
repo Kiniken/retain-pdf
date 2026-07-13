@@ -8,67 +8,12 @@
     <link rel="shortcut icon" href="./src/assets/RetainPDF-logo.svg" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./vendor/pdfjs-dist/web/pdf_viewer.css" />
-    
+
     <script src="./runtime-config.js"></script>
     <script src="./runtime-config.local.js"></script>
   </head>
   <body class="reader-body reader-mode-compare">
-    <div id="reader-boot-loading" class="reader-boot-loading" aria-live="polite">
-      <div class="reader-boot-loading-card">
-        <div id="reader-boot-loading-text" class="reader-boot-loading-text">正在准备对照阅读…</div>
-        <div class="reader-boot-loading-track">
-          <span id="reader-boot-loading-bar" class="reader-boot-loading-bar"></span>
-        </div>
-      </div>
-    </div>
-    <header class="reader-topbar">
-      <div class="reader-tabs" role="tablist" aria-label="阅读模式">
-        <button id="reader-tab-source" type="button" class="reader-tab" role="tab" aria-selected="false" aria-controls="reader-pane-source" tabindex="-1" data-reader-mode="source">原文</button>
-        <button id="reader-tab-translated" type="button" class="reader-tab" role="tab" aria-selected="false" aria-controls="reader-pane-translated" tabindex="-1" data-reader-mode="translated">译文</button>
-        <button id="reader-tab-compare" type="button" class="reader-tab is-active" role="tab" aria-selected="true" aria-controls="reader-grid" data-reader-mode="compare">对照阅读</button>
-      </div>
-    </header>
-    <div id="reader-scroll-shell" class="reader-scroll-shell">
-      <div class="reader-page">
-        <div id="reader-page-indicator" class="reader-page-indicator reader-bottom-hud hidden" aria-live="polite">
-          <span id="reader-bottom-hud-page" class="reader-bottom-hud-page">第 1 / 1 页</span>
-          <span class="reader-bottom-hud-progress" aria-hidden="true">
-            <span id="reader-bottom-hud-progress-bar" class="reader-bottom-hud-progress-bar"></span>
-          </span>
-          <span id="reader-bottom-hud-mode" class="reader-bottom-hud-mode">对照</span>
-        </div>
-        <main id="reader-grid" class="reader-grid">
-          <section id="reader-pane-source" class="reader-panel" role="tabpanel" data-reader-pane="source" aria-labelledby="reader-tab-source">
-            <div id="reader-pdf-empty" class="reader-empty hidden"></div>
-            <div id="reader-pdf-wrap" class="reader-viewer-wrap hidden">
-              <div id="reader-pdf-viewer-host" class="reader-viewer-host">
-                <div id="reader-pdf-viewer" class="pdfViewer"></div>
-              </div>
-            </div>
-          </section>
-
-          <section id="reader-pane-translated" class="reader-panel" role="tabpanel" data-reader-pane="translated" aria-labelledby="reader-tab-translated">
-            <div id="reader-translation-empty" class="reader-empty hidden"></div>
-            <div id="reader-translated-pdf-wrap" class="reader-viewer-wrap hidden">
-              <div id="reader-translated-pdf-viewer-host" class="reader-viewer-host">
-                <div id="reader-translated-pdf-viewer" class="pdfViewer"></div>
-              </div>
-            </div>
-          </section>
-        </main>
-      </div>
-    </div>
-    <aside id="reader-favorites-drawer" class="reader-side-drawer reader-favorites-drawer" aria-label="阅读收藏">
-      <div class="reader-side-drawer-head">
-        <div>
-          <strong>截图摘录</strong>
-          <span>双击框选区域收进这里</span>
-        </div>
-        <button id="reader-favorites-close-btn" type="button" class="reader-side-drawer-close" aria-label="关闭收藏">×</button>
-      </div>
-      <div id="reader-favorites-list" class="reader-favorites-list"></div>
-    </aside>
-    <download-toast></download-toast>
-    <script type="module" src="./src/js/reader/index.js"></script>
+    <div id="reader-root"></div>
+    <script type="module" src="./dist/reader.bundle.js"></script>
   </body>
 </html>

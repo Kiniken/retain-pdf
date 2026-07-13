@@ -62,8 +62,10 @@ test("upload controller submits to config port upload url", async () => {
   const viewCalls = [];
   let pageRangeInputs = { start: "", end: "" };
   const state = createInitialState();
+  const uploadStatePort = createUploadStatePort(state);
   const feature = mountUploadFeature({
     state,
+    uploadStatePort,
     apiPrefix: "api/v1",
     frontMaxBytes: 1024 * 1024,
     frontMaxPageCount: 999,
@@ -114,8 +116,8 @@ test("upload controller submits to config port upload url", async () => {
 
   await feature.handleFileSelected();
   assert.deepEqual(submittedUrls, ["https://api.example/api/v1/uploads"]);
-  assert.equal(state.uploadId, "upload-1");
-  assert.equal(state.uploadedPageCount, 12);
+  assert.equal(uploadStatePort.getSnapshot().uploadId, "upload-1");
+  assert.equal(uploadStatePort.getSnapshot().uploadedPageCount, 12);
   assert.deepEqual(pageRangeInputs, { start: "1", end: "12" });
   assert.equal(viewCalls.some(([kind]) => kind === "write-ranges"), true);
   assert.equal(viewCalls.some(([kind, ready]) => kind === "ready" && ready === true), true);
@@ -507,7 +509,7 @@ test("upload controller keeps start page from exceeding end page", () => {
   ]);
 });
 
-test("upload state port mirrors legacy state and preserves page range reset semantics", () => {
+test("upload state port preserves page range reset semantics without legacy mirror", () => {
   const state = createInitialState();
   const port = createUploadStatePort(state);
   const notifications = [];
@@ -527,18 +529,14 @@ test("upload state port mirrors legacy state and preserves page range reset sema
   assert.equal(port.getSnapshot().uploadId, "upload-1");
   assert.equal(port.getSnapshot().appliedPageRange, "2-8");
   assert.equal(port.getSnapshot().submitBusy, true);
-  assert.equal(state.uploadId, "upload-1");
-  assert.equal(state.appliedPageRange, "2-8");
-  assert.equal(state.submitBusy, true);
+  // 迁移完成:store 是唯一真值,旧 state 对象不再被回写
+  assert.equal(state.uploadId, "");
 
   port.reset({ includePageRange: false });
 
   assert.equal(port.getSnapshot().uploadId, "");
   assert.equal(port.getSnapshot().appliedPageRange, "2-8");
   assert.equal(port.getSnapshot().submitBusy, false);
-  assert.equal(state.uploadId, "");
-  assert.equal(state.appliedPageRange, "2-8");
-  assert.equal(state.submitBusy, false);
   assert.ok(notifications.some(([action]) => action === "setSubmitBusy"));
 });
 
@@ -555,7 +553,7 @@ test("upload state port owns normalization without legacy upload helpers", () =>
 
   port.setAppliedPageRange(" 4-6 ");
   assert.equal(port.getSnapshot().appliedPageRange, "4-6");
-  assert.equal(state.appliedPageRange, "4-6");
+  assert.equal(state.appliedPageRange, "3-5");
 
   port.setUpload({ uploadId: "next-upload" });
   assert.deepEqual({
@@ -579,5 +577,6 @@ test("upload state port owns normalization without legacy upload helpers", () =>
     appliedPageRange: "",
     submitBusy: false,
   });
-  assert.equal(state.appliedPageRange, "");
+  // 不再回写旧对象:保持调用方传入的原值
+  assert.equal(state.appliedPageRange, "3-5");
 });

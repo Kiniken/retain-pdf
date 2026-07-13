@@ -2,24 +2,12 @@ import {
   getOcrProviderDefinition,
   TRANSLATION_PROVIDER_DEFINITION,
 } from "../../config/providers.js";
-import { createCredentialLegacyRuntimePort } from "./legacy-runtime-port.js";
-
-export function resetOcrValidationCache(state) {
-  createCredentialLegacyRuntimePort(state).resetOcrValidationCache();
-}
-
-function resolveLegacyRuntimePort({ state, legacyRuntimePort } = {}) {
-  return legacyRuntimePort || createCredentialLegacyRuntimePort(state);
-}
-
-function resetOcrValidationRuntime({ state, credentialsStatePort, legacyRuntimePort } = {}) {
+function resetOcrValidationRuntime({ credentialsStatePort } = {}) {
   credentialsStatePort?.resetOcrValidationCache?.();
-  resolveLegacyRuntimePort({ state, legacyRuntimePort }).resetOcrValidationCache();
 }
 
-function setOcrValidationRuntime({ state, credentialsStatePort, legacyRuntimePort }, payload = {}) {
+function setOcrValidationRuntime({ credentialsStatePort }, payload = {}) {
   credentialsStatePort?.setOcrValidationCache?.(payload);
-  resolveLegacyRuntimePort({ state, legacyRuntimePort }).setOcrValidationCache(payload);
 }
 
 export async function runOcrTokenValidation({

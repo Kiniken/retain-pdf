@@ -1,12 +1,13 @@
 import { buildApiHeaders, isMockMode } from "../config/runtime.js";
 import { unwrapEnvelope } from "../job/core.js";
+import { getMockReaderRegions } from "../mock/documents.js";
 import { buildJobDetailEndpoint, submitJson } from "./http.js";
 
 export async function fetchReaderRegions(jobId, apiPrefix) {
   if (isMockMode()) {
     void jobId;
     void apiPrefix;
-    return { items: [] };
+    return getMockReaderRegions();
   }
   const resp = await fetch(`${buildJobDetailEndpoint(jobId, apiPrefix)}/reader/regions`, {
     headers: buildApiHeaders(),

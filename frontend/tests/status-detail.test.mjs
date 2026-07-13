@@ -53,7 +53,6 @@ import {
 } from "../src/js/job-detail/status-view-model.js";
 import { createJobDetailConfigPort } from "../src/js/job-detail/config-port.js";
 import { createJobDetailDataPort } from "../src/js/job-detail/data-port.js";
-import { bindEventsLauncher } from "../src/js/job-detail/events.js";
 import { createJobDetailResumePort } from "../src/js/job-detail/resume-port.js";
 import {
   renderJobDetailFailureSummary,
@@ -67,8 +66,6 @@ import {
 import {
   loadAndRenderMarkdownFlow,
 } from "../src/js/job-detail/markdown-flow.js";
-import { bindJobDetailModals } from "../src/js/job-detail/modal-bindings.js";
-import { resolveJobDetailProtectedDownloadBindings } from "../src/js/job-detail/downloads.js";
 import { renderJobDetailOverview } from "../src/js/job-detail/overview-renderer.js";
 import {
   createJobDetailPageState,
@@ -420,91 +417,6 @@ test("job detail data port owns overview markdown and action API calls", async (
   ]);
 });
 
-test("job detail events launcher uses injected api prefix for paged events", async () => {
-  const nodes = new Map();
-  const makeNode = (id) => {
-    const classes = new Set();
-    const node = {
-      id,
-      classList: {
-        add(name) {
-          classes.add(name);
-        },
-        remove(name) {
-          classes.delete(name);
-        },
-        contains(name) {
-          return classes.has(name);
-        },
-        toggle(name, force) {
-          if (force === true) {
-            classes.add(name);
-            return true;
-          }
-          if (force === false) {
-            classes.delete(name);
-            return false;
-          }
-          if (classes.has(name)) {
-            classes.delete(name);
-            return false;
-          }
-          classes.add(name);
-          return true;
-        },
-      },
-      addEventListener(type, handler) {
-        this.handlers = this.handlers || {};
-        this.handlers[type] = handler;
-      },
-      click() {
-        return this.handlers?.click?.({ preventDefault() {} });
-      },
-      setAttribute(name, value) {
-        this.attributes = this.attributes || {};
-        this.attributes[name] = value;
-      },
-      innerHTML: "",
-      textContent: "",
-    };
-    nodes.set(id, node);
-    return node;
-  };
-  const originalDocument = globalThis.document;
-  globalThis.document = {
-    body: { style: {} },
-    getElementById(id) {
-      return nodes.get(id) || null;
-    },
-  };
-  makeNode("detail-open-events-btn");
-  makeNode("detail-events-modal");
-  makeNode("detail-events-list");
-  makeNode("detail-events-empty");
-  makeNode("detail-events-status");
-
-  const calls = [];
-  try {
-    bindEventsLauncher({
-      apiPrefix: "/detail-api",
-      detailPageState: {
-        job: { job_id: "job-events" },
-        eventsPayload: null,
-        eventsLoadingPromise: null,
-      },
-      fetchJobEvents: async (jobId, apiPrefix, limit, offset) => {
-        calls.push([jobId, apiPrefix, limit, offset]);
-        return { items: [] };
-      },
-    });
-
-    await nodes.get("detail-open-events-btn").click();
-  } finally {
-    globalThis.document = originalDocument;
-  }
-
-  assert.deepEqual(calls, [["job-events", "/detail-api", 200, 0]]);
-});
 
 test("job detail resume port chooses resume by job id before rerun url", async () => {
   const calls = [];
@@ -696,114 +608,7 @@ test("job detail markdown flow owns loading state and status fallbacks", async (
   }
 });
 
-test("job detail modal bindings own unload cleanup and escape dismissal", () => {
-  const nodes = new Map();
-  const makeNode = (id) => {
-    const classes = new Set();
-    classes.add("hidden");
-    const node = {
-      id,
-      attributes: {},
-      classList: {
-        add(name) {
-          classes.add(name);
-        },
-        remove(name) {
-          classes.delete(name);
-        },
-        contains(name) {
-          return classes.has(name);
-        },
-        toggle(name, force) {
-          if (force === true) {
-            classes.add(name);
-            return true;
-          }
-          if (force === false) {
-            classes.delete(name);
-            return false;
-          }
-          if (classes.has(name)) {
-            classes.delete(name);
-            return false;
-          }
-          classes.add(name);
-          return true;
-        },
-      },
-      addEventListener(type, handler) {
-        this.handlers = this.handlers || {};
-        this.handlers[type] = handler;
-      },
-      setAttribute(name, value) {
-        this.attributes[name] = value;
-      },
-    };
-    nodes.set(id, node);
-    return node;
-  };
-  const stageModal = makeNode("detail-stage-history-modal");
-  const eventsModal = makeNode("detail-events-modal");
-  makeNode("detail-close-stage-history-btn");
-  makeNode("detail-close-events-btn");
-  stageModal.classList.remove("hidden");
-  eventsModal.classList.remove("hidden");
-  const targetDocument = {
-    body: { style: {} },
-    events: {},
-    addEventListener(type, handler) {
-      this.events[type] = handler;
-    },
-    getElementById(id) {
-      return nodes.get(id) || null;
-    },
-  };
-  const previousDocument = globalThis.document;
-  globalThis.document = targetDocument;
-  let unloadHandler;
-  let cleanupCount = 0;
 
-  try {
-    bindJobDetailModals({
-      onBeforeUnload: () => {
-        cleanupCount += 1;
-      },
-      targetDocument,
-      targetWindow: {
-        addEventListener(type, handler) {
-          if (type === "beforeunload") {
-            unloadHandler = handler;
-          }
-        },
-      },
-    });
-
-    unloadHandler();
-    targetDocument.events.keydown({ key: "Escape" });
-  } finally {
-    globalThis.document = previousDocument;
-  }
-
-  assert.equal(cleanupCount, 1);
-  assert.equal(stageModal.classList.contains("hidden"), true);
-  assert.equal(eventsModal.classList.contains("hidden"), true);
-  assert.equal(stageModal.attributes["aria-hidden"], "true");
-  assert.equal(eventsModal.attributes["aria-hidden"], "true");
-});
-
-test("job detail protected download bindings own detail download ids and fallback names", () => {
-  const bindings = resolveJobDetailProtectedDownloadBindings();
-  assert.deepEqual(bindings.map((item) => item.id), [
-    "detail-pdf-btn",
-    "detail-markdown-raw-btn",
-    "detail-markdown-json-btn",
-  ]);
-  assert.deepEqual(bindings.map((item) => item.fallbackNameFactory("job-download")), [
-    "job-download.pdf",
-    "job-download.md",
-    "job-download-markdown.json",
-  ]);
-});
 
 test("job detail overview renderer owns state updates and rerun status", () => {
   const previousDocument = globalThis.document;
@@ -1123,9 +928,10 @@ test("status detail overview coordinator ignores stale fresh payloads", async ()
   });
   await refresh;
 
-  assert.equal(state.currentJobId, "job-b");
-  assert.equal(state.currentJobSnapshot.job_id, "job-b");
-  assert.notEqual(state.currentJobResumePlanJobId, "job-a");
+  const snapshot = currentJobStateModule.createCurrentJobStatePort(state).getSnapshot();
+  assert.equal(snapshot.jobId, "job-b");
+  assert.equal(snapshot.snapshot.job_id, "job-b");
+  assert.notEqual(snapshot.resumePlanJobId, "job-a");
   assert.equal(renders.length, 0);
 });
 
@@ -1206,9 +1012,10 @@ test("status detail overview refresh does not overwrite a newer current job", as
     });
     await refresh;
 
-    assert.equal(state.currentJobId, "job-b");
-    assert.equal(state.currentJobSnapshot.job_id, "job-b");
-    assert.notEqual(state.currentJobResumePlanJobId, "job-a");
+    const snapshot = currentJobStateModule.createCurrentJobStatePort(state).getSnapshot();
+    assert.equal(snapshot.jobId, "job-b");
+    assert.equal(snapshot.snapshot.job_id, "job-b");
+    assert.notEqual(snapshot.resumePlanJobId, "job-a");
     assert.equal(renders.length, 0);
     assert.equal(snapshots.at(0).headline.jobId, "job-a");
     assert.equal(snapshots.length, 1);

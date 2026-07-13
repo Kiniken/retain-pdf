@@ -1,0 +1,235 @@
+@layer components {
+  /* ===== 阅读器批注面板(抽屉内容区) ===== */
+
+  .reader-annotations-panel {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+    min-height: 0;
+    padding: 12px;
+    overflow: auto;
+  }
+
+  .reader-annotations-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .reader-annotations-count {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .reader-annotations-export {
+    min-height: 26px;
+    padding: 0 10px;
+    border: 1px solid #ececf1;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    box-shadow: none;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 140ms ease, border-color 140ms ease;
+  }
+
+  .reader-annotations-export:hover {
+    border-color: rgba(29, 29, 31, 0.2);
+    color: var(--ink);
+  }
+
+  .reader-annotations-export:disabled {
+    color: var(--muted);
+    cursor: default;
+  }
+
+  .reader-annotations-loading,
+  .reader-annotations-empty {
+    margin: 0;
+    padding: 18px 14px;
+    border: 1px solid #ececf1;
+    border-radius: 12px;
+    background: #fff;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .reader-annotations-error {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    padding: 16px 14px;
+    border: 1px solid #ececf1;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .reader-annotations-error p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  .reader-annotations-group {
+    display: grid;
+    gap: 8px;
+  }
+
+  .reader-annotations-group-title {
+    margin: 0;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .reader-annotations-group-items {
+    display: grid;
+    gap: 8px;
+  }
+
+  .reader-annotations-item {
+    display: grid;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid #ececf1;
+    border-radius: 12px;
+    background: #fff;
+  }
+
+  .reader-annotations-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  /* kind 徽章:小圆角胶囊,三种批注类型三种色调 */
+  .reader-annotations-kind {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 18px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: rgba(29, 29, 31, 0.06);
+    color: var(--ink);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .reader-annotations-kind.is-sentence {
+    background: rgba(0, 113, 227, 0.1);
+    color: #0071e3;
+  }
+
+  .reader-annotations-kind.is-data {
+    background: rgba(52, 199, 89, 0.12);
+    color: #1d8a3e;
+  }
+
+  .reader-annotations-kind.is-figure {
+    background: rgba(255, 159, 10, 0.14);
+    color: #b06a00;
+  }
+
+  .reader-annotations-quote {
+    margin: 0;
+    color: #4a4a52;
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  .reader-annotations-translated {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  .reader-annotations-note {
+    margin: 0;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 12px;
+    line-height: 1.5;
+    cursor: pointer;
+  }
+
+  .reader-annotations-note:hover {
+    background: rgba(29, 29, 31, 0.06);
+  }
+
+  /* 轻量文本按钮:透明底、无阴影、hover 变 ink */
+  .reader-annotations-note-add,
+  .reader-annotations-locate,
+  .reader-annotations-remove,
+  .reader-annotations-note-save,
+  .reader-annotations-note-cancel,
+  .reader-annotations-retry {
+    min-height: 22px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    box-shadow: none;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 140ms ease;
+  }
+
+  .reader-annotations-note-add:hover,
+  .reader-annotations-locate:hover,
+  .reader-annotations-remove:hover,
+  .reader-annotations-note-save:hover,
+  .reader-annotations-note-cancel:hover,
+  .reader-annotations-retry:hover {
+    color: var(--ink);
+  }
+
+  .reader-annotations-note-add {
+    justify-self: start;
+  }
+
+  .reader-annotations-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .reader-annotations-note-editor {
+    display: grid;
+    gap: 6px;
+  }
+
+  .reader-annotations-note-input {
+    min-height: 56px;
+    padding: 8px 9px;
+    border: 1px solid #ececf1;
+    border-radius: 10px;
+    resize: none;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .reader-annotations-note-editor-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+}

@@ -5,16 +5,6 @@ import {
 import { defaultCredentialsStatePort } from "./default-state-port.js";
 import { runOcrTokenValidation } from "./validation.js";
 
-function hasValidLegacyOcrValidationCache(targetState = {}, {
-  provider = "",
-  token = "",
-  statuses = ["valid", "skipped"],
-} = {}) {
-  return targetState.validatedOcrProvider === `${provider || ""}`.trim()
-    && targetState.validatedOcrToken === `${token || ""}`.trim()
-    && statuses.includes(targetState.ocrValidationStatus);
-}
-
 export async function ensureOcrCredentialValidationReady({
   apiPrefix,
   state,
@@ -26,9 +16,6 @@ export async function ensureOcrCredentialValidationReady({
   setOcrValidationMessage,
   showResult,
   credentialsStatePort = defaultCredentialsStatePort,
-  legacyValidationCachePort = {
-    hasValidOcrValidationCache: (payload) => hasValidLegacyOcrValidationCache(state, payload),
-  },
 }) {
   const definition = getOcrProviderDefinition(providerId);
   const token = credentialOcrToken(credentials, {
@@ -48,9 +35,6 @@ export async function ensureOcrCredentialValidationReady({
   }
 
   const hasCachedValidation = credentialsStatePort.hasValidOcrValidationCache?.({
-    provider: definition.id,
-    token,
-  }) || legacyValidationCachePort.hasValidOcrValidationCache?.({
     provider: definition.id,
     token,
   });

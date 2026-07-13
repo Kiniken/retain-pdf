@@ -49,15 +49,6 @@ export function createHomeStore(initialState = {}) {
   });
 }
 
-function syncLegacyHomeState(targetState, snapshot) {
-  if (!targetState) {
-    return;
-  }
-  targetState.homeViewMode = snapshot.viewMode;
-  targetState.homeRecentJobsLoadingState = snapshot.recentJobsLoadingState;
-  targetState.homeRecentJobsError = snapshot.recentJobsError;
-}
-
 function dispatchHomeEvent(eventTarget, type, detail) {
   if (!eventTarget?.dispatchEvent || typeof globalThis.CustomEvent !== "function") {
     return;
@@ -69,12 +60,9 @@ export function createHomeStatePort(targetState = {}, {
   eventTarget = globalThis.document,
 } = {}) {
   const store = createHomeStore(targetState);
-  syncLegacyHomeState(targetState, store.getSnapshot());
 
   function applyStoreAction(action) {
-    const snapshot = action();
-    syncLegacyHomeState(targetState, snapshot);
-    return snapshot;
+    return action();
   }
 
   function setViewMode(mode) {

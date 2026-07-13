@@ -43,7 +43,7 @@ function basenameFromUrlLike(value, { baseHref = defaultBaseHref() } = {}) {
 
 export function resolveOriginalPdfBaseName(state = {}) {
   const snapshot = defaultArtifactRuntimePort.currentJobSnapshot(state) || {};
-  const jobId = `${snapshot.job_id || state.currentJobId || ""}`.trim();
+  const jobId = `${snapshot.job_id || defaultArtifactRuntimePort.currentJobId(state) || ""}`.trim();
   const uploadState = defaultArtifactRuntimePort.uploadSnapshot(state) || {};
   const requestPayload = snapshot.request_payload || {};
   const rawResponse = snapshot.raw_response || {};

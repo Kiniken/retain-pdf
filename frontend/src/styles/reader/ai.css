@@ -1,9 +1,65 @@
 .reader-ai-body {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 10px;
   min-height: 0;
   padding: 12px;
+}
+
+.reader-ai-sessions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reader-ai-session-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.reader-ai-session-select:disabled {
+  color: #86868b;
+  background: rgba(245, 245, 247, 0.82);
+}
+
+.reader-ai-session-btn {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.reader-ai-session-btn:hover {
+  border-color: rgba(29, 29, 31, 0.24);
+}
+
+.reader-ai-session-btn-danger {
+  color: #c0392b;
+}
+
+.reader-ai-session-btn:disabled {
+  color: #c7c7cc;
+  background: rgba(245, 245, 247, 0.82);
+}
+
+.reader-ai-scope-block {
+  display: grid;
+  gap: 8px;
 }
 
 .reader-ai-scope {
@@ -80,11 +136,141 @@
   font-weight: 700;
 }
 
-.reader-ai-message p {
+.reader-ai-message p,
+.reader-ai-message-body-el {
   margin: 0;
   color: #424245;
   font-size: 12px;
   line-height: 1.55;
+}
+
+/* Markdown 渲染后的块级元素排版(回答气泡内) */
+.reader-ai-message-body-el > *:first-child {
+  margin-top: 0;
+}
+
+.reader-ai-message-body-el > *:last-child {
+  margin-bottom: 0;
+}
+
+.reader-ai-message-body-el p {
+  margin: 0 0 8px;
+  color: #424245;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.reader-ai-message-body-el h1,
+.reader-ai-message-body-el h2,
+.reader-ai-message-body-el h3,
+.reader-ai-message-body-el h4 {
+  margin: 10px 0 6px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.reader-ai-message-body-el ul,
+.reader-ai-message-body-el ol {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+
+.reader-ai-message-body-el li {
+  margin: 2px 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.reader-ai-message-body-el code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(29, 29, 31, 0.06);
+  font-size: 11.5px;
+}
+
+.reader-ai-message-body-el pre {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f7f8fa;
+  overflow-x: auto;
+}
+
+.reader-ai-message-body-el pre code {
+  padding: 0;
+  background: none;
+}
+
+.reader-ai-message-body-el blockquote {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(29, 29, 31, 0.14);
+  color: var(--muted);
+}
+
+.reader-ai-message-body-el a {
+  color: var(--accent);
+}
+
+/* agentic 问答:检索过程提示行 */
+.reader-ai-message-progress .reader-ai-message-body-el {
+  color: #86868b;
+  font-style: italic;
+}
+
+/* 回答正文里的 [n] 引用标记(点击跳原文锚点) */
+.reader-ai-citation-ref {
+  display: inline;
+  margin: 0 1px;
+  padding: 0 4px;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  border-radius: 999px;
+  background: rgba(245, 245, 247, 0.9);
+  color: var(--ink);
+  box-shadow: none;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+
+.reader-ai-citation-ref:hover {
+  background: var(--ink);
+  color: #fff;
+}
+
+/* 回答底部引用脚注列表 */
+.reader-ai-citations {
+  display: grid;
+  gap: 4px;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(29, 29, 31, 0.12);
+}
+
+.reader-ai-citation-item {
+  min-height: 0;
+  padding: 4px 8px;
+  border: 1px solid rgba(29, 29, 31, 0.08);
+  border-radius: 8px;
+  background: rgba(245, 245, 247, 0.82);
+  color: #424245;
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+
+.reader-ai-citation-item:hover {
+  border-color: rgba(29, 29, 31, 0.2);
+  background: #fff;
+  color: var(--ink);
 }
 
 .reader-ai-composer {

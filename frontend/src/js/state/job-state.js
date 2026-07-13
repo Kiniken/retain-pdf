@@ -25,6 +25,8 @@ export function createJobState() {
 
 export function resetJobState(target) {
   Object.assign(target, createJobState());
+  syncCurrentJobStoreReset(target);
+  syncRuntimePollingStoreReset(target);
   syncSecondaryResourceReset(target, { preserveInFlight: false });
 }
 
@@ -47,6 +49,31 @@ export function resetJobSecondaryState(target) {
     currentJobDisplayedStageJobId: "",
   });
   syncSecondaryResourceReset(target, { preserveInFlight: false });
+}
+
+function storeBySymbol(target, name) {
+  const symbols = Object.getOwnPropertySymbols(target || {});
+  const found = symbols.find((symbol) => String(symbol) === `Symbol(${name})`);
+  return found ? target[found] : null;
+}
+
+function syncCurrentJobStoreReset(target) {
+  const store = storeBySymbol(target, "retainpdf.currentJobStore");
+  if (!store?.batch) {
+    return;
+  }
+  store.batch(({ actions }) => {
+    actions.syncSnapshot(null, "", {});
+    actions.clearTiming();
+    actions.cacheDiagnostics("", null);
+    actions.cacheResumePlan("", null);
+  });
+}
+
+function syncRuntimePollingStoreReset(target) {
+  const store = storeBySymbol(target, "retainpdf.runtimePollingStore");
+  // startJob("") 会顺带递增 generation,使在途轮询自然失效
+  store?.actions?.startJob?.("");
 }
 
 function syncSecondaryResourceReset(target, options) {

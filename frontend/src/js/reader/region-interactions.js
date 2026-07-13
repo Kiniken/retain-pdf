@@ -285,3 +285,98 @@ export function bindReaderRegionHover({
   }
   scheduleRegionOverlayRender();
 }
+
+// ===== 锚点定位与选区取文(收藏/搜索命中/批注共用的前置能力) =====
+
+// 块 ID 在两套产物里补零位数不同:regions 的 itemId 是 3 位(p001-b002),
+// 服务端 FTS/收藏/引用的 block_id 是 4 位(p001-b0002)。统一归一成
+// "p<页>-b<块>" 的纯数字键再比较,否则跨系统锚点永远匹配不上。
+const BLOCK_KEY_RE = /^p0*(\d+)-b0*(\d+)$/i;
+
+export function normalizeBlockKey(blockId) {
+  const match = BLOCK_KEY_RE.exec(`${blockId || ""}`.trim());
+  return match ? `p${Number(match[1])}-b${Number(match[2])}` : `${blockId || ""}`.trim();
+}
+
+// 按 (pageIdx, blockId) 锚点滚动到原位并短暂高亮命中区域。
+// blockId ↔ region.itemId(补零位数不敏感);找不到区域时回退为整页定位。
+export function jumpToReaderAnchor(anchor = {}) {
+  const binding = readerRegionBinding;
+  const blockKey = normalizeBlockKey(anchor?.blockId);
+  const region = blockKey
+    ? binding?.regions?.find((item) => normalizeBlockKey(item.itemId) === blockKey) || null
+    : null;
+  const pageIdx = Number(anchor?.pageIdx);
+  const pageNumber = region?.source?.page
+    || (Number.isFinite(pageIdx) && pageIdx >= 0 ? pageIdx + 1 : 0);
+  if (!pageNumber) {
+    return false;
+  }
+  const controller = binding?.sourceController;
+  const pageElement = controller?.viewerElement?.querySelector?.(
+    `.page[data-page-number="${pageNumber}"]`,
+  ) || document.querySelector(`#reader-pdf-viewer .page[data-page-number="${pageNumber}"]`);
+  if (!pageElement) {
+    return false;
+  }
+  pageElement.scrollIntoView?.({ block: "center", behavior: "auto" });
+  if (region) {
+    showReaderRegionPair(region);
+    window.setTimeout(() => {
+      hideReaderRegionPair();
+    }, 1800);
+  }
+  return true;
+}
+
+// 从原文页选区矩形提取引文:命中与选区相交的 region,拼出 quote 文本与主 block。
+// 选区 rect 为相对页面元素的像素坐标(selection-favorites 的坐标系)。
+export function resolveSelectionQuote({ page = 0, rect = null } = {}) {
+  const binding = readerRegionBinding;
+  const pageNumber = Number(page) || 0;
+  if (!binding || !pageNumber || !rect) {
+    return null;
+  }
+  const controller = binding.sourceController;
+  const pageElement = controller?.viewerElement?.querySelector?.(
+    `.page[data-page-number="${pageNumber}"]`,
+  );
+  const canvasBox = getPageCanvasBoxWithPdfSize(controller, pageElement, pageNumber);
+  if (!canvasBox) {
+    return null;
+  }
+  const selectionBox = {
+    left: Number(rect.left) || 0,
+    top: Number(rect.top) || 0,
+    right: (Number(rect.left) || 0) + (Number(rect.width) || 0),
+    bottom: (Number(rect.top) || 0) + (Number(rect.height) || 0),
+  };
+  const matches = [];
+  for (const region of binding.regions || []) {
+    if (region.source.page !== pageNumber) {
+      continue;
+    }
+    const regionRect = regionRectFromBox(region.source.bbox, canvasBox);
+    if (!regionRect) {
+      continue;
+    }
+    const overlaps = regionRect.left < selectionBox.right
+      && regionRect.right > selectionBox.left
+      && regionRect.top < selectionBox.bottom
+      && regionRect.bottom > selectionBox.top;
+    if (overlaps) {
+      matches.push({ region, top: regionRect.top });
+    }
+  }
+  if (!matches.length) {
+    return null;
+  }
+  matches.sort((a, b) => a.top - b.top);
+  const regions = matches.map((match) => match.region);
+  return {
+    blockId: regions[0].itemId,
+    pageIdx: pageNumber - 1,
+    quoteText: regions.map((region) => region.source.text).filter(Boolean).join("\n"),
+    translatedQuoteText: regions.map((region) => region.translated.text).filter(Boolean).join("\n"),
+  };
+}

@@ -14,3 +14,4 @@ import "./feedback/inline-error-box.js";
 import "./feedback/download-toast.js";
 import "./status/task-toolbar.js";
 import "./recent-jobs/recent-job-card.js";
+import "../islands/library-search/index.js";

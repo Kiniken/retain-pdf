@@ -7,14 +7,9 @@ import {
   normalizeHiddenCredentialPayload,
   readHiddenCredentialDomInputs,
 } from "./hidden-input-dom-port.js";
-import {
-  defaultCredentialRuntimeStatePort,
-} from "./runtime-state-port.js";
-
 export const defaultCredentialsStatePort = createCredentialsStatePort({
   initialState: readHiddenCredentialDomInputs(),
   mirrorToDom: mirrorCredentialsToHiddenInputs,
-  mirrorRuntime: defaultCredentialRuntimeStatePort.mirrorRuntime,
 });
 
 export function applyDefaultCredentialInputs(credentialsOrMineruToken, legacyModelApiKey = "") {

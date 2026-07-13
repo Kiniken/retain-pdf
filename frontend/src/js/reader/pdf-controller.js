@@ -83,6 +83,7 @@ export async function mountPdfViewer({
   itemOrUrl,
   label,
   emptyId,
+  fetchProtected = null,
 }) {
   const viewerWrap = $(`${key}-wrap`);
   const empty = $(emptyId);
@@ -92,7 +93,7 @@ export async function mountPdfViewer({
   }
 
   void label;
-  const pdfDocument = await loadPdfDocument({ itemOrUrl });
+  const pdfDocument = await loadPdfDocument({ itemOrUrl, fetchProtected });
   if (!pdfDocument) {
     showReaderPaneEmpty(key, emptyId);
     return null;

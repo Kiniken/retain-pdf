@@ -1,4 +1,5 @@
 import test from "node:test";
+import { currentJobSnapshot } from "../src/js/features/job-runtime/current-job-state.js";
 import assert from "node:assert/strict";
 
 import {
@@ -133,7 +134,7 @@ test("startup recent jobs payload keeps reader open success and error paths", as
     createRecentJobsRuntimePort: ({ openJob, currentJobId }) => ({ openJob, currentJobId }),
     createRecentJobsStatePort: () => ({ kind: "recent" }),
     ensureReaderDialogFeature: async ({ state }) => ({
-      open: ({ jobId }) => calls.push(["open", jobId, state.currentJobSnapshot?.job_id]),
+      open: ({ jobId }) => calls.push(["open", jobId, currentJobSnapshot(state)?.job_id]),
     }),
     mountRecentJobsFeature: (payload) => {
       mountedPayload = payload;
@@ -316,7 +317,7 @@ test("startup reader open flow routes reader feature through startup ports", asy
 
   assert.deepEqual(calls, [
     ["ensure", { state, fetchProtected, runtimePort, setTextFn }],
-    ["open", { jobId: "job-reader" }],
+    ["open", { jobId: "job-reader", anchor: null }],
   ]);
 });
 

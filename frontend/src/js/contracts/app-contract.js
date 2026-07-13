@@ -13,6 +13,7 @@ export const APP_EVENTS = {
   translationWorkflowSync: "retainpdf:translation-workflow-sync",
   submitBusyChanged: "retainpdf:submit-busy-changed",
   refreshGlossaries: "retainpdf:refresh-glossaries",
+  openReaderRequested: "retainpdf:open-reader-requested",
 };
 
 export const APP_DIALOG_IDS = {

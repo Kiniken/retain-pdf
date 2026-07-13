@@ -1,17 +1,16 @@
 import { buildApiHeaders, isMockMode } from "../config/runtime.js";
 import { unwrapEnvelope } from "../job/core.js";
+import {
+  getMockTranslationItem,
+  getMockTranslationItems,
+  getMockTranslationReplay,
+  getMockTranslationSummary,
+} from "../mock/translation.js";
 import { buildJobDetailEndpoint } from "./http.js";
 
 export async function fetchTranslationDiagnostics(jobId, apiPrefix) {
   if (isMockMode()) {
-    return {
-      job_id: jobId,
-      summary: {
-        schema: "translation_diagnostics_v1",
-        counts: {},
-        final_status_counts: {},
-      },
-    };
+    return getMockTranslationSummary(jobId);
   }
   const resp = await fetch(`${buildJobDetailEndpoint(jobId, apiPrefix)}/translation/diagnostics`, {
     headers: buildApiHeaders(),
@@ -39,12 +38,7 @@ export async function fetchTranslationItems(
   } = {},
 ) {
   if (isMockMode()) {
-    return {
-      items: [],
-      total: 0,
-      limit,
-      offset,
-    };
+    return getMockTranslationItems(jobId, { limit, offset, page, finalStatus, q });
   }
   const params = new URLSearchParams();
   params.set("limit", `${limit}`);
@@ -81,14 +75,7 @@ export async function fetchTranslationItems(
 
 export async function fetchTranslationItem(jobId, itemId, apiPrefix) {
   if (isMockMode()) {
-    return {
-      job_id: jobId,
-      item_id: itemId,
-      page_idx: 0,
-      page_number: 1,
-      page_path: "",
-      item: {},
-    };
+    return getMockTranslationItem(jobId, itemId);
   }
   const resp = await fetch(`${buildJobDetailEndpoint(jobId, apiPrefix)}/translation/items/${itemId}`, {
     headers: buildApiHeaders(),
@@ -104,16 +91,7 @@ export async function fetchTranslationItem(jobId, itemId, apiPrefix) {
 
 export async function replayTranslationItem(jobId, itemId, apiPrefix) {
   if (isMockMode()) {
-    return {
-      job_id: jobId,
-      item_id: itemId,
-      payload: {
-        policy_before: {},
-        policy_after: {},
-        replay_result: {},
-        replay_error: null,
-      },
-    };
+    return getMockTranslationReplay(jobId, itemId);
   }
   const resp = await fetch(
     `${buildJobDetailEndpoint(jobId, apiPrefix)}/translation/items/${itemId}/replay`,

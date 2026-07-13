@@ -54,11 +54,23 @@ export function buildPdfDocumentOptions({
 export async function loadPdfDocument({
   itemOrUrl,
   configPort = defaultReaderPdfDocumentConfigPort,
+  fetchProtected = null,
 }) {
   const url = typeof itemOrUrl === "string" ? itemOrUrl : resolveReaderArtifactUrl(itemOrUrl);
   if (!url) {
     return null;
   }
   const pdfjsLib = await loadPdfjs();
+  // mock:// 资源只有 fetchProtected 会拦截,直接交给 pdfjs 会走 XHR 而失败
+  if (url.startsWith("mock://") && typeof fetchProtected === "function") {
+    const response = await fetchProtected(url);
+    const data = new Uint8Array(await response.arrayBuffer());
+    return pdfjsLib.getDocument({
+      data,
+      cMapUrl: PDFJS_CMAP_URL,
+      cMapPacked: true,
+      standardFontDataUrl: PDFJS_STANDARD_FONT_DATA_URL,
+    }).promise;
+  }
   return pdfjsLib.getDocument(buildPdfDocumentOptions({ url, configPort })).promise;
 }

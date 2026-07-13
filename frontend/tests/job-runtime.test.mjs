@@ -14,9 +14,6 @@ import * as currentJobStateModule from "../src/js/features/job-runtime/current-j
 import * as runtimePollingStateModule from "../src/js/features/job-runtime/runtime-polling-state.js";
 import * as secondaryResourcePolicyModule from "../src/js/features/job-runtime/secondary-resource-policy.js";
 import * as renderContextModule from "../src/js/features/job-runtime/render-context.js";
-import {
-  createLegacyCurrentJobStatePort,
-} from "../src/js/features/job-runtime/legacy-current-job-state-port.js";
 import { createPresentationRuntime } from "../src/js/ui/presentation-runtime.js";
 import { createJobActionsRuntime } from "../src/js/ui/job-actions-runtime.js";
 import { buildElapsedViewModel } from "../src/js/job/elapsed-view-model.js";
@@ -31,7 +28,12 @@ import {
 import { defaultPresentationRuntime } from "../src/js/ui/default-presentation-runtime.js";
 import { defaultPresentationRuntimeStatePort } from "../src/js/ui/default-presentation-runtime-state-port.js";
 import { returnJobRuntimeToHome } from "../src/js/features/job-runtime/runtime-reset.js";
-import { createUploadStatePort } from "../src/js/features/upload/state.js";
+import {
+  createUploadStatePort,
+  getUploadState,
+  setAppliedPageRange,
+  setUploadState,
+} from "../src/js/features/upload/state.js";
 import { state } from "../src/js/state/store.js";
 import {
   createJobEventsResource,
@@ -146,15 +148,17 @@ test("default runtime ports own global state binding outside ui factories", () =
 });
 
 test("default job actions runtime resets upload state through upload state port", () => {
-  state.uploadId = "upload-default-runtime";
-  state.uploadedFileName = "book.pdf";
-  state.appliedPageRange = "2-8";
+  setUploadState({
+    uploadId: "upload-default-runtime",
+    uploadedFileName: "book.pdf",
+  });
+  setAppliedPageRange("2-8");
 
   defaultJobActionsRuntime.resetUploadedFileState();
 
-  assert.equal(state.uploadId, "");
-  assert.equal(state.uploadedFileName, "");
-  assert.equal(state.appliedPageRange, "");
+  assert.equal(getUploadState().uploadId, "");
+  assert.equal(getUploadState().uploadedFileName, "");
+  assert.equal(getUploadState().appliedPageRange, "");
 });
 
 test("returnJobRuntimeToHome clears page range through upload state port", () => {
@@ -576,7 +580,7 @@ test("secondary resource cache isolates resources by job and type", () => {
   assert.equal(state.currentJobEventsJobId, "");
 });
 
-test("secondary resource state port owns cache in-flight and reset while mirroring legacy state", () => {
+test("secondary resource state port owns cache in-flight and reset without legacy mirror", () => {
   let nowValue = 1000;
   const state = createInitialState();
   state.currentJobId = "job-secondary";
@@ -586,26 +590,21 @@ test("secondary resource state port owns cache in-flight and reset while mirrori
 
   port.setInFlight("events", true);
   assert.equal(port.isInFlight("events"), true);
-  assert.equal(state.currentJobEventsFetchInFlight, true);
 
   const eventsPayload = { items: [{ seq: 10 }] };
   nowValue = 1200;
   port.cache("events", "job-secondary", eventsPayload);
   assert.deepEqual(port.cachedFor("events", "job-secondary"), eventsPayload);
-  assert.deepEqual(state.currentJobEvents, eventsPayload);
-  assert.equal(state.currentJobEventsJobId, "job-secondary");
-  assert.equal(state.currentJobEventsFetchedAt, 1200);
+  assert.equal(port.fetchedAt("events"), 1200);
 
   port.clearInFlightForCurrentJob("events", "job-other");
   assert.equal(port.isInFlight("events"), true);
   port.clearInFlightForCurrentJob("events", "job-secondary");
   assert.equal(port.isInFlight("events"), false);
-  assert.equal(state.currentJobEventsFetchInFlight, false);
 
   port.cache("manifest", "job-old", { artifacts: [{ key: "pdf" }] });
   port.clearForOtherJob("manifest", "job-secondary");
   assert.equal(port.cachedFor("manifest", "job-old"), null);
-  assert.equal(state.currentJobManifestJobId, "");
 
   port.setInFlight("stageActions", true);
   port.reset({ preserveInFlight: true });
@@ -614,10 +613,9 @@ test("secondary resource state port owns cache in-flight and reset while mirrori
 
   secondaryResourceCacheModule.resetSecondaryResourceState(state, { preserveInFlight: false });
   assert.equal(port.isInFlight("stageActions"), false);
-  assert.equal(state.currentJobStageActionsFetchInFlight, false);
 });
 
-test("secondary resource state port batches resource updates and mirrors legacy state", () => {
+test("secondary resource state port batches resource updates into one notification", () => {
   let nowValue = 2000;
   const state = createInitialState();
   const port = secondaryResourceCacheModule.createSecondaryResourceStatePort(state, {
@@ -638,10 +636,8 @@ test("secondary resource state port batches resource updates and mirrors legacy 
   assert.equal(events.length, 1);
   assert.equal(events[0].meta.action, "setInFlight");
   assert.equal(port.isInFlight("events"), false);
-  assert.equal(state.currentJobEventsFetchInFlight, false);
-  assert.equal(state.currentJobEventsJobId, "job-batch");
-  assert.equal(state.currentJobEventsFetchedAt, 2100);
-  assert.deepEqual(state.currentJobEvents, { items: [{ seq: 1 }] });
+  assert.deepEqual(port.cachedFor("events", "job-batch"), { items: [{ seq: 1 }] });
+  assert.equal(port.fetchedAt("events"), 2100);
 });
 
 test("runtime state keeps timer and stage pin facade exports", () => {
@@ -724,20 +720,22 @@ test("current job state owns snapshot timing and detail caches", () => {
   assert.equal(currentJobStateModule.currentJobFinishedAt(state), "2026-01-01T00:01:00Z");
 
   currentJobStateModule.clearCurrentJobTiming(state);
-  assert.equal(state.currentJobStartedAt, "");
-  assert.equal(state.currentJobFinishedAt, "");
+  const clearedSnapshot = currentJobStateModule.createCurrentJobStatePort(state).getSnapshot();
+  assert.equal(clearedSnapshot.startedAt, "");
+  assert.equal(clearedSnapshot.finishedAt, "");
 
   const diagnostics = { summary: "failed" };
   const resumePlan = { resumable: true };
   currentJobStateModule.cacheJobDiagnostics(state, "job-current", diagnostics);
   currentJobStateModule.cacheJobResumePlan(state, "job-current", resumePlan);
-  assert.deepEqual(state.currentJobDiagnostics, diagnostics);
-  assert.equal(state.currentJobDiagnosticsJobId, "job-current");
-  assert.deepEqual(state.currentJobResumePlan, resumePlan);
-  assert.equal(state.currentJobResumePlanJobId, "job-current");
+  const cachedSnapshot = currentJobStateModule.createCurrentJobStatePort(state).getSnapshot();
+  assert.deepEqual(cachedSnapshot.diagnostics, diagnostics);
+  assert.equal(cachedSnapshot.diagnosticsJobId, "job-current");
+  assert.deepEqual(cachedSnapshot.resumePlan, resumePlan);
+  assert.equal(cachedSnapshot.resumePlanJobId, "job-current");
 });
 
-test("current job state port is backed by framework store and mirrors legacy state", () => {
+test("current job state port is backed by framework store without legacy mirror", () => {
   const state = createInitialState();
   const port = currentJobStateModule.createCurrentJobStatePort(state);
   const job = { job_id: "job-store", status: "running" };
@@ -756,58 +754,12 @@ test("current job state port is backed by framework store and mirrors legacy sta
   assert.equal(snapshot.finishedAt, "2026-01-02T00:01:00Z");
   assert.equal(snapshot.diagnostics.summary, "ok");
   assert.equal(snapshot.resumePlan.can_resume, true);
-  assert.equal(state.currentJobId, "job-store");
-  assert.deepEqual(state.currentJobSnapshot, job);
-  assert.equal(state.currentJobDiagnostics.summary, "ok");
-  assert.equal(state.currentJobResumePlan.can_resume, true);
-});
-
-test("current job state port can mirror through an injected boundary", () => {
-  const state = createInitialState();
-  const mirrored = [];
-  const port = currentJobStateModule.createCurrentJobStatePort(state, {
-    mirrorPort: {
-      sync(snapshot) {
-        mirrored.push(snapshot);
-      },
-    },
-  });
-  const job = { job_id: "job-injected-mirror", status: "running" };
-
-  port.syncSnapshot(job, job.job_id, {
-    startedAt: "2026-01-03T00:00:00Z",
-    finishedAt: "2026-01-03T00:01:00Z",
-  });
-  port.cacheDiagnostics(job.job_id, { summary: "ok" });
-
-  assert.equal(port.jobId(), job.job_id);
+  // 迁移完成:store 是唯一真值,旧 state 对象不再被回写
   assert.equal(state.currentJobId, "");
   assert.equal(state.currentJobSnapshot, null);
-  assert.equal(mirrored.at(-1).diagnostics.summary, "ok");
 });
 
-test("legacy current job state port owns compatibility field writes", () => {
-  const state = {};
-  createLegacyCurrentJobStatePort(state).sync({
-    jobId: "job-legacy-port",
-    snapshot: { job_id: "job-legacy-port" },
-    startedAt: "2026-01-04T00:00:00Z",
-    finishedAt: "2026-01-04T00:01:00Z",
-    diagnostics: { summary: "failed" },
-    diagnosticsJobId: "job-legacy-port",
-    resumePlan: { resumable: true },
-    resumePlanJobId: "job-legacy-port",
-  });
 
-  assert.equal(state.currentJobId, "job-legacy-port");
-  assert.equal(state.currentJobSnapshot.job_id, "job-legacy-port");
-  assert.equal(state.currentJobStartedAt, "2026-01-04T00:00:00Z");
-  assert.equal(state.currentJobFinishedAt, "2026-01-04T00:01:00Z");
-  assert.equal(state.currentJobDiagnostics.summary, "failed");
-  assert.equal(state.currentJobDiagnosticsJobId, "job-legacy-port");
-  assert.equal(state.currentJobResumePlan.resumable, true);
-  assert.equal(state.currentJobResumePlanJobId, "job-legacy-port");
-});
 
 test("current job state port batches snapshot diagnostics and resume plan", () => {
   const state = createInitialState();
@@ -832,9 +784,6 @@ test("current job state port batches snapshot diagnostics and resume plan", () =
   assert.equal(port.jobId(), job.job_id);
   assert.deepEqual(port.snapshot(), job);
   assert.deepEqual(port.resumePlan(), { resumable: true });
-  assert.equal(state.currentJobId, job.job_id);
-  assert.deepEqual(state.currentJobDiagnostics, { summary: "ok" });
-  assert.deepEqual(state.currentJobResumePlan, { resumable: true });
 });
 
 test("current job state port exposes narrow readers", () => {
@@ -909,7 +858,7 @@ test("job render context port applies primary and secondary runtime contexts", (
   assert.deepEqual(context.events, events);
   assert.deepEqual(context.manifest, manifest);
   assert.deepEqual(context.stageActions, stageActions);
-  assert.equal(state.currentJobId, job.job_id);
+  assert.equal(currentJobStateModule.currentJobId(state), job.job_id);
 
   const currentContext = port.currentFor(job.job_id);
   assert.equal(currentContext.job.job_id, job.job_id);
@@ -1254,27 +1203,24 @@ test("runtime polling state gates concurrent polls and generations", () => {
   const state = createInitialState();
   const start = runtimePollingStateModule.startRuntimeJob(state, "job-poll");
   assert.equal(start.generation, 1);
-  assert.equal(state.currentJobId, "job-poll");
+  assert.equal(runtimePollingStateModule.runtimePollingStoreFor(state).getSnapshot().jobId, "job-poll");
   assert.equal(runtimePollingStateModule.isCurrentJobGeneration(state, "job-poll", 1), true);
   assert.equal(runtimePollingStateModule.isCurrentJobGeneration(state, "job-other", 1), false);
 
   assert.equal(runtimePollingStateModule.beginJobPoll(state), 1);
   assert.equal(runtimePollingStateModule.beginJobPoll(state), null);
   runtimePollingStateModule.finishJobPoll(state);
-  assert.equal(state.currentJobPollInFlight, false);
+  assert.equal(runtimePollingStateModule.runtimePollingStoreFor(state).getSnapshot().pollInFlight, false);
 
-  state.currentJobEventsFetchInFlight = true;
-  state.currentJobManifestFetchInFlight = true;
-  state.currentJobStageActionsFetchInFlight = true;
   runtimePollingStateModule.stopPolling(state);
   assert.equal(state.timer, null);
-  assert.equal(state.currentJobPollInFlight, false);
+  assert.equal(runtimePollingStateModule.runtimePollingStoreFor(state).getSnapshot().pollInFlight, false);
   assert.equal(state.currentJobEventsFetchInFlight, false);
   assert.equal(state.currentJobManifestFetchInFlight, false);
   assert.equal(state.currentJobStageActionsFetchInFlight, false);
 });
 
-test("runtime polling state port is backed by framework store and mirrors legacy state", () => {
+test("runtime polling state port is backed by framework store without legacy mirror", () => {
   const cleared = [];
   const intervals = [];
   let nextTimer = 100;
@@ -1295,17 +1241,14 @@ test("runtime polling state port is backed by framework store and mirrors legacy
     startedAt: "2026-06-16T00:00:00Z",
   });
   assert.equal(port.getSnapshot().jobId, "job-port");
-  assert.equal(state.currentJobId, "job-port");
-  assert.equal(state.currentJobPollGeneration, 1);
-  assert.equal(state.currentJobStartedAt, "2026-06-16T00:00:00Z");
+  // 迁移完成:store 是唯一真值,旧 state 对象不再被回写
+  assert.equal(state.currentJobId, "");
 
   assert.equal(port.beginPoll(), 1);
   assert.equal(port.beginPoll(), null);
   assert.equal(port.getSnapshot().pollInFlight, true);
-  assert.equal(state.currentJobPollInFlight, true);
   port.finishPoll();
   assert.equal(port.getSnapshot().pollInFlight, false);
-  assert.equal(state.currentJobPollInFlight, false);
   assert.equal(port.isCurrentGeneration("job-port", 1), true);
   assert.equal(port.isCurrentGeneration("job-port", 0), false);
 
@@ -1315,16 +1258,10 @@ test("runtime polling state port is backed by framework store and mirrors legacy
   assert.deepEqual(cleared, [101]);
   assert.deepEqual(intervals.map((item) => item.intervalMs), [250, 500]);
 
-  state.currentJobEventsFetchInFlight = true;
-  state.currentJobManifestFetchInFlight = true;
-  state.currentJobStageActionsFetchInFlight = true;
   port.stop();
   assert.deepEqual(cleared, [101, 102]);
   assert.equal(state.timer, null);
   assert.equal(port.getSnapshot().pollInFlight, false);
-  assert.equal(state.currentJobEventsFetchInFlight, false);
-  assert.equal(state.currentJobManifestFetchInFlight, false);
-  assert.equal(state.currentJobStageActionsFetchInFlight, false);
 });
 
 test("job runtime controller consumes injected polling port", async () => {
@@ -1815,7 +1752,7 @@ test("secondary event refresh uses patch renderer instead of full job render", a
   assert.equal(patches.find((patch) => patch.source === "events").context.events.items.at(-1).progress.current, 2);
   assert.equal(patches.find((patch) => patch.source === "manifest").context.manifest.artifacts.length, 0);
   assert.equal(patches.find((patch) => patch.source === "stageActions").context.stageActions.actions.length, 0);
-  assert.deepEqual(runtimeState.currentJobSnapshot, job);
+  assert.deepEqual(currentJobStateModule.currentJobSnapshot(runtimeState), job);
   assert.equal(libraryUpdates[0].job_id, jobId);
   assert.equal(libraryUpdates[0].stage_snapshot.publicStage, "translation");
   assert.equal(libraryUpdates[0].stage_snapshot.substage, "translation_batches");

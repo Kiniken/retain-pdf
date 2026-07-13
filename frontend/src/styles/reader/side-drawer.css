@@ -1,29 +1,26 @@
+/* 三栏骨架:工具面板停靠为右栏,占满右侧栏位(不再是浮层覆盖)。
+   同一时刻仅一个 .is-open,互斥切换即右栏内容切换(后期加显式 tab)。 */
 .reader-side-drawer {
   position: fixed;
-  top: 64px;
-  right: clamp(12px, 2.2vw, 28px);
-  bottom: 12px;
-  z-index: 34;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  z-index: 32;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  width: min(var(--reader-side-drawer-width, 360px), calc(100vw - 28px));
-  border: 1px solid rgba(29, 29, 31, 0.1);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 22px 56px rgba(15, 23, 42, 0.14);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  transform: translateX(calc(100% + 32px)) scale(0.98);
-  transform-origin: top right;
+  width: var(--reader-right-w, 384px);
+  border-left: 1px solid var(--reader-surface-border);
+  background: #fff;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 160ms ease, transform 180ms ease;
+  transition: opacity 160ms ease, visibility 160ms ease;
   overflow: hidden;
 }
 
 .reader-side-drawer.is-open {
-  transform: translateX(0) scale(1);
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 
@@ -72,6 +69,18 @@
 }
 
 @media (max-width: 720px) {
+  /* 窄屏退回底部浮层:左栏收起、右栏不占位,中间铺满 */
+  .reader-body {
+    --reader-left-w: 0px;
+    --reader-right-w: 0px;
+  }
+
+  .reader-col-left,
+  .reader-col-resizer,
+  .reader-col-collapse {
+    display: none;
+  }
+
   .reader-side-drawer {
     top: auto;
     right: 8px;
@@ -79,9 +88,13 @@
     left: 8px;
     width: auto;
     max-height: min(58vh, 460px);
+    border: 1px solid rgba(29, 29, 31, 0.1);
     border-radius: 16px;
+    box-shadow: 0 22px 56px rgba(15, 23, 42, 0.14);
     transform: translateY(calc(100% + 16px));
+    visibility: visible;
     opacity: 1;
+    transition: opacity 160ms ease, transform 180ms ease;
   }
 
   .reader-side-drawer.is-open {
