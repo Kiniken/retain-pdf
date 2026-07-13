@@ -3,11 +3,20 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// detail.html / reader.html 走原生 ESM 直载源码,JS 里的 DOM 引用没有任何构建期校验:
-// id 改名、typo、删掉 CSS 类都只会在运行时静默失效(dom/query.js 的守卫会吞掉 null)。
-// 本测试交叉校验:job-detail / reader 目录下 JS 出现的每个 "detail-*" / "reader-*"
-// 字符串字面量,必须能在对应页面 HTML 的 id/class、src/styles 的类定义、
+// detail.html / reader.html 现由 esbuild 打包的 dist/{detail,reader}.bundle.js 挂载 React
+// 树(Phase 1 / 2b cutover),但 src/js/job-detail、src/js/reader 下保留的纯逻辑仍以
+// 字符串字面量引用 DOM id/class,esbuild 不做这类校验:id 改名、typo、删掉 CSS 类都只会
+// 在运行时静默失效(dom/query.js 的守卫会吞掉 null)。本测试交叉校验:job-detail / reader
+// 目录下 JS 出现的每个 "detail-*" / "reader-*" 字符串字面量,必须能在对应页面 HTML 的
+// id/class、src/styles 的类定义、src/pages/{detail,reader} 的 JSX(id=.../className=...),
 // 或 JS 自建元素(id="...")中找到归属。
+//
+// home 页(index.html / src/pages/home)未纳入本文件:home 没有单一 id 前缀约定(各 feature
+// 域各自命名),用 tests/home-app-component.test.mjs(渲染 HomeApp 断言契约 id)+ 各域
+// *-component.test.mjs(如 recent-jobs-library-component / status-card-component 等,
+// 渲染实际 React 树断言 DOM 契约)覆盖,是比这里的字符串字面量扫描更强的检查——直接渲染
+// 组件断言真实 DOM,而不是扫描源码里的字符串猜测归属。Phase 4 复核确认此判断仍然成立,
+// 不需要把 home 补进本文件。
 
 const PROJECT_ROOT = process.cwd();
 const STYLES_ROOT = join(PROJECT_ROOT, "src/styles");
