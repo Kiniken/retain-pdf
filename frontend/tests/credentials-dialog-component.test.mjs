@@ -178,6 +178,11 @@ test("CredentialsDialog：#credentials-btn(设置)与 #credential-gate-action(�
   services.credentials.dialogStore.close();
   await waitFor(() => byId("browser-credentials-dialog") === null, "关闭凭据对话框");
 
+  // 阶段 C(shadcn 改造):credential-gate-action 挂在 TranslationWorkflowDialog
+  // 内部(HeroUpload 的上传引导区),该对话框换成 Radix Dialog 后不 forceMount
+  // Content——需要先打开一次才会挂载(同其余阶段 C 对话框的先例)。
+  services.workflowDialog.openUpload();
+  await waitFor(() => byId("credential-gate-action"), "工作流对话框打开后 credential-gate-action 挂载");
   click(byId("credential-gate-action"));
   await waitFor(() => byId("browser-credentials-dialog") !== null, "credential-gate-action 打开凭据对话框");
 
@@ -239,6 +244,13 @@ test("CredentialsDialog：保存(浏览器模式)——写隐藏 input、同步 
   const services = createServices();
   const { host, root } = await mountHome(services);
 
+  // 阶段 C(shadcn 改造):paddle_token/api_key/ocr_provider 等隐藏 input
+  // (HiddenCredentialInputs)挂在 TranslationWorkflowDialog 内部(job-form),
+  // 该对话框换成 Radix Dialog 后不 forceMount Content——需要先打开一次才会
+  // 挂载(同其余阶段 C 对话框的先例)。
+  services.workflowDialog.openUpload();
+  await waitFor(() => byId("paddle_token"), "工作流对话框打开后隐藏 input 挂载");
+
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
   await waitFor(() => byId("browser-credentials-dialog") !== null, "打开对话框");
 
@@ -273,6 +285,12 @@ test("CredentialsDialog：保存(桌面模式)——走 saveDesktopConfig 分支
   });
   const { host, root } = await mountHome(services);
 
+  // 阶段 C(shadcn 改造):saveDesktopConfig 分支同样会读 HiddenCredentialInputs
+  // 挂在 TranslationWorkflowDialog 内部的隐藏 input(mineru_token 等),需要先
+  // 打开一次工作流对话框才会挂载。
+  services.workflowDialog.openUpload();
+  await waitFor(() => byId("paddle_token"), "工作流对话框打开后隐藏 input 挂载");
+
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials, {
     detail: { setupMode: true },
   }));
@@ -305,6 +323,12 @@ test("CredentialsDialog：隐藏 input 与 credentialsStatePort 单向受控同�
   // (证明真值确实是 store,不是可以被绕过的 DOM)。
   const services = createServices();
   const { host, root } = await mountHome(services);
+
+  // 阶段 C(shadcn 改造):隐藏 input 挂在 TranslationWorkflowDialog 内部
+  // (job-form),该对话框换成 Radix Dialog 后不 forceMount Content——需要先
+  // 打开一次才会挂载(同其余阶段 C 对话框的先例)。
+  services.workflowDialog.openUpload();
+  await waitFor(() => byId("paddle_token"), "工作流对话框打开后隐藏 input 挂载");
 
   // composition 初始化时 credentialsStatePort 已经写入过持久化配置;
   // HiddenCredentialInputs 应把当前 store 状态实时投影进隐藏 input。

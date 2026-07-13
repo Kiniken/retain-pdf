@@ -5,10 +5,10 @@
   border-radius: 24px;
 
   /* ::backdrop 只对原生 <dialog>(showModal 后的浏览器 top-layer)生效——
-     StatusDetailDialog/ReaderDialog/PageRangeDialog/TranslationWorkflowDialog
-     这几个还没迁移到 Radix 的对话框仍靠这条规则出背板;已迁移到 Radix
-     Dialog 的对话框(CredentialsDialog/GlossariesDialog/SettingsHubDialog/
-     AppUpdateBanner)不再是 <dialog> 元素,背板改由下面的
+     ReaderDialog/PageRangeDialog 这两个还没迁移到 Radix 的对话框仍靠这条规则
+     出背板;已迁移到 Radix Dialog 的对话框(CredentialsDialog/GlossariesDialog/
+     SettingsHubDialog/AppUpdateBanner/StatusDetailDialog/
+     TranslationWorkflowDialog)不再是 <dialog> 元素,背板改由下面的
      desktop-dialog-overlay 工具类(挂在 DialogPrimitive.Overlay 上)负责,
      两者并存,互不冲突。 */
   &::backdrop {
@@ -18,6 +18,15 @@
 
 @utility desktop-dialog-overlay {
   @apply fixed inset-0 z-[100];
+  background: rgba(15, 23, 42, 0.3);
+}
+
+@utility status-detail-dialog-overlay {
+  /* StatusDetailDialog 专属背板(阶段 C)——见 status-detail-dialog 工具类
+     (job-dialogs.utilities.css)的头注释:z-index 垫高到 110(高于
+     desktop-dialog-overlay 的 100),确保嵌套在已打开的 TranslationWorkflowDialog
+     之上时能正确盖住它,视觉色值和 desktop-dialog-overlay 保持一致。 */
+  @apply fixed inset-0 z-[110];
   background: rgba(15, 23, 42, 0.3);
 }
 

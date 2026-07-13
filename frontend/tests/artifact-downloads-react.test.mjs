@@ -16,7 +16,7 @@ function makeDom(search) {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", {
     url: `http://localhost/index.html${search}`,
   });
-  for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver"]) {
+  for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
     Object.defineProperty(globalThis, key, {
       value: dom.window[key] ?? dom.window,
       writable: true,
@@ -28,7 +28,9 @@ function makeDom(search) {
   // Radix Presence/Tabs(阶段 B 引入)在 jsdom 下需要 cancelAnimationFrame
   // (TabsContent 的 mount 动画计时器清理)和 getComputedStyle(Presence 读取
   // animation-name 判断退场动画是否结束)——jsdom 的 window 上有实现,只是没有
-  // 像 requestAnimationFrame 一样被复制到裸 global 上,这里一并补上。
+  // 像 requestAnimationFrame 一样被复制到裸 global 上,这里一并补上。NodeFilter
+  // 是阶段 C(TranslationWorkflowDialog/StatusDetailDialog 换 Radix Dialog)
+  // 新增的需要——Dialog.Content 的 FocusScope 用它做可聚焦元素树遍历。
   globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
   globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
   globalThis.IS_REACT_ACT_ENVIRONMENT = false;
@@ -82,7 +84,13 @@ async function bootHomeApp(dom) {
 
   const root = createRoot(host);
   root.render(React.createElement(HomeApp, { services }));
-  await waitFor(() => byId(dom, "job-status-card"), "HomeApp 首帧渲染");
+  await waitFor(() => byId(dom, "library-add-pdf-btn"), "HomeApp 首帧渲染");
+  // 阶段 C(shadcn 改造):TranslationWorkflowDialog 换成 Radix Dialog 后不
+  // forceMount Content——job-status-card/ResultActions 的下载按钮嵌在这个
+  // 对话框内部,只有对话框打开过才会挂载(同 CredentialsDialog 等阶段 C 第一批
+  // 对话框的先例)。
+  services.workflowDialog.openUpload();
+  await waitFor(() => byId(dom, "job-status-card"), "工作流对话框打开后 job-status-card 挂载");
   await wait(0);
 
   return { services, root, host };
@@ -197,7 +205,9 @@ test("artifact-downloads：StatusDetailDialog 概览面板的 markdown-bundle-bt
     services.features.jobRuntimeFeature.startPolling(getMockJobId());
     await waitFor(() => byId(dom, "status-detail-btn"), "状态卡详情按钮就绪");
     click(dom, byId(dom, "status-detail-btn"));
-    await waitFor(() => byId(dom, "status-detail-dialog").open === true, "详情对话框打开");
+    // 阶段 C(shadcn 改造):StatusDetailDialog 换成 Radix Dialog 后不 forceMount
+  // Content——断言从"open 属性真假"改为"是否挂载"。
+  await waitFor(() => byId(dom, "status-detail-dialog") !== null, "详情对话框打开");
 
     await waitFor(() => byId(dom, "markdown-bundle-btn")?.getAttribute("aria-disabled") === "false", "概览面板下载按钮就绪(读 statusCardStore)");
     const link = byId(dom, "markdown-bundle-btn");
@@ -315,7 +325,9 @@ test("artifact-downloads：StatusDetailDialog 概览下载按钮的 busy 态同�
   services.features.jobRuntimeFeature.startPolling(getMockJobId());
   await waitFor(() => byId(dom, "status-detail-btn"), "状态卡详情按钮就绪");
   click(dom, byId(dom, "status-detail-btn"));
-  await waitFor(() => byId(dom, "status-detail-dialog").open === true, "详情对话框打开");
+  // 阶段 C(shadcn 改造):StatusDetailDialog 换成 Radix Dialog 后不 forceMount
+  // Content——断言从"open 属性真假"改为"是否挂载"。
+  await waitFor(() => byId(dom, "status-detail-dialog") !== null, "详情对话框打开");
   await waitFor(() => byId(dom, "markdown-bundle-btn")?.getAttribute("aria-disabled") === "false", "概览面板下载按钮就绪");
 
   services.artifactDownloads.busyStore.setBusy("markdown-bundle-btn", true, "下载中...");

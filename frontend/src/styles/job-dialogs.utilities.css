@@ -396,6 +396,19 @@
 }
 
 @utility status-detail-dialog {
+  /* 阶段 C(shadcn 改造):z-index 从共享的 desktop-dialog(101)提到 111——
+     StatusDetailDialog 的唯一打开入口(StatusCard 的"详情"按钮)必然嵌在已经
+     打开的 TranslationWorkflowDialog(Content z-101/Overlay z-100)内部,两者
+     都换成 Radix Dialog(常规 DOM 层叠,不再是原生 <dialog> 的浏览器 top-layer
+     promotion)后,若沿用相同的 101/100,StatusDetailDialog 自己的背板
+     (Overlay z-100)会因为 z-index 小于 TranslationWorkflowDialog 的 Content
+     (101)而盖不住它,导致"嵌套打开时背景应叠加变暗"这个原生 <dialog> 免费带来
+     的视觉效果丢失(fresh Playwright + 12 条视觉基线复现过:status-dialog-failed/
+     status-dialog-translation 差异一度达到 40%)。这里连同下面新增的
+     status-detail-dialog-overlay 一起垫高层级,确保永远盖过
+     TranslationWorkflowDialog(以及其余仍是 101/100 的 Credentials/Glossaries/
+     SettingsHub/AppUpdate,留出余量以防万一同时打开)。 */
+  z-index: 111;
   width: min(960px, calc(100vw - 32px));
   height: min(760px, calc(100vh - 48px));
   max-width: none;

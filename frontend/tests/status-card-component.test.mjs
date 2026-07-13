@@ -14,7 +14,7 @@ function makeDom(search) {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", {
     url: `http://localhost/index.html${search}`,
   });
-  for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver"]) {
+  for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
     Object.defineProperty(globalThis, key, {
       value: dom.window[key] ?? dom.window,
       writable: true,
@@ -26,7 +26,9 @@ function makeDom(search) {
   // Radix Presence/Tabs(阶段 B 引入)在 jsdom 下需要 cancelAnimationFrame
   // (TabsContent 的 mount 动画计时器清理)和 getComputedStyle(Presence 读取
   // animation-name 判断退场动画是否结束)——jsdom 的 window 上有实现,只是没有
-  // 像 requestAnimationFrame 一样被复制到裸 global 上,这里一并补上。
+  // 像 requestAnimationFrame 一样被复制到裸 global 上,这里一并补上。NodeFilter
+  // 是阶段 C(TranslationWorkflowDialog 换 Radix Dialog)新增的需要——
+  // Dialog.Content 的 FocusScope 用它做可聚焦元素树遍历。
   globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
   globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
   globalThis.IS_REACT_ACT_ENVIRONMENT = false;
@@ -75,7 +77,15 @@ async function bootHomeApp(dom) {
 
   const root = createRoot(host);
   root.render(React.createElement(HomeApp, { services }));
-  await waitFor(() => byId(dom, "job-status-card"), "HomeApp 首帧渲染");
+  await waitFor(() => byId(dom, "library-add-pdf-btn"), "HomeApp 首帧渲染");
+  // 阶段 C(shadcn 改造):TranslationWorkflowDialog 换成 Radix Dialog 后不
+  // forceMount Content——StatusCard/#job-status-card 嵌在这个对话框内部,只有
+  // 对话框打开过才会挂载(同 CredentialsDialog 等阶段 C 第一批对话框的先例：
+  // 关闭态不挂载)。这里直接调 workflowDialog.openUpload()(而非模拟点击"添加"
+  // 按钮)让它挂载，不影响 startPolling 之后的轮询/渲染断言——真实用户流程里
+  // "打开对话框→提交/恢复任务"本来就是先有对话框打开这一步。
+  services.workflowDialog.openUpload();
+  await waitFor(() => byId(dom, "job-status-card"), "工作流对话框打开后 job-status-card 挂载");
   await wait(0);
 
   return { services, root, host };

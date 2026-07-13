@@ -1,13 +1,29 @@
 // StatusDetailDialog(蓝图 §1 主组件)——对照
 // components/dialogs/status-detail-dialog-template.js 逐 id/class 镜像。
 //
-// 原生 <dialog> 语义(蓝图 §0.2):常驻挂载,effect 依 dialogStore 的 open
-// 状态驱动 showModal()/close(),自带 backdrop-close onClick,不依赖旧
-// app-shell/view.js:bindDialogBackdropClose(CredentialsDialog.jsx 先例)。
+// Dialog 渲染层(阶段 C 第二批,shadcn 改造):从原生 <dialog>+showModal/close
+// 换成 radix-ui 的 Dialog 原语(DialogPrimitive.Root/Portal/Overlay/Content),
+// 不经 src/components/ui/dialog.jsx 默认皮肤(className 继续用现有的
+// desktop-dialog/desktop-shell 这套 bespoke CSS,和 status-detail-dialog 专属
+// 覆盖并存)。open 受控于 dialogStore(useStatusDetailOverview 的 open),
+// onOpenChange 在 next===false 时统一调用 dialogStore.close()——这不是
+// TranslationWorkflowDialog 那种两态语义(上传/状态),关闭就是关闭,不需要
+// 分流。Escape、点击背板(DismissableLayer 的 outside-click 检测)、点击关闭
+// 按钮(DialogPrimitive.Close,替代原来 <form method="dialog"> 的
+// type="submit" 隐式提交关闭)三条路径都走这一个回调。
 //
-// 4 个 tab 全部常驻渲染,用 hidden 属性切换可见性(不卸载)——StageHistoryList/
-// EventsList/TranslationDebugTab 的内部 useState(payload 展开等)在切 tab 时
-// 不应该被重置。
+// 不 forceMount Content(同 CredentialsDialog 等 4 个阶段 C 第一批对话框的
+// 决策,见 use-dialog-return-focus.js 头注释——forceMount 会让 Radix modal
+// Content 内部的 hideOthers() 副作用在应用启动时就永久生效)。
+//
+// 双层 forceMount 交互(本文件的风险点):内层 4 个 tab 依旧各自
+// TabsPrimitive.Content forceMount + 显式 hidden 覆盖(阶段 B 决策，语义见下方
+// 面板函数注释)——外层 Dialog 不再 forceMount 意味着对话框整个关闭时 Content
+// 连同内部 4 个 Tabs 一起卸载,tab 内部 useState(TranslationDebugTab 选中的
+// item 等)会被清空。这在产品语义上是可接受的：forceMount+hidden 的常驻挂载
+// 语义原本就只服务于"对话框打开期间切 tab 不丢状态"，从未承诺"对话框关闭
+// 再重开也保留"，两者并不冲突（已用 fresh Playwright 实测：打开期间切 4 个
+// tab、翻译调试选中态跨切换保留，见阶段 C 报告）。
 //
 // Tabs 实现(阶段 B,shadcn 改造):同 SettingsHubDialog/CredentialsDialog 的
 // 选择——直接用 radix-ui 的 Tabs 原语(不经 src/components/ui/tabs.jsx 默认
@@ -18,11 +34,11 @@
 // contentProps 里显式传入的 hidden 决定(晚于 Radix 内部计算的 hidden 展开,
 // 会覆盖它)——StageHistoryList/EventsList/TranslationDebugTab 的内部 useState
 // 因此继续不受 tab 切换影响,这是本文件迁移的最大风险点,已用组件测试 +
-// fresh Playwright 验证(见 status-detail-dialog-component.test.mjs 与阶段 B
+// fresh Playwright 验证(见 status-detail-dialog-component.test.mjs 与阶段 B/C
 // 报告)。
 
-import { useEffect, useRef } from "react";
-import { Tabs as TabsPrimitive } from "radix-ui";
+import { Dialog as DialogPrimitive, Tabs as TabsPrimitive } from "radix-ui";
+import { useDialogReturnFocus } from "../../state/use-dialog-return-focus.js";
 import { StageHistoryList } from "./StageHistoryList.jsx";
 import { EventsList, eventsStatusText } from "./EventsList.jsx";
 import { TranslationDebugTab } from "./TranslationDebugTab.jsx";
@@ -196,98 +212,84 @@ function TranslationPanel({ translation, controller, active }) {
 
 export function StatusDetailDialog() {
   const { open, activeTab, overview, translation, rerunPending, controller, dialogStore } = useStatusDetailOverview();
-  const dialogRef = useRef(null);
   const ids = STATUS_DETAIL_DIALOG_IDS;
+  const { onCloseAutoFocus } = useDialogReturnFocus(open);
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) {
-      return;
-    }
-    if (open && !dialog.open) {
-      if (typeof dialog.showModal === "function") {
-        dialog.showModal();
-      } else {
-        dialog.setAttribute("open", "");
-      }
-    } else if (!open && dialog.open) {
-      if (typeof dialog.close === "function") {
-        dialog.close();
-      } else {
-        dialog.removeAttribute("open");
-      }
-    }
-  }, [open]);
-
-  function handleBackdropClick(event) {
-    if (event.target === dialogRef.current) {
+  // Escape / 背板点击(DismissableLayer 的 outside-click 检测)/ 关闭按钮
+  // (DialogPrimitive.Close)都经这一个回调回写 store——不是 TranslationWorkflowDialog
+  // 那种两态语义,next===false 直接 close() 即可。
+  function handleOpenChange(nextOpen) {
+    if (!nextOpen) {
       dialogStore.close();
     }
-  }
-
-  function handleNativeClose() {
-    dialogStore.close();
   }
 
   const headline = overview.headline;
 
   return (
-    <dialog
-      id={ids.dialog}
-      className="desktop-dialog status-detail-dialog"
-      ref={dialogRef}
-      onClick={handleBackdropClick}
-      onClose={handleNativeClose}
-    >
-      <form method="dialog" className="desktop-shell">
-        <div className="desktop-head">
-          <div className="status-detail-headline">
-            <span
-              id={ids.headline.icon}
-              className="status-detail-head-icon"
-              aria-hidden="true"
-              // eslint-disable-next-line react/no-danger
-              dangerouslySetInnerHTML={{ __html: headline.iconMarkup || "" }}
-            />
-            <div className="status-detail-head-copy">
-              <div className="status-detail-head-top">
-                <h2>任务详情</h2>
-                <p className="status-detail-job-meta">Job ID <span id={ids.headline.jobId} className="status-detail-job-id mono">{headline.jobId}</span></p>
-              </div>
-              <p id={ids.headline.note} className="status-panel-note">{headline.note}</p>
-            </div>
-          </div>
-          <Button id={ids.headline.closeButton} type="submit" className="dialog-close-btn" aria-label="关闭">×</Button>
-        </div>
-        <TabsPrimitive.Root
-          className="contents"
-          value={activeTab}
-          onValueChange={(tab) => controller.activateDetailTab(tab)}
+    <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="status-detail-dialog-overlay" />
+        <DialogPrimitive.Content
+          id={ids.dialog}
+          className="desktop-dialog status-detail-dialog"
+          onCloseAutoFocus={onCloseAutoFocus}
         >
-          <div className="desktop-body status-detail-body">
-            <TabsPrimitive.List className="detail-tabs" aria-label="任务详情">
-              {TABS.map((tab) => (
-                <TabsPrimitive.Trigger
-                  key={tab.key}
-                  value={tab.key}
-                  id={ids.tabs[tab.key]}
-                  className={`detail-tab${tab.advanced ? " detail-tab-advanced" : ""}${activeTab === tab.key ? " is-active" : ""}`}
-                  data-tab={tab.key}
-                >
-                  {tab.label}
-                </TabsPrimitive.Trigger>
-              ))}
-            </TabsPrimitive.List>
-
-            <div className="detail-tab-panels">
-              <OverviewPanel overview={overview} active={activeTab === "overview"} />
-              <FailurePanel overview={overview} rerunPending={rerunPending} controller={controller} active={activeTab === "failure"} />
-              <EventsPanel overview={overview} active={activeTab === "events"} />
-              <TranslationPanel translation={translation} controller={controller} active={activeTab === "translation"} />
+          <div className="desktop-shell">
+            <div className="desktop-head">
+              <div className="status-detail-headline">
+                <span
+                  id={ids.headline.icon}
+                  className="status-detail-head-icon"
+                  aria-hidden="true"
+                  // eslint-disable-next-line react/no-danger
+                  dangerouslySetInnerHTML={{ __html: headline.iconMarkup || "" }}
+                />
+                <div className="status-detail-head-copy">
+                  <div className="status-detail-head-top">
+                    <DialogPrimitive.Title asChild>
+                      <h2>任务详情</h2>
+                    </DialogPrimitive.Title>
+                    <p className="status-detail-job-meta">Job ID <span id={ids.headline.jobId} className="status-detail-job-id mono">{headline.jobId}</span></p>
+                  </div>
+                  <p id={ids.headline.note} className="status-panel-note">{headline.note}</p>
+                </div>
+              </div>
+              <DialogPrimitive.Close asChild>
+                <Button id={ids.headline.closeButton} className="dialog-close-btn" aria-label="关闭">×</Button>
+              </DialogPrimitive.Close>
             </div>
+            <TabsPrimitive.Root
+              className="contents"
+              value={activeTab}
+              onValueChange={(tab) => controller.activateDetailTab(tab)}
+            >
+              <div className="desktop-body status-detail-body">
+                <TabsPrimitive.List className="detail-tabs" aria-label="任务详情">
+                  {TABS.map((tab) => (
+                    <TabsPrimitive.Trigger
+                      key={tab.key}
+                      value={tab.key}
+                      id={ids.tabs[tab.key]}
+                      className={`detail-tab${tab.advanced ? " detail-tab-advanced" : ""}${activeTab === tab.key ? " is-active" : ""}`}
+                      data-tab={tab.key}
+                    >
+                      {tab.label}
+                    </TabsPrimitive.Trigger>
+                  ))}
+                </TabsPrimitive.List>
+
+                <div className="detail-tab-panels">
+                  <OverviewPanel overview={overview} active={activeTab === "overview"} />
+                  <FailurePanel overview={overview} rerunPending={rerunPending} controller={controller} active={activeTab === "failure"} />
+                  <EventsPanel overview={overview} active={activeTab === "events"} />
+                  <TranslationPanel translation={translation} controller={controller} active={activeTab === "translation"} />
+                </div>
+              </div>
+            </TabsPrimitive.Root>
           </div>
-        </TabsPrimitive.Root>
-      </form>
-    </dialog>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
