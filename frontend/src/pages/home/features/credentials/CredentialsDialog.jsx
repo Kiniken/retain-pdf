@@ -42,7 +42,7 @@
 import { Dialog as DialogPrimitive, Tabs as TabsPrimitive } from "radix-ui";
 import { APP_EVENTS } from "../../../../js/contracts/app-contract.js";
 import { useAppEvent } from "../../../../shared/react/use-app-event.js";
-import { useDialogReturnFocus } from "../../state/use-dialog-return-focus.js";
+import { useDialogReturnFocus } from "../../../../shared/react/use-dialog-return-focus.js";
 import { CREDENTIAL_DOM_IDS } from "./credentials-dom-ids.js";
 import { useCredentialsController } from "./useCredentialsController.js";
 import { OcrProviderPanels } from "./OcrProviderPanels.jsx";

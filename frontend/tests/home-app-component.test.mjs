@@ -96,13 +96,12 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   // ---- DOM 契约:顶层 + 常驻挂载区块逐一存在 ----
   // 注意:"translation-workflow-dialog"及其内部整个 job-form 家族(job-form/
   // ocr_provider/.../status-section/job-status-card)、"app-update-dialog"/
-  // "app-update-status"/"app-update-check-btn" 都不在这个列表里——阶段 C
-  // (shadcn 改造)后 TranslationWorkflowDialog/SettingsHubDialog/
-  // AppUpdateBanner 换成 Radix Dialog,不 forceMount Content,这些 id 挂在
-  // 各自 Content 子树下,只有对应对话框被打开过之后才存在于 DOM(此前原生
-  // <dialog> 或 bespoke <div> 是常驻挂载,只是显示态切换)。它们的存在性挪到
-  // 下面分别打开对话框后再断言。PageRangeDialog 还没迁移到 Radix(仍是原生
-  // <dialog>,常驻挂载),其契约 id 保留在下面的无条件列表里。
+  // "app-update-status"/"app-update-check-btn"、"page-range-dialog"及其内部
+  // 契约 id 都不在这个列表里——阶段 C(shadcn 改造)后 TranslationWorkflowDialog/
+  // SettingsHubDialog/AppUpdateBanner/PageRangeDialog 换成 Radix Dialog,不
+  // forceMount Content,这些 id 挂在各自 Content 子树下,只有对应对话框被
+  // 打开过之后才存在于 DOM(此前原生 <dialog> 或 bespoke <div> 是常驻挂载,
+  // 只是显示态切换)。它们的存在性挪到下面分别打开对话框后再断言。
   const contractIds = [
     // app-shell
     "app-shell", "developer-btn", "open-output-btn",
@@ -110,9 +109,6 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
     "library-view", "recent-jobs-scroll-body", "recent-jobs-summary", "recent-jobs-empty",
     "library-grid", "recent-jobs-list", "load-more-jobs-btn", "open-query-btn", "library-search-input",
     "library-add-pdf-btn", "app-settings-btn",
-    // 专业翻译对话框(PageRangeDialog,还没迁移到 Radix,常驻挂载)
-    "page-range-dialog", "page-range-title", "page-range-limit-text", "job-glossary-id",
-    "page-range-close-btn", "page-range-clear-btn", "page-range-apply-btn",
   ];
   for (const id of contractIds) {
     assert.ok(byId(id), `契约 id 缺失：#${id}`);
@@ -162,6 +158,26 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   for (const id of workflowContractIds) {
     assert.ok(byId(id), `契约 id 缺失：#${id}`);
   }
+
+  // ---- 专业翻译对话框(PageRangeDialog,阶段 C 收官批换 Radix,不
+  //      forceMount,只有点开过才挂载于 DOM):点击 #page-range-btn 打开,
+  //      契约 id 逐一存在,关闭按钮点击后卸载。背板点击/Esc 的纯关闭语义
+  //      统一(顺手修的真实 bug:原来背板点击会触发 applyPageRanges(),Esc
+  //      走另一条只清 flag 的路径,两者不一致)靠 fresh Playwright 实测验证——
+  //      jsdom 下 Radix DismissableLayer 的 outside-pointerdown 检测不可靠,
+  //      同其余已迁移对话框的既有测试先例(credentials-dialog-component.test.mjs
+  //      等同样只在这里测挂载/关闭按钮,不测背板/Esc)。 ----
+  assert.equal(byId("page-range-dialog"), null, "初始未打开时不挂载");
+  click(byId("page-range-btn"));
+  await waitFor(() => byId("page-range-dialog") !== null, "专业翻译对话框打开");
+  for (const id of [
+    "page-range-title", "page-range-limit-text", "job-glossary-id",
+    "page-range-close-btn", "page-range-clear-btn", "page-range-apply-btn",
+  ]) {
+    assert.ok(byId(id), `契约 id 缺失：#${id}`);
+  }
+  click(byId("page-range-close-btn"));
+  await waitFor(() => byId("page-range-dialog") === null, "关闭按钮点击后对话框卸载");
 
   // ---- idle 复位链:上传瓦片回到默认态,提交按钮置灰 ----
   assert.equal(byId("file-label").textContent, "点击选择文件或拖到这里");

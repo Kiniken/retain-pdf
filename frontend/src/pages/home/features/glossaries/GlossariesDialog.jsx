@@ -23,7 +23,7 @@
 // open(),补上"打开即刷新列表"的旧语义。
 
 import { Dialog as DialogPrimitive } from "radix-ui";
-import { useDialogReturnFocus } from "../../state/use-dialog-return-focus.js";
+import { useDialogReturnFocus } from "../../../../shared/react/use-dialog-return-focus.js";
 import { GLOSSARY_DOM_IDS } from "./glossaries-dom-ids.js";
 import { useGlossariesController } from "./useGlossariesController.js";
 import { GlossaryList } from "./GlossaryList.jsx";

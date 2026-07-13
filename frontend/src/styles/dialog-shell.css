@@ -4,13 +4,12 @@
   max-height: calc(100vh - 24px);
   border-radius: 24px;
 
-  /* ::backdrop 只对原生 <dialog>(showModal 后的浏览器 top-layer)生效——
-     ReaderDialog/PageRangeDialog 这两个还没迁移到 Radix 的对话框仍靠这条规则
-     出背板;已迁移到 Radix Dialog 的对话框(CredentialsDialog/GlossariesDialog/
-     SettingsHubDialog/AppUpdateBanner/StatusDetailDialog/
-     TranslationWorkflowDialog)不再是 <dialog> 元素,背板改由下面的
-     desktop-dialog-overlay 工具类(挂在 DialogPrimitive.Overlay 上)负责,
-     两者并存,互不冲突。 */
+  /* ::backdrop 只对原生 <dialog>(showModal 后的浏览器 top-layer)生效——阶段 C
+     收官批(ReaderDialog/PageRangeDialog)完成后,9 个对话框已全部换成 Radix
+     Dialog,不再有任何组件渲染 <dialog> 元素,这条规则整体变成死代码(风险
+     为零,保留不删,同 app-update.css 头注释里记录的先例)。真正生效的背板
+     样式统一由下面的 desktop-dialog-overlay 工具类(挂在 DialogPrimitive.Overlay
+     上)负责。 */
   &::backdrop {
     background: rgba(15, 23, 42, 0.3);
   }

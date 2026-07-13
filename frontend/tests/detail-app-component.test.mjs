@@ -8,7 +8,7 @@ import { JSDOM } from "jsdom";
 // 命令式孤岛(产物清单)落地、事件流按需加载与模态框开合。
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/detail.html?job_id=job-react-detail" });
-for (const key of ["window", "document", "HTMLElement", "CustomEvent", "Event", "Node", "MutationObserver"]) {
+for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "HTMLSelectElement", "CustomEvent", "Event", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
   Object.defineProperty(globalThis, key, {
     value: dom.window[key] ?? dom.window,
     writable: true,
@@ -176,28 +176,34 @@ test("DetailApp:加载编排、文案适配、产物孤岛、事件流模态框"
   assert.match(byId("detail-markdown-preview")?.textContent || "", /# 测试文档/);
   assert.equal(byId("detail-markdown-image-count")?.textContent, "0");
 
-  // 阶段时间线模态框:打开渲染条目,Escape 关闭
+  // 阶段时间线模态框(阶段 C 收官批换 Radix Dialog,不 forceMount:关闭态
+  // 整个 Content 不挂载于 DOM,断言从"hidden class 真假"改为"是否挂载"):
+  // 打开渲染条目,Escape 关闭
+  assert.equal(byId("detail-stage-history-modal"), null, "初始未打开时不挂载");
   click(byId("detail-open-stage-history-btn"));
   await waitFor(
-    () => byId("detail-stage-history-modal")?.classList.contains("hidden") === false,
+    () => byId("detail-stage-history-modal") !== null,
     "阶段时间线模态框打开",
   );
-  assert.equal(host.querySelectorAll(".detail-stage-item").length, 2);
-  assert.match(host.querySelector(".detail-stage-item .detail-stage-title")?.textContent || "", /^1\. /);
+  // Radix Dialog Content 走 Portal,渲染到 document.body 而不是 host 子树内,
+  // 断言从 host 作用域改成整个 document(镜像其余已迁移对话框测试的先例)。
+  assert.equal(dom.window.document.querySelectorAll(".detail-stage-item").length, 2);
+  assert.match(dom.window.document.querySelector(".detail-stage-item .detail-stage-title")?.textContent || "", /^1\. /);
   dom.window.document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   await waitFor(
-    () => byId("detail-stage-history-modal")?.classList.contains("hidden") === true,
+    () => byId("detail-stage-history-modal") === null,
     "Escape 关闭阶段时间线模态框",
   );
 
   // 事件流:按需分页拉全量 + 页内缓存 + 按钮文案变为「查看」
   assert.equal(byId("detail-open-events-btn")?.textContent, "按需加载");
+  assert.equal(byId("detail-events-modal"), null, "初始未打开时不挂载");
   click(byId("detail-open-events-btn"));
   await waitFor(
-    () => host.querySelectorAll(".detail-event-item").length === 2,
+    () => dom.window.document.querySelectorAll(".detail-event-item").length === 2,
     "事件流条目渲染",
   );
-  assert.equal(byId("detail-events-modal")?.classList.contains("hidden"), false);
+  assert.ok(byId("detail-events-modal"), "事件流模态框已挂载");
   assert.deepEqual(ports.calls.events, [["job-react-detail", "/api/v1", 200, 0]]);
   assert.equal(byId("detail-events-status")?.textContent, "全部事件 · 2 条");
   assert.equal(byId("detail-open-events-btn")?.textContent, "查看");
@@ -205,12 +211,12 @@ test("DetailApp:加载编排、文案适配、产物孤岛、事件流模态框"
   // 再次打开不重复请求(页内缓存)
   click(byId("detail-close-events-btn"));
   await waitFor(
-    () => byId("detail-events-modal")?.classList.contains("hidden") === true,
+    () => byId("detail-events-modal") === null,
     "关闭事件流模态框",
   );
   click(byId("detail-open-events-btn"));
   await waitFor(
-    () => byId("detail-events-modal")?.classList.contains("hidden") === false,
+    () => byId("detail-events-modal") !== null,
     "再次打开事件流模态框",
   );
   assert.equal(ports.calls.events.length, 1);

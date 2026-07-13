@@ -63,7 +63,7 @@ import {
 } from "../../../../js/features/translation-workflow-dialog/contract.js";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
 import { useHomeServices } from "../../home-services-context.js";
-import { useDialogReturnFocus } from "../../state/use-dialog-return-focus.js";
+import { useDialogReturnFocus } from "../../../../shared/react/use-dialog-return-focus.js";
 import { WorkflowPanel } from "./WorkflowPanel.jsx";
 import { StatusCard } from "../status/StatusCard.jsx";
 

@@ -48,7 +48,7 @@ import { Dialog as DialogPrimitive, Tabs as TabsPrimitive } from "radix-ui";
 import { APP_EVENTS } from "../../../../js/contracts/app-contract.js";
 import { useHomeServices } from "../../home-services-context.js";
 import { useDialogState } from "../../state/use-dialog-state.js";
-import { useDialogReturnFocus } from "../../state/use-dialog-return-focus.js";
+import { useDialogReturnFocus } from "../../../../shared/react/use-dialog-return-focus.js";
 import { APP_SETTINGS_DIALOG_IDS } from "../credentials/credentials-dom-ids.js";
 import { AppUpdateBanner } from "../app-update/AppUpdateBanner.jsx";
 import { Button } from "../../../../components/Button.jsx";

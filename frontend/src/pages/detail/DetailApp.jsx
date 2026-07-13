@@ -151,7 +151,25 @@ export function DetailApp({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 旧 modal-bindings.js:Escape 关闭全部模态框
+  // 旧 modal-bindings.js:Escape 关闭全部模态框。
+  //
+  // 阶段 C 收官批(shadcn 改造)决策:两个模态换成 Radix Dialog 后保留这条
+  // "无条件关两个"的手写监听,不改成"只关当前打开的那个"。理由:两个模态各自
+  // 是 fixed inset-0 的独立 Radix Root/Content,打开时会用 DismissableLayer
+  // 抢占式接管焦点(focus trap)——StageHistoryModal 打开时其触发卡片
+  // (EventsTriggerCard)完全被遮罩盖住且不可聚焦/不可点击,反之亦然,所以两个
+  // 模态在本页面结构下永远互斥(同一时刻至多一个 open=true)。这意味着
+  // "关两个"和"只关当前这个"在所有可达状态下结果恒等——setStageHistoryOpen/
+  // setEventsOpen 对已经是 false 的一侧调用是幂等 no-op,不会有 double-fire
+  // 语义坍缩的风险(不同于 TranslationWorkflowDialog 的两段式关闭那种真正会
+  // 被"多调一次"破坏语义的场景)。保留原样是这批改造里风险最低的选择,不
+  // 引入新分支去做一个在当前 UI 下不可观测的行为收紧。
+  //
+  // 这条监听和 Radix 自己的 Escape 处理(DismissableLayer,capture 阶段)会
+  // 在同一次按键里都跑一遍:Radix 先对"当前打开的那个"调用 onOpenChange(false)
+  // (对应的 setXxxOpen(false) 生效),随后这里的 bubble 阶段监听器对两个都调
+  // 一次 setXxxOpen(false)——已经是 false 的一侧是 no-op,不产生额外渲染或
+  // 副作用,两套机制不冲突。
   useEffect(() => {
     const onKeyDown = (event) => {
       if (event.key !== "Escape") {
@@ -164,10 +182,17 @@ export function DetailApp({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // 旧 view.js setDetailModalOpen:有模态框打开时锁定 body 滚动
-  useEffect(() => {
-    document.body.style.overflow = stageHistoryOpen || eventsOpen ? "hidden" : "";
-  }, [stageHistoryOpen, eventsOpen]);
+  // 旧 view.js setDetailModalOpen 的 body 滚动锁定手写实现已删除:Radix Dialog
+  // modal 模式(默认)自带等价的 body 滚动锁定(react-remove-scroll,挂在
+  // DialogPrimitive.Content 上,随 Content 真实 mount/unmount 生命周期自动
+  // 加锁/解锁,见 EventsTimeline.jsx 的 DetailModal)。留着这条手写
+  // document.body.style.overflow 赋值会和 Radix 自己的锁定机制形成两个独立
+  // writer 同时争抢同一个 CSS 属性——react-remove-scroll 内部会记住"加锁前
+  // 的原始 overflow 值"并在解锁时精确恢复,若这里再直接赋值/清空,可能会在
+  // 解锁时机不一致的边界情况下把这个属性重置成与 Radix 记忆不一致的值(表现
+  // 为关掉一个模态后 body 仍然滚动不了,或反过来)。两个模态互斥（同上），
+  // Radix 的锁定粒度按需（对应 Content 是否挂载）已经完全覆盖旧实现想要的
+  // 语义,不需要再手写。
 
   // 旧 events.js fetchAllJobEvents + ensureEventsLoaded(分页拉全量 + 页内缓存)
   const ensureEventsLoaded = useCallback(async () => {

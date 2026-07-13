@@ -2,11 +2,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 
-// ReaderDialog(Phase 3 dialogs 群,蓝图 §4)组件级测试。覆盖蓝图 §4.4 +
-// 施工范围第 6 条新增测试清单:open/close 生命周期(路由同步、frame src
-// 切换、loading 复位)、postMessage 进度驱动(mock message event,断言进度条
-// 宽度/文案)、stage==="ready" 关闭延时、APP_EVENTS.openReaderRequested
-// 触发打开、URL 深链启动(?view=reader&job_id=)。
+// ReaderDialog(Phase 3 dialogs 群,蓝图 §4;阶段 C 收官批换 Radix Dialog)
+// 组件级测试。覆盖蓝图 §4.4 + 施工范围第 6 条新增测试清单:open/close 生命
+// 周期(路由同步、frame src 切换、loading 复位)、postMessage 进度驱动(mock
+// message event,断言进度条宽度/文案)、stage==="ready" 关闭延时、
+// APP_EVENTS.openReaderRequested 触发打开、URL 深链启动(?view=reader&job_id=)。
+//
+// 阶段 C 收官批断言口径变化:Content 不 forceMount,关闭态整个子树(含
+// #reader-dialog-frame/#reader-dialog-loading 等)不挂载于 DOM——断言从
+// "dialog.open 属性真假"改为"元素是否挂载",同 C-1/C-2 已迁移的 4 个对话框
+// 测试文件先例。背板点击的纯关闭语义靠 fresh Playwright 实测(jsdom 下
+// Radix DismissableLayer 的 outside-pointerdown 检测不可靠,同
+// PageRangeDialog/credentials-dialog-component.test.mjs 等既有先例,只在这里
+// 测挂载/关闭按钮,不测背板/Esc)。
 //
 // makeDom(search) 模式镜像 status-detail-dialog-component.test.mjs 先例
 // (不同测试需要不同起始 URL,不能像 home-app-component.test.mjs 那样共用
@@ -16,7 +24,7 @@ function makeDom(search) {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", {
     url: `http://localhost/home-react-dev.html${search}`,
   });
-  for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "HTMLSelectElement", "CustomEvent", "Event", "MessageEvent", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver"]) {
+  for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "HTMLSelectElement", "CustomEvent", "Event", "MessageEvent", "KeyboardEvent", "MouseEvent", "Node", "MutationObserver", "NodeFilter"]) {
     Object.defineProperty(globalThis, key, {
       value: dom.window[key] ?? dom.window,
       writable: true,
@@ -25,10 +33,11 @@ function makeDom(search) {
   }
   globalThis.window = dom.window;
   globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(0), 0);
-  // Radix Presence/Tabs(阶段 B 引入)在 jsdom 下需要 cancelAnimationFrame
-  // (TabsContent 的 mount 动画计时器清理)和 getComputedStyle(Presence 读取
-  // animation-name 判断退场动画是否结束)——jsdom 的 window 上有实现,只是没有
-  // 像 requestAnimationFrame 一样被复制到裸 global 上,这里一并补上。
+  // Radix Presence/Tabs/FocusScope(阶段 B/C 引入)在 jsdom 下需要
+  // cancelAnimationFrame(TabsContent 的 mount 动画计时器清理)和
+  // getComputedStyle(Presence 读取 animation-name 判断退场动画是否结束)——
+  // jsdom 的 window 上有实现,只是没有像 requestAnimationFrame 一样被复制到
+  // 裸 global 上,这里一并补上。
   globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
   globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
   globalThis.IS_REACT_ACT_ENVIRONMENT = false;
@@ -73,7 +82,13 @@ async function bootHomeApp(dom) {
 
   const root = createRoot(host);
   root.render(React.createElement(HomeApp, { services }));
-  await waitFor(() => byId(dom, "reader-dialog"), "HomeApp 首帧渲染(reader-dialog 常驻挂载)");
+  // 阶段 C 收官批后 #reader-dialog 不再常驻挂载(Radix Content 不 forceMount,
+  // 只有打开过才存在于 DOM),首帧就绪信号改用永远无条件渲染的 #app-shell。
+  await waitFor(() => byId(dom, "app-shell"), "HomeApp 首帧渲染");
+  // React 18 的 useSyncExternalStore 订阅落在 passive effect 里,这里让出一个
+  // 宏任务,确保 dialog store 的订阅已建立(同 home-app-component.test.mjs 的
+  // 既有先例),也让 URL 深链检查(ReaderDialog 自己的一次性挂载 effect)有
+  // 机会跑完。
   await wait(0);
 
   return { services, root, host };
@@ -98,56 +113,59 @@ test("ReaderDialog：open/close 生命周期——路由同步、frame src 切�
   const { getMockJobId } = await import("../src/js/mock/index.js");
   const jobId = getMockJobId();
 
-  const dialog = byId(dom, "reader-dialog");
-  const frame = byId(dom, "reader-dialog-frame");
-  assert.equal(dialog.open, false, "初始未打开");
-  assert.equal(frame.hasAttribute("srcdoc"), true, "初始 iframe 是占位 srcdoc,不是真实 src");
+  assert.equal(byId(dom, "reader-dialog"), null, "初始未打开时不挂载");
 
   services.reader.openReader(jobId);
-  await waitFor(() => dialog.open === true, "对话框打开");
+  // 注意:等待条件用"iframe src 已写入"而不是"#reader-dialog 挂载"——Content
+  // 的 mount 发生在 React 提交阶段(同步),而实际写入 src 的是 effect (b)
+  // (被动 effect,提交完成后才异步 flush),两者之间有真实的可观察窗口。旧
+  // 实现里 <dialog> 常驻挂载,轮询的是 dialog.open 属性,而这个属性恰好也是
+  // 由被动 effect 设置的,和 src 写入effect 同批 flush、顺序在前,不会有这个
+  // 竞态;现在 Content 按需 mount,不能再用"元素存在"当"effect 已跑完"的
+  // 代理信号。
+  await waitFor(() => (byId(dom, "reader-dialog-frame")?.getAttribute("src") || "").includes(`job_id=${jobId}`), "对话框打开且 iframe src 已同步");
+  const frame = byId(dom, "reader-dialog-frame");
   assert.equal(frame.hasAttribute("srcdoc"), false, "打开后 srcdoc 被清除");
   assert.match(frame.getAttribute("src") || "", /reader\.html\?job_id=mock-job-20260415/, "iframe src 指向阅读器页面并带上 job_id");
   assert.match(dom.window.location.href, /view=reader/, "路由同步写入 view=reader");
   assert.match(dom.window.location.href, new RegExp(`job_id=${jobId}`), "路由同步写入 job_id");
   assert.equal(byId(dom, "reader-dialog-loading").classList.contains("hidden"), false, "打开瞬间 loading 遮罩可见");
 
-  // 关闭:jsdom(本仓 devDependency 版本)未实现 HTMLDialogElement#close()/
-  // showModal()(均为 undefined,组件已按此降级,见 ReaderDialog.jsx 的
-  // typeof 判断分支),但 close 事件监听器仍然真实——直接派发 "close"
-  // 事件模拟原生 ESC/浏览器关闭对话框的语义,断言 onClose → dialogStore.close()。
-  dialog.dispatchEvent(new dom.window.Event("close"));
-  await waitFor(() => dialog.open === false, "对话框关闭");
-  assert.equal(frame.hasAttribute("srcdoc"), true, "关闭后 iframe 复位为占位 srcdoc");
-  assert.equal(frame.getAttribute("src"), null, "关闭后 iframe 不再持有真实 src");
+  // 关闭:阶段 C 收官批换 Radix Dialog 后不再是原生 <dialog>,没有 close 事件
+  // 语义了——Esc/背板点击/关闭按钮三条路径都统一路由到
+  // onOpenChange(false) → dialogStore.close(),这里直接驱动 store 等价触发。
+  // Content 不 forceMount,关闭后整个子树(iframe/loading 遮罩)随之卸载,
+  // 断言从"属性/class 复位"改为"元素不再挂载"。
+  services.reader.dialogStore.close();
+  await waitFor(() => byId(dom, "reader-dialog") === null, "对话框关闭(Content 卸载)");
+  assert.equal(byId(dom, "reader-dialog-frame"), null, "关闭后 iframe 随 Content 一起卸载");
+  assert.equal(byId(dom, "reader-dialog-loading"), null, "关闭后 loading 遮罩随 Content 一起卸载");
   assert.doesNotMatch(dom.window.location.href, /view=reader/, "关闭后路由清掉 view=reader");
   assert.doesNotMatch(dom.window.location.href, /job_id=/, "关闭后路由清掉 job_id");
-  assert.equal(byId(dom, "reader-dialog-loading").classList.contains("hidden"), true, "关闭后 loading 遮罩隐藏");
 
   root.unmount();
   services.dispose();
   host.remove();
 });
 
-test("ReaderDialog：关闭按钮与背板点击都会关闭对话框", async () => {
+test("ReaderDialog：关闭按钮点击会关闭对话框", async () => {
   const dom = makeDom("?mock=succeeded");
   const { services, root, host } = await bootHomeApp(dom);
   const { getMockJobId } = await import("../src/js/mock/index.js");
-  const dialog = byId(dom, "reader-dialog");
 
   services.reader.openReader(getMockJobId());
-  await waitFor(() => dialog.open === true, "对话框打开");
+  await waitFor(() => byId(dom, "reader-dialog") !== null, "对话框打开");
 
   byId(dom, "reader-dialog-close-btn").dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
-  await waitFor(() => dialog.open === false, "关闭按钮点击后对话框关闭");
+  await waitFor(() => byId(dom, "reader-dialog") === null, "关闭按钮点击后对话框卸载");
 
+  // 关闭后重新打开:Content 卸载后再挂载是全新的 DOM 节点(iframe 也是全新
+  // 元素),这里验证 src 切换在这个 mount/unmount 循环里依然正常生效,不是
+  // 死链或空白(蓝图 §4 铁律关注点)。
   services.reader.openReader(getMockJobId());
-  await waitFor(() => dialog.open === true, "再次打开");
-  // jsdom 的 MouseEvent 不支持在构造时直接设 target,改用 Object.defineProperty
-  // 更贴近真实"点击背板本身"(event.target === dialogRef.current)的语义。
-  const backdropClick = new dom.window.MouseEvent("click", { bubbles: true });
-  Object.defineProperty(backdropClick, "target", { value: dialog });
-  dialog.dispatchEvent(backdropClick);
-  await waitFor(() => dialog.open === false, "背板点击后对话框关闭");
+  await waitFor(() => (byId(dom, "reader-dialog-frame")?.getAttribute("src") || "").includes("reader.html?job_id="), "再次打开且 iframe src 已同步");
+  const frame = byId(dom, "reader-dialog-frame");
+  assert.match(frame.getAttribute("src") || "", /reader\.html\?job_id=/, "重新打开后 iframe src 指向阅读器页面,不是死链/空白");
 
   root.unmount();
   services.dispose();
@@ -161,7 +179,7 @@ test("ReaderDialog：postMessage 进度驱动——契约字段与进度条/文�
   const { READER_DIALOG_MESSAGES } = await import("../src/js/features/reader-dialog/contract.js");
 
   services.reader.openReader(getMockJobId());
-  await waitFor(() => byId(dom, "reader-dialog").open === true, "对话框打开");
+  await waitFor(() => byId(dom, "reader-dialog") !== null, "对话框打开");
 
   assert.equal(READER_DIALOG_MESSAGES.progress, "retainpdf-reader-progress", "契约字符串对齐 Phase2b 发送端");
 
@@ -199,7 +217,7 @@ test("ReaderDialog：stage===\"ready\" && percent>=100 触发 180ms 延时隐藏
   const { READER_DIALOG_MESSAGES } = await import("../src/js/features/reader-dialog/contract.js");
 
   services.reader.openReader(getMockJobId());
-  await waitFor(() => byId(dom, "reader-dialog").open === true, "对话框打开");
+  await waitFor(() => byId(dom, "reader-dialog") !== null, "对话框打开");
 
   postReaderProgressMessage(dom, {
     type: READER_DIALOG_MESSAGES.progress,
@@ -233,7 +251,7 @@ test("ReaderDialog：APP_EVENTS.openReaderRequested 是打开的唯一消费点(
     detail: { jobId, pageIdx: null, blockId: "" },
   }));
 
-  await waitFor(() => byId(dom, "reader-dialog").open === true, "事件驱动对话框打开");
+  await waitFor(() => (byId(dom, "reader-dialog-frame")?.getAttribute("src") || "").includes(`job_id=${jobId}`), "事件驱动对话框打开且 iframe src 已同步");
   const frame = byId(dom, "reader-dialog-frame");
   assert.match(frame.getAttribute("src") || "", new RegExp(`job_id=${jobId}`));
   // 回归:pageIdx 显式传 null 时不应该退化成 page_idx=0(Number(null) === 0 的坑)。
@@ -255,7 +273,7 @@ test("ReaderDialog：openReaderRequested 带 pageIdx/blockId 锚点时透传进 
     detail: { jobId, pageIdx: 3, blockId: "block-7" },
   }));
 
-  await waitFor(() => byId(dom, "reader-dialog").open === true, "事件驱动对话框打开");
+  await waitFor(() => (byId(dom, "reader-dialog-frame")?.getAttribute("src") || "").includes("page_idx=3"), "事件驱动对话框打开且 iframe src 已同步");
   const frame = byId(dom, "reader-dialog-frame");
   assert.match(frame.getAttribute("src") || "", /page_idx=3/, "锚点页码透传进 URL");
   assert.match(frame.getAttribute("src") || "", /block_id=block-7/, "锚点 block 透传进 URL");
@@ -276,7 +294,7 @@ test("ReaderDialog：URL 深链启动(?view=reader&job_id=)在挂载时直接打
   // 派发常常先于监听器就绪导致深链完全打不开——现在 ReaderDialog 挂载 effect
   // 自己读一次 URL 直接 open(),这里断言深链在合理时间内(远小于旧竞态偶发
   // 命中的窗口)必然打开,不是"有时候能开"。
-  await waitFor(() => byId(dom, "reader-dialog").open === true, "深链启动打开对话框");
+  await waitFor(() => (byId(dom, "reader-dialog-frame")?.getAttribute("src") || "").includes(`job_id=${jobId}`), "深链启动打开对话框且 iframe src 已同步");
   const frame = byId(dom, "reader-dialog-frame");
   assert.match(frame.getAttribute("src") || "", new RegExp(`job_id=${jobId}`));
 
@@ -291,7 +309,7 @@ test("ReaderDialog：宿主头部只保留关闭按钮,不渲染下载按钮(运
   const { getMockJobId } = await import("../src/js/mock/index.js");
 
   services.reader.openReader(getMockJobId());
-  await waitFor(() => byId(dom, "reader-dialog").open === true, "对话框打开");
+  await waitFor(() => byId(dom, "reader-dialog") !== null, "对话框打开");
 
   assert.equal(byId(dom, "reader-source-download-btn"), null, "宿主不再渲染原始 PDF 下载按钮(下载入口已移入 reader.html 本体)");
   assert.equal(byId(dom, "reader-merged-download-btn"), null, "宿主不再渲染对照 PDF 下载按钮");
@@ -310,13 +328,13 @@ test("ReaderDialog：job-runtime 引擎的 isReaderOpen()/onReaderDialogClose �
 
   assert.equal(services.reader.dialogStore.getState().open, false);
   services.reader.openReader(getMockJobId());
-  await waitFor(() => byId(dom, "reader-dialog").open === true, "对话框打开");
+  await waitFor(() => byId(dom, "reader-dialog") !== null, "对话框打开");
   assert.equal(services.reader.dialogStore.getState().open, true, "store 状态与 DOM 一致");
 
   // onReaderDialogClose 桥接(composition.js:mountJobRuntimeFeature payload)：
   // job-runtime 引擎在 job 返回 idle 态时应能关闭阅读器对话框。
   services.reader.dialogStore.close();
-  await waitFor(() => byId(dom, "reader-dialog").open === false, "dialogStore.close() 驱动 DOM 关闭");
+  await waitFor(() => byId(dom, "reader-dialog") === null, "dialogStore.close() 驱动 Content 卸载");
 
   root.unmount();
   services.dispose();

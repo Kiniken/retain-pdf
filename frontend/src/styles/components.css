@@ -40,7 +40,10 @@
   /*
     危险区修复(Tailwind v4 迁移):这条全局强制覆盖原本是普通 CSS 规则
     `.hidden { display: none !important; }`,专门用来压过各组件自己的
-    `display` 声明(如 detail 页事件流模态的 `.detail-modal{display:grid}`)。
+    `display` 声明(如 detail 页事件流模态内部 `.detail-list{display:grid}`
+    这类"空态/列表二选一"的容器——阶段 C 收官批把模态外层结构换成 Radix
+    Dialog 后,原来举例的 `.detail-modal{display:grid}` 本身已随之删除,但
+    `.detail-list`/`.detail-empty` 这类内层切换仍然依赖这条规则)。
     迁移工具把它错误地拆并进了多个 `@utility hidden { &.xxx {...} }` 块
     (src/styles/{components,upload-workflow,credential-settings,status-card}
     .utilities.css/.css),而 "hidden" 是 Tailwind 内置保留的工具类名——

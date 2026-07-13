@@ -38,7 +38,7 @@
 // 报告)。
 
 import { Dialog as DialogPrimitive, Tabs as TabsPrimitive } from "radix-ui";
-import { useDialogReturnFocus } from "../../state/use-dialog-return-focus.js";
+import { useDialogReturnFocus } from "../../../../shared/react/use-dialog-return-focus.js";
 import { StageHistoryList } from "./StageHistoryList.jsx";
 import { EventsList, eventsStatusText } from "./EventsList.jsx";
 import { TranslationDebugTab } from "./TranslationDebugTab.jsx";
