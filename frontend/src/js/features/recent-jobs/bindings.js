@@ -1,6 +1,5 @@
 import { APP_EVENTS } from "../../contracts/app-contract.js";
 import { bindRecentJobsCommandHandlers } from "./command-handlers.js";
-import { createRecentJobsViewPort } from "./view-port.js";
 
 export function bindRecentJobsFeatureEvents({
   apiPrefix,
@@ -11,7 +10,7 @@ export function bindRecentJobsFeatureEvents({
   libraryRefreshPort,
   refreshScheduler,
   runtime,
-  viewPort = createRecentJobsViewPort(),
+  viewPort,
 } = {}) {
   viewPort.bindEvents({
     onOpen: refreshScheduler.openDialog,

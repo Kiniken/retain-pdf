@@ -216,7 +216,7 @@ export function HeroUpload() {
             disabled={workflow.submitDisabled || workflow.submitBusy}
             {...(workflow.submitBusy ? { "data-busy": "1" } : {})}
           >
-            {workflow.submitLabel}
+            {workflow.submitBusy ? "提交中…" : workflow.submitLabel}
           </button>
         </div>
       </div>

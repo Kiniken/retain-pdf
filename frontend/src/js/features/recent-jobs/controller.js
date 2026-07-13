@@ -9,7 +9,6 @@ import { createRecentJobsRuntime } from "./runtime.js";
 import { createRecentJobsRuntimePort } from "./job-runtime-port.js";
 import { createRecentJobsReaderPort } from "./reader-port.js";
 import { createRecentJobsNavigationPort } from "./navigation-port.js";
-import { createRecentJobsViewPort } from "./view-port.js";
 import {
   createRecentJobsStatePort,
 } from "./state.js";
@@ -36,7 +35,7 @@ export function mountRecentJobsFeature({
   stageAdapterPort,
   homeStatePort = createNoopRecentJobsHomeStatePort(),
   recentJobsStatePort = createRecentJobsStatePort(),
-  viewPort = createRecentJobsViewPort(),
+  viewPort,
   libraryRefreshPort = createRecentJobsLibraryRefreshPort(),
   commandPort = createRecentJobsCommandPort(),
   libraryBooksResource = createLibraryBooksResource({

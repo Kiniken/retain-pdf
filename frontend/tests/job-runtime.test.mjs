@@ -2,31 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { createInitialState } from "../src/js/state/slices.js";
-import { syncCurrentJobSnapshot } from "../src/js/features/job-runtime/runtime-state.js";
-import * as runtimeStateModule from "../src/js/features/job-runtime/runtime-state.js";
 import * as jobEventsResourceModule from "../src/js/features/job-runtime/job-events-resource.js";
 import * as secondaryResourceCacheModule from "../src/js/features/job-runtime/secondary-resource-cache.js";
 import * as currentJobSecondarySelectorsModule from "../src/js/features/job-runtime/current-job-secondary-selectors.js";
-import * as runtimeTimersModule from "../src/js/features/job-runtime/runtime-timers.js";
 import * as stagePinStateModule from "../src/js/features/job-runtime/stage-pin-state.js";
-import * as stagePinningUiModule from "../src/js/ui/stage-pinning.js";
 import * as currentJobStateModule from "../src/js/features/job-runtime/current-job-state.js";
+import { syncCurrentJobSnapshot } from "../src/js/features/job-runtime/current-job-state.js";
 import * as runtimePollingStateModule from "../src/js/features/job-runtime/runtime-polling-state.js";
 import * as secondaryResourcePolicyModule from "../src/js/features/job-runtime/secondary-resource-policy.js";
 import * as renderContextModule from "../src/js/features/job-runtime/render-context.js";
-import { createPresentationRuntime } from "../src/js/ui/presentation-runtime.js";
-import { createJobActionsRuntime } from "../src/js/ui/job-actions-runtime.js";
 import { buildElapsedViewModel } from "../src/js/job/elapsed-view-model.js";
-import {
-  renderElapsed,
-  setElapsedTimingPort,
-  startElapsedTicker,
-} from "../src/js/ui/elapsed-presenter.js";
-import {
-  defaultJobActionsRuntime,
-} from "../src/js/ui/default-job-actions-runtime.js";
-import { defaultPresentationRuntime } from "../src/js/ui/default-presentation-runtime.js";
-import { defaultPresentationRuntimeStatePort } from "../src/js/ui/default-presentation-runtime-state-port.js";
 import { returnJobRuntimeToHome } from "../src/js/features/job-runtime/runtime-reset.js";
 import {
   createUploadStatePort,
@@ -53,113 +38,6 @@ import {
 } from "../src/js/job/core.js";
 import { normalizeJobPayload } from "../src/js/job/normalize.js";
 import { buildJobPatchWithDisplayState } from "../src/js/job-status/job-display-state.js";
-
-test("presentation runtime centralizes state backed rendering dependencies", () => {
-  const runtimeState = { currentJobId: "job-runtime-boundary", currentJobFinishedAt: 123 };
-  const calls = [];
-  const currentJobStore = {
-    getSnapshot: () => ({ jobId: "job-runtime-boundary", snapshot: null }),
-    subscribe: () => () => {},
-  };
-  const secondaryResourceStore = {
-    getSnapshot: () => ({}),
-    subscribe: () => () => {},
-  };
-  const runtime = createPresentationRuntime({
-    runtimeState,
-    currentJobStore,
-    secondaryResourceStore,
-    startTicker: (input) => calls.push(["start", input.currentJobId]),
-    stopTicker: (input) => calls.push(["stop", input.currentJobId]),
-    getFinishedAt: (input) => input.currentJobFinishedAt,
-    applyRuntimeSnapshot: (input) => {
-      calls.push(["snapshot", input.state.currentJobId, input.payload.job_id]);
-      return { job: input.payload, jobId: input.payload.job_id, events: [], manifest: null, stageActions: null };
-    },
-    applySecondaryResources: (input) => {
-      calls.push(["secondary", input.state.currentJobId, input.jobId]);
-      return { job: { job_id: input.jobId }, jobId: input.jobId, events: [], manifest: null, stageActions: null };
-    },
-  });
-
-  runtime.startElapsed();
-  runtime.stopElapsed();
-  assert.equal(runtime.finishedAtFallback(), 123);
-  assert.equal(Boolean(runtime.stores.currentJob), true);
-  assert.equal(Boolean(runtime.stores.secondaryResources), true);
-  assert.equal(runtime.createStatusCardSource(), runtime.createStatusCardSource());
-  assert.deepEqual(runtime.applySnapshot({ payload: { job_id: "job-a" } }).jobId, "job-a");
-  assert.deepEqual(runtime.applySecondary({ jobId: "job-a" }).jobId, "job-a");
-  assert.deepEqual(calls, [
-    ["start", "job-runtime-boundary"],
-    ["stop", "job-runtime-boundary"],
-    ["snapshot", "job-runtime-boundary", "job-a"],
-    ["secondary", "job-runtime-boundary", "job-a"],
-  ]);
-});
-
-test("presentation runtime factory stays independent from default ports", () => {
-  const runtimeState = { currentJobId: "job-runtime-empty" };
-  const runtime = createPresentationRuntime({ runtimeState });
-
-  assert.doesNotThrow(() => runtime.startElapsed());
-  assert.doesNotThrow(() => runtime.stopElapsed());
-  assert.equal(runtime.finishedAtFallback(), "");
-  assert.equal(runtime.applySnapshot({ payload: { job_id: "job-a" } }).jobId, "");
-  assert.equal(runtime.applySecondary({ jobId: "job-a" }).jobId, "");
-  assert.equal(runtime.stores.currentJob, null);
-  assert.equal(runtime.stores.secondaryResources, null);
-});
-
-test("job actions runtime owns upload reset and current job timing cleanup", () => {
-  const runtimeState = { uploadFile: { name: "book.pdf" }, currentJobStartedAt: 100 };
-  const calls = [];
-  const runtime = createJobActionsRuntime({
-    runtimeState,
-    resetUpload: (target, options) => calls.push(["resetUpload", target, options]),
-    clearTiming: (target) => calls.push(["clearTiming", target]),
-  });
-
-  runtime.resetUploadedFileState();
-
-  assert.deepEqual(calls, [
-    ["resetUpload", runtimeState, { includePageRange: false }],
-    ["clearTiming", runtimeState],
-  ]);
-});
-
-test("job actions runtime factory stays independent from default ports", () => {
-  const runtimeState = { uploadFile: { name: "book.pdf" } };
-  const runtime = createJobActionsRuntime({ runtimeState });
-
-  assert.doesNotThrow(() => runtime.resetUploadedFileState());
-  assert.equal(runtime.state, runtimeState);
-});
-
-test("default runtime ports own global state binding outside ui factories", () => {
-  assert.equal(defaultPresentationRuntime.state, state);
-  assert.equal(defaultPresentationRuntimeStatePort.runtimeState, state);
-  assert.equal(defaultJobActionsRuntime.state, state);
-  assert.equal(Boolean(defaultPresentationRuntime.stores.currentJob), true);
-  assert.equal(Boolean(defaultPresentationRuntime.stores.secondaryResources), true);
-  assert.equal(typeof defaultPresentationRuntimeStatePort.applyRuntimeSnapshot, "function");
-  assert.equal(typeof defaultPresentationRuntimeStatePort.applySecondaryResources, "function");
-  assert.equal(typeof defaultJobActionsRuntime.resetUploadedFileState, "function");
-});
-
-test("default job actions runtime resets upload state through upload state port", () => {
-  setUploadState({
-    uploadId: "upload-default-runtime",
-    uploadedFileName: "book.pdf",
-  });
-  setAppliedPageRange("2-8");
-
-  defaultJobActionsRuntime.resetUploadedFileState();
-
-  assert.equal(getUploadState().uploadId, "");
-  assert.equal(getUploadState().uploadedFileName, "");
-  assert.equal(getUploadState().appliedPageRange, "");
-});
 
 test("returnJobRuntimeToHome clears page range through upload state port", () => {
   const previousDocument = global.document;
@@ -246,178 +124,6 @@ test("elapsed view model owns runtime duration text", () => {
   assert.equal(viewModel.hasSnapshot, true);
   assert.equal(viewModel.stageElapsedText, "1分 0秒");
   assert.equal(viewModel.totalElapsedText, "2分 0秒");
-});
-
-test("elapsed presenter reads timing through injected port", () => {
-  const previousDocument = global.document;
-  const nodes = new Map();
-  const makeNode = () => ({
-    textContent: "",
-    getAttribute() {
-      return "";
-    },
-    setElapsed(value) {
-      this.elapsed = value;
-    },
-  });
-  [
-    "query-job-duration",
-    "runtime-stage-elapsed",
-    "runtime-total-elapsed",
-  ].forEach((id) => nodes.set(id, makeNode()));
-  const statusCard = makeNode();
-  nodes.set("job-status-card", statusCard);
-  const calls = [];
-  const runtimeState = { currentJobId: "elapsed-port-job" };
-  global.document = {
-    getElementById(id) {
-      return nodes.get(id) || null;
-    },
-    querySelector(selector) {
-      return selector === "job-status-card" ? statusCard : null;
-    },
-  };
-
-  setElapsedTimingPort({
-    finishedAt: (target) => {
-      calls.push(["finished", target.currentJobId]);
-      return "";
-    },
-    snapshot: (target) => {
-      calls.push(["snapshot", target.currentJobId]);
-      return {
-        active_stage_elapsed_ms: 30_000,
-        total_elapsed_ms: 90_000,
-        updated_at: "2026-06-17T00:01:30Z",
-        status: "succeeded",
-        display_stage: "done",
-      };
-    },
-    start: () => {},
-    stop: () => {},
-  });
-
-  try {
-    renderElapsed(runtimeState);
-  } finally {
-    setElapsedTimingPort();
-    global.document = previousDocument;
-  }
-
-  assert.deepEqual(calls, [
-    ["snapshot", "elapsed-port-job"],
-    ["finished", "elapsed-port-job"],
-  ]);
-  assert.equal(nodes.get("query-job-duration").textContent, "1分 30秒");
-  assert.equal(nodes.get("runtime-stage-elapsed").textContent, "30秒");
-  assert.equal(nodes.get("runtime-total-elapsed").textContent, "1分 30秒");
-  assert.equal(statusCard.elapsed, "1分 30秒");
-});
-
-test("elapsed ticker keeps running for ambiguous succeeded snapshots", () => {
-  const previousDocument = global.document;
-  const nodes = new Map();
-  const makeNode = () => ({
-    textContent: "",
-    getAttribute() {
-      return "";
-    },
-    setElapsed(value) {
-      this.elapsed = value;
-    },
-  });
-  [
-    "query-job-duration",
-    "runtime-stage-elapsed",
-    "runtime-total-elapsed",
-  ].forEach((id) => nodes.set(id, makeNode()));
-  const statusCard = makeNode();
-  nodes.set("job-status-card", statusCard);
-  const calls = [];
-  global.document = {
-    getElementById(id) {
-      return nodes.get(id) || null;
-    },
-    querySelector(selector) {
-      return selector === "job-status-card" ? statusCard : null;
-    },
-  };
-
-  setElapsedTimingPort({
-    finishedAt: () => "",
-    snapshot: () => ({
-      status: "succeeded",
-      active_stage_elapsed_ms: 10_000,
-      total_elapsed_ms: 20_000,
-      updated_at: "2026-06-17T00:00:20Z",
-    }),
-    start: (_state, callback, interval) => calls.push(["start", interval, typeof callback]),
-    stop: () => calls.push(["stop"]),
-  });
-
-  try {
-    startElapsedTicker({ currentJobId: "ambiguous-succeeded" });
-  } finally {
-    setElapsedTimingPort();
-    global.document = previousDocument;
-  }
-
-  assert.deepEqual(calls, [
-    ["stop"],
-    ["start", 1000, "function"],
-  ]);
-});
-
-test("elapsed ticker stops for explicit done snapshots", () => {
-  const previousDocument = global.document;
-  const nodes = new Map();
-  const makeNode = () => ({
-    textContent: "",
-    getAttribute() {
-      return "";
-    },
-    setElapsed(value) {
-      this.elapsed = value;
-    },
-  });
-  [
-    "query-job-duration",
-    "runtime-stage-elapsed",
-    "runtime-total-elapsed",
-  ].forEach((id) => nodes.set(id, makeNode()));
-  const statusCard = makeNode();
-  nodes.set("job-status-card", statusCard);
-  const calls = [];
-  global.document = {
-    getElementById(id) {
-      return nodes.get(id) || null;
-    },
-    querySelector(selector) {
-      return selector === "job-status-card" ? statusCard : null;
-    },
-  };
-
-  setElapsedTimingPort({
-    finishedAt: () => "",
-    snapshot: () => ({
-      status: "succeeded",
-      display_stage: "done",
-      active_stage_elapsed_ms: 10_000,
-      total_elapsed_ms: 20_000,
-      updated_at: "2026-06-17T00:00:20Z",
-    }),
-    start: () => calls.push(["start"]),
-    stop: () => calls.push(["stop"]),
-  });
-
-  try {
-    startElapsedTicker({ currentJobId: "done-succeeded" });
-  } finally {
-    setElapsedTimingPort();
-    global.document = previousDocument;
-  }
-
-  assert.deepEqual(calls, [["stop"]]);
 });
 
 test("fetchRecentJobEvents returns the latest event page for long jobs", async () => {
@@ -531,36 +237,6 @@ test("mergeJobEventsPayload keeps same-seq events from different lanes and subst
   );
 });
 
-test("runtime state keeps job event resource facade exports", () => {
-  assert.equal(runtimeStateModule.fetchRecentJobEvents, jobEventsResourceModule.fetchRecentJobEvents);
-  assert.equal(runtimeStateModule.fetchAllJobEvents, jobEventsResourceModule.fetchAllJobEvents);
-  assert.equal(runtimeStateModule.createJobEventsResource, jobEventsResourceModule.createJobEventsResource);
-  assert.equal(runtimeStateModule.mergeJobEventsPayload, jobEventsResourceModule.mergeJobEventsPayload);
-  assert.equal(runtimeStateModule.JOB_EVENTS_PAGE_SIZE, jobEventsResourceModule.JOB_EVENTS_PAGE_SIZE);
-  assert.equal(runtimeStateModule.JOB_EVENTS_PREVIEW_PAGE_SIZE, jobEventsResourceModule.JOB_EVENTS_PREVIEW_PAGE_SIZE);
-});
-
-test("runtime state keeps secondary resource cache facade exports", () => {
-  assert.equal(runtimeStateModule.cacheSecondaryResource, secondaryResourceCacheModule.cacheSecondaryResource);
-  assert.equal(runtimeStateModule.syncSecondaryResource, secondaryResourceCacheModule.syncSecondaryResource);
-  assert.equal(runtimeStateModule.createSecondaryResourceStatePort, secondaryResourceCacheModule.createSecondaryResourceStatePort);
-  assert.equal(runtimeStateModule.createSecondaryResourceStore, secondaryResourceCacheModule.createSecondaryResourceStore);
-  assert.equal(runtimeStateModule.secondaryResourceStoreFor, secondaryResourceCacheModule.secondaryResourceStoreFor);
-  assert.equal(runtimeStateModule.resetSecondaryResourceState, secondaryResourceCacheModule.resetSecondaryResourceState);
-  assert.equal(runtimeStateModule.cachedSecondaryResourceFor, secondaryResourceCacheModule.cachedSecondaryResourceFor);
-  assert.equal(runtimeStateModule.cachedEventsFor, secondaryResourceCacheModule.cachedEventsFor);
-  assert.equal(runtimeStateModule.cachedManifestFor, secondaryResourceCacheModule.cachedManifestFor);
-  assert.equal(runtimeStateModule.cachedStageActionsFor, secondaryResourceCacheModule.cachedStageActionsFor);
-  assert.equal(runtimeStateModule.isSecondaryFetchInFlight, secondaryResourceCacheModule.isSecondaryFetchInFlight);
-  assert.equal(runtimeStateModule.shouldRefreshSecondary, secondaryResourceCacheModule.shouldRefreshSecondary);
-});
-
-test("runtime state keeps secondary resource policy facade exports", () => {
-  assert.equal(runtimeStateModule.JOB_EVENTS_REFRESH_MS, secondaryResourcePolicyModule.JOB_EVENTS_REFRESH_MS);
-  assert.equal(runtimeStateModule.JOB_MANIFEST_REFRESH_MS, secondaryResourcePolicyModule.JOB_MANIFEST_REFRESH_MS);
-  assert.equal(runtimeStateModule.JOB_STAGE_ACTIONS_REFRESH_MS, secondaryResourcePolicyModule.JOB_STAGE_ACTIONS_REFRESH_MS);
-});
-
 test("secondary resource cache isolates resources by job and type", () => {
   const state = createInitialState();
   const eventsPayload = { items: [{ seq: 1 }] };
@@ -640,20 +316,6 @@ test("secondary resource state port batches resource updates into one notificati
   assert.equal(port.fetchedAt("events"), 2100);
 });
 
-test("runtime state keeps timer and stage pin facade exports", () => {
-  assert.equal(runtimeStateModule.startElapsedTimer, runtimeTimersModule.startElapsedTimer);
-  assert.equal(runtimeStateModule.stopElapsedTimer, runtimeTimersModule.stopElapsedTimer);
-  assert.equal(runtimeStateModule.currentDisplayedStagePin, stagePinStateModule.currentDisplayedStagePin);
-  assert.equal(runtimeStateModule.resetDisplayedStagePin, stagePinStateModule.resetDisplayedStagePin);
-  assert.equal(runtimeStateModule.setDisplayedStagePin, stagePinStateModule.setDisplayedStagePin);
-  assert.equal(stagePinningUiModule.currentDisplayedStagePin, stagePinStateModule.currentDisplayedStagePin);
-  assert.equal(stagePinningUiModule.resetDisplayedStagePin, stagePinStateModule.resetDisplayedStagePin);
-  assert.equal(stagePinningUiModule.setDisplayedStagePin, stagePinStateModule.setDisplayedStagePin);
-  assert.equal(stagePinningUiModule.keepDisplayedStageForward, stagePinStateModule.keepDisplayedStageForward);
-  assert.equal(stagePinningUiModule.pinnedStagePresentation, stagePinStateModule.pinnedStagePresentation);
-  assert.equal(stagePinningUiModule.resolvePinnedStagePresentation, stagePinStateModule.resolvePinnedStagePresentation);
-});
-
 test("stage pin state normalizes job and stage keys", () => {
   const state = createInitialState();
   stagePinStateModule.resetDisplayedStagePin(state, " job-a ");
@@ -683,26 +345,6 @@ test("stage pin state ignores untrusted stage changes from old compatibility pat
 	  jobId: "job-stage-current",
 	  stageKey: "render",
 	});
-});
-
-test("runtime state keeps current job state facade exports", () => {
-  assert.equal(runtimeStateModule.createCurrentJobStatePort, currentJobStateModule.createCurrentJobStatePort);
-  assert.equal(runtimeStateModule.createCurrentJobStore, currentJobStateModule.createCurrentJobStore);
-  assert.equal(runtimeStateModule.currentJobStoreFor, currentJobStateModule.currentJobStoreFor);
-  assert.equal(runtimeStateModule.currentJobId, currentJobStateModule.currentJobId);
-  assert.equal(runtimeStateModule.currentJobSnapshot, currentJobStateModule.currentJobSnapshot);
-  assert.equal(runtimeStateModule.currentJobFinishedAt, currentJobStateModule.currentJobFinishedAt);
-  assert.equal(runtimeStateModule.currentJobSnapshotFor, currentJobStateModule.currentJobSnapshotFor);
-  assert.equal(runtimeStateModule.currentJobManifest, currentJobStateModule.currentJobManifest);
-  assert.equal(runtimeStateModule.currentJobStageActions, currentJobStateModule.currentJobStageActions);
-  assert.equal(runtimeStateModule.currentJobEventsFor, currentJobStateModule.currentJobEventsFor);
-  assert.equal(currentJobStateModule.currentJobManifest, currentJobSecondarySelectorsModule.currentJobManifest);
-  assert.equal(currentJobStateModule.currentJobStageActions, currentJobSecondarySelectorsModule.currentJobStageActions);
-  assert.equal(currentJobStateModule.currentJobEventsFor, currentJobSecondarySelectorsModule.currentJobEventsFor);
-  assert.equal(runtimeStateModule.syncCurrentJobSnapshot, currentJobStateModule.syncCurrentJobSnapshot);
-  assert.equal(runtimeStateModule.clearCurrentJobTiming, currentJobStateModule.clearCurrentJobTiming);
-  assert.equal(runtimeStateModule.cacheJobDiagnostics, currentJobStateModule.cacheJobDiagnostics);
-  assert.equal(runtimeStateModule.cacheJobResumePlan, currentJobStateModule.cacheJobResumePlan);
 });
 
 test("current job state owns snapshot timing and detail caches", () => {
@@ -1184,19 +826,6 @@ test("secondary resource scheduler ignores stale generations through polling por
     "manifest",
     "stageActions",
   ]);
-});
-
-test("runtime state keeps polling facade exports", () => {
-  assert.equal(runtimeStateModule.JOB_POLL_INTERVAL_MS, runtimePollingStateModule.JOB_POLL_INTERVAL_MS);
-  assert.equal(runtimeStateModule.createRuntimePollingStatePort, runtimePollingStateModule.createRuntimePollingStatePort);
-  assert.equal(runtimeStateModule.createRuntimePollingStore, runtimePollingStateModule.createRuntimePollingStore);
-  assert.equal(runtimeStateModule.runtimePollingStoreFor, runtimePollingStateModule.runtimePollingStoreFor);
-  assert.equal(runtimeStateModule.stopPolling, runtimePollingStateModule.stopPolling);
-  assert.equal(runtimeStateModule.beginJobPoll, runtimePollingStateModule.beginJobPoll);
-  assert.equal(runtimeStateModule.finishJobPoll, runtimePollingStateModule.finishJobPoll);
-  assert.equal(runtimeStateModule.isCurrentJobGeneration, runtimePollingStateModule.isCurrentJobGeneration);
-  assert.equal(runtimeStateModule.startRuntimeJob, runtimePollingStateModule.startRuntimeJob);
-  assert.equal(runtimeStateModule.startPollingTimer, runtimePollingStateModule.startPollingTimer);
 });
 
 test("runtime polling state gates concurrent polls and generations", () => {
@@ -1799,163 +1428,4 @@ test("secondary resource patches pass render context instead of raw cache inputs
   assert.deepEqual(eventPatch.context.job, job);
   assert.equal(eventPatch.context.jobId, jobId);
   assert.equal(eventPatch.context.events.items[0].progress.current, 3);
-});
-
-test("secondary event patch updates status card without rewriting summary fields", async () => {
-  const previousDocument = global.document;
-  const previousCustomEvent = global.CustomEvent;
-  const previousWindow = global.window;
-  const nodes = new Map();
-  const makeNode = () => ({
-    textContent: "",
-    value: "",
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-      contains() { return false; },
-    },
-    setAttribute(name, value) {
-      this[name] = value;
-    },
-    dataset: {},
-    style: {},
-  });
-  [
-    "job-id",
-    "job-summary",
-    "job-stage-detail",
-    "job-finished-at",
-    "query-job-finished-at",
-    "job-id-input",
-    "error-box",
-    "query-job-duration",
-    "runtime-stage-elapsed",
-    "runtime-total-elapsed",
-    "job-status",
-    "job-warning",
-  ].forEach((id) => nodes.set(id, makeNode()));
-  const statusCardSnapshots = [];
-  const statusCard = {
-    classList: {
-      toggle() {},
-      contains() { return false; },
-    },
-    getAttribute(name) {
-      return this[name] || "";
-    },
-    setAttribute(name, value) {
-      this[name] = value;
-    },
-    renderSnapshot(snapshot) {
-      statusCardSnapshots.push(snapshot);
-    },
-    setElapsed() {},
-    contains() {
-      return false;
-    },
-  };
-  nodes.set("job-status-card", statusCard);
-  nodes.set("status-section", makeNode());
-  global.CustomEvent = class CustomEvent {
-    constructor(type, options = {}) {
-      this.type = type;
-      this.detail = options.detail;
-    }
-  };
-  global.window = {
-    __FRONT_RUNTIME_CONFIG__: {},
-    location: {
-      href: "http://localhost/",
-      protocol: "http:",
-      hostname: "localhost",
-      origin: "http://localhost",
-      search: "",
-    },
-    setTimeout,
-    clearTimeout,
-  };
-  global.document = {
-    getElementById(id) {
-      return nodes.get(id) || null;
-    },
-    querySelector(selector) {
-      if (selector === "job-status-card") {
-        return statusCard;
-      }
-      if (selector === "status-detail-dialog") {
-        return null;
-      }
-      return null;
-    },
-    dispatchEvent() {},
-  };
-  let presentationState = null;
-  let stopElapsedTimerFn = null;
-
-  try {
-    const { renderJob, renderJobSecondaryPatch } = await import("../src/js/ui/presentation.js");
-    ({ state: presentationState } = await import("../src/js/state/store.js"));
-    ({ stopElapsedTimer: stopElapsedTimerFn } = await import("../src/js/features/job-runtime/runtime-state.js"));
-    renderJob({
-      job_id: "job-secondary-ui",
-      status: "running",
-      display_stage: "translation",
-      stage: "translating",
-      substage: "translation_batches",
-      progress: { unit: "batch", current: 1, total: 10 },
-    });
-    assert.equal(nodes.get("job-stage-detail").textContent, "正在翻译正文内容");
-
-    renderJobSecondaryPatch({
-      jobId: "job-secondary-ui",
-      source: "events",
-      eventsPayload: {
-        items: [
-          {
-            seq: 1,
-            lane: "main",
-            display_stage: "translation",
-            stage: "translating",
-            substage: "translation_batches",
-            progress: { unit: "batch", current: 4, total: 10 },
-          },
-        ],
-      },
-    });
-
-    assert.equal(nodes.get("job-stage-detail").textContent, "正在翻译正文内容");
-    assert.equal(statusCardSnapshots.at(-1).progressText, "第 4/10 批");
-    assert.equal(statusCardSnapshots.at(-1).stageProgressByKey.translate.progressText, "第 4/10 批");
-
-    renderJobSecondaryPatch({
-      jobId: "job-secondary-ui",
-      source: "events",
-      eventsPayload: {
-        items: [
-          {
-            seq: 2,
-            lane: "main",
-            display_stage: "translation",
-            stage: "agent_repair",
-            substage: "agent_repair",
-            progress: { unit: "percent", current: 65, total: 100 },
-          },
-        ],
-      },
-    });
-
-    assert.equal(statusCardSnapshots.at(-1).substageKey, "agent_repair");
-    assert.equal(statusCardSnapshots.at(-1).progressText, "进度 65%");
-    assert.equal(statusCardSnapshots.at(-1).progressCurrent, 65);
-    assert.equal(statusCardSnapshots.at(-1).progressTotal, 100);
-    assert.equal(statusCardSnapshots.at(-1).progressUnit, "percent");
-  } finally {
-    if (presentationState && stopElapsedTimerFn) {
-      stopElapsedTimerFn(presentationState);
-    }
-    global.document = previousDocument;
-    global.CustomEvent = previousCustomEvent;
-    global.window = previousWindow;
-  }
 });

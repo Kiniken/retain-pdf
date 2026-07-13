@@ -1,7 +1,6 @@
 import {
   firstNonEmptyText,
 } from "./formatters.js";
-import { createStatusDetailResumeViewPort } from "./resume-view-port.js";
 
 function firstJobIdFromPayload(payload) {
   return firstNonEmptyText(
@@ -37,7 +36,7 @@ export function syncRerunAction({
   job = null,
   resumePlan = null,
   statusText = "",
-  viewPort = createStatusDetailResumeViewPort(),
+  viewPort,
   resolveActions = () => ({}),
 } = {}) {
   const actions = job ? resolveActions(job) : {};
@@ -56,7 +55,7 @@ export async function rerunCurrentJob({
   rerunJob,
   setText,
   startPolling,
-  viewPort = createStatusDetailResumeViewPort(),
+  viewPort,
   resolveActions = () => ({}),
 } = {}) {
   const actionUrl = syncRerunAction({

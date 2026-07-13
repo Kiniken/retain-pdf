@@ -68,6 +68,15 @@ import {
 import { createTranslationWorkflowDialogStatePort } from "../../js/features/translation-workflow-dialog/state.js";
 import { mountUploadFeature } from "../../js/features/upload/controller.js";
 import { mountWorkflowFeature } from "../../js/features/workflow/controller.js";
+// ---- 3b:app-actions 域(提交流程;纯逻辑 controller.js/submit-flow.js/
+// config-port.js/job-snapshot-port.js/runtime-env-port.js/upload-state-port.js
+// 原样复用;view.js/action-view-port.js 判死,不 import——见下方装配块的
+// appActionsViewPort 字面量替代实现) ----
+import { mountAppActionsFeature } from "../../js/features/app-actions/controller.js";
+import { defaultAppActionsConfigPort } from "../../js/features/app-actions/config-port.js";
+import { createAppActionsRuntimeEnvPort } from "../../js/features/app-actions/runtime-env-port.js";
+import { submitJobRequest } from "../../js/api/jobs-submit.js";
+import { openDesktopOutputDirectory } from "../../js/config/desktop-persistence.js";
 import { initializeIdleAppView } from "../../js/features/app-shell/idle-reset.js";
 import { defaultAppShellConfigPort } from "../../js/features/app-shell/config-port.js";
 import { defaultWorkflowConfigPort } from "../../js/features/workflow/config-port.js";
@@ -119,6 +128,7 @@ import {
   currentJobStoreFor,
   currentJobFinishedAt,
   currentJobId as currentJobIdFor,
+  syncCurrentJobSnapshot,
 } from "../../js/features/job-runtime/current-job-state.js";
 import { secondaryResourceStoreFor } from "../../js/features/job-runtime/secondary-resource-cache.js";
 import { readActiveJobId } from "../../js/features/job-runtime/active-job-storage.js";
@@ -143,7 +153,7 @@ import {
   fetchResumePlan,
   rerunJob,
 } from "../../js/api/jobs-actions.js";
-import { submitJson, buildJobDetailEndpoint } from "../../js/api/http.js";
+import { submitJson, buildJobDetailEndpoint, buildApiEndpoint } from "../../js/api/http.js";
 import {
   fetchTranslationDiagnostics,
   fetchTranslationItems,
@@ -297,9 +307,13 @@ export function createHomeComposition({
         statusDetailDialogStore.open({ activeTab: name || "overview" });
       }
     },
-    // app-actions 提交流程(3b):submitForm(event) → submit-flow.js
+    // app-actions 提交流程(3b):submitForm(event) → submit-flow.js。
+    // appActionsFeature 在本函数体内同步构造(见下方装配块,不像
+    // jobRuntimeFeature 那样延后到 initialize()),真正点击提交按钮时必然已
+    // 就绪;这里仍显式 preventDefault 兜底,避免极端情况下表单原生提交刷新页面。
     submitForm: (event) => {
       event?.preventDefault?.();
+      return features.appActionsFeature?.submitForm(event);
     },
   };
 
@@ -449,9 +463,12 @@ export function createHomeComposition({
     saveBrowserStoredConfig,
     readHiddenCredentialInputs: readHiddenCredentialDomInputs,
     saveDesktopConfig: saveDesktopConfigOverride || saveDesktopCredentialConfig,
-    // TODO(app-actions 域,蓝图 §6/developer 面板收尾):真实连通性检查要接
-    // appActionsFeature.checkApiConnectivity(),该特性本阶段尚未在 composition
-    // 挂载;桌面模式保存流程先用 no-op 占位,不阻塞浏览器模式(主路径)。
+    // TODO(desktop 收尾,超出本次 app-actions 补线范围):真实连通性检查可以接
+    // appActionsFeature.checkApiConnectivity()(该特性现已挂载,见下方装配块),
+    // 但桌面模式在当前 React 世界未真正激活(entry.jsx 从不翻转
+    // isDesktopMode/initialDesktopMode),这里贸然接线会让
+    // credentials-dialog-component.test.mjs 的桌面保存测试在 jsdom 下真的发起
+    // fetch("/api/v1/health") 而失败——维持 no-op 占位,不阻塞浏览器模式(主路径)。
     checkApiConnectivity: checkApiConnectivityOverride || (() => Promise.resolve()),
     validateOcrToken: validateOcrTokenOverride || validateCredentialOcrToken,
     validateDeepSeekToken: validateDeepSeekTokenOverride,
@@ -681,6 +698,93 @@ export function createHomeComposition({
     renderRecentJobsEmpty: recentJobsViewPort.renderEmpty,
     renderRecentJobsError: recentJobsViewPort.renderError,
     statePort: recentJobsStatePort,
+  });
+
+  // ---- app-actions 特性(提交流程域;之前 cutover 遗漏,补线接入)——
+  // controller.js(mountAppActionsFeature)/submit-flow.js(runSubmitFlow)/
+  // config-port.js/job-snapshot-port.js/runtime-env-port.js/upload-state-port.js
+  // 全部原样复用;view.js/action-view-port.js(旧 DOM 直写,且文件名匹配
+  // architecture-boundaries 的 features/*view-port.js 防回弹正则,React 世界
+  // 禁止 import)判死,下面的 appActionsJobSnapshotPort/appActionsViewPort 是
+  // 等价的 React store 驱动实现。
+  //
+  // jobSnapshotPort:镜像旧 bootstrap/app-actions-job-snapshot-port.js 的真实
+  // 实现(controller.js 自带的默认值是 no-op 占位,必须显式覆盖)——写入与
+  // job-runtime 引擎同一个 jobRuntimeState/currentJobStore,不建平行状态。
+  const appActionsJobSnapshotPort = Object.freeze({
+    syncCurrentJobSnapshot: (payload, jobId, meta) => (
+      syncCurrentJobSnapshot(jobRuntimeState, payload, jobId, meta)
+    ),
+  });
+  const appActionsViewPort = {
+    // 提交中状态反馈:写 workflowView store(HeroUpload.jsx 的 #submit-btn
+    // 已订阅 workflow.submitBusy 驱动禁用态 + "提交中…" 文案),不直写 DOM。
+    setSubmitBusyState: (busy) => {
+      workflowView.setSubmitBusy(busy);
+    },
+    // 404 "upload not found":清空上传域状态,错误文案复用已验证的
+    // bridge.setText,不新建 DOM 写入路径(镜像旧 view.js 的
+    // resetMissingUploadState 语义,但落到 uploadStatePort/workflowView/
+    // uploadView 三份 React 数据源)。
+    resetMissingUpload: () => {
+      uploadStatePort.reset({ includePageRange: false });
+      workflowView.setSubmitDisabled(true);
+      uploadView.resetUploadedFileView();
+      setText("error-box", "当前上传文件已失效，请重新上传 PDF 后再提交。");
+    },
+  };
+  features.appActionsFeature = mountAppActionsFeature({
+    state: jobRuntimeState,
+    // uploadStatePort 是 upload 域(3a)与 job-runtime 引擎共用的同一份
+    // getSnapshot/reset/setSubmitBusy 端口(js/features/upload/state.js),
+    // 形状与 app-actions 自己的默认 upload-state-port.js 完全一致,直接复用
+    // 同一份数据源,不再桥接第二份。
+    uploadStatePort,
+    // runtimeEnvPort 复用 app-actions 自带的工厂函数(判死清单以外的"保留
+    // 原样"文件),读同一个 legacyState(desktopMode/desktopConfigured),与
+    // credentials 域的 createCredentialRuntimeEnvPort(legacyState) 同源。
+    runtimeEnvPort: createAppActionsRuntimeEnvPort(legacyState),
+    jobSnapshotPort: appActionsJobSnapshotPort,
+    viewPort: appActionsViewPort,
+    configPort: defaultAppActionsConfigPort,
+    apiPrefix: API_PREFIX,
+    buildApiEndpoint,
+    setText,
+    openDesktopOutputDirectory,
+    resetUploadedFile: bridge.resetUploadedFile,
+    submitFlow: {
+      // 桌面模式在当前 React 世界未真正接线:entry.jsx 从不翻转
+      // initialDesktopMode/setDesktopMode(legacyState.desktopMode 恒为
+      // false),所以 DESKTOP_NOT_CONFIGURED 分支目前实际不可达。先复用
+      // credentials 域的 setupMode 对话框(与旧世界 desktop/index.js 的
+      // openSetupDialog 语义等价:打开凭据对话框并置 setupMode),不新起
+      // DOM 路径;桌面模式完整度现状见任务汇报。
+      openSetupDialog: () => (
+        features.browserCredentialsFeature?.openBrowserCredentialsDialog?.({ setupMode: true })
+      ),
+      renderJob: statusCardPresenter.renderMain,
+      submitJobRequest,
+      currentWorkflow: () => features.workflowFeature?.currentWorkflow(),
+      workflowNeedsCredentials: (workflow) => features.workflowFeature?.workflowNeedsCredentials(workflow),
+      workflowNeedsUpload: (workflow) => features.workflowFeature?.workflowNeedsUpload(workflow),
+      currentRenderSourceJobId: () => features.workflowFeature?.currentRenderSourceJobId(),
+      currentBudgetState: (workflow) => features.workflowFeature?.currentBudgetState(workflow),
+      collectRunPayload: () => features.workflowFeature?.collectRunPayload(),
+      validateBeforeSubmit: () => features.uploadFeature?.validatePageRanges?.() ?? true,
+      ensureOcrCredentialsReady: (options) => (
+        features.browserCredentialsFeature?.ensureOcrCredentialsReady?.(options)
+      ),
+      hasBrowserCredentials: () => Boolean(features.browserCredentialsFeature?.hasBrowserCredentials?.()),
+      openBrowserCredentialsDialog: (options) => (
+        features.browserCredentialsFeature?.openBrowserCredentialsDialog?.(options)
+      ),
+      refreshDeepSeekBalance: (options) => (
+        features.browserCredentialsFeature?.refreshDeepSeekBalance?.(options)
+      ),
+      startJobPolling: (jobId) => features.jobRuntimeFeature?.startPolling(jobId),
+      libraryEventPort,
+      jobSnapshotPort: appActionsJobSnapshotPort,
+    },
   });
 
   let disposeDialogEvents = null;

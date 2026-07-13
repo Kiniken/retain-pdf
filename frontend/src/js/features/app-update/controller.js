@@ -5,14 +5,13 @@ import {
 import {
   defaultUpdateCachePort,
 } from "./state.js";
-import { createAppUpdateViewPort } from "./update-view-port.js";
 
 export function mountAppUpdateFeature({
   enabled = true,
   cachePort = defaultUpdateCachePort,
   fetchLatestRelease = fetchLatestGithubRelease,
   normalizeRelease = normalizeReleaseInfo,
-  viewPort = createAppUpdateViewPort(),
+  viewPort,
 } = {}) {
   function applyUpdateInfo(info) {
     if (!info) {

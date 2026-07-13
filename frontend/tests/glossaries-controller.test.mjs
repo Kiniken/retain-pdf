@@ -9,6 +9,39 @@ function createGlossariesFeature({
   view = {},
   viewPort,
 } = {}) {
+  const resolvedView = {
+    readGlossaryEditorPayload: () => ({
+      name: "Terms",
+      entries: [
+        {
+          source: "DFT",
+          target: "密度泛函理论",
+          level: "canonical",
+          match_mode: "case_insensitive",
+        },
+      ],
+      skippedMissingTarget: [],
+    }),
+    renderGlossaryList: () => {},
+    renderGlossaryEditor: () => {},
+    setGlossaryStatus: () => {},
+    ...view,
+  };
+  // controller.js 不再自带默认 viewPort(旧 DOM 直写实现已随 cutover 删除),
+  // 测试用最小 stub 桥接 view 覆盖项,不依赖真实 DOM/glossary-view-port.js。
+  const resolvedViewPort = viewPort || {
+    addEntryRow: () => {},
+    bindEvents: () => {},
+    clearCsvText: () => "",
+    closeDialog: () => {},
+    openDialog: () => {},
+    readCsvText: () => "",
+    readEditorPayload: resolvedView.readGlossaryEditorPayload,
+    renderEditor: resolvedView.renderGlossaryEditor,
+    renderList: resolvedView.renderGlossaryList,
+    setImportVisible: () => {},
+    setStatus: resolvedView.setGlossaryStatus,
+  };
   return mountGlossariesFeature({
     apiPrefix: "/api",
     fetchGlossaries: async () => ({
@@ -33,25 +66,8 @@ function createGlossariesFeature({
     refreshWorkflowGlossaries: async (options) => {
       refreshCalls.push(options);
     },
-    view: {
-      readGlossaryEditorPayload: () => ({
-        name: "Terms",
-        entries: [
-          {
-            source: "DFT",
-            target: "密度泛函理论",
-            level: "canonical",
-            match_mode: "case_insensitive",
-          },
-        ],
-        skippedMissingTarget: [],
-      }),
-      renderGlossaryList: () => {},
-      renderGlossaryEditor: () => {},
-      setGlossaryStatus: () => {},
-      ...view,
-    },
-    viewPort,
+    view: resolvedView,
+    viewPort: resolvedViewPort,
   });
 }
 

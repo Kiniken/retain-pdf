@@ -7,7 +7,6 @@ import {
 import {
   dedupeRecentJobs,
 } from "./pagination.js";
-import { createRecentJobsViewPort } from "./view-port.js";
 
 function defaultSetTimeout(callback, delay) {
   return globalThis.window?.setTimeout
@@ -29,7 +28,7 @@ export function commitRecentJobsPage({
   recentJobsStatePort,
   setTimeoutFn = defaultSetTimeout,
   storeDrivenRendering = false,
-  viewPort = createRecentJobsViewPort(),
+  viewPort,
 } = {}) {
   const latestItems = reset ? [] : recentJobsStatePort.getSnapshot().items;
   const nextItems = runtimePatches.apply(dedupeRecentJobs(reset ? collected : [...latestItems, ...collected]));
@@ -86,7 +85,7 @@ export function commitRecentJobsEmpty({
   recentJobsStatePort,
   storeDrivenRendering = false,
   renderEmpty,
-  viewPort = createRecentJobsViewPort({ renderEmpty }),
+  viewPort,
 } = {}) {
   recentJobsStatePort.setItems([]);
   recentJobsStatePort.setHasMore(false);
@@ -103,7 +102,7 @@ export function commitRecentJobsNoMore({
   recentJobsStatePort,
   storeDrivenRendering = false,
   renderError,
-  viewPort = createRecentJobsViewPort({ renderError }),
+  viewPort,
 } = {}) {
   recentJobsStatePort.setHasMore(false);
   homeStatePort.setRecentJobsLoadingState(RECENT_JOBS_LOADING_STATES.READY);
@@ -119,7 +118,7 @@ export function commitRecentJobsError({
   recentJobsStatePort,
   storeDrivenRendering = false,
   renderError,
-  viewPort = createRecentJobsViewPort({ renderError }),
+  viewPort,
 } = {}) {
   const message = error?.message || "读取最近任务失败";
   if (!reset) {

@@ -18,18 +18,6 @@ test("protected artifact selector is built from centralized action ids", () => {
   }
 });
 
-test("status card download action ids come from the shared status card contract", async () => {
-  const { DOWNLOAD_ACTION_IDS } = downloadActions;
-  const { STATUS_CARD_IDS } = await import("../src/js/components/status/job-status-card-dom-contract.js");
-
-  assert.equal(DOWNLOAD_ACTION_IDS.STATUS_MARKDOWN_BUNDLE, STATUS_CARD_IDS.markdownBundleButton);
-  assert.equal(DOWNLOAD_ACTION_IDS.SOURCE_PDF, STATUS_CARD_IDS.sourcePdfButton);
-  assert.equal(DOWNLOAD_ACTION_IDS.PDF, STATUS_CARD_IDS.pdfButton);
-  assert.equal(DOWNLOAD_ACTION_IDS.BUNDLE, STATUS_CARD_IDS.legacyBundleButton);
-  assert.equal(DOWNLOAD_ACTION_IDS.MARKDOWN_JSON, STATUS_CARD_IDS.legacyMarkdownJsonButton);
-  assert.equal(DOWNLOAD_ACTION_IDS.MARKDOWN_RAW, STATUS_CARD_IDS.legacyMarkdownRawButton);
-});
-
 test("download action target names markdown bundle by job id", () => {
   const {
     downloadActionForLink,
@@ -91,26 +79,6 @@ test("download action target prefers injected artifact names for translated and 
   assert.equal(source.fallbackName, "job-1-source.pdf");
   assert.equal(source.preferredName, "book.pdf");
   assert.equal(source.preferSuggestedName, true);
-});
-
-test("artifact download view port owns protected link binding and disabled checks", async () => {
-  const { createArtifactDownloadViewPort } = await import("../src/js/features/artifact-downloads/download-view-port.js");
-  const calls = [];
-  const port = createArtifactDownloadViewPort({
-    bindProtectedLinks: (handler) => calls.push(["bind", typeof handler]),
-    isLinkDisabled: (link) => link.disabled === true,
-    setLinkBusy: (link, busy, text) => calls.push(["busy", link.id, busy, text]),
-  });
-
-  port.bindProtectedLinks(() => {});
-  port.setLinkBusy({ id: "download-pdf-btn" }, true, "下载中...");
-
-  assert.equal(port.isLinkDisabled({ disabled: true }), true);
-  assert.equal(port.isLinkDisabled({ disabled: false }), false);
-  assert.deepEqual(calls, [
-    ["bind", "function"],
-    ["busy", "download-pdf-btn", true, "下载中..."],
-  ]);
 });
 
 test("artifact downloads controller routes view operations through view port", async () => {

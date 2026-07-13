@@ -2,20 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  createRetainPdfApp,
-} from "../src/js/app-framework/app.js";
-import {
   createCommandBus,
 } from "../src/js/app-framework/commands.js";
-import {
-  defineComponent,
-} from "../src/js/app-framework/component.js";
-import {
-  defineConnectedComponent,
-} from "../src/js/app-framework/connector.js";
-import {
-  createPageRuntime,
-} from "../src/js/app-framework/page-runtime.js";
 import {
   createResource,
 } from "../src/js/app-framework/resource.js";
@@ -185,89 +173,6 @@ test("createResource records loader errors without throwing by default", async (
   assert.equal(snapshot.error.message, "network failed");
 });
 
-test("createRetainPdfApp mounts components with shared app context", async () => {
-  const store = createStore({
-    name: "job",
-    initialState: { opened: "" },
-    actions: {
-      open(state, jobId) {
-        return { ...state, opened: jobId };
-      },
-    },
-  });
-  const calls = [];
-  const component = defineComponent({
-    name: "reader",
-    mount(props, context) {
-      calls.push(["mount", props.jobId, Boolean(context.stores.job)]);
-      return {
-        update(nextProps) {
-          calls.push(["update", nextProps.jobId]);
-        },
-        unmount() {
-          calls.push(["unmount"]);
-        },
-      };
-    },
-  });
-  const app = createRetainPdfApp({
-    stores: { job: store },
-  });
-
-  app.start();
-  const instance = app.mount("reader", component, { jobId: "job-1" });
-  instance.update({ jobId: "job-2" });
-  app.context.commands.on("job:open", ({ jobId }) => {
-    app.context.stores.job.actions.open(jobId);
-  });
-  await app.context.commands.dispatch("job:open", { jobId: "job-3" });
-  app.stop();
-
-  assert.equal(app.isStarted(), false);
-  assert.deepEqual(store.getSnapshot(), { opened: "job-3" });
-  assert.deepEqual(calls, [
-    ["mount", "job-1", true],
-    ["update", "job-2"],
-    ["unmount"],
-  ]);
-});
-
-test("createPageRuntime owns page startup errors and cleanup callbacks", async () => {
-  const events = [];
-  const runtime = createPageRuntime({
-    onError(error) {
-      events.push(["error", error.message]);
-    },
-    onStop() {
-      events.push(["stopped"]);
-    },
-  });
-
-  runtime.onCleanup(() => {
-    events.push(["cleanup-a"]);
-  });
-  runtime.onCleanup(() => {
-    events.push(["cleanup-b"]);
-  });
-
-  await runtime.start(() => {
-    events.push(["start"]);
-    throw new Error("startup failed");
-  });
-
-  assert.equal(runtime.isStarted(), true);
-  runtime.stop();
-
-  assert.equal(runtime.isStarted(), false);
-  assert.deepEqual(events, [
-    ["start"],
-    ["error", "startup failed"],
-    ["cleanup-b"],
-    ["cleanup-a"],
-    ["stopped"],
-  ]);
-});
-
 test("createSelector memoizes derived view models by input values", () => {
   let calls = 0;
   const selector = createSelector([
@@ -286,39 +191,4 @@ test("createSelector memoizes derived view models by input values", () => {
   assert.notEqual(second, third);
   assert.deepEqual(third, { title: "ocr:2" });
   assert.equal(calls, 2);
-});
-
-test("defineConnectedComponent renders from store snapshots and unsubscribes on unmount", () => {
-  const store = createStore({
-    name: "status",
-    initialState: { percent: 0, stage: "ocr" },
-    actions: {
-      update(state, patch) {
-        return { ...state, ...patch };
-      },
-    },
-  });
-  const renders = [];
-  const component = defineConnectedComponent({
-    name: "status-card",
-    sources: { status: store },
-    mapState: ({ status }, props) => ({
-      text: `${props.prefix}:${status.stage}:${status.percent}`,
-    }),
-    render(viewModel, { meta }) {
-      renders.push([viewModel.text, meta.initial === true, meta.source || "initial"]);
-    },
-  });
-  const app = createRetainPdfApp();
-
-  app.start();
-  app.mount("status-card", component, { prefix: "job" });
-  store.actions.update({ percent: 20 });
-  app.unmount("status-card");
-  store.actions.update({ percent: 40 });
-
-  assert.deepEqual(renders, [
-    ["job:ocr:0", true, "initial"],
-    ["job:ocr:20", false, "status"],
-  ]);
 });

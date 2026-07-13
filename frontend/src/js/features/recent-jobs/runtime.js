@@ -5,7 +5,6 @@ import {
 import { createRecentJobsLoader } from "./loader.js";
 import { createRecentJobsRuntimePatches } from "./runtime-patches.js";
 import { createRecentJobsNavigationPort } from "./navigation-port.js";
-import { createRecentJobsViewPort } from "./view-port.js";
 import { createRecentJobsStoreRenderer } from "./store-renderer.js";
 
 export function createRecentJobsRuntime({
@@ -24,7 +23,7 @@ export function createRecentJobsRuntime({
   libraryBooksResource,
   refreshSchedulerRef,
   stageAdapterPort,
-  viewPort = createRecentJobsViewPort(),
+  viewPort,
 } = {}) {
   let recentJobsLoader = null;
   let activeRefreshLoop = null;

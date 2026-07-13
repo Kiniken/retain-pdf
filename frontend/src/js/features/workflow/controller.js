@@ -20,7 +20,6 @@ import {
 import { resolveSubmitControlState } from "./submit-controls.js";
 import { resolveTranslationBudgetState } from "./budget.js";
 import { defaultWorkflowConfigPort } from "./config-port.js";
-import { createWorkflowViewPort } from "./workflow-view-port.js";
 
 export function mountWorkflowFeature({
   configPort = defaultWorkflowConfigPort,
@@ -43,7 +42,7 @@ export function mountWorkflowFeature({
   normalizeMathMode,
   constants,
   currentPageRanges,
-  viewPort = createWorkflowViewPort(),
+  viewPort,
   readSubmitValues = viewPort.readSubmitValues,
   renderPageRangeSummary,
   hasBrowserCredentials,

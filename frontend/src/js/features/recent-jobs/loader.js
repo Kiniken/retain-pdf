@@ -11,7 +11,6 @@ import {
   commitRecentJobsNoMore,
   commitRecentJobsPage,
 } from "./commit.js";
-import { createRecentJobsViewPort } from "./view-port.js";
 
 export function createRecentJobsLoader({
   fetchJobList,
@@ -25,7 +24,7 @@ export function createRecentJobsLoader({
   homeStatePort,
   recentJobsStatePort,
   storeDrivenRendering = false,
-  viewPort = createRecentJobsViewPort(),
+  viewPort,
   libraryBooksResource = createLibraryBooksResource({
     fetchJobList,
     fetchLibraryBookList,

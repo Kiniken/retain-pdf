@@ -8,15 +8,9 @@ import {
   APP_SHELL_IDS,
 } from "../src/js/contracts/app-contract.js";
 import {
-  mountHomeFeature,
-} from "../src/js/features/home/controller.js";
-import {
   createHomeStatePort,
   createHomeStore,
 } from "../src/js/features/home/state.js";
-import {
-  createHomeViewPort,
-} from "../src/js/features/home/home-view-port.js";
 import {
   createRecentJobsStatePort,
   createRecentJobsStore,
@@ -46,7 +40,7 @@ import {
 import {
   createLibraryEventPort,
   requestThrottledLibraryRefresh,
-} from "../src/js/features/library/library-event-port.js";
+} from "../src/js/contracts/library-event-contract.js";
 import { createRecentJobsRefreshScheduler } from "../src/js/features/recent-jobs/refresh-scheduler.js";
 import {
   createActiveLibraryRefreshLoop,
@@ -92,60 +86,16 @@ import {
   RECENT_JOBS_PRIVATE_KEYS,
   RECENT_JOBS_SELECTORS,
   RECENT_JOBS_TAGS,
-} from "../src/js/features/recent-jobs/dom-contract.js";
-import {
-  hasLegacyRecentJobsElements,
-  isLibraryMainViewMounted,
-  recentJobsDialogComponent,
-  recentJobsElements,
-  resolveRecentJobsHost,
-} from "../src/js/features/recent-jobs/host.js";
-import {
-  buildRecentJobsListMarkup,
-  renderRecentJobCardElements,
-  renderRecentJobsMarkupList,
-} from "../src/js/features/recent-jobs/list-rendering.js";
-import { bindRecentJobsListEvents } from "../src/js/features/recent-jobs/list-events.js";
-import { recentJobCardMarkup } from "../src/js/features/recent-jobs/card-template.js";
-import {
-  renderRecentJobsList as renderRecentJobsViewList,
-} from "../src/js/features/recent-jobs/view.js";
-import { createRecentJobsRenderTarget } from "../src/js/features/recent-jobs/render-target.js";
-import { createRecentJobsEventTarget } from "../src/js/features/recent-jobs/event-target.js";
-import { createRecentJobsViewStateTarget } from "../src/js/features/recent-jobs/view-state-target.js";
-import {
-  scheduleRecentJobsAutoLoadHostCheck,
-  setRecentJobsDialogHostOpen,
-  shouldAutoLoadRecentJobs,
-  triggerRecentJobsAutoLoad,
-} from "../src/js/features/recent-jobs/host-actions.js";
-import {
-  applyRecentJobsEmptyState,
-  applyRecentJobsErrorState,
-  applyRecentJobsListState,
-  applyRecentJobsLoadMoreLoadingState,
-  applyRecentJobsLoadingState,
-  RECENT_JOBS_VIEW_TEXT,
-} from "../src/js/features/recent-jobs/view-state.js";
-
+} from "../src/js/components/dialogs/recent-jobs-dialog-dom-contract.js";
 const recentJobsStageAdapterPort = { adaptJobStageSnapshot };
 import {
   buildRecentJobsSummaryViewModel,
   summarizeRecentJobsInvocationCounts,
 } from "../src/js/features/recent-jobs/summary-view-model.js";
 import {
-  closeTranslationWorkflowDialogView,
-  openTranslationWorkflowDialogView,
-  translationWorkflowCloseButtonElement,
-} from "../src/js/features/translation-workflow-dialog/view.js";
-import {
   TRANSLATION_WORKFLOW_DIALOG,
   TRANSLATION_WORKFLOW_MODES,
 } from "../src/js/features/translation-workflow-dialog/contract.js";
-import { mountTranslationWorkflowDialogFeature } from "../src/js/features/translation-workflow-dialog/controller.js";
-import {
-  createTranslationWorkflowDialogViewPort,
-} from "../src/js/features/translation-workflow-dialog/dialog-view-port.js";
 import {
   createTranslationWorkflowDialogStatePort,
   homeViewModeForTranslationWorkflow,
@@ -203,703 +153,6 @@ test("recent jobs contract centralizes host ids and private callback keys", () =
   assert.equal(RECENT_JOBS_SELECTORS.libraryList, "#library-view #recent-jobs-list");
   assert.equal(RECENT_JOBS_PRIVATE_KEYS.select, "__retainPdfRecentJobSelect");
   assert.equal(RECENT_JOBS_PRIVATE_KEYS.cardBound, "__retainPdfRecentJobCardBound");
-});
-
-test("recent job card markup keeps cover-first actions and hides delete confirmation from focus", () => {
-  const markup = recentJobCardMarkup({
-    job_id: "job-actions",
-    title: "Persistent Actions",
-    page_count: 12,
-    updated_at: "2026-07-02",
-    status: "completed",
-  });
-
-  assert.match(markup, /class="recent-job-hover-actions"/);
-  assert.match(markup, /class="recent-job-hover-btn recent-job-reader"/);
-  assert.match(markup, /class="recent-job-delete" aria-label="删除任务" title="删除" aria-expanded="false"/);
-  assert.match(markup, /class="recent-job-delete-popover" role="group" aria-label="确认删除" hidden inert/);
-  assert.doesNotMatch(markup, /recent-job-card-actions/);
-  assert.doesNotMatch(markup, />阅读</);
-});
-
-test("recent jobs list actions keep delete confirmation out of focus until delete is opened", () => {
-  const classes = new Set(["recent-job-item"]);
-  const popover = { hidden: true, inert: true };
-  const deleteButton = {
-    attributes: {},
-    setAttribute(name, value) {
-      this.attributes[name] = value;
-    },
-  };
-  const item = {
-    dataset: { jobId: "job-actions" },
-    closest(selector) {
-      return selector === ".recent-job-item" ? item : null;
-    },
-    classList: {
-      contains(name) {
-        return classes.has(name);
-      },
-      toggle(name, force) {
-        const shouldHave = force === undefined ? !classes.has(name) : Boolean(force);
-        if (shouldHave) {
-          classes.add(name);
-        } else {
-          classes.delete(name);
-        }
-        return shouldHave;
-      },
-      remove(name) {
-        classes.delete(name);
-      },
-    },
-    querySelector(selector) {
-      if (selector === ".recent-job-delete") {
-        return deleteButton;
-      }
-      if (selector === ".recent-job-delete-popover") {
-        return popover;
-      }
-      return null;
-    },
-  };
-  const targets = {
-    delete: {
-      closest(selector) {
-        if (selector === ".recent-job-delete" || selector === ".recent-job-item") {
-          return selector === ".recent-job-delete" ? targets.delete : item;
-        }
-        return null;
-      },
-    },
-    reader: {
-      closest(selector) {
-        if (selector === ".recent-job-reader" || selector === ".recent-job-item") {
-          return selector === ".recent-job-reader" ? targets.reader : item;
-        }
-        return null;
-      },
-    },
-    confirm: {
-      closest(selector) {
-        if (selector === ".recent-job-delete-confirm" || selector === ".recent-job-item") {
-          return selector === ".recent-job-delete-confirm" ? targets.confirm : item;
-        }
-        return null;
-      },
-    },
-  };
-  const listeners = new Map();
-  const list = {
-    addEventListener(type, handler) {
-      listeners.set(type, handler);
-    },
-    contains(node) {
-      return node === item || Object.values(targets).includes(node);
-    },
-    querySelectorAll(selector) {
-      return selector === ".recent-job-item.is-confirming-delete" && classes.has("is-confirming-delete") ? [item] : [];
-    },
-  };
-  const selected = [];
-  const opened = [];
-  const deleted = [];
-
-  bindRecentJobsListEvents(list, {
-    onSelect: (jobId) => selected.push(jobId),
-    onReader: (jobId) => opened.push(jobId),
-    onDelete: (jobId) => deleted.push(jobId),
-  });
-  const click = listeners.get("click");
-  const eventFor = (target) => ({
-    target,
-    preventDefault() {},
-    stopPropagation() {},
-  });
-
-  click(eventFor(targets.delete));
-  assert.equal(classes.has("is-confirming-delete"), true);
-  assert.equal(popover.hidden, false);
-  assert.equal(popover.inert, false);
-  assert.equal(deleteButton.attributes["aria-expanded"], "true");
-
-  click(eventFor(item));
-  assert.deepEqual(selected, ["job-actions"]);
-  assert.equal(popover.hidden, true);
-  assert.equal(popover.inert, true);
-  assert.equal(deleteButton.attributes["aria-expanded"], "false");
-
-  click(eventFor(targets.delete));
-  click(eventFor(targets.reader));
-  assert.deepEqual(opened, ["job-actions"]);
-  assert.equal(popover.hidden, true);
-
-  click(eventFor(targets.delete));
-  click(eventFor(targets.confirm));
-  assert.deepEqual(deleted, ["job-actions"]);
-  assert.equal(popover.inert, true);
-});
-
-test("translation workflow view owns close button lookup", () => {
-  const previousDocument = global.document;
-  const closeButton = {};
-  global.document = {
-    getElementById(id) {
-      return id === TRANSLATION_WORKFLOW_DIALOG.ids.closeButton ? closeButton : null;
-    },
-  };
-  try {
-    assert.equal(translationWorkflowCloseButtonElement(), closeButton);
-  } finally {
-    global.document = previousDocument;
-  }
-});
-
-test("recent jobs host prefers library main view over dialog component", () => {
-  const list = {};
-  const empty = {};
-  const loadMoreButton = {};
-  const summary = {};
-  const scrollBody = {};
-  const libraryRoot = {
-    querySelector(selector) {
-      return {
-        "#recent-jobs-list": list,
-        "#recent-jobs-empty": empty,
-        "#load-more-jobs-btn": loadMoreButton,
-        "#recent-jobs-summary": summary,
-        "#recent-jobs-scroll-body": scrollBody,
-      }[selector] || null;
-    },
-  };
-  const dialogComponent = { marker: "dialog" };
-  const doc = {
-    querySelector(selector) {
-      return {
-        "#library-view": libraryRoot,
-        "#library-view #recent-jobs-list": list,
-        "recent-jobs-dialog": dialogComponent,
-      }[selector] || null;
-    },
-  };
-
-  assert.equal(isLibraryMainViewMounted(doc), true);
-  assert.equal(recentJobsDialogComponent(doc), null);
-  assert.equal(hasLegacyRecentJobsElements(doc), true);
-  assert.deepEqual(recentJobsElements(doc), {
-    root: libraryRoot,
-    list,
-    empty,
-    summary,
-    loadMoreButton,
-    scrollBody,
-  });
-  assert.deepEqual(resolveRecentJobsHost(doc), {
-    kind: "library",
-    component: null,
-    elements: {
-      root: libraryRoot,
-      list,
-      empty,
-      summary,
-      loadMoreButton,
-      scrollBody,
-    },
-    libraryMounted: true,
-    legacyMounted: true,
-    hasView: true,
-  });
-});
-
-test("recent jobs host resolver classifies component legacy and missing hosts", () => {
-  const list = {};
-  const empty = {};
-  const loadMoreButton = {};
-  const component = { marker: "dialog" };
-  const componentDoc = {
-    querySelector(selector) {
-      return {
-        "recent-jobs-dialog": component,
-      }[selector] || null;
-    },
-  };
-  assert.equal(resolveRecentJobsHost(componentDoc).kind, "component");
-  assert.equal(resolveRecentJobsHost(componentDoc).component, component);
-  assert.equal(resolveRecentJobsHost(componentDoc).hasView, true);
-
-  const legacyDoc = {
-    querySelector(selector) {
-      return {
-        "#recent-jobs-list": list,
-        "#recent-jobs-empty": empty,
-        "#load-more-jobs-btn": loadMoreButton,
-      }[selector] || null;
-    },
-  };
-  const legacyHost = resolveRecentJobsHost(legacyDoc);
-  assert.equal(legacyHost.kind, "legacy");
-  assert.equal(legacyHost.legacyMounted, true);
-  assert.equal(legacyHost.elements.root, legacyDoc);
-
-  const missingHost = resolveRecentJobsHost({
-    querySelector() {
-      return null;
-    },
-  });
-  assert.equal(missingHost.kind, "missing");
-  assert.equal(missingHost.hasView, false);
-});
-
-test("recent jobs card rendering strategy uses custom card elements for library view", () => {
-  const previousDocument = global.document;
-  const listeners = new Map();
-  const created = [];
-  const appended = [];
-  const list = {
-    replaceChildrenCalled: 0,
-    replaceChildren() {
-      this.replaceChildrenCalled += 1;
-    },
-    append(fragment) {
-      appended.push(fragment);
-    },
-    addEventListener(type, handler) {
-      listeners.set(type, handler);
-    },
-  };
-  global.document = {
-    createElement(tag) {
-      const element = {
-        tag,
-        item: null,
-      };
-      created.push(element);
-      return element;
-    },
-    createDocumentFragment() {
-      return {
-        children: [],
-        append(child) {
-          this.children.push(child);
-        },
-      };
-    },
-  };
-  const selected = [];
-  const deleted = [];
-  const opened = [];
-
-  try {
-    renderRecentJobCardElements(list, [
-      { job_id: "job-a" },
-      { job_id: "job-b" },
-    ], {
-      reset: true,
-      onSelect: (jobId) => selected.push(jobId),
-      onDelete: (jobId) => deleted.push(jobId),
-      onReader: (jobId) => opened.push(jobId),
-    });
-
-    assert.equal(list.replaceChildrenCalled, 1);
-    assert.equal(appended.length, 1);
-    assert.deepEqual(appended[0].children.map((child) => child.tag), ["recent-job-card", "recent-job-card"]);
-    assert.deepEqual(appended[0].children.map((child) => child.item.job_id), ["job-a", "job-b"]);
-
-    listeners.get("recent-job-select")({ detail: { jobId: "job-a" } });
-    listeners.get("recent-job-delete")({ detail: { jobId: "job-b" } });
-    listeners.get("recent-job-reader")({ detail: { jobId: "job-c" } });
-    assert.deepEqual(selected, ["job-a"]);
-    assert.deepEqual(deleted, ["job-b"]);
-    assert.deepEqual(opened, ["job-c"]);
-
-    renderRecentJobCardElements(list, [{ job_id: "job-c" }], {
-      reset: false,
-      onSelect: (jobId) => selected.push(`next:${jobId}`),
-    });
-    assert.equal(list.replaceChildrenCalled, 1);
-    listeners.get("recent-job-select")({ detail: { jobId: "job-c" } });
-    assert.deepEqual(selected, ["job-a", "next:job-c"]);
-  } finally {
-    global.document = previousDocument;
-  }
-});
-
-test("recent jobs render target selects component card or legacy rendering strategy", () => {
-  const elements = {
-    list: {},
-    empty: {},
-    loadMoreButton: {},
-  };
-  const component = { renderList() {} };
-  assert.deepEqual(createRecentJobsRenderTarget({
-    component,
-    elements,
-    libraryMounted: true,
-  }), {
-    component,
-    list: elements.list,
-    empty: elements.empty,
-    loadMoreButton: elements.loadMoreButton,
-    useCardElements: false,
-    useComponent: true,
-    canRenderList: true,
-    canReplaceCard: true,
-  });
-
-  assert.deepEqual(createRecentJobsRenderTarget({
-    component: null,
-    elements,
-    libraryMounted: true,
-  }), {
-    component: null,
-    list: elements.list,
-    empty: elements.empty,
-    loadMoreButton: elements.loadMoreButton,
-    useCardElements: true,
-    useComponent: false,
-    canRenderList: true,
-    canReplaceCard: true,
-  });
-
-  assert.deepEqual(createRecentJobsRenderTarget({
-    component: null,
-    elements: { list: elements.list },
-    libraryMounted: false,
-  }), {
-    component: null,
-    list: elements.list,
-    empty: null,
-    loadMoreButton: null,
-    useCardElements: false,
-    useComponent: false,
-    canRenderList: false,
-    canReplaceCard: true,
-  });
-});
-
-test("recent jobs component rendering receives feature list behavior ports", () => {
-  const previousDocument = global.document;
-  const calls = [];
-  const component = {
-    renderList(markup, options) {
-      calls.push({
-        markup,
-        hasMore: options.hasMore,
-        reset: options.reset,
-        bindListEvents: typeof options.bindListEvents,
-        hydrateImages: typeof options.hydrateImages,
-        onSelect: typeof options.onSelect,
-        onDelete: typeof options.onDelete,
-        onReader: typeof options.onReader,
-      });
-    },
-  };
-  global.document = {
-    querySelector(selector) {
-      if (selector === RECENT_JOBS_SELECTORS.libraryView) {
-        return null;
-      }
-      if (selector === RECENT_JOBS_TAGS.dialog) {
-        return component;
-      }
-      return null;
-    },
-  };
-
-  try {
-    renderRecentJobsViewList({
-      items: [{ job_id: "job-component-port", display_name: "Component Port" }],
-      allItems: [{ job_id: "job-component-port" }],
-      invocationSummary: null,
-      reset: true,
-      hasMore: true,
-      onSelect() {},
-      onDelete() {},
-      onReader() {},
-    });
-  } finally {
-    global.document = previousDocument;
-  }
-
-  assert.equal(calls.length, 1);
-  assert.match(calls[0].markup, /job-component-port/);
-  assert.deepEqual(calls[0], {
-    markup: calls[0].markup,
-    hasMore: true,
-    reset: true,
-    bindListEvents: "function",
-    hydrateImages: "function",
-    onSelect: "function",
-    onDelete: "function",
-    onReader: "function",
-  });
-});
-
-test("recent jobs event target selects component or legacy event binding", () => {
-  const calls = [];
-  const loadMoreButton = {};
-  const scrollBody = {};
-  const component = {
-    bindEvents(options) {
-      calls.push(options);
-    },
-  };
-
-  const dialogTarget = createRecentJobsEventTarget({
-    component,
-    elements: { loadMoreButton, scrollBody },
-    libraryMounted: false,
-  });
-  assert.equal(dialogTarget.scrollBody, scrollBody);
-  assert.equal(dialogTarget.loadMoreButton, loadMoreButton);
-  assert.equal(dialogTarget.useComponentEvents, true);
-  assert.equal(dialogTarget.canBindLoadMore, true);
-  assert.equal(dialogTarget.bindComponentEvents({ onLoadMore: "load" }), true);
-  assert.deepEqual(calls, [{ onLoadMore: "load" }]);
-
-  const libraryTarget = createRecentJobsEventTarget({
-    component,
-    elements: { loadMoreButton, scrollBody },
-    libraryMounted: true,
-  });
-  assert.equal(libraryTarget.useComponentEvents, false);
-  assert.equal(libraryTarget.canBindLoadMore, true);
-  assert.equal(libraryTarget.bindComponentEvents({ onLoadMore: "ignored" }), false);
-  assert.deepEqual(calls, [{ onLoadMore: "load" }]);
-
-  const emptyTarget = createRecentJobsEventTarget({
-    component: null,
-    elements: {},
-    libraryMounted: false,
-  });
-  assert.equal(emptyTarget.canBindLoadMore, false);
-});
-
-test("recent jobs view state target selects component or DOM state rendering", () => {
-  const calls = [];
-  const component = {
-    renderLoading() {
-      calls.push(["loading"]);
-    },
-    renderError(message, options) {
-      calls.push(["error", message, options]);
-    },
-  };
-  const elements = {
-    list: {},
-    empty: {},
-    loadMoreButton: {},
-  };
-
-  const componentTarget = createRecentJobsViewStateTarget({ component, elements });
-  assert.equal(componentTarget.canApplyDomState, true);
-  assert.equal(componentTarget.canApplyLoadMoreState, true);
-  assert.equal(componentTarget.applyComponentState("renderLoading"), true);
-  assert.equal(componentTarget.applyComponentState("renderError", "失败", { reset: true }), true);
-  assert.equal(componentTarget.applyComponentState("renderEmpty", "empty"), false);
-  assert.deepEqual(calls, [
-    ["loading"],
-    ["error", "失败", { reset: true }],
-  ]);
-
-  const domOnlyTarget = createRecentJobsViewStateTarget({
-    component: null,
-    elements,
-  });
-  assert.equal(domOnlyTarget.canApplyDomState, true);
-  assert.equal(domOnlyTarget.canApplyLoadMoreState, true);
-  assert.equal(domOnlyTarget.applyComponentState("renderLoading"), false);
-
-  const missingDomTarget = createRecentJobsViewStateTarget({
-    component: null,
-    elements: { loadMoreButton: elements.loadMoreButton },
-  });
-  assert.equal(missingDomTarget.canApplyDomState, false);
-  assert.equal(missingDomTarget.canApplyLoadMoreState, true);
-});
-
-test("recent jobs host actions own dialog open and auto-load decisions", () => {
-  const calls = [];
-  const openButton = {
-    attributes: {},
-    setAttribute(name, value) {
-      this.attributes[name] = value;
-    },
-  };
-  const dialog = {
-    showModal() {
-      calls.push("show");
-    },
-    close() {
-      calls.push("close");
-    },
-  };
-
-  assert.equal(setRecentJobsDialogHostOpen({ dialog, openButton, open: true }), true);
-  assert.equal(setRecentJobsDialogHostOpen({ dialog, openButton, open: false }), true);
-  assert.deepEqual(calls, ["show", "close"]);
-  assert.equal(openButton.attributes["aria-expanded"], "false");
-
-  const componentCalls = [];
-  const component = {
-    setOpen(open) {
-      componentCalls.push(open);
-    },
-    scheduleAutoLoadCheck() {
-      componentCalls.push("schedule");
-    },
-  };
-  assert.equal(setRecentJobsDialogHostOpen({ component, openButton, open: true }), true);
-  assert.deepEqual(componentCalls, [true]);
-  assert.equal(openButton.attributes["aria-expanded"], "true");
-
-  const hiddenClassList = {
-    contains(name) {
-      return name === "hidden";
-    },
-  };
-  const clickable = { clicked: 0, click() { this.clicked += 1; } };
-  const scrollBody = { scrollHeight: 1000, scrollTop: 660, clientHeight: 300 };
-  assert.equal(shouldAutoLoadRecentJobs({ scrollBody, loadMoreButton: clickable }), true);
-  assert.equal(triggerRecentJobsAutoLoad({ scrollBody, loadMoreButton: clickable }), true);
-  assert.equal(clickable.clicked, 1);
-  assert.equal(shouldAutoLoadRecentJobs({
-    scrollBody,
-    loadMoreButton: { classList: hiddenClassList },
-  }), false);
-  assert.equal(shouldAutoLoadRecentJobs({
-    scrollBody,
-    loadMoreButton: { disabled: true },
-  }), false);
-
-  let scheduled = null;
-  assert.equal(scheduleRecentJobsAutoLoadHostCheck({
-    elements: { scrollBody, loadMoreButton: clickable },
-    requestAnimationFrame(callback) {
-      scheduled = callback;
-    },
-  }), true);
-  scheduled();
-  assert.equal(clickable.clicked, 2);
-
-  assert.equal(scheduleRecentJobsAutoLoadHostCheck({
-    elements: { scrollBody, loadMoreButton: clickable },
-    requestAnimationFrame(callback) {
-      callback();
-    },
-    isSuspended: () => true,
-  }), true);
-  assert.equal(clickable.clicked, 2);
-
-  assert.equal(scheduleRecentJobsAutoLoadHostCheck({ component }), true);
-  assert.deepEqual(componentCalls, [true, "schedule"]);
-});
-
-test("recent jobs markup rendering strategy resets and appends legacy markup", () => {
-  const previousDocument = global.document;
-  const listeners = new Map();
-  const list = {
-    innerHTML: "<article data-old=\"1\"></article>",
-    dataset: {},
-    querySelectorAll() {
-      return [];
-    },
-    addEventListener(type, handler) {
-      listeners.set(type, handler);
-    },
-  };
-  const selected = [];
-  global.document = {};
-
-  try {
-    const resetMarkup = renderRecentJobsMarkupList(list, [
-      { job_id: "job-reset", display_name: "Reset Book" },
-    ], {
-      reset: true,
-      onSelect: (jobId) => selected.push(jobId),
-    });
-    assert.match(resetMarkup, /data-job-id="job-reset"/);
-    assert.match(list.innerHTML, /data-job-id="job-reset"/);
-    assert.doesNotMatch(list.innerHTML, /data-old/);
-
-    const appendMarkup = renderRecentJobsMarkupList(list, [
-      { job_id: "job-append", display_name: "Append Book" },
-    ], {
-      reset: false,
-      onSelect: (jobId) => selected.push(`next:${jobId}`),
-    });
-    assert.match(appendMarkup, /data-job-id="job-append"/);
-    assert.match(list.innerHTML, /data-job-id="job-reset"/);
-    assert.match(list.innerHTML, /data-job-id="job-append"/);
-
-    list[RECENT_JOBS_PRIVATE_KEYS.select]?.("job-append");
-    assert.deepEqual(selected, ["next:job-append"]);
-    assert.equal(typeof listeners.get("click"), "function");
-    assert.equal(typeof listeners.get("keydown"), "function");
-  } finally {
-    global.document = previousDocument;
-  }
-});
-
-test("recent jobs view state helper owns list empty error and load-more states", () => {
-  function element() {
-    const classes = new Set();
-    return {
-      innerHTML: "old",
-      textContent: "",
-      disabled: true,
-      classList: {
-        add: (...names) => names.forEach((name) => classes.add(name)),
-        remove: (...names) => names.forEach((name) => classes.delete(name)),
-        toggle(name, force) {
-          if (force) {
-            classes.add(name);
-          } else {
-            classes.delete(name);
-          }
-        },
-        contains(name) {
-          return classes.has(name);
-        },
-      },
-    };
-  }
-
-  const list = element();
-  const empty = element();
-  const loadMoreButton = element();
-
-  assert.equal(applyRecentJobsLoadingState({ list, empty, loadMoreButton }), true);
-  assert.equal(empty.classList.contains("hidden"), true);
-  assert.equal(list.classList.contains("hidden"), false);
-  assert.match(list.innerHTML, /正在加载最近任务…/);
-  assert.equal(loadMoreButton.classList.contains("hidden"), true);
-
-  assert.equal(applyRecentJobsEmptyState({ list, empty, loadMoreButton }, ""), true);
-  assert.equal(list.innerHTML, "");
-  assert.equal(list.classList.contains("hidden"), true);
-  assert.equal(empty.classList.contains("hidden"), false);
-  assert.equal(empty.textContent, RECENT_JOBS_VIEW_TEXT.empty);
-  assert.equal(loadMoreButton.disabled, false);
-  assert.equal(loadMoreButton.textContent, "更多");
-
-  assert.equal(applyRecentJobsErrorState({ list, empty, loadMoreButton }, "boom", { reset: true }), true);
-  assert.equal(list.classList.contains("hidden"), true);
-  assert.equal(empty.textContent, "boom");
-  assert.equal(empty.classList.contains("hidden"), false);
-
-  assert.equal(applyRecentJobsListState({ list, empty, loadMoreButton }, { hasMore: true }), true);
-  assert.equal(list.classList.contains("hidden"), false);
-  assert.equal(empty.classList.contains("hidden"), true);
-  assert.equal(loadMoreButton.classList.contains("hidden"), false);
-  assert.equal(loadMoreButton.disabled, false);
-  assert.equal(loadMoreButton.textContent, "更多");
-
-  assert.equal(applyRecentJobsLoadMoreLoadingState({ loadMoreButton }), true);
-  assert.equal(loadMoreButton.disabled, true);
-  assert.equal(loadMoreButton.textContent, RECENT_JOBS_VIEW_TEXT.loadMoreLoadingMain);
-
-  assert.equal(applyRecentJobsListState({ list: null, empty, loadMoreButton }), false);
 });
 
 test("recent jobs summary view model owns invocation counts and display text", () => {
@@ -1041,29 +294,6 @@ test("home state port can dispatch through an injected event target", () => {
   }
 });
 
-test("home feature routes initial view mode through view port", () => {
-  const calls = [];
-  const feature = mountHomeFeature({
-    statePort: {
-      getSnapshot: () => ({ viewMode: "workflow_upload" }),
-      setViewMode: (mode) => calls.push(["setViewMode", mode]),
-    },
-    viewPort: createHomeViewPort({
-      bindStateView: () => calls.push(["bind"]),
-      applyViewMode: (mode) => calls.push(["apply", mode]),
-    }),
-  });
-
-  feature.bindEvents();
-  feature.setViewMode("library");
-
-  assert.deepEqual(calls, [
-    ["bind"],
-    ["apply", "workflow_upload"],
-    ["setViewMode", "library"],
-  ]);
-});
-
 test("home store owns home state without the legacy global state object", () => {
   const store = createHomeStore({
     homeViewMode: "workflow_upload",
@@ -1113,362 +343,6 @@ test("translation workflow dialog state port owns open mode and home view sync",
   port.close();
 
   assert.deepEqual(modes, ["workflow_status", "workflow_upload", "library"]);
-});
-
-test("translation workflow dialog view updates injected home state port", () => {
-  const previousDocument = global.document;
-  const previousCustomEvent = global.CustomEvent;
-  const previousHTMLElement = global.HTMLElement;
-  const previousWindow = global.window;
-  const elements = new Map();
-  const modes = [];
-
-  function createElement(id = "") {
-    const classes = new Set();
-    return {
-      id,
-      dataset: {},
-      textContent: "",
-      classList: {
-        add: (...names) => names.forEach((name) => classes.add(name)),
-        remove: (...names) => names.forEach((name) => classes.delete(name)),
-        toggle(name, force) {
-          if (force) {
-            classes.add(name);
-          } else {
-            classes.delete(name);
-          }
-        },
-        contains: (name) => classes.has(name),
-      },
-    };
-  }
-
-  const dialog = createElement(TRANSLATION_WORKFLOW_DIALOG.ids.dialog);
-  const title = createElement(TRANSLATION_WORKFLOW_DIALOG.ids.title);
-  const addPdfButton = {
-    dataset: {},
-    attributes: {},
-    classList: createElement("add-pdf-button").classList,
-    setAttribute(name, value) {
-      this.attributes[name] = value;
-    },
-  };
-  const statusSection = createElement("status-section");
-  statusSection.classList.add("hidden");
-  elements.set(TRANSLATION_WORKFLOW_DIALOG.ids.dialog, dialog);
-  elements.set(TRANSLATION_WORKFLOW_DIALOG.ids.title, title);
-  elements.set(APP_SHELL_IDS.libraryAddPdfButton, addPdfButton);
-  elements.set("status-section", statusSection);
-
-  global.CustomEvent = class CustomEvent {
-    constructor(type, options = {}) {
-      this.type = type;
-      this.detail = options.detail;
-    }
-  };
-  global.HTMLElement = class HTMLElement {};
-  global.window = {};
-  global.document = {
-    documentElement: createElement("html"),
-    getElementById: (id) => elements.get(id) || null,
-    dispatchEvent() {},
-  };
-
-  try {
-    const homeStatePort = {
-      setViewMode(mode) {
-        modes.push(mode);
-      },
-    };
-    const dialogStatePort = createTranslationWorkflowDialogStatePort({ homeStatePort });
-
-    openTranslationWorkflowDialogView({ dialogStatePort });
-    assert.equal(
-      dialog.dataset[TRANSLATION_WORKFLOW_DIALOG.datasets.open],
-      TRANSLATION_WORKFLOW_DIALOG.datasetValues.open,
-    );
-    assert.equal(dialog.classList.contains(TRANSLATION_WORKFLOW_DIALOG.classes.hidden), false);
-    assert.equal(title.textContent, TRANSLATION_WORKFLOW_DIALOG.copy.uploadTitle);
-    assert.equal(addPdfButton.attributes["aria-expanded"], "true");
-    assert.equal(addPdfButton.dataset.workflowOpen, "1");
-    assert.equal(addPdfButton.dataset.workflowMode, TRANSLATION_WORKFLOW_MODES.UPLOAD);
-    assert.equal(addPdfButton.classList.contains("is-active"), true);
-    assert.deepEqual(modes, ["workflow_upload"]);
-
-    openTranslationWorkflowDialogView({
-      dialogStatePort,
-      mode: TRANSLATION_WORKFLOW_MODES.UPLOAD,
-      statusAreaPort: { isVisible: () => true },
-    });
-    assert.equal(title.textContent, TRANSLATION_WORKFLOW_DIALOG.copy.uploadTitle);
-    assert.equal(addPdfButton.dataset.workflowMode, TRANSLATION_WORKFLOW_MODES.UPLOAD);
-
-    closeTranslationWorkflowDialogView({ dialogStatePort });
-    assert.equal(
-      dialog.dataset[TRANSLATION_WORKFLOW_DIALOG.datasets.open],
-      TRANSLATION_WORKFLOW_DIALOG.datasetValues.closed,
-    );
-    assert.equal(dialog.classList.contains(TRANSLATION_WORKFLOW_DIALOG.classes.hidden), true);
-    assert.equal(addPdfButton.attributes["aria-expanded"], "false");
-    assert.equal(addPdfButton.dataset.workflowOpen, "0");
-    assert.equal(addPdfButton.classList.contains("is-active"), false);
-    assert.deepEqual(modes, ["workflow_upload", "workflow_upload", "library"]);
-  } finally {
-    global.document = previousDocument;
-    global.CustomEvent = previousCustomEvent;
-    global.HTMLElement = previousHTMLElement;
-    global.window = previousWindow;
-  }
-});
-
-test("translation workflow dialog controller routes dialog operations through view port", () => {
-  const previousDocument = global.document;
-  const calls = [];
-  const documentListeners = new Map();
-  const addPdfTrigger = {
-    closest(selector) {
-      return selector === `#${APP_SHELL_IDS.libraryAddPdfButton}` ? this : null;
-    },
-  };
-  const dialogElement = {
-    addEventListener(type, handler) {
-      calls.push(["dialogBind", type]);
-      this[type] = handler;
-    },
-  };
-  const closeButton = {
-    addEventListener(type, handler) {
-      calls.push(["closeBind", type]);
-      this[type] = handler;
-    },
-  };
-
-  global.document = {
-    addEventListener(type, handler) {
-      calls.push(["documentBind", type]);
-      documentListeners.set(type, handler);
-    },
-    getElementById() {
-      return {
-        classList: {
-          contains(name) {
-            return name === "hidden";
-          },
-        },
-      };
-    },
-    querySelector() {
-      return null;
-    },
-  };
-
-  try {
-    const feature = mountTranslationWorkflowDialogFeature({
-      dialogStatePort: {
-        open: () => ({ open: true }),
-        close: () => ({ open: false }),
-        setMode: () => ({ open: true }),
-      },
-      statusAreaPort: {
-        isVisible: () => false,
-        returnHome: () => calls.push(["returnHome"]),
-      },
-      uploadSessionPort: {
-        resetUploadSession: () => calls.push(["reset-upload"]),
-      },
-      viewPort: createTranslationWorkflowDialogViewPort({
-        closeButtonElement: () => closeButton,
-        closeDialog: () => calls.push(["close"]),
-        dialogElement: () => dialogElement,
-        isOpen: () => true,
-        openDialog: () => calls.push(["open"]),
-        syncMode: () => calls.push(["sync"]),
-      }),
-    });
-
-    feature.bindEvents();
-    documentListeners.get("click")({
-      target: addPdfTrigger,
-      preventDefault: () => calls.push(["preventDefault"]),
-      stopPropagation: () => calls.push(["stopPropagation"]),
-    });
-    documentListeners.get(APP_EVENTS.openTranslationWorkflow)();
-    documentListeners.get(APP_EVENTS.translationWorkflowSync)();
-    documentListeners.get("keydown")({ key: "Escape" });
-    closeButton.click();
-
-    assert.deepEqual(calls, [
-      ["documentBind", "click"],
-      ["documentBind", APP_EVENTS.openTranslationWorkflow],
-      ["documentBind", APP_EVENTS.closeTranslationWorkflow],
-      ["documentBind", APP_EVENTS.translationWorkflowSync],
-      ["documentBind", APP_EVENTS.statusAreaVisibilityChanged],
-      ["dialogBind", "click"],
-      ["documentBind", "keydown"],
-      ["closeBind", "click"],
-      ["preventDefault"],
-      ["stopPropagation"],
-      ["reset-upload"],
-      ["open"],
-      ["reset-upload"],
-      ["open"],
-      ["sync"],
-      ["close"],
-      ["close"],
-    ]);
-  } finally {
-    global.document = previousDocument;
-  }
-});
-
-test("translation workflow dialog routes close through status area port when status is visible", () => {
-  const previousDocument = global.document;
-  const calls = [];
-  const documentListeners = new Map();
-  global.document = {
-    addEventListener(type, handler) {
-      documentListeners.set(type, handler);
-    },
-  };
-  try {
-    const feature = mountTranslationWorkflowDialogFeature({
-      dialogStatePort: {
-        open: () => ({ open: true }),
-        close: () => ({ open: false }),
-        setMode: () => ({ open: true }),
-      },
-      statusAreaPort: {
-        isVisible: () => true,
-        hide: () => calls.push(["hide"]),
-        returnHome: () => calls.push(["returnHome"]),
-      },
-      uploadSessionPort: {
-        resetUploadSession: () => calls.push(["reset-upload"]),
-      },
-      viewPort: createTranslationWorkflowDialogViewPort({
-        closeButtonElement: () => null,
-        closeDialog: () => calls.push(["close"]),
-        dialogElement: () => null,
-        isOpen: () => true,
-        openDialog: () => calls.push(["open"]),
-        syncMode: () => calls.push(["sync"]),
-      }),
-    });
-
-    feature.bindEvents();
-    documentListeners.get("keydown")({ key: "Escape" });
-
-    assert.deepEqual(calls, [["returnHome"]]);
-  } finally {
-    global.document = previousDocument;
-  }
-});
-
-test("translation workflow add PDF trigger opens upload mode even when status area is visible", () => {
-  const previousDocument = global.document;
-  const calls = [];
-  const documentListeners = new Map();
-  const addPdfTrigger = {
-    closest(selector) {
-      return selector === `#${APP_SHELL_IDS.libraryAddPdfButton}` ? this : null;
-    },
-  };
-
-  global.document = {
-    addEventListener(type, handler) {
-      documentListeners.set(type, handler);
-    },
-  };
-  try {
-    const feature = mountTranslationWorkflowDialogFeature({
-      dialogStatePort: {
-        open: () => ({ open: true }),
-        close: () => ({ open: false }),
-        setMode: () => ({ open: true }),
-      },
-      statusAreaPort: {
-        isVisible: () => true,
-        hide: () => calls.push(["hide"]),
-        returnHome: () => calls.push(["returnHome"]),
-      },
-      uploadSessionPort: {
-        resetUploadSession: () => calls.push(["reset-upload"]),
-      },
-      viewPort: createTranslationWorkflowDialogViewPort({
-        closeButtonElement: () => null,
-        closeDialog: () => calls.push(["close"]),
-        dialogElement: () => null,
-        isOpen: () => false,
-        openDialog: (options = {}) => calls.push(["open", options.mode]),
-        syncMode: () => calls.push(["sync"]),
-      }),
-    });
-
-    feature.bindEvents();
-    documentListeners.get("click")({
-      target: addPdfTrigger,
-      preventDefault: () => calls.push(["preventDefault"]),
-      stopPropagation: () => calls.push(["stopPropagation"]),
-    });
-
-    assert.deepEqual(calls, [
-      ["preventDefault"],
-      ["stopPropagation"],
-      ["hide"],
-      ["reset-upload"],
-      ["open", TRANSLATION_WORKFLOW_MODES.UPLOAD],
-    ]);
-  } finally {
-    global.document = previousDocument;
-  }
-});
-
-test("translation workflow status event opens without resetting upload session", () => {
-  const previousDocument = global.document;
-  const calls = [];
-  const documentListeners = new Map();
-  global.document = {
-    addEventListener(type, handler) {
-      documentListeners.set(type, handler);
-    },
-  };
-  try {
-    const feature = mountTranslationWorkflowDialogFeature({
-      dialogStatePort: {
-        open: () => ({ open: true }),
-        close: () => ({ open: false }),
-        setMode: () => ({ open: true }),
-      },
-      statusAreaPort: {
-        isVisible: () => false,
-        hide: () => calls.push(["hide"]),
-        returnHome: () => calls.push(["returnHome"]),
-      },
-      uploadSessionPort: {
-        resetUploadSession: () => calls.push(["reset-upload"]),
-      },
-      viewPort: createTranslationWorkflowDialogViewPort({
-        closeButtonElement: () => null,
-        closeDialog: () => calls.push(["close"]),
-        dialogElement: () => null,
-        isOpen: () => false,
-        openDialog: (options = {}) => calls.push(["open", options.mode]),
-        syncMode: () => calls.push(["sync"]),
-      }),
-    });
-
-    feature.bindEvents();
-    documentListeners.get(APP_EVENTS.openTranslationWorkflow)({
-      detail: { mode: TRANSLATION_WORKFLOW_MODES.STATUS },
-    });
-
-    assert.deepEqual(calls, [
-      ["open", TRANSLATION_WORKFLOW_MODES.STATUS],
-    ]);
-  } finally {
-    global.document = previousDocument;
-  }
 });
 
 test("recent jobs state port normalizes pagination state", () => {
@@ -1889,67 +763,17 @@ test("library books resource invalidation helper tolerates missing resources", (
 });
 
 test("recent jobs page commit refreshes active cards without auto-opening jobs", () => {
-  const previousDocument = global.document;
-  const nodes = new Map();
+  // 旧 DOM 直写 viewPort(createRecentJobsViewPort() 默认值)已随 cutover 删除
+  // (controller/runtime/loader/commit/bindings 5 处默认参数改必传;view.js 等
+  // 视图层随之物理删除)。这里改用最小 stub 直接捕获 renderList 的 items,
+  // 不再模拟 document/fragment——断言意图不变(渲染了哪些 job id)。
   const rendered = [];
   const recovered = [];
   const refreshCalls = [];
   const autoLoads = [];
-  const list = {
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-    },
-    addEventListener() {},
-    append(fragment) {
-      rendered.push(
-        ...Array.from(fragment.children || []).map((node) => node.item?.job_id),
-      );
-    },
-    querySelectorAll() { return []; },
-    replaceChildren() {
-      rendered.length = 0;
-    },
-  };
-  const empty = { classList: { add() {}, remove() {}, toggle() {} }, textContent: "" };
-  const loadMoreButton = {
-    disabled: false,
-    textContent: "",
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-      contains() { return false; },
-    },
-  };
-  const libraryView = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-  };
-  nodes.set("#library-view", libraryView);
-  nodes.set("#library-view #recent-jobs-list", list);
-  nodes.set("#recent-jobs-list", list);
-  nodes.set("#recent-jobs-empty", empty);
-  nodes.set("#load-more-jobs-btn", loadMoreButton);
-  global.document = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-    createElement(tagName) {
-      if (tagName === RECENT_JOBS_TAGS.card) {
-        return { tagName, item: null };
-      }
-      return { tagName };
-    },
-    createDocumentFragment() {
-      return {
-        children: [],
-        append(node) {
-          this.children.push(node);
-        },
-      };
+  const viewPort = {
+    renderList: ({ items }) => {
+      rendered.push(...items.map((item) => item.job_id));
     },
   };
 
@@ -1965,40 +789,37 @@ test("recent jobs page commit refreshes active cards without auto-opening jobs",
     scheduleActiveRefresh() {},
   });
 
-  try {
-    const result = commitRecentJobsPage({
-      reset: true,
-      collected: [{ job_id: "job-running", status: "running" }],
-      hasMore: true,
-      nextOffset: 24,
-      recentJobActions: {
-        recoverActiveJob: (items) => recovered.push(items.map((item) => item.job_id)),
-        selectJob() {},
-        deleteJob() {},
-        openJobReader() {},
-      },
-      runtimePatches,
-      activeRefreshLoop: () => ({
-        schedule: () => refreshCalls.push("schedule"),
-        stop: () => refreshCalls.push("stop"),
-      }),
-      scheduleAutoLoadIfNeeded: () => autoLoads.push("auto"),
-      recentJobsStatePort: statePort,
-      setTimeoutFn(callback) {
-        callback();
-        return 1;
-      },
-    });
+  const result = commitRecentJobsPage({
+    reset: true,
+    collected: [{ job_id: "job-running", status: "running" }],
+    hasMore: true,
+    nextOffset: 24,
+    recentJobActions: {
+      recoverActiveJob: (items) => recovered.push(items.map((item) => item.job_id)),
+      selectJob() {},
+      deleteJob() {},
+      openJobReader() {},
+    },
+    runtimePatches,
+    activeRefreshLoop: () => ({
+      schedule: () => refreshCalls.push("schedule"),
+      stop: () => refreshCalls.push("stop"),
+    }),
+    scheduleAutoLoadIfNeeded: () => autoLoads.push("auto"),
+    recentJobsStatePort: statePort,
+    setTimeoutFn(callback) {
+      callback();
+      return 1;
+    },
+    viewPort,
+  });
 
-    assert.deepEqual(result.nextItems.map((item) => item.job_id), ["job-running"]);
-    assert.deepEqual(rendered, ["job-running"]);
-    assert.deepEqual(recovered, []);
-    assert.deepEqual(refreshCalls, ["schedule"]);
-    assert.deepEqual(autoLoads, ["auto"]);
-    assert.equal(statePort.getSnapshot().offset, 24);
-  } finally {
-    global.document = previousDocument;
-  }
+  assert.deepEqual(result.nextItems.map((item) => item.job_id), ["job-running"]);
+  assert.deepEqual(rendered, ["job-running"]);
+  assert.deepEqual(recovered, []);
+  assert.deepEqual(refreshCalls, ["schedule"]);
+  assert.deepEqual(autoLoads, ["auto"]);
+  assert.equal(statePort.getSnapshot().offset, 24);
 });
 
 test("recent jobs page commit can delegate page rendering to the store renderer", () => {
@@ -2108,61 +929,11 @@ test("recent jobs page commit can route rendering through the view port", () => 
 });
 
 test("recent jobs page commit appends only collected items while preserving state patches", () => {
-  const previousDocument = global.document;
-  const nodes = new Map();
+  // 旧 DOM 直写 viewPort 已随 cutover 删除,改用最小 stub 直接捕获渲染 items。
   const rendered = [];
-  const list = {
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-    },
-    addEventListener() {},
-    append(fragment) {
-      rendered.push(
-        ...Array.from(fragment.children || []).map((node) => node.item?.job_id),
-      );
-    },
-    querySelectorAll() { return []; },
-  };
-  const empty = { classList: { add() {}, remove() {}, toggle() {} }, textContent: "" };
-  const loadMoreButton = {
-    disabled: false,
-    textContent: "",
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-      contains() { return false; },
-    },
-  };
-  const libraryView = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-  };
-  nodes.set("#library-view", libraryView);
-  nodes.set("#library-view #recent-jobs-list", list);
-  nodes.set("#recent-jobs-list", list);
-  nodes.set("#recent-jobs-empty", empty);
-  nodes.set("#load-more-jobs-btn", loadMoreButton);
-  global.document = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-    createElement(tagName) {
-      if (tagName === RECENT_JOBS_TAGS.card) {
-        return { tagName, item: null };
-      }
-      return { tagName };
-    },
-    createDocumentFragment() {
-      return {
-        children: [],
-        append(node) {
-          this.children.push(node);
-        },
-      };
+  const viewPort = {
+    renderList: ({ items }) => {
+      rendered.push(...items.map((item) => item.job_id));
     },
   };
 
@@ -2186,89 +957,44 @@ test("recent jobs page commit appends only collected items while preserving stat
     display_stage: "ocr",
     progress: { current: 1, total: 10, unit: "page" },
   });
-  rendered.length = 0;
 
-  try {
-    const result = commitRecentJobsPage({
-      reset: false,
-      collected: [{ job_id: "job-page-2", status: "succeeded" }],
-      hasMore: false,
-      nextOffset: 48,
-      recentJobActions: {
-        recoverActiveJob() {},
-        selectJob() {},
-        deleteJob() {},
-        openJobReader() {},
-      },
-      runtimePatches,
-      activeRefreshLoop: () => ({
-        schedule() {},
-        stop() {},
-      }),
-      scheduleAutoLoadIfNeeded() {},
-      recentJobsStatePort: statePort,
-    });
+  const result = commitRecentJobsPage({
+    reset: false,
+    collected: [{ job_id: "job-page-2", status: "succeeded" }],
+    hasMore: false,
+    nextOffset: 48,
+    recentJobActions: {
+      recoverActiveJob() {},
+      selectJob() {},
+      deleteJob() {},
+      openJobReader() {},
+    },
+    runtimePatches,
+    activeRefreshLoop: () => ({
+      schedule() {},
+      stop() {},
+    }),
+    scheduleAutoLoadIfNeeded() {},
+    recentJobsStatePort: statePort,
+    viewPort,
+  });
 
-    assert.deepEqual(rendered, ["job-page-2"]);
-    assert.deepEqual(result.nextItems.map((item) => item.job_id), [
-      "job-created-active",
-      "job-existing",
-      "job-page-2",
-    ]);
-    assert.deepEqual(result.renderItems.map((item) => item.job_id), ["job-page-2"]);
-  } finally {
-    global.document = previousDocument;
-  }
+  assert.deepEqual(rendered, ["job-page-2"]);
+  assert.deepEqual(result.nextItems.map((item) => item.job_id), [
+    "job-created-active",
+    "job-existing",
+    "job-page-2",
+  ]);
+  assert.deepEqual(result.renderItems.map((item) => item.job_id), ["job-page-2"]);
 });
 
 test("recent jobs empty commit owns empty state and search copy", () => {
-  const previousDocument = global.document;
-  const nodes = new Map();
+  // 旧 DOM 直写 viewPort 已随 cutover 删除,改用最小 stub 直接捕获 renderEmpty。
   const loadingStates = [];
-  const list = {
-    innerHTML: "previous",
-    classList: {
-      added: [],
-      removed: [],
-      add(value) { this.added.push(value); },
-      remove(value) { this.removed.push(value); },
-      toggle() {},
-    },
-  };
-  const empty = {
-    textContent: "",
-    classList: {
-      added: [],
-      removed: [],
-      add(value) { this.added.push(value); },
-      remove(value) { this.removed.push(value); },
-      toggle() {},
-    },
-  };
-  const loadMoreButton = {
-    disabled: true,
-    textContent: "",
-    classList: {
-      added: [],
-      removed: [],
-      add(value) { this.added.push(value); },
-      remove(value) { this.removed.push(value); },
-      toggle() {},
-    },
-  };
-  const libraryView = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-  };
-  nodes.set("#library-view", libraryView);
-  nodes.set("#library-view #recent-jobs-list", list);
-  nodes.set("#recent-jobs-list", list);
-  nodes.set("#recent-jobs-empty", empty);
-  nodes.set("#load-more-jobs-btn", loadMoreButton);
-  global.document = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
+  let emptyText = "";
+  const viewPort = {
+    renderEmpty: (message) => {
+      emptyText = message;
     },
   };
   const statePort = createRecentJobsStatePort({
@@ -2276,24 +1002,21 @@ test("recent jobs empty commit owns empty state and search copy", () => {
     recentJobsHasMore: true,
   });
 
-  try {
-    const result = commitRecentJobsEmpty({
-      query: "quantum",
-      invocationSummary: null,
-      homeStatePort: {
-        setRecentJobsLoadingState: (...args) => loadingStates.push(args),
-      },
-      recentJobsStatePort: statePort,
-    });
+  const result = commitRecentJobsEmpty({
+    query: "quantum",
+    invocationSummary: null,
+    homeStatePort: {
+      setRecentJobsLoadingState: (...args) => loadingStates.push(args),
+    },
+    recentJobsStatePort: statePort,
+    viewPort,
+  });
 
-    assert.equal(result.message, "没有匹配的书籍");
-    assert.deepEqual(statePort.getSnapshot().items, []);
-    assert.equal(statePort.getSnapshot().hasMore, false);
-    assert.equal(empty.textContent, "没有匹配的书籍");
-    assert.deepEqual(loadingStates, [["ready"]]);
-  } finally {
-    global.document = previousDocument;
-  }
+  assert.equal(result.message, "没有匹配的书籍");
+  assert.deepEqual(statePort.getSnapshot().items, []);
+  assert.equal(statePort.getSnapshot().hasMore, false);
+  assert.equal(emptyText, "没有匹配的书籍");
+  assert.deepEqual(loadingStates, [["ready"]]);
 });
 
 test("recent jobs empty commit can delegate rendering to view-state owner", () => {
@@ -2323,49 +1046,11 @@ test("recent jobs empty commit can delegate rendering to view-state owner", () =
 });
 
 test("recent jobs no-more and error commits own terminal loading state", () => {
-  const previousDocument = global.document;
-  const nodes = new Map();
+  // 旧 DOM 直写 viewPort 已随 cutover 删除,改用最小 stub 直接捕获 renderError。
   const loadingStates = [];
-  const list = {
-    innerHTML: "existing",
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-    },
-  };
-  const empty = {
-    textContent: "",
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-    },
-  };
-  const loadMoreButton = {
-    disabled: false,
-    textContent: "",
-    classList: {
-      added: [],
-      add(value) { this.added.push(value); },
-      remove() {},
-      toggle() {},
-    },
-  };
-  const libraryView = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-  };
-  nodes.set("#library-view", libraryView);
-  nodes.set("#library-view #recent-jobs-list", list);
-  nodes.set("#recent-jobs-list", list);
-  nodes.set("#recent-jobs-empty", empty);
-  nodes.set("#load-more-jobs-btn", loadMoreButton);
-  global.document = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
+  const renderErrorCalls = [];
+  const viewPort = {
+    renderError: (...args) => renderErrorCalls.push(args),
   };
   const statePort = createRecentJobsStatePort({
     recentJobsHasMore: true,
@@ -2375,25 +1060,23 @@ test("recent jobs no-more and error commits own terminal loading state", () => {
     setRecentJobsLoadingState: (...args) => loadingStates.push(args),
   };
 
-  try {
-    commitRecentJobsNoMore({
-      homeStatePort,
-      recentJobsStatePort: statePort,
-    });
-    assert.equal(statePort.getSnapshot().hasMore, false);
-    assert.deepEqual(loadingStates, [["ready"]]);
-    assert.deepEqual(loadMoreButton.classList.added, ["hidden"]);
+  commitRecentJobsNoMore({
+    homeStatePort,
+    recentJobsStatePort: statePort,
+    viewPort,
+  });
+  assert.equal(statePort.getSnapshot().hasMore, false);
+  assert.deepEqual(loadingStates, [["ready"]]);
+  assert.deepEqual(renderErrorCalls, [["", { reset: false }]]);
 
-    commitRecentJobsError({
-      error: new Error("network down"),
-      reset: false,
-      homeStatePort,
-      recentJobsStatePort: statePort,
-    });
-    assert.deepEqual(loadingStates.at(-1), ["error", "network down"]);
-  } finally {
-    global.document = previousDocument;
-  }
+  commitRecentJobsError({
+    error: new Error("network down"),
+    reset: false,
+    homeStatePort,
+    recentJobsStatePort: statePort,
+    viewPort,
+  });
+  assert.deepEqual(loadingStates.at(-1), ["error", "network down"]);
 });
 
 test("recent jobs no-more and error commits can delegate rendering", () => {
@@ -2432,39 +1115,15 @@ test("recent jobs no-more and error commits can delegate rendering", () => {
 });
 
 test("recent jobs loader preserves runtime patches that arrive during load-more", async () => {
-  const previousDocument = global.document;
-  const previousWindow = global.window;
-  const nodes = new Map();
-  const list = {
-    innerHTML: "",
-    addEventListener() {},
-    querySelectorAll() { return []; },
-  };
-  const empty = { classList: { add() {}, remove() {}, toggle() {} }, textContent: "" };
-  const loadMoreButton = {
-    disabled: false,
-    textContent: "",
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-      contains() { return false; },
-    },
-  };
-  nodes.set("#library-view", null);
-  nodes.set("#recent-jobs-list", list);
-  nodes.set("#recent-jobs-empty", empty);
-  nodes.set("#load-more-jobs-btn", loadMoreButton);
-  global.document = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-  };
-  global.window = {
-    setTimeout(callback) {
-      callback();
-      return 1;
-    },
+  // 旧 DOM 直写 viewPort 已随 cutover 删除,改用最小 stub(loader.js 只依赖
+  // hasView/renderLoading/setLoadMoreLoading,渲染结果走下方 items 断言)。
+  const viewPort = {
+    hasView: () => true,
+    renderLoading() {},
+    setLoadMoreLoading() {},
+    renderList() {},
+    renderEmpty() {},
+    renderError() {},
   };
 
   let resolveLoad;
@@ -2512,97 +1171,39 @@ test("recent jobs loader preserves runtime patches that arrive during load-more"
         };
       },
     },
+    viewPort,
   });
 
-  try {
-    const loadPromise = loader.load({ reset: false });
-    await new Promise((resolve) => setImmediate(resolve));
-    runtimePatches.insert({
-      job_id: "job-created-during-load",
-      status: "running",
-      display_stage: "ocr",
-      progress: { current: 1, total: 10, unit: "page" },
-    });
-    resolveLoad();
-    await loadPromise;
+  const loadPromise = loader.load({ reset: false });
+  await new Promise((resolve) => setImmediate(resolve));
+  runtimePatches.insert({
+    job_id: "job-created-during-load",
+    status: "running",
+    display_stage: "ocr",
+    progress: { current: 1, total: 10, unit: "page" },
+  });
+  resolveLoad();
+  await loadPromise;
 
-    assert.deepEqual(statePort.getSnapshot().items.map((item) => item.job_id), [
-      "job-created-during-load",
-      "job-existing",
-      "job-page-2",
-    ]);
-  } finally {
-    global.document = previousDocument;
-    global.window = previousWindow;
-  }
+  assert.deepEqual(statePort.getSnapshot().items.map((item) => item.job_id), [
+    "job-created-during-load",
+    "job-existing",
+    "job-page-2",
+  ]);
 });
 
 test("recent jobs loader does not append runtime-created cards during load-more rendering", async () => {
-  const previousDocument = global.document;
-  const previousWindow = global.window;
+  // 旧 DOM 直写 viewPort 已随 cutover 删除,改用最小 stub 直接捕获 renderList。
   const rendered = [];
-  const nodes = new Map();
-  const list = {
-    children: [],
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
+  const viewPort = {
+    hasView: () => true,
+    renderLoading() {},
+    setLoadMoreLoading() {},
+    renderList: ({ items }) => {
+      rendered.push(...items.map((item) => item.job_id));
     },
-    addEventListener() {},
-    querySelectorAll() { return []; },
-    append(fragment) {
-      rendered.push(
-        ...Array.from(fragment.children || []).map((node) => node.item?.job_id),
-      );
-    },
-  };
-  const empty = { classList: { add() {}, remove() {}, toggle() {} }, textContent: "" };
-  const loadMoreButton = {
-    disabled: false,
-    textContent: "",
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-      contains() { return false; },
-    },
-  };
-  const libraryView = {
-    hidden: false,
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-  };
-  nodes.set("#library-view", libraryView);
-  nodes.set("#library-view #recent-jobs-list", list);
-  nodes.set("#recent-jobs-list", list);
-  nodes.set("#recent-jobs-empty", empty);
-  nodes.set("#load-more-jobs-btn", loadMoreButton);
-  global.document = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-    createElement(tagName) {
-      if (tagName === RECENT_JOBS_TAGS.card) {
-        return { tagName, item: null };
-      }
-      return { tagName };
-    },
-    createDocumentFragment() {
-      return {
-        children: [],
-        append(node) {
-          this.children.push(node);
-        },
-      };
-    },
-  };
-  global.window = {
-    setTimeout(callback) {
-      callback();
-      return 1;
-    },
+    renderEmpty() {},
+    renderError() {},
   };
 
   const statePort = createRecentJobsStatePort({
@@ -2657,21 +1258,17 @@ test("recent jobs loader does not append runtime-created cards during load-more 
         };
       },
     },
+    viewPort,
   });
 
-  try {
-    await loader.load({ reset: false });
+  await loader.load({ reset: false });
 
-    assert.deepEqual(rendered, ["job-page-2"]);
-    assert.deepEqual(statePort.getSnapshot().items.map((item) => item.job_id), [
-      "job-created-active",
-      "job-existing",
-      "job-page-2",
-    ]);
-  } finally {
-    global.document = previousDocument;
-    global.window = previousWindow;
-  }
+  assert.deepEqual(rendered, ["job-page-2"]);
+  assert.deepEqual(statePort.getSnapshot().items.map((item) => item.job_id), [
+    "job-created-active",
+    "job-existing",
+    "job-page-2",
+  ]);
 });
 
 test("recent jobs command handlers invalidate list resource before patching and refreshing", async () => {
@@ -2999,49 +1596,21 @@ test("created recent job hydration is best effort", async () => {
 });
 
 test("recent jobs feature bindings route ui library and workflow events", () => {
-  const previousDocument = global.document;
-  const previousWindow = global.window;
+  // 旧 DOM 直写 viewPort 已随 cutover 删除,bindEvents 的 handlers 直接从
+  // viewPort stub 捕获调用,不再模拟 #load-more-jobs-btn 的 click 事件。
   const listeners = new Map();
-  const nodes = new Map();
   const loadCalls = [];
   const commandCalls = [];
   const schedulerCalls = [];
-  const loadMoreButton = {
-    listeners: new Map(),
-    addEventListener(type, handler) {
-      this.listeners.set(type, handler);
+  let viewPortHandlers = null;
+  const viewPort = {
+    bindEvents(handlers) {
+      viewPortHandlers = handlers;
     },
   };
-  const openButton = {
-    addEventListener() {},
-  };
-  nodes.set("#open-query-btn", openButton);
-  nodes.set("#load-more-jobs-btn", loadMoreButton);
-  nodes.set("#library-search-input", {
-    addEventListener() {},
-  });
-  nodes.set("#library-view", {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-  });
-  nodes.set("#library-view #recent-jobs-list", {});
   const doc = {
     addEventListener(type, handler) {
       listeners.set(type, handler);
-    },
-    getElementById(id) {
-      return nodes.get(`#${id}`) || null;
-    },
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-  };
-  global.document = doc;
-  global.window = {
-    requestAnimationFrame(callback) {
-      callback();
-      return 1;
     },
   };
   const commandPort = {
@@ -3067,46 +1636,42 @@ test("recent jobs feature bindings route ui library and workflow events", () => 
     updateSearch() {},
   };
 
-  try {
-    bindRecentJobsFeatureEvents({
-      commandPort,
-      doc,
-      libraryBooksResource: {},
-      libraryRefreshPort,
-      refreshScheduler,
-      runtime: {
-        loadRecentJobs: (options) => loadCalls.push(options),
-        runtimePatches: {
-          insert() {},
-          update() {},
-        },
+  bindRecentJobsFeatureEvents({
+    commandPort,
+    doc,
+    libraryBooksResource: {},
+    libraryRefreshPort,
+    refreshScheduler,
+    runtime: {
+      loadRecentJobs: (options) => loadCalls.push(options),
+      runtimePatches: {
+        insert() {},
+        update() {},
       },
-    });
+    },
+    viewPort,
+  });
 
-    loadMoreButton.listeners.get("click")();
-    libraryRefreshPort.handlers.onRefreshRequested({ delay: 80, force: true });
-    libraryRefreshPort.handlers.onJobUpdated({ job: { job_id: "job-updated" } });
-    libraryRefreshPort.handlers.onJobCreated({ job: { job_id: "job-created" } });
-    listeners.get(APP_EVENTS.statusAreaVisibilityChanged)();
-    listeners.get(APP_EVENTS.openTranslationWorkflow)();
-    listeners.get(APP_EVENTS.closeTranslationWorkflow)();
+  viewPortHandlers.onLoadMore();
+  libraryRefreshPort.handlers.onRefreshRequested({ delay: 80, force: true });
+  libraryRefreshPort.handlers.onJobUpdated({ job: { job_id: "job-updated" } });
+  libraryRefreshPort.handlers.onJobCreated({ job: { job_id: "job-created" } });
+  listeners.get(APP_EVENTS.statusAreaVisibilityChanged)();
+  listeners.get(APP_EVENTS.openTranslationWorkflow)();
+  listeners.get(APP_EVENTS.closeTranslationWorkflow)();
 
-    assert.deepEqual(loadCalls, [{ reset: false }]);
-    assert.deepEqual(commandCalls, [
-      ["refresh", { delay: 80, force: true }],
-      ["updated", { job_id: "job-updated" }],
-      ["created", { job_id: "job-created" }],
-    ]);
-    assert.deepEqual(schedulerCalls, [
-      ["suspended", false],
-      ["suspended", true],
-      ["suspended", false],
-      ["schedule", { delay: 300 }],
-    ]);
-  } finally {
-    global.document = previousDocument;
-    global.window = previousWindow;
-  }
+  assert.deepEqual(loadCalls, [{ reset: false }]);
+  assert.deepEqual(commandCalls, [
+    ["refresh", { delay: 80, force: true }],
+    ["updated", { job_id: "job-updated" }],
+    ["created", { job_id: "job-created" }],
+  ]);
+  assert.deepEqual(schedulerCalls, [
+    ["suspended", false],
+    ["suspended", true],
+    ["suspended", false],
+    ["schedule", { delay: 300 }],
+  ]);
 });
 
 test("shared library event port publishes and normalizes app events", () => {
@@ -3286,62 +1851,25 @@ test("recent jobs navigation port owns workflow reader and recovery side effects
 
 test("recent jobs runtime wires loader actions and scheduler callbacks", async () => {
   const previousDocument = global.document;
-  const previousWindow = global.window;
   const previousCustomEvent = global.CustomEvent;
-  const nodes = new Map();
   const dispatched = [];
-  const list = {
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-    },
-    addEventListener() {},
-    append() {},
-    querySelectorAll() { return []; },
-    replaceChildren() {},
+  // 旧 DOM 直写 viewPort 已随 cutover 删除,改用最小 stub(满足 10 方法契约,
+  // 见 src/pages/home/features/library/recent-jobs-react-port.js 的 React 实现)。
+  const viewPort = {
+    bindEvents() {},
+    hasView: () => true,
+    renderEmpty() {},
+    renderError() {},
+    renderList() {},
+    renderLoading() {},
+    replaceCard: () => true,
+    scheduleAutoLoadCheck() {},
+    setDialogOpen() {},
+    setLoadMoreLoading() {},
   };
-  const empty = { classList: { add() {}, remove() {}, toggle() {} }, textContent: "" };
-  const loadMoreButton = {
-    disabled: false,
-    textContent: "",
-    classList: {
-      add() {},
-      remove() {},
-      toggle() {},
-      contains() { return false; },
-    },
-  };
-  const libraryView = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
-  };
-  nodes.set("#library-view", libraryView);
-  nodes.set("#library-view #recent-jobs-list", list);
-  nodes.set("#recent-jobs-list", list);
-  nodes.set("#recent-jobs-empty", empty);
-  nodes.set("#load-more-jobs-btn", loadMoreButton);
   global.document = {
-    querySelector(selector) {
-      return nodes.get(selector) || null;
-    },
     dispatchEvent(event) {
       dispatched.push(event);
-    },
-    createElement(tagName) {
-      if (tagName === RECENT_JOBS_TAGS.card) {
-        return { tagName, item: null };
-      }
-      return { tagName };
-    },
-    createDocumentFragment() {
-      return {
-        children: [],
-        append(node) {
-          this.children.push(node);
-        },
-      };
     },
   };
   global.CustomEvent = class CustomEvent {
@@ -3349,12 +1877,6 @@ test("recent jobs runtime wires loader actions and scheduler callbacks", async (
       this.type = type;
       this.detail = options.detail;
     }
-  };
-  global.window = {
-    setTimeout(callback) {
-      callback();
-      return 1;
-    },
   };
 
   const loadParams = [];
@@ -3398,6 +1920,7 @@ test("recent jobs runtime wires loader actions and scheduler callbacks", async (
       },
     },
     refreshSchedulerRef: () => scheduler,
+    viewPort,
   });
   scheduler = {
     closeDialog: () => closed.push("close"),
@@ -3416,7 +1939,6 @@ test("recent jobs runtime wires loader actions and scheduler callbacks", async (
     assert.deepEqual(dispatched.map((event) => event.type), [APP_EVENTS.openTranslationWorkflow]);
   } finally {
     global.document = previousDocument;
-    global.window = previousWindow;
     global.CustomEvent = previousCustomEvent;
   }
 });

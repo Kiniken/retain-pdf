@@ -9,7 +9,6 @@ import {
   prepareDownloadTarget,
   saveResponseDownload,
 } from "../../utils/downloads.js";
-import { createGlossaryViewPort } from "./glossary-view-port.js";
 
 export function mountGlossariesFeature({
   apiPrefix,
@@ -22,7 +21,7 @@ export function mountGlossariesFeature({
   parseGlossaryCsv,
   refreshWorkflowGlossaries,
   view = {},
-  viewPort = createGlossaryViewPort(view),
+  viewPort,
 }) {
   const state = {
     items: [],

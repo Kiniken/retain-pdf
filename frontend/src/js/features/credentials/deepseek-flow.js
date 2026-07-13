@@ -5,7 +5,6 @@ import {
   summarizeDeepSeekBalance,
 } from "./validation.js";
 import { defaultCredentialsStatePort } from "./default-state-port.js";
-import { createDeepSeekCredentialViewPort } from "./deepseek-view-port.js";
 
 const DEEPSEEK_LOW_BALANCE_THRESHOLD = 2;
 
@@ -27,7 +26,7 @@ export async function handleBrowserDeepSeekValidate({
   onBalanceChange,
   silent = false,
   credentialsStatePort = defaultCredentialsStatePort,
-  viewPort = createDeepSeekCredentialViewPort(),
+  viewPort,
 }) {
   const {
     apiKeyInput,

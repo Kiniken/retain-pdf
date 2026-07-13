@@ -76,6 +76,9 @@ class LibrarySearchIsland extends HTMLElement {
   }
 }
 
-if (!customElements.get("library-search-island")) {
+// node --test 环境下部分组件测试直接 import HomeApp.jsx 而不搭建完整 jsdom
+// window(customElements 未定义)。守卫不影响真实浏览器行为——customElements
+// 在浏览器/jsdom 里恒存在。
+if (typeof customElements !== "undefined" && !customElements.get("library-search-island")) {
   customElements.define("library-search-island", LibrarySearchIsland);
 }

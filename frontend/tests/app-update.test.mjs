@@ -11,25 +11,7 @@ import {
   readUpdateCache,
   writeUpdateCache,
 } from "../src/js/features/app-update/state.js";
-import {
-  APP_UPDATE_CLASSES,
-  APP_UPDATE_DATASETS,
-  APP_UPDATE_IDS,
-  APP_UPDATE_SELECTORS,
-  APP_UPDATE_STATES,
-  appUpdateDataAttribute,
-} from "../src/js/features/app-update/contract.js";
-import {
-  bindUpdateButton,
-  setUpdateAvailable,
-  setUpdateChecking,
-  setUpdateError,
-  setUpdateLatest,
-  setUpdateReady,
-} from "../src/js/features/app-update/view.js";
 import { mountAppUpdateFeature } from "../src/js/features/app-update/controller.js";
-import { createAppUpdateViewPort } from "../src/js/features/app-update/update-view-port.js";
-import { createCoreAppUpdateRuntimePort } from "../src/js/bootstrap/core-app-update-runtime-port.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -44,90 +26,6 @@ function createMemoryStorage() {
     removeItem: (key) => store.delete(key),
     clear: () => store.clear(),
   };
-}
-
-function createClassList(initial = []) {
-  const classes = new Set(initial);
-  return {
-    add: (...names) => names.forEach((name) => classes.add(name)),
-    remove: (...names) => names.forEach((name) => classes.delete(name)),
-    toggle(name, force) {
-      if (force) {
-        classes.add(name);
-      } else {
-        classes.delete(name);
-      }
-    },
-    contains: (name) => classes.has(name),
-  };
-}
-
-function createElement({ id = "", dataset = {}, classes = [] } = {}) {
-  const listeners = new Map();
-  return {
-    id,
-    dataset: { ...dataset },
-    classList: createClassList(classes),
-    textContent: "",
-    href: "",
-    open: false,
-    attributes: new Map(),
-    children: [],
-    parentElement: null,
-    setAttribute(name, value) {
-      this.attributes.set(name, value);
-    },
-    getAttribute(name) {
-      return this.attributes.get(name) || "";
-    },
-    addEventListener(type, handler) {
-      listeners.set(type, handler);
-    },
-    click() {
-      listeners.get("click")?.({ currentTarget: this, target: this });
-    },
-    showModal() {
-      this.open = true;
-    },
-    querySelector(selector) {
-      return this.children.find((child) => child.selector === selector) || null;
-    },
-  };
-}
-
-function withUpdateDom(fn) {
-  const previousDocument = globalThis.document;
-  const button = createElement({
-    id: APP_UPDATE_IDS.button,
-    dataset: { [APP_UPDATE_DATASETS.state]: APP_UPDATE_STATES.idle },
-  });
-  const status = createElement({ id: APP_UPDATE_IDS.status, classes: [APP_UPDATE_CLASSES.hidden] });
-  const checkButton = createElement({ id: APP_UPDATE_IDS.checkButton });
-  const dialog = createElement({ id: APP_UPDATE_IDS.dialog });
-  const title = createElement();
-  const version = createElement();
-  const notes = createElement();
-  const link = createElement({ classes: [APP_UPDATE_CLASSES.hidden] });
-  title.selector = APP_UPDATE_SELECTORS.title;
-  version.selector = APP_UPDATE_SELECTORS.version;
-  notes.selector = APP_UPDATE_SELECTORS.notes;
-  link.selector = APP_UPDATE_SELECTORS.link;
-  dialog.children = [title, version, notes, link];
-  const elements = new Map([
-    [APP_UPDATE_IDS.button, button],
-    [APP_UPDATE_IDS.dialog, dialog],
-    [APP_UPDATE_IDS.status, status],
-    [APP_UPDATE_IDS.checkButton, checkButton],
-  ]);
-  globalThis.document = {
-    getElementById: (id) => elements.get(id) || null,
-  };
-
-  try {
-    return fn({ button, status, checkButton, dialog, title, version, notes, link });
-  } finally {
-    globalThis.document = previousDocument;
-  }
 }
 
 test("isNewerVersion compares beta suffix numbers instead of only major version", () => {
@@ -301,123 +199,6 @@ test("generate-app-version does not fall back to package or local version files"
   }
 });
 
-test("app update contract exposes shared ids and dataset attributes", () => {
-  assert.equal(APP_UPDATE_IDS.button, "app-update-btn");
-  assert.equal(APP_UPDATE_IDS.checkButton, "app-update-check-btn");
-  assert.equal(APP_UPDATE_SELECTORS.title, "[data-update-title]");
-  assert.equal(appUpdateDataAttribute(APP_UPDATE_DATASETS.state), "update-state");
-});
-
-test("app update view uses contract states and panel selectors", () => {
-  withUpdateDom(({ button, status, title, version, notes, link }) => {
-    setUpdateChecking();
-    assert.equal(button.dataset[APP_UPDATE_DATASETS.state], APP_UPDATE_STATES.checking);
-    assert.equal(button.getAttribute("title"), "正在检查更新");
-    assert.equal(status.classList.contains(APP_UPDATE_CLASSES.hidden), false);
-    assert.equal(title.textContent, "正在检查更新");
-
-    setUpdateAvailable({
-      title: "RetainPDF 4.2",
-      body: "## 新版本\n- 修复状态显示",
-      currentVersion: "4.1",
-      latestVersion: "4.2",
-      htmlUrl: "https://github.com/wxyhgk/retain-pdf/releases/tag/v4.2",
-    });
-    assert.equal(button.dataset[APP_UPDATE_DATASETS.state], APP_UPDATE_STATES.available);
-    assert.equal(button.classList.contains(APP_UPDATE_CLASSES.hasUpdate), true);
-    assert.equal(version.textContent, "当前 4.1 · 最新 4.2");
-    assert.equal(notes.textContent, "新版本\n• 修复状态显示");
-    assert.equal(link.classList.contains(APP_UPDATE_CLASSES.hidden), false);
-
-    setUpdateLatest({ currentVersion: "4.2", latestVersion: "4.2" });
-    assert.equal(button.dataset[APP_UPDATE_DATASETS.state], APP_UPDATE_STATES.latest);
-    assert.equal(button.classList.contains(APP_UPDATE_CLASSES.hasUpdate), false);
-
-    setUpdateError(new Error("network down"));
-    assert.equal(button.dataset[APP_UPDATE_DATASETS.state], APP_UPDATE_STATES.error);
-    assert.equal(notes.textContent, "network down");
-
-    setUpdateReady();
-    assert.equal(button.dataset[APP_UPDATE_DATASETS.state], APP_UPDATE_STATES.idle);
-    assert.equal(status.classList.contains(APP_UPDATE_CLASSES.hidden), true);
-  });
-});
-
-test("app update view opens dialog and binds manual check button", () => {
-  withUpdateDom(({ button, checkButton, dialog }) => {
-    let checks = 0;
-    bindUpdateButton({ onCheck: () => { checks += 1; } });
-
-    button.click();
-    assert.equal(dialog.open, true);
-
-    checkButton.click();
-    assert.equal(checks, 1);
-  });
-});
-
-test("app update manual check still works when dialog button is rendered after binding", () => {
-  const previousDocument = globalThis.document;
-  const listeners = new Map();
-  const button = createElement({
-    id: APP_UPDATE_IDS.button,
-    dataset: { [APP_UPDATE_DATASETS.state]: APP_UPDATE_STATES.idle },
-  });
-  const dialog = createElement({ id: APP_UPDATE_IDS.dialog });
-  const elements = new Map([
-    [APP_UPDATE_IDS.button, button],
-    [APP_UPDATE_IDS.dialog, dialog],
-  ]);
-  globalThis.document = {
-    addEventListener(type, handler) {
-      listeners.set(type, handler);
-    },
-    getElementById: (id) => elements.get(id) || null,
-  };
-
-  try {
-    let checks = 0;
-    bindUpdateButton({ onCheck: () => { checks += 1; } });
-    const checkButton = createElement({ id: APP_UPDATE_IDS.checkButton });
-    elements.set(APP_UPDATE_IDS.checkButton, checkButton);
-
-    listeners.get("click")?.({ target: button });
-    assert.equal(dialog.open, true);
-
-    listeners.get("click")?.({ target: checkButton });
-    assert.equal(checks, 1);
-  } finally {
-    globalThis.document = previousDocument;
-  }
-});
-
-test("app update view port owns update button and status rendering methods", () => {
-  const calls = [];
-  const port = createAppUpdateViewPort({
-    bindButton: ({ onCheck }) => calls.push(["bind", typeof onCheck]),
-    setAvailable: (info) => calls.push(["available", info.latestVersion]),
-    setChecking: () => calls.push(["checking"]),
-    setError: (error) => calls.push(["error", error.message]),
-    setLatest: (info) => calls.push(["latest", info.latestVersion]),
-    setReady: () => calls.push(["ready"]),
-  });
-
-  port.bindButton({ onCheck() {} });
-  port.setReady();
-  port.setAvailable({ latestVersion: "4.2" });
-  port.setLatest({ latestVersion: "4.1" });
-  port.setChecking();
-  port.setError(new Error("network"));
-
-  assert.deepEqual(calls, [
-    ["bind", "function"],
-    ["ready"],
-    ["available", "4.2"],
-    ["latest", "4.1"],
-    ["checking"],
-    ["error", "network"],
-  ]);
-});
 
 test("app update controller routes cached and manual states through view port", async () => {
   const previousWindow = globalThis.window;
@@ -445,7 +226,9 @@ test("app update controller routes cached and manual states through view port", 
       hasUpdate: false,
       latestVersion: release.tag_name,
     }),
-    viewPort: createAppUpdateViewPort({
+    // 旧 DOM 直写 viewPort(update-view-port.js/view.js)已随 cutover 删除;
+    // 两处调用原本就 100% 覆盖了每个方法,直接用字面量等价替代。
+    viewPort: {
       bindButton: (payload) => {
         calls.push(["bind"]);
         onCheck = payload.onCheck;
@@ -455,7 +238,7 @@ test("app update controller routes cached and manual states through view port", 
       setError: (error) => calls.push(["error", error.message]),
       setLatest: (info) => calls.push(["latest", info.latestVersion]),
       setReady: () => calls.push(["ready"]),
-    }),
+    },
   });
 
   try {
@@ -500,14 +283,14 @@ test("app update controller can be disabled for web runtimes", async () => {
       calls.push(["fetch"]);
       return { tag_name: "v9.9.9" };
     },
-    viewPort: createAppUpdateViewPort({
+    viewPort: {
       bindButton: (payload) => calls.push(["bind", typeof payload.onCheck]),
       setAvailable: (info) => calls.push(["available", info.latestVersion]),
       setChecking: () => calls.push(["checking"]),
       setError: (error) => calls.push(["error", error.message]),
       setLatest: (info) => calls.push(["latest", info.latestVersion]),
       setReady: () => calls.push(["ready"]),
-    }),
+    },
   });
 
   try {
@@ -519,10 +302,4 @@ test("app update controller can be disabled for web runtimes", async () => {
   } finally {
     globalThis.window = previousWindow;
   }
-});
-
-test("app update runtime port enables static web update checks", () => {
-  const port = createCoreAppUpdateRuntimePort();
-
-  assert.equal(port.isAppUpdateEnabled(), true);
 });

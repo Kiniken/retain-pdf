@@ -21,6 +21,11 @@ import { SettingsHubDialog } from "./features/settings/SettingsHubDialog.jsx";
 import { StatusDetailDialog } from "./features/status-detail/StatusDetailDialog.jsx";
 import { ReaderDialog } from "./features/reader/ReaderDialog.jsx";
 import { DownloadToastHost } from "./components/DownloadToastHost.jsx";
+// library-search-island 自定义元素的唯一注册点。旧世界由 src/js/components/index.js
+// 兜底 side-effect import 注册;该文件随 cutover 删除后,注册链路断了会导致下方
+// JSX 里的 <library-search-island> 标签渲染成惰性空标签(数据契约上仍在,但搜索
+// 功能静默失效——只有真实浏览器渲染能看出来,jsdom 不会报错)。这里显式接管注册。
+import "../../js/islands/library-search/index.js";
 
 function LibraryBottomBar() {
   const services = useHomeServices();

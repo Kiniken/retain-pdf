@@ -19,7 +19,6 @@ let readerView;
 let readerFavoritesStorage;
 let readerAiContext;
 let readerViewerMountFlow;
-let readerDialogController;
 let readerDialogRuntimePort;
 let readerDownloadResolve;
 
@@ -63,7 +62,6 @@ before(async () => {
   readerFavoritesStorage = await import("../src/js/reader/favorites-storage.js");
   readerAiContext = await import("../src/js/reader/ai-context.js");
   readerViewerMountFlow = await import("../src/js/reader/viewer-mount-flow.js");
-  readerDialogController = await import("../src/js/features/reader-dialog/controller.js");
   readerDialogRuntimePort = await import("../src/js/bootstrap/reader-dialog-runtime-port.js");
   readerDownloadResolve = await import("../src/js/reader/downloads/resolve.js");
 });
@@ -1552,148 +1550,6 @@ test("reader interaction flow owns primary viewer page state and region binding"
     ["schedule-scale"],
     ["indicator", 4, 8],
   ]);
-});
-
-test("reader dialog controller routes UI operations through view port", async () => {
-  const calls = [];
-  const previousWindow = global.window;
-  const previousDocument = global.document;
-  const previousCreateObjectURL = global.URL.createObjectURL;
-  const previousRevokeObjectURL = global.URL.revokeObjectURL;
-  const previousSetTimeout = global.setTimeout;
-  const listeners = {};
-  global.window = {
-    ...previousWindow,
-    history: {
-      state: {},
-      replaceState(_state, _title, url) {
-        calls.push(["route", url]);
-      },
-    },
-    location: {
-      href: "http://localhost/index.html",
-      origin: "http://localhost",
-      protocol: "http:",
-      hostname: "localhost",
-    },
-    addEventListener(type, handler) {
-      listeners[type] = handler;
-    },
-    setTimeout(callback) {
-      callback();
-      return 1;
-    },
-  };
-  global.URL.createObjectURL = () => "blob:side-by-side";
-  global.URL.revokeObjectURL = (url) => calls.push(["revoke", url]);
-  global.setTimeout = (callback) => {
-    callback();
-    return 1;
-  };
-  global.document = {
-    body: {
-      appendChild: () => calls.push(["append-download-link"]),
-    },
-    createElement: () => ({
-      click: () => calls.push(["click-download-link"]),
-      remove: () => calls.push(["remove-download-link"]),
-      set href(value) {
-        calls.push(["download-href", value]);
-      },
-      set download(value) {
-        calls.push(["download-name", value]);
-      },
-    }),
-    getElementById: () => null,
-    querySelector: () => null,
-  };
-  try {
-    const feature = readerDialogController.mountReaderDialogFeature({
-      state: {
-        currentJobId: "job-reader",
-        currentJobSnapshot: {
-          job_id: "job-reader",
-          source_pdf_url: "/api/v1/jobs/job-reader/artifacts/source_pdf",
-          pdf_url: "/api/v1/jobs/job-reader/pdf",
-        },
-      },
-      fetchProtected: async (url) => {
-        calls.push(["fetch", url]);
-        return {
-          ok: true,
-          body: null,
-          blob: async () => new Blob(["side-by-side"], { type: "application/pdf" }),
-          headers: {
-            get: (name) => name === "content-disposition" ? 'attachment; filename="backend-side-by-side.pdf"' : "",
-          },
-        };
-      },
-      setText: (id, text) => calls.push(["text", id, text]),
-      configPort: {
-        isTrustedReaderMessage: () => true,
-      },
-      runtimePort: readerDialogRuntimePort.defaultReaderDialogRuntimePort,
-      viewPort: {
-        bindEvents: (handlers) => {
-          calls.push(["bind"]);
-          listeners.frameLoad = handlers.onFrameLoad;
-          listeners.mergedDownload = handlers.onMergedDownload;
-        },
-        closeDialog: () => calls.push(["close"]),
-        frameWindow: () => ({}),
-        linkOpenState: () => ({ url: "", disabled: true }),
-        loadedFrame: () => true,
-        openDialog: () => calls.push(["open"]),
-        restoreButton: () => {},
-        setButtonBusy: () => "",
-        setFrameSource: (url) => calls.push(["frame", url]),
-        setLoadingProgress: (_progressState, percent, text) => calls.push(["progress", percent, text]),
-        setLoadingVisible: (loading) => calls.push(["loading", loading]),
-        setToolbarButtonState: (id, enabled, url = "") => calls.push(["toolbar", id, enabled, url]),
-        toolbarButtonUrl: () => "",
-      },
-    });
-
-    feature.bindEvents();
-    feature.open("job-reader");
-    listeners.message({
-      data: {
-        type: "retainpdf-reader-progress",
-        percent: 72,
-        text: "正在加载译文 PDF…",
-        stage: "pdfs",
-      },
-    });
-    listeners.frameLoad();
-    await listeners.mergedDownload();
-    feature.close();
-
-    assert.deepEqual(calls.slice(0, 8), [
-      ["bind"],
-      ["route", "http://localhost/index.html?job_id=job-reader&view=reader"],
-      ["loading", true],
-      ["progress", 8, "正在准备对照阅读…"],
-      ["frame", "http://localhost/reader.html?job_id=job-reader"],
-      ["toolbar", "reader-source-download-btn", true, "http://retainpdf.local:41000/api/v1/jobs/job-reader/artifacts/source_pdf"],
-      ["toolbar", "reader-translated-download-btn", true, "http://retainpdf.local:41000/api/v1/jobs/job-reader/pdf"],
-      ["toolbar", "reader-merged-download-btn", true, "http://retainpdf.local:41000/api/v1/jobs/job-reader/pdf/side-by-side"],
-    ]);
-    assert.equal(calls.some((call) => call[0] === "open"), true);
-    assert.equal(calls.some((call) => call[0] === "progress" && call[1] === 72), true);
-    assert.deepEqual(
-      calls.filter((call) => call[0] === "fetch"),
-      [["fetch", "http://retainpdf.local:41000/api/v1/jobs/job-reader/pdf/side-by-side"]],
-    );
-    assert.equal(calls.some((call) => call[0] === "download-name" && call[1] === "job-reader-side-by-side.pdf"), true);
-    assert.equal(calls.some((call) => call[0] === "close"), true);
-    assert.equal(calls.some((call) => call[0] === "frame" && call[1] === "about:blank"), true);
-  } finally {
-    global.window = previousWindow;
-    global.document = previousDocument;
-    global.URL.createObjectURL = previousCreateObjectURL;
-    global.URL.revokeObjectURL = previousRevokeObjectURL;
-    global.setTimeout = previousSetTimeout;
-  }
 });
 
 test("reader dialog runtime port reuses artifact pdf download names", () => {

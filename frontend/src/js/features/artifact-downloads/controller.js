@@ -16,7 +16,6 @@ import {
   defaultDownloadNameResolver,
   resolveDownloadActionTarget,
 } from "./download-actions.js";
-import { createArtifactDownloadViewPort } from "./download-view-port.js";
 import { createArtifactDownloadsRuntimePort } from "./runtime-port.js";
 
 export function mountArtifactDownloadsFeature({
@@ -24,7 +23,7 @@ export function mountArtifactDownloadsFeature({
   fetchProtected,
   setText,
   runtimePort = createArtifactDownloadsRuntimePort(),
-  viewPort = createArtifactDownloadViewPort(),
+  viewPort,
   downloadNameResolver = defaultDownloadNameResolver,
 }) {
   function summarizeDownloadProgress(receivedBytes, totalBytes, percent) {

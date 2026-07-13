@@ -20,8 +20,6 @@ import {
   persistBrowserCredentialsFromDialog as persistBrowserCredentials,
   persistDesktopCredentialsFromDialog as persistDesktopCredentials,
 } from "./persistence.js";
-import { createBrowserCredentialViewPort } from "./browser-view-port.js";
-import { createCredentialDialogElementsPort } from "./dialog-elements-port.js";
 import { createCredentialRuntimeEnvPort } from "./runtime-env-port.js";
 import { createCredentialUploadReadinessPort } from "./upload-readiness-port.js";
 
@@ -49,8 +47,8 @@ export function mountBrowserCredentialsFeature({
   balanceStatePort,
   legacyRuntimePort,
   legacyValidationCachePort,
-  viewPort = createBrowserCredentialViewPort(),
-  dialogElementsPort = createCredentialDialogElementsPort(),
+  viewPort,
+  dialogElementsPort,
   deepSeekViewPort = {
     elements: dialogElementsPort.elements,
     setTopUpVisible: viewPort.setDeepSeekTopUpVisible,

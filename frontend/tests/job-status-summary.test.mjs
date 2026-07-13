@@ -6,7 +6,6 @@ import {
   summarizeStageProgressText,
 } from "../src/js/job-status/job-status-summary-progress.js";
 import { buildJobStatusSummaryViewModel } from "../src/js/job-status/job-status-summary-view-model.js";
-import { renderJobStatusSummary } from "../src/js/ui/job-status-summary-presenter.js";
 
 test("summarizeStageProgressText formats stable user-facing progress copy", () => {
   assert.equal(

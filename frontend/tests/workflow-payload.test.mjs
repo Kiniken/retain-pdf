@@ -12,7 +12,6 @@ import {
   createWorkflowConfigPort,
   resolveMockScenario,
 } from "../src/js/features/workflow/config-port.js";
-import { createWorkflowViewPort } from "../src/js/features/workflow/workflow-view-port.js";
 
 const constants = {
   DEFAULT_MODEL_VERSION: "PP-StructureV3",
@@ -172,9 +171,22 @@ function mountWorkflowHarness({
     apiPrefix: "/api",
     setText: () => {},
   };
-  if (viewPort) {
-    options.viewPort = viewPort;
-  }
+  // controller.js 不再自带默认 viewPort(旧 DOM 直写实现已随 cutover 删除),
+  // 未显式传 viewPort 的用例用最小 no-op stub 桥接(只关心 collectRunPayload
+  // 等纯逻辑返回值,不断言这些 UI 副作用调用)。
+  options.viewPort = viewPort || {
+    applyMockUpload: () => {},
+    applyWorkflowUpload: () => {},
+    closeDeveloperDialog: () => {},
+    readDeveloperDialog: () => ({}),
+    readDeveloperWorkflow: () => "book",
+    readSubmitValues: () => submitValues || {},
+    renderBudgetNote: () => {},
+    setDeveloperDialog: () => {},
+    setDeveloperGlossaryOptions: () => {},
+    setDeveloperWorkflowFormState: () => {},
+    setSubmitControls: () => {},
+  };
   if (submitValues !== null) {
     options.readSubmitValues = () => submitValues;
   }
@@ -221,31 +233,6 @@ test("collectRunPayload builds render-only payload from artifact source", () => 
   assert.equal(payload.ocr, undefined);
   assert.equal(payload.translation, undefined);
   assert.equal(payload.render.compile_workers, 7);
-});
-
-test("default workflow submit values read credentials from credentials port", () => {
-  const credentialsStatePort = {
-    getCredentials: () => ({
-      ocrProvider: "paddle",
-      paddleToken: "paddle-port-token",
-      mineruToken: "mineru-port-token",
-      modelApiKey: "sk-port",
-    }),
-    getOcrToken: ({ providerId }) => providerId === "paddle" ? "paddle-port-token" : "mineru-port-token",
-  };
-  const feature = mountWorkflowHarness({
-    developerConfig: developerConfig({
-      workflow: "book",
-    }),
-    submitValues: null,
-    viewPort: createWorkflowViewPort({ credentialsStatePort }),
-  });
-
-  const payload = feature.collectRunPayload();
-
-  assert.equal(payload.ocr.provider, "paddle");
-  assert.equal(payload.ocr.paddle_token, "paddle-port-token");
-  assert.equal(payload.translation.api_key, "sk-port");
 });
 
 test("workflow controller routes UI side effects through view port", async () => {

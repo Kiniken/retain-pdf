@@ -10,39 +10,17 @@ import {
   handleBrowserDeepSeekValidate,
 } from "../src/js/features/credentials/deepseek-flow.js";
 import {
-  createCredentialsPorts,
-} from "../src/js/bootstrap/feature-credentials-ports.js";
-import {
-  createJobRuntimePorts,
-} from "../src/js/bootstrap/feature-job-runtime-ports.js";
-import {
-  createWorkflowPorts,
-} from "../src/js/bootstrap/feature-workflow-ports.js";
-import {
-  WORKFLOW_BOOK,
-  WORKFLOW_RENDER,
-} from "../src/js/bootstrap/workflow-constants.js";
-import {
-  createSubmitFlowPorts,
-} from "../src/js/bootstrap/submit-flow-ports.js";
-import {
   browserValidationIdForProvider,
   CREDENTIAL_DOM_DATASETS,
   CREDENTIAL_DOM_IDS,
   CREDENTIAL_DOM_SELECTORS,
 } from "../src/js/features/credentials/credentials-dom-contract.js";
 import { mountBrowserCredentialsFeature } from "../src/js/features/credentials/browser.js";
-import { createBrowserCredentialViewPort } from "../src/js/features/credentials/browser-view-port.js";
 import {
   createCredentialsStatePort,
   hasCompleteCredentials,
   ocrTokenFromCredentials,
 } from "../src/js/features/credentials/state.js";
-import {
-  applyHiddenCredentialInputs,
-  readHiddenCredentialInputs,
-  readHiddenCredentialDomInputs,
-} from "../src/js/features/credentials/hidden-inputs.js";
 import { createUploadStatePort } from "../src/js/features/upload/state.js";
 import { createInitialState } from "../src/js/state/slices.js";
 
@@ -315,76 +293,6 @@ test("credentials state port owns validation and balance runtime state", () => {
 
 
 
-test("hidden credential inputs mirror through the default credentials port", () => {
-  const previousDocument = global.document;
-  const elements = new Map([
-    [CREDENTIAL_DOM_IDS.hidden.ocrProvider, createCredentialNode({ value: "" })],
-    [CREDENTIAL_DOM_IDS.hidden.mineruToken, createCredentialNode({ value: "" })],
-    [CREDENTIAL_DOM_IDS.hidden.paddleToken, createCredentialNode({ value: "" })],
-    [CREDENTIAL_DOM_IDS.hidden.modelApiKey, createCredentialNode({ value: "" })],
-  ]);
-  global.document = {
-    getElementById(id) {
-      return elements.get(id) || null;
-    },
-  };
-
-  try {
-    applyHiddenCredentialInputs({
-      ocrProvider: "paddle",
-      paddleToken: "paddle-token",
-      mineruToken: "mineru-token",
-      modelApiKey: "sk-test",
-    });
-
-    assert.deepEqual(readHiddenCredentialInputs(), {
-      ocrProvider: "paddle",
-      mineruToken: "mineru-token",
-      paddleToken: "paddle-token",
-      modelApiKey: "sk-test",
-    });
-    assert.deepEqual(readHiddenCredentialDomInputs(), {
-      ocrProvider: "paddle",
-      mineruToken: "mineru-token",
-      paddleToken: "paddle-token",
-      modelApiKey: "sk-test",
-    });
-  } finally {
-    global.document = previousDocument;
-  }
-});
-
-test("credentials feature port exposes narrow capabilities", async () => {
-  const calls = [];
-  const feature = {
-    hasBrowserCredentials: () => true,
-    openBrowserCredentialsDialog: (options) => calls.push(["open", options]),
-    refreshDeepSeekBalance: async (options) => {
-      calls.push(["balance", options]);
-      return { status: "ok" };
-    },
-    ensureOcrCredentialsReady: async (options) => {
-      calls.push(["ocr", Object.keys(options || {})]);
-      return true;
-    },
-    updateCredentialGate: (options) => calls.push(["gate", Boolean(options?.refreshSubmitControls)]),
-  };
-  const ports = createCredentialsPorts({ browserCredentialsFeature: feature });
-
-  assert.equal(ports.hasBrowserCredentials(), true);
-  ports.openBrowserCredentialsDialog({ focus: "ocr" });
-  assert.deepEqual(await ports.refreshDeepSeekBalance({ silent: true }), { status: "ok" });
-  assert.equal(await ports.ensureOcrCredentialsReady({ onMissingToken() {} }), true);
-  ports.updateCredentialGate({ refreshSubmitControls() {} });
-
-  assert.deepEqual(calls, [
-    ["open", { focus: "ocr" }],
-    ["balance", { silent: true }],
-    ["ocr", ["onMissingToken"]],
-    ["gate", true],
-  ]);
-});
-
 function createClassList() {
   const values = new Set();
   return {
@@ -484,13 +392,19 @@ test("browser credential gate reads upload readiness from upload state port", ()
       validateDeepSeekToken: async () => ({ ok: true }),
       queryDeepSeekBalance: async () => ({ ok: true, balance_cny: 100 }),
       onCredentialStateChange() {},
-      viewPort: createBrowserCredentialViewPort({
-        uploadTilePort: {
-          setUploadTileLocked: (payload) => tileCalls.push(["locked", payload]),
-          setUploadTileReady: (ready) => tileCalls.push(["ready", ready]),
-          setUploadTileText: (payload) => tileCalls.push(["text", payload]),
+      // 旧 DOM 直写 viewPort(browser-view-port.js)已随 cutover 删除;这里内联
+      // 复刻其 updateCredentialGate 对 uploadTilePort 的转发语义(镜像旧
+      // view.js#updateCredentialGateView 非 desktopMode 分支),不依赖真实 DOM。
+      viewPort: {
+        bindEvents() {},
+        updateCredentialGate: ({ show, uploadEnabled, uploadReady }) => {
+          tileCalls.push(["locked", { locked: show || !uploadEnabled, enabled: !show && uploadEnabled }]);
+          tileCalls.push(["text", { labelVisible: !show, helpVisible: true, statusVisible: show ? false : null }]);
+          tileCalls.push(["ready", !show && uploadEnabled && uploadReady]);
+          return true;
         },
-      }),
+      },
+      dialogElementsPort: { elements: () => ({}) },
     });
 
     feature.updateCredentialGate({
@@ -687,92 +601,4 @@ test("browser credentials controller reads runtime and balance state through por
   assert.ok(calls.some((call) => call[0] === "desktop-mode"));
   assert.ok(calls.some((call) => call[0] === "gate" && call[1] === false && call[2] === true));
   assert.ok(calls.some((call) => call[0] === "credential-change"));
-});
-
-test("submit flow ports group workflow upload credentials runtime and library capabilities", () => {
-  const workflowPorts = {
-    currentWorkflow: () => "book",
-    workflowNeedsCredentials: () => true,
-    workflowNeedsUpload: () => true,
-    currentRenderSourceJobId: () => "",
-    currentBudgetState: () => ({ visible: false }),
-    collectRunPayload: () => ({ workflow: "book" }),
-  };
-  const uploadPorts = {
-    validatePageRanges: () => true,
-  };
-  const credentialsPorts = {
-    ensureOcrCredentialsReady: async () => true,
-    hasBrowserCredentials: () => true,
-    openBrowserCredentialsDialog: () => {},
-    refreshDeepSeekBalance: async () => ({ status: "ok" }),
-  };
-  const jobRuntimePorts = {
-    startJobPolling: () => {},
-  };
-  const libraryEventPort = {};
-  const openSetupDialog = () => {};
-  const renderJob = () => {};
-  const submitJobRequest = async () => ({ job_id: "job-1" });
-
-  const ports = createSubmitFlowPorts({
-    workflowPorts,
-    uploadPorts,
-    credentialsPorts,
-    jobRuntimePorts,
-    libraryEventPort,
-    openSetupDialog,
-    renderJob,
-    submitJobRequest,
-  });
-
-  assert.equal(ports.currentWorkflow, workflowPorts.currentWorkflow);
-  assert.equal(ports.workflowNeedsCredentials, workflowPorts.workflowNeedsCredentials);
-  assert.equal(ports.workflowNeedsUpload, workflowPorts.workflowNeedsUpload);
-  assert.equal(ports.currentRenderSourceJobId, workflowPorts.currentRenderSourceJobId);
-  assert.equal(ports.currentBudgetState, workflowPorts.currentBudgetState);
-  assert.equal(ports.collectRunPayload, workflowPorts.collectRunPayload);
-  assert.equal(ports.validateBeforeSubmit, uploadPorts.validatePageRanges);
-  assert.equal(ports.ensureOcrCredentialsReady, credentialsPorts.ensureOcrCredentialsReady);
-  assert.equal(ports.hasBrowserCredentials, credentialsPorts.hasBrowserCredentials);
-  assert.equal(ports.openBrowserCredentialsDialog, credentialsPorts.openBrowserCredentialsDialog);
-  assert.equal(ports.refreshDeepSeekBalance, credentialsPorts.refreshDeepSeekBalance);
-  assert.equal(ports.startJobPolling, jobRuntimePorts.startJobPolling);
-  assert.equal(ports.libraryEventPort, libraryEventPort);
-  assert.equal(ports.openSetupDialog, openSetupDialog);
-  assert.equal(ports.renderJob, renderJob);
-  assert.equal(ports.submitJobRequest, submitJobRequest);
-});
-
-test("job runtime port exposes start polling without leaking the runtime feature", () => {
-  const calls = [];
-  const ports = createJobRuntimePorts({
-    jobRuntimeFeature: {
-      startPolling: (jobId) => calls.push(jobId),
-    },
-  });
-
-  ports.startJobPolling("job-1");
-
-  assert.deepEqual(calls, ["job-1"]);
-});
-
-test("workflow feature ports preserve legacy defaults and false passthrough", () => {
-  const defaultPorts = createWorkflowPorts({});
-  const falsePorts = createWorkflowPorts({
-    workflowFeature: {
-      workflowNeedsCredentials: () => false,
-      workflowNeedsUpload: () => false,
-    },
-  });
-
-  assert.equal(defaultPorts.currentWorkflow(), WORKFLOW_BOOK);
-  assert.equal(defaultPorts.workflowNeedsCredentials(WORKFLOW_BOOK), true);
-  assert.equal(defaultPorts.workflowNeedsUpload(WORKFLOW_BOOK), true);
-  assert.equal(defaultPorts.workflowNeedsCredentials(WORKFLOW_RENDER), false);
-  assert.equal(defaultPorts.workflowNeedsUpload(WORKFLOW_RENDER), false);
-  assert.equal(defaultPorts.workflowNeedsCredentials(), true);
-  assert.equal(defaultPorts.workflowNeedsUpload(), true);
-  assert.equal(falsePorts.workflowNeedsCredentials(WORKFLOW_BOOK), false);
-  assert.equal(falsePorts.workflowNeedsUpload(WORKFLOW_BOOK), false);
 });

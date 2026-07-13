@@ -2,7 +2,6 @@ import { withTimeout } from "../../utils/async-timeout.js";
 import { buildErrorDiagnostic } from "../../utils/error-diagnostics.js";
 import { getUploadStatePort } from "./state.js";
 import { defaultUploadConfigPort } from "./config-port.js";
-import { createUploadViewPort } from "./upload-view-port.js";
 
 export function mountUploadFeature({
   state,
@@ -25,7 +24,7 @@ export function mountUploadFeature({
   refreshDeepSeekBalance,
   workflowNeedsUpload,
   configPort = defaultUploadConfigPort,
-  viewPort = createUploadViewPort(),
+  viewPort,
 }) {
   const BALANCE_CHECK_TIMEOUT_MS = 12000;
   const uploadState = uploadStatePort || getUploadStatePort();
