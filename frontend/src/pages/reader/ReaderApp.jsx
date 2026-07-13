@@ -17,7 +17,7 @@ import {
   ReaderFavoritesDrawer,
   ReaderMarkdownDrawer,
 } from "./components/ReaderSideDrawers.jsx";
-import { DownloadToastHost } from "./components/DownloadToastHost.jsx";
+import { DownloadToastHost } from "../../shared/react/DownloadToastHost.jsx";
 import { createReaderDrawerStore } from "./state/drawer-store.js";
 import { useReaderBoot } from "./hooks/use-reader-boot.js";
 

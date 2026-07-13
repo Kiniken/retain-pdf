@@ -20,7 +20,7 @@ import { GlossariesDialog } from "./features/glossaries/GlossariesDialog.jsx";
 import { SettingsHubDialog } from "./features/settings/SettingsHubDialog.jsx";
 import { StatusDetailDialog } from "./features/status-detail/StatusDetailDialog.jsx";
 import { ReaderDialog } from "./features/reader/ReaderDialog.jsx";
-import { DownloadToastHost } from "./components/DownloadToastHost.jsx";
+import { DownloadToastHost } from "../../shared/react/DownloadToastHost.jsx";
 // library-search-island 自定义元素的唯一注册点。旧世界由 src/js/components/index.js
 // 兜底 side-effect import 注册;该文件随 cutover 删除后,注册链路断了会导致下方
 // JSX 里的 <library-search-island> 标签渲染成惰性空标签(数据契约上仍在,但搜索

@@ -12,8 +12,22 @@
 // #credential-gate-action、SettingsHubDialog 的 #credentials-btn 都 dispatch
 // 同一个事件);detail.setupMode 透传给 browser.js 的 openBrowserCredentialsDialog,
 // 驱动首次配置态(标题/保存按钮文案/隐藏 tabs)。
+//
+// Tabs 实现(阶段 B,shadcn 改造):同 SettingsHubDialog.jsx 的选择——直接用
+// radix-ui 的 Tabs 原语,不经 src/components/ui/tabs.jsx 默认皮肤(避免和
+// credential-tabs/credential-panel 这套 bespoke CSS 冲突)。activeTab 由
+// useCredentialsController 的 view.activeTab 驱动(不是本组件自己的
+// useState),Radix 走受控模式:value={activeTab} +
+// onValueChange={feature.activateCredentialTab}——原本挂在每个 trigger 上的
+// onClick 收敛成 Root 级别一个回调,行为不变。
+//
+// TaskOptionsPanel 常驻挂载(不随 tab 卸载,见下方 JSX 内联注释)这条既有
+// 约束继续保留:TabsPrimitive.Content 的 forceMount + 显式 hidden 覆盖(Radix
+// 内部会算一份 hidden,但 contentProps 展开顺序在其后,我们自己传的 hidden
+// 值最终生效),语义与原来手写的 hidden 属性完全一致。
 
 import { useEffect, useRef } from "react";
+import { Tabs as TabsPrimitive } from "radix-ui";
 import { APP_EVENTS } from "../../../../js/contracts/app-contract.js";
 import { useAppEvent } from "../../../../shared/react/use-app-event.js";
 import { CREDENTIAL_DOM_IDS } from "./credentials-dom-ids.js";
@@ -21,6 +35,7 @@ import { useCredentialsController } from "./useCredentialsController.js";
 import { OcrProviderPanels } from "./OcrProviderPanels.jsx";
 import { DeepSeekPanel } from "./DeepSeekPanel.jsx";
 import { TaskOptionsPanel } from "./TaskOptionsPanel.jsx";
+import { Button } from "../../../../components/Button.jsx";
 
 const { browser: BROWSER_IDS } = CREDENTIAL_DOM_IDS;
 
@@ -96,66 +111,73 @@ export function CredentialsDialog() {
             <h2 id={BROWSER_IDS.title}>{setupMode ? "首次配置" : "接口设置"}</h2>
             <p id={BROWSER_IDS.subtitle} className="muted hidden"></p>
           </div>
-          <button id={BROWSER_IDS.closeButton} type="submit" className="dialog-close-btn" aria-label="关闭">×</button>
+          <Button id={BROWSER_IDS.closeButton} type="submit" className="dialog-close-btn" aria-label="关闭">×</Button>
         </div>
-        <div className="desktop-body credential-dialog-body">
-          <div
-            id={BROWSER_IDS.tabs}
-            className={`developer-tabs credential-tabs${setupMode ? " hidden" : ""}`}
-            role="tablist"
-            aria-label="接口设置"
-          >
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                id={tab.id === "api" ? BROWSER_IDS.tabApi : BROWSER_IDS.tabTask}
-                type="button"
-                className={`developer-tab credential-tab${activeTab === tab.id ? " is-active" : ""}`}
-                data-credential-tab={tab.id}
-                role="tab"
-                aria-selected={activeTab === tab.id ? "true" : "false"}
-                onClick={() => feature?.activateCredentialTab(tab.id)}
+        <TabsPrimitive.Root
+          className="contents"
+          value={activeTab}
+          onValueChange={(tab) => feature?.activateCredentialTab(tab)}
+        >
+          <div className="desktop-body credential-dialog-body">
+            <TabsPrimitive.List
+              id={BROWSER_IDS.tabs}
+              className={`developer-tabs credential-tabs${setupMode ? " hidden" : ""}`}
+              aria-label="接口设置"
+            >
+              {TABS.map((tab) => (
+                <TabsPrimitive.Trigger
+                  key={tab.id}
+                  value={tab.id}
+                  id={tab.id === "api" ? BROWSER_IDS.tabApi : BROWSER_IDS.tabTask}
+                  className={`developer-tab credential-tab${activeTab === tab.id ? " is-active" : ""}`}
+                  data-credential-tab={tab.id}
+                >
+                  {tab.label}
+                </TabsPrimitive.Trigger>
+              ))}
+            </TabsPrimitive.List>
+            <div className="credential-panels">
+              <TabsPrimitive.Content
+                value="api"
+                forceMount
+                hidden={activeTab !== "api"}
+                className={`credential-panel${activeTab === "api" ? " is-active" : ""}`}
+                data-credential-panel="api"
               >
-                {tab.label}
-              </button>
-            ))}
+                <div className="credential-card-grid credential-card-grid-compact credential-api-grid">
+                  <section className="credential-card">
+                    <div className="credential-card-head">
+                      <h3>OCR</h3>
+                    </div>
+                    <OcrProviderPanels />
+                  </section>
+                  <DeepSeekPanel />
+                </div>
+              </TabsPrimitive.Content>
+              {/* TaskOptionsPanel 不套 TabsPrimitive.Content:它内部本来就是一个
+                  自带 role="tabpanel" 的独立 <section>(见 TaskOptionsPanel.jsx),
+                  再包一层 Content 会产生嵌套的 role=tabpanel(a11y 语义重复),
+                  收益还不如维持现状。常驻挂载(不随 tab 条件卸载)语义本来就不
+                  依赖 Radix——它只是普通 React 组件,从来没被 Radix 卸载过,
+                  这里继续沿用原有 hidden 属性写法即可:TaskOptionsPanel 持有的
+                  modelBaseUrl/modelName/mathMode 字段 ref 在保存时被
+                  dialog-values.js 统一读取,不论用户当前停在哪个 tab —— 卸载会
+                  让这些 ref 变 null,复现"切到 API 面板点保存,任务选项静默丢失"
+                  的问题。 */}
+              <TaskOptionsPanel hidden={activeTab !== "task"} />
+            </div>
+            <div className="actions credential-dialog-actions">
+              <span id={BROWSER_IDS.status} className={statusClasses}>{statusContent}</span>
+              <Button
+                id={BROWSER_IDS.saveButton}
+                className="app-button"
+                onClick={() => handlers?.save?.()}
+              >
+                {setupMode ? "保存并启动" : "保存"}
+              </Button>
+            </div>
           </div>
-          <div className="credential-panels">
-            <section
-              className={`credential-panel${activeTab === "api" ? " is-active" : ""}`}
-              data-credential-panel="api"
-              role="tabpanel"
-              hidden={activeTab !== "api"}
-            >
-              <div className="credential-card-grid credential-card-grid-compact credential-api-grid">
-                <section className="credential-card">
-                  <div className="credential-card-head">
-                    <h3>OCR</h3>
-                  </div>
-                  <OcrProviderPanels />
-                </section>
-                <DeepSeekPanel />
-              </div>
-            </section>
-            {/* 常驻挂载(不随 tab 条件卸载):TaskOptionsPanel 持有的
-                modelBaseUrl/modelName/mathMode 字段 ref 在保存时被
-                dialog-values.js 统一读取,不论用户当前停在哪个 tab —— 卸载会
-                让这些 ref 变 null,复现"切到 API 面板点保存,任务选项静默丢失"
-                的问题。传 hidden 属性隐藏,不用条件渲染。 */}
-            <TaskOptionsPanel hidden={activeTab !== "task"} />
-          </div>
-          <div className="actions credential-dialog-actions">
-            <span id={BROWSER_IDS.status} className={statusClasses}>{statusContent}</span>
-            <button
-              id={BROWSER_IDS.saveButton}
-              type="button"
-              className="app-button"
-              onClick={() => handlers?.save?.()}
-            >
-              {setupMode ? "保存并启动" : "保存"}
-            </button>
-          </div>
-        </div>
+        </TabsPrimitive.Root>
       </form>
     </dialog>
   );

@@ -45,6 +45,14 @@ function bundleOptions({ entry, outfile }) {
     target: ["es2022"],
     // .jsx 走自动运行时(react/jsx-runtime),随页面包打包
     jsx: "automatic",
+    // shadcn/ui 组件源码(src/components/ui/**)和 src/lib/utils.js 内部用
+    // "@/..." 引用彼此(components.json 的 aliases 约定)。jsconfig.json 只
+    // 对编辑器/类型检查生效,esbuild 打包本身不会读它——这里用 esbuild
+    // 0.19+ 原生支持的 alias 选项显式声明同一份映射,否则构建期会报
+    // "Could not resolve @/lib/utils" 之类的错误。
+    alias: {
+      "@": path.join(frontendRoot, "src"),
+    },
     loader: {
       ".html": "text",
     },

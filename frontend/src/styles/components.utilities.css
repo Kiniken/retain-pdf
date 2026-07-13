@@ -172,10 +172,6 @@
   /* 全局 .hidden{display:none!important} 已在 components.css 里以普通规则
      恢复,这里不再重复裸声明(Tailwind 会丢弃 @utility 对内置工具类裸类名
      层级的重新声明,详见 components.css 里的说明)。 */
-
-  &.download-toast {
-    display: none;
-  }
 }
 
 @utility translation-workflow-card {
@@ -1874,32 +1870,11 @@
   margin-top: 1rem;
 }
 
-@utility download-toast {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 120;
-  width: min(320px, calc(100vw - 24px));
-
-  &.hidden {
-    display: none;
-  }
-
-  &[data-tone='success'] .download-toast-bar {
-    background: linear-gradient(90deg, #4ade80, #16a34a);
-  }
-
-  &[data-tone='error'] .download-toast-bar {
-    background: linear-gradient(90deg, #f87171, #dc2626);
-  }
-
-  @media (max-width: 767px) {
-    right: 12px;
-    bottom: 12px;
-    width: min(320px, calc(100vw - 16px));
-  }
-}
-
+/* download-toast(固定定位外壳)已随阶段 B 的 Sonner 迁移退役——外层定位/层级/
+   移动端断点现在由 <Toaster/>(src/components/ui/sonner.jsx,底层
+   [data-sonner-toaster])负责,不再需要项目自己的 fixed 容器。旧的
+   [data-tone] 渐变色选择器原本挂在 .download-toast(外层)上,现在 tone 直接
+   设置在 download-toast-card 这张卡片 div 本身,选择器一并挪到这里。 */
 @utility download-toast-card {
   display: grid;
   gap: 10px;
@@ -1910,6 +1885,14 @@
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.14);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+
+  &[data-tone='success'] .download-toast-bar {
+    background: linear-gradient(90deg, #4ade80, #16a34a);
+  }
+
+  &[data-tone='error'] .download-toast-bar {
+    background: linear-gradient(90deg, #f87171, #dc2626);
+  }
 }
 
 @utility download-toast-head {
@@ -1947,11 +1930,11 @@
     width 0.18s ease,
     background 0.18s ease;
 
-  .download-toast[data-tone='success'] & {
+  .download-toast-card[data-tone='success'] & {
     background: linear-gradient(90deg, #4ade80, #16a34a);
   }
 
-  .download-toast[data-tone='error'] & {
+  .download-toast-card[data-tone='error'] & {
     background: linear-gradient(90deg, #f87171, #dc2626);
   }
 }

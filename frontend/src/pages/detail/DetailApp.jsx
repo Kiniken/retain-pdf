@@ -45,7 +45,7 @@ import {
   StageHistoryModal,
   StageHistoryTriggerCard,
 } from "./components/EventsTimeline.jsx";
-import { DownloadToastHost } from "./components/DownloadToastHost.jsx";
+import { DownloadToastHost } from "../../shared/react/DownloadToastHost.jsx";
 
 const JOB_EVENTS_PAGE_SIZE = 200;
 

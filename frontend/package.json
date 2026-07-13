@@ -31,13 +31,19 @@
     "tailwindcss": "^4.3.2"
   },
   "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "lottie-web": "^5.13.0",
+    "lucide-react": "^1.24.0",
     "marked": "^18.0.6",
     "mathjax-full": "^3.2.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.8.69",
+    "radix-ui": "^1.6.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-resizable-panels": "4.12.1"
+    "react-resizable-panels": "4.12.1",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.6.0"
   }
 }

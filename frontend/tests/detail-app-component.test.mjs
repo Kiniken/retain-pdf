@@ -17,6 +17,12 @@ for (const key of ["window", "document", "HTMLElement", "CustomEvent", "Event", 
 }
 globalThis.window = dom.window;
 globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(0), 0);
+// Radix Presence/Tabs(阶段 B 引入)在 jsdom 下需要 cancelAnimationFrame
+// (TabsContent 的 mount 动画计时器清理)和 getComputedStyle(Presence 读取
+// animation-name 判断退场动画是否结束)——jsdom 的 window 上有实现,只是没有
+// 像 requestAnimationFrame 一样被复制到裸 global 上,这里一并补上。
+globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
+globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
 globalThis.IS_REACT_ACT_ENVIRONMENT = false;
 
 const { createRoot } = await import("react-dom/client");

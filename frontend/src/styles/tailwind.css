@@ -1,6 +1,21 @@
 @import 'tailwindcss';
 
 /*
+  shadcn 组件源码里大量类名带 `dark:` 前缀(如 button.jsx 的
+  `dark:bg-destructive/60`)。Tailwind v4 的 `dark:` 变体默认按
+  `prefers-color-scheme: dark` 媒体查询生效,而不是"某个元素带 .dark
+  类"——项目 tokens.css 只有单一 :root,压根没有暗色模式设计,一旦某个
+  访客系统开着深色模式,这些 dark: 类会在半成品状态下被激活(没有配套的暗色
+  token,画面会不上不下地变淡/变暗),这是实测确认过的真实问题(验证 Button
+  时 destructive 变体在此环境下渲染成了 60% 透明度而非实心红,根源就是
+  headless 浏览器 prefers-color-scheme 探测为 dark 命中了 dark:bg-destructive/60)。
+  把 dark 变体的判定改绑到 `.dark` 类选择器——项目里永远不会有元素带这个类,
+  于是 dark: 前缀的类名永久不生效,行为等价于"固定浅色主题",不随访客系统
+  设置漂移。
+*/
+@custom-variant dark (&:is(.dark *));
+
+/*
   显式声明 content 来源(对应原 tailwind.config.js 的 content 数组),
   不依赖 v4 的自动探测——路径相对本文件(src/styles/)解析。
 */
@@ -13,6 +28,8 @@
 @source '../pages/**/*.jsx';
 @source '../shared/**/*.js';
 @source '../partials/**/*.html';
+@source '../components/**/*.jsx';
+@source '../lib/**/*.js';
 
 /*
   危险区修复(Tailwind v4 迁移):v4 的内容扫描是纯文本 token 提取,不理解 JS
@@ -48,6 +65,32 @@
 
   --shadow-soft: 0 10px 30px rgba(80, 66, 40, 0.08);
   --shadow-panel: 0 18px 48px rgba(37, 31, 20, 0.22);
+
+  /*
+    shadcn/ui 组件消费的标准变量名(阶段 A,shadcn 工具链落地)。实际值的
+    映射理由和"命名避坑"说明见 src/styles/shadcn-theme.css 顶部注释——这里
+    只做 Tailwind v4 要求的"@theme 名字 → 运行时变量"登记,不重复写理由。
+  */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted-surface);
+  --color-muted-foreground: var(--muted);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 /*

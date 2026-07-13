@@ -19,6 +19,12 @@ for (const key of ["window", "document", "HTMLElement", "HTMLInputElement", "Cus
 globalThis.window = dom.window;
 globalThis.localStorage = dom.window.localStorage;
 globalThis.requestAnimationFrame = (callback) => setTimeout(() => callback(0), 0);
+// Radix Presence/Tabs(阶段 B 引入)在 jsdom 下需要 cancelAnimationFrame
+// (TabsContent 的 mount 动画计时器清理)和 getComputedStyle(Presence 读取
+// animation-name 判断退场动画是否结束)——jsdom 的 window 上有实现,只是没有
+// 像 requestAnimationFrame 一样被复制到裸 global 上,这里一并补上。
+globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
+globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
 globalThis.IS_REACT_ACT_ENVIRONMENT = false;
 
 const { createRoot } = await import("react-dom/client");
@@ -48,6 +54,12 @@ function byId(id) {
 }
 
 function click(element) {
+  // Radix Tabs 的 Trigger 激活逻辑挂在 onMouseDown(不是 onClick)上——阶段 B
+  // 迁移到 Radix Tabs 后(CredentialsDialog/SettingsHubDialog 的 tab),只
+  // dispatch "click" 不会触发 tab 切换。真实浏览器点击本来就是
+  // mousedown→mouseup→click 全套,这里补上 mousedown 让模拟点击更贴近真实
+  // 交互,而不是放宽任何断言。
+  element.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true, button: 0 }));
   element.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
 }
 
