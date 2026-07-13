@@ -878,6 +878,10 @@ export function createHomeComposition({
 
     // retryStage:StageRetry.jsx dispatch,job-runtime 引擎消费(蓝图 §5 事件
     // 契约,原样保留)。
+    // returnHome:status-area.js 的 returnHome() dispatch(工作流对话框处于
+    // 状态模式时点 × 走这条路,而非直接关闭——见 TranslationWorkflowDialog
+    // 的 requestClose 语义),之前只有 dispatch 没有消费方,点击无反应;
+    // job-runtime 引擎的 returnToHome() 是现成的完整重置逻辑,这里接上。
     if (!disposeJobRuntimeDocumentEvents && documentRef?.addEventListener) {
       const onRetryStage = (event) => {
         const stage = `${event?.detail?.stage || ""}`.trim();
@@ -885,9 +889,14 @@ export function createHomeComposition({
           features.jobRuntimeFeature.retryStage(stage);
         }
       };
+      const onReturnHome = () => {
+        features.jobRuntimeFeature.returnToHome();
+      };
       documentRef.addEventListener(APP_EVENTS.retryStage, onRetryStage);
+      documentRef.addEventListener(APP_EVENTS.returnHome, onReturnHome);
       disposeJobRuntimeDocumentEvents = () => {
         documentRef.removeEventListener(APP_EVENTS.retryStage, onRetryStage);
+        documentRef.removeEventListener(APP_EVENTS.returnHome, onReturnHome);
       };
     }
 
