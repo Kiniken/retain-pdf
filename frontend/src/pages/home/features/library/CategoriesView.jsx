@@ -9,7 +9,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useHomeServices } from "../../home-services-context.js";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
-import { recentJobTitle } from "../../../../js/features/recent-jobs/card-presenter.js";
 import { RecentJobCard } from "./RecentJobCard.jsx";
 import { useRecentJobCover } from "./useRecentJobCover.js";
 
@@ -21,7 +20,6 @@ const MAX_STACK = 4;
 
 function FolderCoverStackLayer({ item, index, total }) {
   const coverUrl = useRecentJobCover(item);
-  const title = recentJobTitle(item);
   const z = 10 + (total - 1 - index);
   const rot = (index - (total - 1) / 2) * -5;
   const offsetX = (index - (total - 1) / 2) * 5;
@@ -38,7 +36,13 @@ function FolderCoverStackLayer({ item, index, total }) {
       {coverUrl ? (
         <img src={coverUrl} alt="" />
       ) : (
-        <span className="category-card-stack-fallback">{title.slice(0, 1)}</span>
+        <span className="category-card-stack-fallback" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+            <path d="M14 3v4h4" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+            <path d="M9 12.5h6M9 15.5h6M9 9.5h2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        </span>
       )}
     </div>
   );

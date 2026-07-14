@@ -167,7 +167,16 @@
   .recent-job-cover.has-image & {
     opacity: 0;
   }
-  @apply text-[32px] font-bold text-[#1d1d1f]/40;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: rgba(29, 29, 31, 0.32);
+
+  & svg {
+    width: 34%;
+    height: 34%;
+  }
 }
 
 @utility recent-job-active-overlay {

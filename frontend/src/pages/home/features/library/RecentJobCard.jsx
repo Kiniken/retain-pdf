@@ -21,6 +21,24 @@ import {
 } from "../../../../js/features/recent-jobs/card-presenter.js";
 import { useRecentJobCover } from "./useRecentJobCover.js";
 
+// 卡片底部日期:书架卡片是概览列表,不需要 job/formatters.js#formatEventTimestamp
+// 那种事件时间线级别的秒精度——只显示到日期,和"69 页 ·"拼在一起不会太挤。
+function formatCardDate(value) {
+  const raw = `${value || ""}`.trim();
+  if (!raw) {
+    return "-";
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw;
+  }
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(parsed);
+}
+
 // 卡片级 memo 签名(蓝图 §3.2):只有这些字段变化才判定卡片"脏"。
 // 1s 轮询下 recentJobsStore 每次都返回新的 frozen clone,不能靠 item 引用
 // 相等——必须靠内容签名比较,否则 24 张卡片会随任意一张的补丁全部重渲。
@@ -79,7 +97,7 @@ function RecentJobCardImpl({
   const active = isRecentJobActive(item);
   const title = recentJobTitle(item);
   const pageCount = item.page_count || "-";
-  const updatedAt = item.updated_at || "-";
+  const updatedAt = formatCardDate(item.updated_at);
   const fullTitle = item.title || item.display_name || item.job_id || "-";
   const jobId = `${item.job_id || ""}`.trim();
   renderCountsForTests.set(jobId, (renderCountsForTests.get(jobId) || 0) + 1);
@@ -151,7 +169,13 @@ function RecentJobCardImpl({
           className={`recent-job-cover${coverUrl ? " has-image" : ""}`}
           style={coverUrl ? { backgroundImage: `url("${coverUrl}")` } : undefined}
         >
-          <span className="recent-job-cover-fallback">{title.slice(0, 1)}</span>
+          <span className="recent-job-cover-fallback" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+              <path d="M14 3v4h4" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+              <path d="M9 12.5h6M9 15.5h6M9 9.5h2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </span>
           {active ? (
             <div className="recent-job-active-overlay" aria-label={recentJobStageLabel(item)}>
               <span className="recent-job-active-label">{recentJobStageLabel(item)}</span>
