@@ -10,6 +10,7 @@ import {
   getMockSearchHits,
   countMockFavoritesByJob,
   patchMockDocument,
+  translateMockDocument,
 } from "../src/js/mock/documents.js";
 import { MOCK_JOB_ID } from "../src/js/mock/constants.js";
 import { createRecentJobActions } from "../src/js/features/recent-jobs/actions.js";
@@ -21,15 +22,38 @@ test("mock 文档列表支持 reading_status 与 tag 过滤", () => {
   assert.ok(all.documents.length >= 3);
   for (const doc of all.documents) {
     assert.ok(doc.document_id);
-    assert.ok(doc.active_job_id, "active_job_id 是打开阅读器要用的处理 run");
+    // 文档中心模型:active_job_id 可空(馆藏态,只入库未翻译),不再是硬不变量。
     assert.ok(["unread", "reading", "done"].includes(doc.reading_status));
     assert.ok(Array.isArray(doc.tags));
+    // API 层给每篇文档填三个媒体 URL(镜像后端 with_document_media_urls)。
+    assert.ok(doc.source_pdf_url, "source_pdf_url 让馆藏文档也能读原文");
+    assert.ok(doc.cover_url);
+    assert.ok(doc.thumbnail_url);
   }
+  // 既有翻译过的文档、也有馆藏态文档(无 active_job_id)。
+  assert.ok(all.documents.some((doc) => `${doc.active_job_id || ""}`.trim()), "存在已翻译文档");
+  assert.ok(
+    all.documents.some((doc) => !`${doc.active_job_id || ""}`.trim()),
+    "存在馆藏态文档(无 active_job_id)",
+  );
   const reading = getMockDocumentList({ readingStatus: "reading" });
   assert.ok(reading.documents.every((doc) => doc.reading_status === "reading"));
   const tagged = getMockDocumentList({ tag: "化学" });
   assert.ok(tagged.documents.length >= 1);
   assert.ok(tagged.documents.every((doc) => doc.tags.includes("化学")));
+});
+
+test("translateMockDocument:给馆藏文档挂 active_job_id 并返回提交视图", () => {
+  const before = getMockDocumentList().documents.find((doc) => !`${doc.active_job_id || ""}`.trim());
+  assert.ok(before, "至少一篇馆藏文档");
+  const submission = translateMockDocument(before.document_id);
+  assert.equal(submission.document_id, before.document_id);
+  assert.ok(submission.job_id, "返回 job_id");
+  assert.ok(["queued", "running", "pending"].includes(submission.status));
+  const after = getMockDocument(before.document_id);
+  assert.equal(after.active_job_id, submission.job_id, "馆藏文档挂上 active_job_id");
+  // 幂等保护:已在翻译流程中再发起应报错。
+  assert.throws(() => translateMockDocument(before.document_id), /409/);
 });
 
 test("PATCH 文档:reading_status 校验与 tags 整体替换语义", () => {

@@ -5,6 +5,7 @@ import {
   getMockDocumentByJobId,
   getMockDocumentList,
   patchMockDocument,
+  translateMockDocument,
 } from "../mock/documents.js";
 import { buildApiEndpoint } from "./http.js";
 
@@ -98,6 +99,35 @@ export async function patchDocument(apiPrefix, documentId, payload = {}) {
   if (!resp.ok) {
     const envelope = await resp.json().catch(() => null);
     throw new Error(`${envelope?.message || "更新文档失败，请稍后重试。"}(${resp.status})`);
+  }
+  return unwrapEnvelope(await resp.json());
+}
+
+// 对馆藏文档发起"以后再翻":复用文档已存的 upload 起 book 翻译 job。
+// 后端 translate_document 会注入该文档的 upload_id 并把 workflow 归一到 book/translate,
+// 前端只需带一个最小 CreateJobInput(workflow 缺省即 book)。返回 JobSubmissionView。
+export async function translateDocument(apiPrefix, documentId, payload = {}) {
+  const normalized = `${documentId || ""}`.trim();
+  if (!normalized) {
+    throw new Error("缺少 document_id。");
+  }
+  if (isMockMode()) {
+    return translateMockDocument(normalized);
+  }
+  const resp = await fetch(
+    buildApiEndpoint(apiPrefix, `documents/${encodeURIComponent(normalized)}/translate`),
+    {
+      method: "POST",
+      headers: {
+        ...buildApiHeaders(),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!resp.ok) {
+    const envelope = await resp.json().catch(() => null);
+    throw new Error(`${envelope?.message || "发起翻译失败，请稍后重试。"}(${resp.status})`);
   }
   return unwrapEnvelope(await resp.json());
 }

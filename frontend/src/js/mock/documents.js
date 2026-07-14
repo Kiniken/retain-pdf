@@ -42,7 +42,50 @@ function buildMockDocuments() {
       added_at: "2026-06-08T14:00:00Z",
       updated_at: "2026-06-08T14:00:00Z",
     },
+    // 馆藏态(只入库、未翻译):active_job_id 为空。文档中心网格要能显示它们,
+    // 阅读器要能只读原文,卡片要能"以后再翻"。
+    {
+      document_id: "doc-ref-6a1f2c",
+      title: "Reaxys Retrosynthesis 手册(仅馆藏)",
+      source_filename: "reaxys-handbook.pdf",
+      page_count: 42,
+      bytes: 3_200_000,
+      active_job_id: null,
+      reading_status: "unread",
+      tags: ["工具书"],
+      added_at: "2026-06-10T09:00:00Z",
+      updated_at: "2026-06-10T09:00:00Z",
+    },
+    {
+      document_id: "doc-ref-9b7e04",
+      title: "Group Theory Lecture Notes(仅馆藏)",
+      source_filename: "group-theory-notes.pdf",
+      page_count: 88,
+      bytes: 5_600_000,
+      active_job_id: "",
+      reading_status: "reading",
+      tags: [],
+      added_at: "2026-06-12T15:30:00Z",
+      updated_at: "2026-06-12T15:30:00Z",
+    },
   ];
+}
+
+// 镜像后端 with_document_media_urls:列表/详情由 API 层给每篇文档填三个媒体
+// URL(不入库)。cover/thumbnail 用真实形状的 /api/v1/documents/:id/... 路径
+// (mock 模式下这两个图片 fetch 会失败 → useRecentJobCover 兜底成占位图标,
+// 和现有 mock 卡片行为一致);source_pdf_url 用 mock:// 通道,好让"只读原文"
+// 阅读器在 ?mock= 下也能真的渲染出源 PDF(见 mock/responses.js)。
+export const MOCK_DOCUMENT_SOURCE_PDF_URL = "mock://document-source.pdf";
+
+function withMockDocumentMediaUrls(document) {
+  const base = `/api/v1/documents/${encodeURIComponent(document.document_id)}`;
+  return {
+    ...document,
+    source_pdf_url: MOCK_DOCUMENT_SOURCE_PDF_URL,
+    cover_url: `${base}/cover`,
+    thumbnail_url: `${base}/thumbnail`,
+  };
 }
 
 let mockDocuments = null;
@@ -73,7 +116,7 @@ export function getMockDocumentList({
     list = list.filter((item) => memberIds.has(item.document_id));
   }
   return {
-    documents: list.slice(offset, offset + limit),
+    documents: list.slice(offset, offset + limit).map(withMockDocumentMediaUrls),
     total: list.length,
     limit,
     offset,
@@ -85,7 +128,7 @@ export function getMockDocument(documentId) {
   if (!found) {
     throw new Error("未找到该文档。(404)");
   }
-  return { ...found };
+  return withMockDocumentMediaUrls(found);
 }
 
 // 后端按 job_id 直查所属文档:active_job_id 命中当然算,
@@ -101,12 +144,12 @@ export function getMockDocumentByJobId(jobId) {
   }
   const byActive = documents().find((item) => item.active_job_id === normalized);
   if (byActive) {
-    return { ...byActive };
+    return withMockDocumentMediaUrls(byActive);
   }
   const historicalDocId = MOCK_HISTORICAL_JOB_TO_DOCUMENT[normalized];
   if (historicalDocId) {
     const doc = documents().find((item) => item.document_id === historicalDocId);
-    return doc ? { ...doc } : null;
+    return doc ? withMockDocumentMediaUrls(doc) : null;
   }
   return null;
 }
@@ -132,7 +175,28 @@ export function patchMockDocument(documentId, { title, reading_status: readingSt
     found.tags = Array.isArray(tags) ? tags.map((item) => `${item}`) : [];
   }
   found.updated_at = new Date().toISOString();
-  return { ...found };
+  return withMockDocumentMediaUrls(found);
+}
+
+// mock 版 POST /documents/:id/translate:给馆藏文档挂一个 mock active_job_id,
+// 让 F2 的进度轮询把这条卡片从"馆藏"接管进"翻译中"。返回 JobSubmissionView 形状
+// (与后端 translate_document_view 一致:job_id + status + document_id)。
+export function translateMockDocument(documentId) {
+  const found = documents().find((item) => item.document_id === documentId);
+  if (!found) {
+    throw new Error("未找到该文档。(404)");
+  }
+  if (`${found.active_job_id || ""}`.trim()) {
+    throw new Error("该文档已在翻译流程中。(409)");
+  }
+  const jobId = `mock-translate-${found.document_id}`;
+  found.active_job_id = jobId;
+  found.updated_at = new Date().toISOString();
+  return {
+    job_id: jobId,
+    document_id: found.document_id,
+    status: "queued",
+  };
 }
 
 // ===== 分类(合集):建文件夹给 PDF 分组 =====

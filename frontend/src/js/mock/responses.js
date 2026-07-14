@@ -68,6 +68,16 @@ export async function fetchMockProtected(url) {
       },
     });
   }
+  // 文档级源 PDF(馆藏文档 source_pdf_url,见 mock/documents.js):让"只读原文"
+  // 阅读器在 ?mock= 下也能真的挂出一栏源文档。
+  if (normalized === "mock://document-source.pdf") {
+    return new Response(mockPdfBytes("Library Document"), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+      },
+    });
+  }
   if (normalized === "mock://bundle.zip") {
     return new Response(new Uint8Array([80, 75, 5, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), {
       status: 200,
