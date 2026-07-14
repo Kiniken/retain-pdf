@@ -210,6 +210,19 @@ export function HeroUpload() {
           >
             专业翻译
           </button>
+          {/* 只入库不翻译(F3):PDF 上传完成时后端已经建好 document 了,这里
+              只是"不提交翻译 job"——直接关对话框 + 刷新网格,新文档以馆藏态进
+              图书馆,以后想翻再在卡片上点"翻译"。上传就绪后才出现。 */}
+          <button
+            id="store-only-btn"
+            type="button"
+            className={`secondary${upload.ready ? "" : " hidden"}`}
+            title="只把这本 PDF 存进图书馆，暂不翻译"
+            disabled={workflow.submitBusy}
+            onClick={() => services.library.actions.storeOnly?.()}
+          >
+            只入库
+          </button>
           <button
             id="submit-btn"
             type="submit"

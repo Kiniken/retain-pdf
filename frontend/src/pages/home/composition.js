@@ -729,6 +729,17 @@ export function createHomeComposition({
     }
   }
 
+  // F3 "只入库,不翻译":PDF 在**上传完成那一刻**后端就已经建好 document 了
+  // (POST /uploads → upsert_document_from_upload,document_id = 内容哈希),
+  // 所以"只入库"不需要任何新接口——就是**不提交翻译 job**:关掉工作流对话框
+  // (其 close() 顺带 resetUploadSession)+ 刷新网格,新文档以馆藏态出现。
+  function storeUploadedDocumentOnly() {
+    if (documentRef?.dispatchEvent && typeof globalThis.CustomEvent === "function") {
+      documentRef.dispatchEvent(new globalThis.CustomEvent(APP_EVENTS.closeTranslationWorkflow));
+    }
+    libraryEventPort.requestRefresh({ force: true, delay: 0 });
+  }
+
   // F5 馆藏文档"以后再翻":复用文档已存的 upload 起 book 翻译 job,后端回填
   // active_job_id;随后整页重载一次——该文档会以真实 job_id 重新进网格,现有
   // 轮询引擎(active-refresh 按 job_id 拉 job payload)自然接管进度。
@@ -1041,7 +1052,12 @@ export function createHomeComposition({
     library: {
       viewPort: recentJobsViewPort,
       recentJobsStore: recentJobsStatePort.store,
-      actions: { ...recentJobActions, openSourceReader, translateDocument: translateLibraryDocument },
+      actions: {
+        ...recentJobActions,
+        openSourceReader,
+        translateDocument: translateLibraryDocument,
+        storeOnly: storeUploadedDocumentOnly,
+      },
     },
     // CategoriesView.jsx/CollectionManageDialog.jsx 的唯一装配入口。没有旧
     // 世界 controller.js 可复用(collections/collection_documents 表随图书馆

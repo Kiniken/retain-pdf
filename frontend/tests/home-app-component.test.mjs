@@ -157,7 +157,7 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
     "file", "upload-fill", "credential-gate", "credential-gate-title", "credential-gate-help", "credential-gate-action",
     "upload-glyph", "file-label", "upload-help", "upload-status", "upload-progress-panel", "upload-progress-text",
     "inline-page-range", "page-range-start", "page-range-end", "translation-budget-note",
-    "upload-action-slot", "page-range-btn", "submit-btn", "error-box-inline",
+    "upload-action-slot", "page-range-btn", "submit-btn", "store-only-btn", "error-box-inline",
     "status-section", "job-status-card",
   ];
   for (const id of workflowContractIds) {
