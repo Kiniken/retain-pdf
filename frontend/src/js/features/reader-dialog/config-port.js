@@ -36,6 +36,24 @@ export function createReaderDialogConfigPort({
     });
   }
 
+  // 馆藏文档"读原文":没有 job,用 document_id 打开只读源文档阅读器(F4)。
+  function buildReaderDocumentPageUrl(documentId, anchor = null) {
+    const normalizedId = `${documentId || ""}`.trim();
+    if (!normalizedId) {
+      return "";
+    }
+    const scenario = currentMockScenarioSafe();
+    const pageIdx = Number(anchor?.pageIdx);
+    return buildPageUrl("./reader.html", {
+      document_id: normalizedId,
+      ...(Number.isFinite(pageIdx) && anchor?.pageIdx !== null && anchor?.pageIdx !== undefined
+        ? { page_idx: `${pageIdx}` }
+        : {}),
+      ...(`${anchor?.blockId || ""}`.trim() ? { block_id: `${anchor.blockId}`.trim() } : {}),
+      ...(scenario ? { mock: scenario } : {}),
+    });
+  }
+
   function currentHref() {
     return locationProvider()?.href || "http://127.0.0.1/";
   }
@@ -66,6 +84,7 @@ export function createReaderDialogConfigPort({
 
   return Object.freeze({
     buildReaderPageUrl,
+    buildReaderDocumentPageUrl,
     buildReaderRouteUrl,
     isTrustedReaderMessage,
     requestedReaderJobIdFromLocation,

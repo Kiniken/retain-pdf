@@ -72,6 +72,7 @@ import {
   READER_FRAME_PLACEHOLDER,
 } from "../../../../js/features/reader-dialog/contract.js";
 import {
+  buildReaderDocumentPageUrl,
   buildReaderPageUrl,
   buildReaderRouteUrl,
   requestedReaderJobIdFromLocation,
@@ -193,15 +194,25 @@ export function ReaderDialog() {
   useAppEvent(APP_EVENTS.openReaderRequested, (event) => {
     const detail = event?.detail || {};
     const jobId = `${detail.jobId || ""}`.trim();
-    if (!jobId) {
+    const anchor = anchorFromEventDetail(detail);
+    if (jobId) {
+      const url = buildReaderPageUrl(jobId, anchor);
+      if (!url) {
+        return;
+      }
+      dialogStore.open({ jobId, url, anchor });
       return;
     }
-    const anchor = anchorFromEventDetail(detail);
-    const url = buildReaderPageUrl(jobId, anchor);
+    // 无 job 的"读原文"(馆藏文档,F4):用 document_id 打开只读源文档阅读器。
+    const documentId = `${detail.documentId || ""}`.trim();
+    if (!documentId) {
+      return;
+    }
+    const url = buildReaderDocumentPageUrl(documentId, anchor);
     if (!url) {
       return;
     }
-    dialogStore.open({ jobId, url, anchor });
+    dialogStore.open({ jobId: "", documentId, url, anchor });
   });
 
   // (a) 一次性挂载 effect(不参与 open/close 状态机、不碰路由/history 之外的

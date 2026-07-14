@@ -81,6 +81,7 @@ export function RecentJobsLibrary() {
                 onSelect={actions.selectJob}
                 onDelete={actions.deleteJob}
                 onReader={actions.openJobReader}
+                onReadSource={actions.openSourceReader}
                 onToggleDeleteConfirm={handleToggleDeleteConfirm}
               />
             ))}

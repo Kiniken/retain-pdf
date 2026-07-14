@@ -715,6 +715,20 @@ export function createHomeComposition({
     statePort: recentJobsStatePort,
   });
 
+  // F4 馆藏文档"读原文":无 job,派发带 documentId 的 openReaderRequested,
+  // ReaderDialog 用 document_id 打开只读源文档阅读器(与卡片对照阅读同一事件契约)。
+  function openSourceReader(documentId) {
+    const normalizedId = `${documentId || ""}`.trim();
+    if (!normalizedId) {
+      return;
+    }
+    if (documentRef?.dispatchEvent && typeof globalThis.CustomEvent === "function") {
+      documentRef.dispatchEvent(new globalThis.CustomEvent(APP_EVENTS.openReaderRequested, {
+        detail: { documentId: normalizedId, pageIdx: null, blockId: "" },
+      }));
+    }
+  }
+
   // ---- app-actions 特性(提交流程域;之前 cutover 遗漏,补线接入)——
   // controller.js(mountAppActionsFeature)/submit-flow.js(runSubmitFlow)/
   // config-port.js/job-snapshot-port.js/runtime-env-port.js/upload-state-port.js
@@ -1003,7 +1017,7 @@ export function createHomeComposition({
     library: {
       viewPort: recentJobsViewPort,
       recentJobsStore: recentJobsStatePort.store,
-      actions: recentJobActions,
+      actions: { ...recentJobActions, openSourceReader },
     },
     // CategoriesView.jsx/CollectionManageDialog.jsx 的唯一装配入口。没有旧
     // 世界 controller.js 可复用(collections/collection_documents 表随图书馆

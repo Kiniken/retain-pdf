@@ -85,6 +85,7 @@ function areCardPropsEqual(prevProps, nextProps) {
   return prevProps.onSelect === nextProps.onSelect
     && prevProps.onDelete === nextProps.onDelete
     && prevProps.onReader === nextProps.onReader
+    && prevProps.onReadSource === nextProps.onReadSource
     && prevProps.isConfirmingDelete === nextProps.isConfirmingDelete
     && prevProps.onToggleDeleteConfirm === nextProps.onToggleDeleteConfirm
     && cardSignatureOf(prevProps.item) === cardSignatureOf(nextProps.item);
@@ -96,9 +97,11 @@ function RecentJobCardImpl({
   onSelect,
   onDelete,
   onReader,
+  onReadSource,
   onToggleDeleteConfirm,
 }) {
   const libraryOnly = isLibraryOnlyItem(item);
+  const documentId = `${item.document_id || ""}`.trim();
   const active = isRecentJobActive(item);
   const title = recentJobTitle(item);
   const pageCount = item.page_count || "-";
@@ -111,6 +114,9 @@ function RecentJobCardImpl({
   // 报错("对照阅读加载失败"),体验上是个没头没尾的失败提示。这里提前挡掉,
   // 按钮直接不可点,不再依赖阅读器那层的兜底报错。
   const readerAvailable = `${item.status || ""}`.trim() === "succeeded";
+  // 馆藏文档:眼睛按钮改成"读原文"(只读源文档),有 document_id 即可点。
+  const canReadSource = libraryOnly && Boolean(documentId);
+  const readerBtnEnabled = libraryOnly ? canReadSource : readerAvailable;
   renderCountsForTests.set(jobId, (renderCountsForTests.get(jobId) || 0) + 1);
   const coverUrl = useRecentJobCover(item);
 
@@ -148,6 +154,12 @@ function RecentJobCardImpl({
   function handleReaderClick(event) {
     event.preventDefault();
     event.stopPropagation();
+    if (libraryOnly) {
+      if (canReadSource) {
+        onReadSource?.(documentId);
+      }
+      return;
+    }
     if (!readerAvailable) {
       return;
     }
@@ -212,10 +224,12 @@ function RecentJobCardImpl({
           <div className="recent-job-hover-actions">
             <button
               type="button"
-              className={`recent-job-hover-btn recent-job-reader${readerAvailable ? "" : " is-disabled"}`}
-              title={readerAvailable ? "对照阅读" : (libraryOnly ? "尚未翻译，暂无对照译文" : "任务未完成，暂无法对照阅读")}
-              aria-label="对照阅读"
-              aria-disabled={readerAvailable ? undefined : "true"}
+              className={`recent-job-hover-btn recent-job-reader${readerBtnEnabled ? "" : " is-disabled"}`}
+              title={libraryOnly
+                ? (canReadSource ? "读原文" : "源文件不可用")
+                : (readerAvailable ? "对照阅读" : "任务未完成，暂无法对照阅读")}
+              aria-label={libraryOnly ? "读原文" : "对照阅读"}
+              aria-disabled={readerBtnEnabled ? undefined : "true"}
               onClick={handleReaderClick}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">

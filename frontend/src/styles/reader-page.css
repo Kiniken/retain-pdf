@@ -742,3 +742,12 @@
     min-height: 56vh;
   }
 }
+
+/* 馆藏文档"读原文"只读态(F4):没有 job,所有吃 jobId 的入口都不该出现——
+   译文/对照两个模式 tab、Markdown/摘录/批注/AI 问答/下载工具组全部隐藏,
+   只留原文单栏。根节点的 .reader-source-only 由 use-reader-boot.js 打上。 */
+.reader-source-only .reader-topbar-actions,
+.reader-source-only .reader-tab[data-reader-mode="translated"],
+.reader-source-only .reader-tab[data-reader-mode="compare"] {
+  display: none;
+}

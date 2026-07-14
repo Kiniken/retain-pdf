@@ -27,8 +27,12 @@ import {
 import {
   defaultReaderPageConfigPort,
   resolveReaderAnchor,
+  resolveReaderDocumentId,
 } from "../../../js/reader/config-port.js";
 import { defaultReaderDataPort } from "../../../js/reader/data-port.js";
+import { resolveResourceUrl } from "../../../js/job/artifacts.js";
+import { isMockMode } from "../../../js/config/runtime.js";
+import { MOCK_DOCUMENT_SOURCE_PDF_URL } from "../../../js/mock/documents.js";
 import {
   READER_PROGRESS_COPY,
   createReaderPageState,
@@ -131,7 +135,73 @@ function scheduleAnchorJump(anchor) {
   globalThis.setTimeout(tryJump, 0);
 }
 
+// 馆藏文档"读原文"(F4):无 job,只挂源文档一栏,切 source 单栏模式,跳过所有
+// 吃 jobId 的副功能(收藏/AI/批注/markdown/interaction)。源文档 URL 走
+// /documents/:id/source.pdf(mock 模式走 mock:// 通道)。
+async function mountSourceOnlyReader({
+  documentId,
+  pageState,
+  modeController,
+  applyBootProgress,
+  syncBootProgress,
+}) {
+  try {
+    applyBootProgress(14, READER_PROGRESS_COPY.metadata, "metadata");
+    pageState.progress.metadataReady = true;
+    syncBootProgress();
+
+    const sourcePdf = isMockMode()
+      ? MOCK_DOCUMENT_SOURCE_PDF_URL
+      : resolveResourceUrl(`/api/v1/documents/${encodeURIComponent(documentId)}/source.pdf`);
+
+    const { sourceReady } = await mountReaderPdfPair({
+      fetchProtected: defaultReaderDataPort.fetchProtected,
+      sourcePdf,
+      translatedPdfUrl: "",
+      onSourceSettled: () => {
+        pageState.progress.sourceDone = true;
+        syncBootProgress();
+      },
+      onTranslatedSettled: () => {
+        pageState.progress.translatedDone = true;
+        syncBootProgress();
+      },
+    });
+
+    if (!sourceReady) {
+      showReaderPaneEmpty("reader-pdf", "reader-pdf-empty");
+      applyBootProgress(100, READER_PROGRESS_COPY.failed, "failed");
+      setReaderBootLoading(false);
+      return;
+    }
+
+    // 只读源文档:收进 source 单栏(译文栏隐藏,不显示"翻译加载失败"空态)。
+    modeController.setMode("source");
+    applyBootProgress(100, READER_PROGRESS_COPY.ready, "ready");
+    setReaderBootLoading(false);
+
+    const anchor = resolveReaderAnchor();
+    if (anchor) {
+      scheduleAnchorJump(anchor);
+    }
+  } catch (_err) {
+    showBothReaderEmpty();
+    applyBootProgress(100, READER_PROGRESS_COPY.failed, "failed");
+    setReaderBootLoading(false);
+  }
+}
+
 async function initializeReader({ drawerStore, publish }) {
+  // 先定路线(纯 URL 解析,无副作用):有 job 走完整对照阅读;只有 document_id
+  // 是馆藏文档"读原文"(F4),要跳过所有吃 jobId 的副功能与工具栏。
+  const jobId = resolveReaderJobId(defaultReaderPageConfigPort);
+  const sourceOnlyDocumentId = jobId ? "" : resolveReaderDocumentId();
+  const sourceOnly = Boolean(sourceOnlyDocumentId);
+  if (sourceOnly) {
+    // CSS 据此隐藏译文/对照 tab 与 Markdown/摘录/批注/AI/下载工具组(全部吃 jobId)。
+    document.documentElement.classList.add("reader-source-only");
+  }
+
   const pageState = createReaderPageState();
   let readerInteractionController = null;
   let readerMarkdownPreview = null;
@@ -181,8 +251,12 @@ async function initializeReader({ drawerStore, publish }) {
   // 左右栏折叠把手(先应用持久折叠态)
   panelCollapse.bindEvents();
   // 默认展开右栏(AI 问答)。必须晚于 chromeController.bindEvents(),见文件头时序契约;
-  // 若用户上次折叠了右栏则由 CSS 保持折叠
-  drawerStore.open("ai");
+  // 若用户上次折叠了右栏则由 CSS 保持折叠。
+  // 源文档只读态没有 job → AI/批注/Markdown 都不可用,不展开右栏(否则会挂着一个
+  // 永远"正在准备…"的空面板)。
+  if (!sourceOnly) {
+    drawerStore.open("ai");
+  }
   // 启动 open 完成后,后续用户点顶栏工具才允许自动展开右栏
   allowAutoExpandRight = true;
 
@@ -190,7 +264,16 @@ async function initializeReader({ drawerStore, publish }) {
   resetReaderProgressState(pageState);
   syncBootProgress();
 
-  const jobId = resolveReaderJobId(defaultReaderPageConfigPort);
+  if (sourceOnly) {
+    await mountSourceOnlyReader({
+      documentId: sourceOnlyDocumentId,
+      pageState,
+      modeController,
+      applyBootProgress,
+      syncBootProgress,
+    });
+    return;
+  }
   if (!jobId) {
     showBothReaderEmpty();
     applyBootProgress(100, READER_PROGRESS_COPY.failed, "failed");

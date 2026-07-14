@@ -221,6 +221,56 @@ test("RecentJobsLibrary：未成功任务的对照阅读按钮禁用(回归)", a
   host.remove();
 });
 
+test("RecentJobsLibrary：馆藏文档卡(未翻译)——读原文 / 无删除 / 点卡片不误起轮询", async () => {
+  // F2 + F4:没有 active_job_id 的文档也进网格(合成 job_id `doc:<id>` 穿过引擎)。
+  // 卡片应当:显示"未翻译"、隐藏删除(后端暂无 DELETE /documents/:id)、
+  // 眼睛按钮变成"读原文"→ 派发带 documentId(不带 jobId)的 openReaderRequested。
+  const dom = makeDom("?mock=parallel");
+  const { services, root, host } = await bootHomeApp(dom);
+
+  const libraryOnlyItem = {
+    job_id: "doc:doc-ref-1",
+    document_id: "doc-ref-1",
+    library_only: true,
+    title: "只入库的参考书",
+    display_name: "只入库的参考书",
+    status: "",
+    page_count: 42,
+    updated_at: "2026-07-01T00:00:00Z",
+  };
+  services.library.recentJobsStore.actions.setItems([libraryOnlyItem, makeItem(2, { status: "succeeded" })]);
+  await waitFor(() => byId(dom, "recent-jobs-list").querySelectorAll(".recent-job-item").length === 2, "两张卡片就位");
+
+  const card = byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-library-only="true"]');
+  assert.ok(card, "馆藏卡片渲染出来了");
+  assert.equal(card.getAttribute("data-document-id"), "doc-ref-1");
+  assert.equal(card.querySelector(".recent-job-status")?.textContent, "未翻译");
+  assert.equal(card.querySelector(".recent-job-delete"), null, "馆藏卡不显示删除按钮");
+
+  const { APP_EVENTS } = await import("../src/js/contracts/app-contract.js");
+  let readerDetail = null;
+  dom.window.document.addEventListener(APP_EVENTS.openReaderRequested, (event) => {
+    readerDetail = event.detail;
+  });
+
+  // 点卡片本体:馆藏文档没有 job,不应派发任何打开 job 的动作(合成 id 不能去起轮询)
+  click(dom, card);
+  await wait(30);
+  assert.equal(readerDetail, null, "点馆藏卡本体不触发 openReaderRequested");
+
+  // 眼睛按钮 = 读原文
+  const readSourceButton = card.querySelector(".recent-job-reader");
+  assert.equal(readSourceButton.getAttribute("aria-label"), "读原文");
+  assert.equal(readSourceButton.getAttribute("aria-disabled"), null, "有 document_id 时可点");
+  click(dom, readSourceButton);
+  await waitFor(() => readerDetail?.documentId === "doc-ref-1", "读原文派发带 documentId 的 openReaderRequested");
+  assert.ok(!readerDetail.jobId, "馆藏文档不带 jobId(阅读器据此走只读源文档分支)");
+
+  root.unmount();
+  services.dispose();
+  host.remove();
+});
+
 test("RecentJobsLibrary：卡片渲染隔离(replaceItem 单卡,其余 23 张卡片渲染计数不变)", async () => {
   const dom = makeDom("?mock=parallel");
   const { services, root, host } = await bootHomeApp(dom);

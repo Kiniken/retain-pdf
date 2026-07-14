@@ -17,7 +17,18 @@ export function resolveReaderJobId({
   if (jobId) {
     return jobId;
   }
+  // ?document_id= 是馆藏文档"读原文"入口(F4):此时没有 job,不应回退到 mock job,
+  // 否则源文档阅读器会误挂 mock 任务。
+  const documentId = new URLSearchParams(search).get("document_id")?.trim() || "";
+  if (documentId) {
+    return "";
+  }
   return isMock() ? mockJobId() : "";
+}
+
+// 馆藏文档"读原文"(F4):无 job、仅 document_id 时,阅读器走只读源文档分支。
+export function resolveReaderDocumentId({ search = defaultSearch() } = {}) {
+  return new URLSearchParams(search).get("document_id")?.trim() || "";
 }
 
 // 锚点 (page_idx, block_id) 来自搜索命中/收藏回跳的 URL 透传
