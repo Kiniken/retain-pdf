@@ -26,7 +26,7 @@ export function LibraryTopTabs({ active, onChange }) {
             key={tab.key}
             value={tab.key}
             id={`library-top-tab-${tab.key}`}
-            className={`library-top-tab${active === tab.key ? " is-active" : ""}`}
+            className={`library-top-tab ${active === tab.key ? "is-active" : ""}`.trim()}
           >
             {tab.label}
           </TabsPrimitive.Trigger>
