@@ -266,6 +266,54 @@ test("RecentJobsLibrary：馆藏文档卡(未翻译)——读原文 / 无删除 
   await waitFor(() => readerDetail?.documentId === "doc-ref-1", "读原文派发带 documentId 的 openReaderRequested");
   assert.ok(!readerDetail.jobId, "馆藏文档不带 jobId(阅读器据此走只读源文档分支)");
 
+  // 翻译按钮只在馆藏卡上出现(已翻译卡没有)
+  assert.ok(card.querySelector(".recent-job-translate"), "馆藏卡有翻译按钮");
+  const succeededCard = byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-job-id="job-2"]');
+  assert.equal(succeededCard.querySelector(".recent-job-translate"), null, "已翻译卡没有翻译按钮");
+
+  root.unmount();
+  services.dispose();
+  host.remove();
+});
+
+test("RecentJobsLibrary：馆藏文档点翻译 → translateDocument 起 job 后整页重载", async () => {
+  // F5:复用文档已存的 upload 起翻译 job(不重新上传);成功后重载文档列表,
+  // 该文档带着新的 active_job_id 回到网格,轮询引擎按 job_id 接管进度。
+  const dom = makeDom("?mock=parallel");
+  const { services, root, host } = await bootHomeApp(dom);
+
+  const { getMockDocumentList } = await import("../src/js/mock/documents.js");
+  const untranslated = getMockDocumentList().documents.find((doc) => !`${doc.active_job_id || ""}`.trim());
+  assert.ok(untranslated, "mock 里有馆藏文档");
+
+  services.library.recentJobsStore.actions.setItems([{
+    job_id: `doc:${untranslated.document_id}`,
+    document_id: untranslated.document_id,
+    library_only: true,
+    title: untranslated.title,
+    status: "",
+    page_count: untranslated.page_count,
+  }]);
+  await waitFor(
+    () => byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-library-only="true"]'),
+    "馆藏卡就位",
+  );
+
+  const card = byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-library-only="true"]');
+  click(dom, card.querySelector(".recent-job-translate"));
+
+  // mock translateDocument 会给该文档挂上 active_job_id;重载后它不再是馆藏态。
+  await waitFor(
+    () => getMockDocumentList().documents
+      .find((doc) => doc.document_id === untranslated.document_id)?.active_job_id,
+    "translateDocument 给文档挂上 active_job_id",
+  );
+  await waitFor(
+    () => services.library.recentJobsStore.getSnapshot().items
+      .some((item) => item.document_id === untranslated.document_id && !item.library_only),
+    "整页重载后该文档以真实 job 回到网格(轮询接管)",
+  );
+
   root.unmount();
   services.dispose();
   host.remove();

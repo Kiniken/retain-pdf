@@ -113,8 +113,10 @@
   opacity: 0;
 }
 
+/* flex(而非 grid place-items-center):馆藏文档卡有两个悬浮按钮(读原文 + 翻译),
+   grid 会把它们竖着堆成两行;flex 居中对"只有一个按钮"的已翻译卡片视觉完全等价。 */
 @utility recent-job-hover-actions {
-  @apply pointer-events-none absolute inset-0 z-[4] grid place-items-center bg-[#1d1d1f]/0 opacity-0;
+  @apply pointer-events-none absolute inset-0 z-[4] flex items-center justify-center gap-2 bg-[#1d1d1f]/0 opacity-0;
   transition:
     opacity 0.16s ease,
     background 0.16s ease;

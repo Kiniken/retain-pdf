@@ -86,6 +86,7 @@ function areCardPropsEqual(prevProps, nextProps) {
     && prevProps.onDelete === nextProps.onDelete
     && prevProps.onReader === nextProps.onReader
     && prevProps.onReadSource === nextProps.onReadSource
+    && prevProps.onTranslate === nextProps.onTranslate
     && prevProps.isConfirmingDelete === nextProps.isConfirmingDelete
     && prevProps.onToggleDeleteConfirm === nextProps.onToggleDeleteConfirm
     && cardSignatureOf(prevProps.item) === cardSignatureOf(nextProps.item);
@@ -98,6 +99,7 @@ function RecentJobCardImpl({
   onDelete,
   onReader,
   onReadSource,
+  onTranslate,
   onToggleDeleteConfirm,
 }) {
   const libraryOnly = isLibraryOnlyItem(item);
@@ -164,6 +166,15 @@ function RecentJobCardImpl({
       return;
     }
     onReader?.(jobId);
+  }
+
+  function handleTranslateClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!canReadSource) {
+      return;
+    }
+    onTranslate?.(documentId);
   }
 
   function handleDeleteToggle(event) {
@@ -237,6 +248,22 @@ function RecentJobCardImpl({
                 <circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
               </svg>
             </button>
+            {/* 馆藏文档专属:以后再翻(复用已存的源文件起翻译 job,不用重新上传) */}
+            {libraryOnly ? (
+              <button
+                type="button"
+                className={`recent-job-hover-btn recent-job-translate${canReadSource ? "" : " is-disabled"}`}
+                title="翻译这本书"
+                aria-label="翻译"
+                aria-disabled={canReadSource ? undefined : "true"}
+                onClick={handleTranslateClick}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 6h9M8.5 6v1.6c0 3.2-1.9 6-4.5 7.4M6 10.4c.9 2.3 2.8 4 5.1 4.6" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M13 20l3.6-9 3.6 9M14.6 17h5.2" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            ) : null}
           </div>
         </div>
         <span className="recent-job-status">

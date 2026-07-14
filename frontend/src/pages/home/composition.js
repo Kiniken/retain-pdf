@@ -145,7 +145,7 @@ import { adaptJobStageSnapshot } from "../../js/job-status/job-stage-contract-ad
 
 import { fetchJobList, fetchJobPayload } from "../../js/api/jobs-query.js";
 import { fetchLibraryBookList, deleteLibraryBook } from "../../js/api/library-books.js";
-import { fetchDocumentList } from "../../js/api/documents.js";
+import { fetchDocumentList, translateDocument } from "../../js/api/documents.js";
 import { createDocumentLibraryResource } from "../../js/features/documents-library/document-library-resource.js";
 import { fetchJobEvents } from "../../js/api/jobs-events.js";
 import { fetchJobArtifactsManifest } from "../../js/api/jobs-artifacts.js";
@@ -729,6 +729,30 @@ export function createHomeComposition({
     }
   }
 
+  // F5 馆藏文档"以后再翻":复用文档已存的 upload 起 book 翻译 job,后端回填
+  // active_job_id;随后整页重载一次——该文档会以真实 job_id 重新进网格,现有
+  // 轮询引擎(active-refresh 按 job_id 拉 job payload)自然接管进度。
+  const translatingDocumentIds = new Set();
+  async function translateLibraryDocument(documentId) {
+    const normalizedId = `${documentId || ""}`.trim();
+    if (!normalizedId || translatingDocumentIds.has(normalizedId)) {
+      return;
+    }
+    translatingDocumentIds.add(normalizedId);
+    try {
+      await translateDocument(API_PREFIX, normalizedId);
+    } catch (error) {
+      recentJobsViewPort.renderError(
+        `${error?.message || "发起翻译失败，请稍后重试。"}`,
+        { reset: false },
+      );
+      return;
+    } finally {
+      translatingDocumentIds.delete(normalizedId);
+    }
+    await features.recentJobsFeature?.loadRecentJobs?.({ reset: true });
+  }
+
   // ---- app-actions 特性(提交流程域;之前 cutover 遗漏,补线接入)——
   // controller.js(mountAppActionsFeature)/submit-flow.js(runSubmitFlow)/
   // config-port.js/job-snapshot-port.js/runtime-env-port.js/upload-state-port.js
@@ -1017,7 +1041,7 @@ export function createHomeComposition({
     library: {
       viewPort: recentJobsViewPort,
       recentJobsStore: recentJobsStatePort.store,
-      actions: { ...recentJobActions, openSourceReader },
+      actions: { ...recentJobActions, openSourceReader, translateDocument: translateLibraryDocument },
     },
     // CategoriesView.jsx/CollectionManageDialog.jsx 的唯一装配入口。没有旧
     // 世界 controller.js 可复用(collections/collection_documents 表随图书馆
