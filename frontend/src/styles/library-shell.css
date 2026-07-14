@@ -168,77 +168,148 @@
   padding: 4px 0;
 }
 
+/* 文件夹卡片(阶段 D 追加:参考 PDF_MD_lib 的 FolderCard.tsx 改造成竖版
+   封面堆叠卡片,不再是纯文字的横向列表行——用户明确认可这个"多本书叠在
+   一起"的视觉,直接照这个结构复刻)。 */
 @utility categories-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 20px 16px;
 }
 
 @utility category-card {
-  display: flex;
-  align-items: stretch;
-  gap: 4px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: #fff;
-  overflow: hidden;
+  position: relative;
+  isolation: isolate;
 }
 
 @utility category-card-open {
-  flex: 1 1 auto;
-  min-width: 0;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
   appearance: none;
   border: 0;
   background: transparent;
-  padding: 16px 14px;
+  padding: 0;
   cursor: pointer;
-  text-align: left;
-
-  &:hover {
-    background: var(--bg);
-  }
+  text-align: center;
 }
 
 @utility category-card-name {
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-size: 12.5px;
   font-weight: 600;
+  line-height: 1.3;
   color: var(--ink);
 }
 
 @utility category-card-count {
-  flex: 0 0 auto;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
 }
 
 @utility category-card-manage {
-  flex: 0 0 auto;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 30;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
+  width: 32px;
+  height: 32px;
   border: 0;
-  border-left: 1px solid var(--line);
-  background: transparent;
-  color: var(--muted);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.16);
+  color: var(--ink);
   cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
 
   & svg {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
+  }
+
+  .category-card:hover &,
+  &:focus-visible {
+    opacity: 1;
   }
 
   &:hover {
-    background: var(--bg);
-    color: var(--ink);
+    background: #fff;
+  }
+}
+
+@utility category-card-stack {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0)),
+    linear-gradient(180deg, #f4f4f6, #d9dbe1);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+
+  .category-card-open:hover & {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14);
+  }
+}
+
+@utility category-card-stack-item {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.14);
+  transform-origin: center bottom;
+  display: grid;
+  place-items: center;
+
+  & img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #fff;
+    pointer-events: none;
+  }
+}
+
+@utility category-card-stack-fallback {
+  font-size: 26px;
+  font-weight: 700;
+  color: rgba(29, 29, 31, 0.4);
+}
+
+@utility category-card-stack-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--muted);
+
+  & svg {
+    width: 30px;
+    height: 30px;
+    opacity: 0.45;
+  }
+
+  & span {
+    font-size: 10.5px;
   }
 }
 

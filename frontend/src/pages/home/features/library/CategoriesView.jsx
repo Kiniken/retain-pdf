@@ -9,7 +9,60 @@
 import { useCallback, useEffect, useState } from "react";
 import { useHomeServices } from "../../home-services-context.js";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
+import { recentJobTitle } from "../../../../js/features/recent-jobs/card-presenter.js";
 import { RecentJobCard } from "./RecentJobCard.jsx";
+import { useRecentJobCover } from "./useRecentJobCover.js";
+
+// 文件夹卡片的封面堆叠预览(参考 PDF_MD_lib 的 FolderCard.tsx:最多 4 本书的
+// 封面像扑克牌一样扇形叠放,越靠前的书 z 越高、叠在最外面)。封面图沿用
+// RecentJobCard 同一个 useRecentJobCover hook(同一份 objectURL 缓存,不会
+// 因为这里多渲染一份而重复请求)。
+const MAX_STACK = 4;
+
+function FolderCoverStackLayer({ item, index, total }) {
+  const coverUrl = useRecentJobCover(item);
+  const title = recentJobTitle(item);
+  const z = 10 + (total - 1 - index);
+  const rot = (index - (total - 1) / 2) * -5;
+  const offsetX = (index - (total - 1) / 2) * 5;
+  return (
+    <div
+      className="category-card-stack-item"
+      style={{
+        top: `${6 + index * 7}px`,
+        bottom: `${10 + (total - 1 - index) * 6}px`,
+        zIndex: z,
+        transform: `translateX(${offsetX}px) rotate(${rot}deg)`,
+      }}
+    >
+      {coverUrl ? (
+        <img src={coverUrl} alt="" />
+      ) : (
+        <span className="category-card-stack-fallback">{title.slice(0, 1)}</span>
+      )}
+    </div>
+  );
+}
+
+function FolderCoverStack({ items }) {
+  const stack = (Array.isArray(items) ? items : []).slice(0, MAX_STACK);
+  return (
+    <div className="category-card-stack">
+      {stack.length === 0 ? (
+        <div className="category-card-stack-empty">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 7a2 2 0 0 1 2-2h4.5l1.5 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+          </svg>
+          <span>空分类</span>
+        </div>
+      ) : (
+        stack.map((item, index) => (
+          <FolderCoverStackLayer key={item.job_id} item={item} index={index} total={stack.length} />
+        ))
+      )}
+    </div>
+  );
+}
 
 export function CategoriesView() {
   const services = useHomeServices();
@@ -23,6 +76,8 @@ export function CategoriesView() {
   const [collections, setCollections] = useState([]);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState("");
+  // 文件夹卡片的封面堆叠预览:collection_id → 该文件夹前几本书(job 卡片形状)。
+  const [previews, setPreviews] = useState({});
 
   const [openFolder, setOpenFolder] = useState(null);
   const [folderItems, setFolderItems] = useState([]);
@@ -57,6 +112,36 @@ export function CategoriesView() {
     // 真正驱动"要不要再拉一次"的信号。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reload, version]);
+
+  const collectionIdsKey = collections.map((item) => item.collection_id).join(",");
+  useEffect(() => {
+    if (!collectionIdsKey) {
+      return undefined;
+    }
+    let cancelled = false;
+    // 每个文件夹卡片的封面堆叠预览各自独立拉取,互不阻塞——某个文件夹加载慢
+    // 不该拖住其余卡片先显示出来。
+    collections.forEach((collection) => {
+      controller
+        .fetchFolderBooks(collection.collection_id)
+        .then((items) => {
+          if (cancelled) {
+            return;
+          }
+          setPreviews((prev) => ({ ...prev, [collection.collection_id]: items }));
+        })
+        .catch(() => {
+          if (cancelled) {
+            return;
+          }
+          setPreviews((prev) => ({ ...prev, [collection.collection_id]: [] }));
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controller, collectionIdsKey]);
 
   useEffect(() => {
     if (!openFolder) {
@@ -143,6 +228,7 @@ export function CategoriesView() {
                 className="category-card-open"
                 onClick={() => setOpenFolder(collection)}
               >
+                <FolderCoverStack items={previews[collection.collection_id]} />
                 <span className="category-card-name" title={collection.name}>{collection.name}</span>
                 <span className="category-card-count">{collection.document_count} 本</span>
               </button>
@@ -151,7 +237,10 @@ export function CategoriesView() {
                 className="category-card-manage"
                 aria-label={`管理分类 ${collection.name}`}
                 title="管理"
-                onClick={() => dialogStore.open(collection)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  dialogStore.open(collection);
+                }}
               >
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 8.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z" stroke="currentColor" strokeWidth="1.65" fill="none" />
