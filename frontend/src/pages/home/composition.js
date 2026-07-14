@@ -145,6 +145,8 @@ import { adaptJobStageSnapshot } from "../../js/job-status/job-stage-contract-ad
 
 import { fetchJobList, fetchJobPayload } from "../../js/api/jobs-query.js";
 import { fetchLibraryBookList, deleteLibraryBook } from "../../js/api/library-books.js";
+import { fetchDocumentList } from "../../js/api/documents.js";
+import { createDocumentLibraryResource } from "../../js/features/documents-library/document-library-resource.js";
 import { fetchJobEvents } from "../../js/api/jobs-events.js";
 import { fetchJobArtifactsManifest } from "../../js/api/jobs-artifacts.js";
 import {
@@ -652,6 +654,16 @@ export function createHomeComposition({
   const libraryEventPort = createRecentJobsLibraryRefreshPort({ target: documentRef });
   const recentJobsStatePort = createRecentJobsStatePort();
   const recentJobsViewPort = createRecentJobsReactViewPort();
+  // F2 文档中心化:网格数据源从 job 投影(library/books)换成"文档中心统一
+  // loader"(每篇文档一张卡,已翻译的合并 library/books 活态,馆藏文档也进网格)。
+  // 这是 recent-jobs 引擎的 libraryBooksResource 注入点——引擎其余部分(store/
+  // 去重/轮询/进度合并/封面)按 job_id 一行不改地复用(馆藏文档用合成 job_id
+  // 穿过)。详见 js/features/documents-library/*。
+  const documentLibraryResource = createDocumentLibraryResource({
+    fetchDocumentList,
+    fetchLibraryBookList,
+    apiPrefix: API_PREFIX,
+  });
 
   const recentJobsJobRuntimePort = createRecentJobsRuntimePort({
     openJob: (jobId) => features.jobRuntimeFeature?.startPolling(jobId),
@@ -871,6 +883,9 @@ export function createHomeComposition({
         recentJobsStatePort,
         viewPort: recentJobsViewPort,
         libraryRefreshPort: libraryEventPort,
+        // F2:注入文档中心数据源(controller.js 会把它同时喂给 runtime→loader
+        // 和 bindings→缓存失效),网格从此按文档而非 job 组织。
+        libraryBooksResource: documentLibraryResource,
         // isWorkflowOpen 的默认实现(workflow-open-port.js)直接查
         // #translation-workflow-dialog 的 data-open 属性——TranslationWorkflowDialog.jsx
         // 渲染的正是同一个 id/属性契约,默认值无需在此覆写(mountRecentJobsFeature

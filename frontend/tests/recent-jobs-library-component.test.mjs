@@ -286,8 +286,14 @@ test("RecentJobsLibrary：workflow 挂起不死锁(开→job-updated 仍打补�
   const { APP_EVENTS } = await import("../src/js/contracts/app-contract.js");
   const { HOME_LOADING_STATES } = await import("../src/js/features/home/state.js");
 
-  await waitFor(() => services.library.recentJobsStore.getSnapshot().items.length === 1, "初次加载的单条 mock 数据就位");
-  const originalItem = services.library.recentJobsStore.getSnapshot().items[0];
+  // F2 文档中心化后网格加载的是"文档"(mock 有若干篇,含馆藏),这里只需要一张
+  // 有真实 job 的已翻译卡当补丁靶子(runtimePatches.update 按真实 job_id 找卡)。
+  await waitFor(
+    () => services.library.recentJobsStore.getSnapshot().items.some((item) => item.job_id && !item.library_only),
+    "初次加载的已翻译 mock 文档就位",
+  );
+  const originalItem = services.library.recentJobsStore
+    .getSnapshot().items.find((item) => item.job_id && !item.library_only);
 
   services.workflowDialog.requestOpenUpload();
   // 阶段 C(shadcn 改造):TranslationWorkflowDialog 换成 Radix Dialog 后不

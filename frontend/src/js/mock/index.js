@@ -33,14 +33,39 @@ export function getMockJobArtifactsManifest() {
   return buildMockManifest();
 }
 
+// 文档中心网格(F2)会用 library/books?job_ids= 批量取"已翻译 mock 文档"的活态。
+// 除了 MOCK_JOB_ID 这条完整 payload,其余请求到的 job_id 合成一条"已完成"book,
+// 让 mock 模式下已翻译文档卡片有实时状态可展示(馆藏文档无 active_job_id、不会
+// 走到这里)。
+function synthesizeMockBook(jobId) {
+  return {
+    id: jobId,
+    job_id: jobId,
+    title: `${jobId}.pdf`,
+    display_name: `${jobId}.pdf`,
+    source_file_name: `${jobId}.pdf`,
+    page_count: 12,
+    status: "succeeded",
+    stage: "finished",
+    stage_detail: "任务完成",
+    progress: { current: 12, total: 12, percent: 100, unit: "none" },
+    output_pdf_ready: true,
+    markdown_ready: true,
+    bundle_ready: true,
+    created_at: "2026-06-01T10:00:00Z",
+    updated_at: "2026-06-01T12:00:00Z",
+  };
+}
+
 export function getMockJobList({ jobIds = [] } = {}) {
-  let items = [buildMockJobPayload()];
   if (Array.isArray(jobIds) && jobIds.length) {
-    const wanted = new Set(jobIds.map((id) => `${id}`.trim()).filter(Boolean));
-    items = items.filter((item) => wanted.has(item.job_id));
+    const wanted = jobIds.map((id) => `${id}`.trim()).filter(Boolean);
+    const mockJob = buildMockJobPayload();
+    const items = wanted.map((id) => (id === MOCK_JOB_ID ? mockJob : synthesizeMockBook(id)));
+    return { items, limit: 20, offset: 0, has_more: false };
   }
   return {
-    items,
+    items: [buildMockJobPayload()],
     limit: 20,
     offset: 0,
     has_more: false,
