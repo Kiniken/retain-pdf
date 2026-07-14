@@ -17,6 +17,7 @@
 //   已保证 dispatch(translation-workflow-dialog-runtime.js)。
 
 import { API_PREFIX } from "../../js/config/api-constants.js";
+import { createStore } from "../../js/app-framework/store.js";
 import { APP_EVENTS } from "../../js/contracts/app-contract.js";
 import { DEFAULT_MODEL_VERSION } from "../../js/config/model-constants.js";
 import {
@@ -171,6 +172,8 @@ import { createCredentialsDialogStore } from "./features/credentials/credentials
 import { createSettingsHubDialogStore } from "./features/settings/settings-hub-dialog-store.js";
 import { createGlossariesViewFeature } from "./features/glossaries/glossaries-store.js";
 import { createGlossariesDialogStore } from "./features/glossaries/glossaries-dialog-store.js";
+import { createCollectionsController } from "./features/collections/controller.js";
+import { createCollectionManageDialogStore } from "./features/collections/collection-manage-dialog-store.js";
 import { createAppUpdateViewFeature } from "./features/app-update/app-update-store.js";
 import { createStatusCardStore, createStatusCardPresenter } from "./features/status/status-card-store.js";
 import { createRecentJobsReactViewPort } from "./features/library/recent-jobs-react-port.js";
@@ -986,6 +989,19 @@ export function createHomeComposition({
       viewPort: recentJobsViewPort,
       recentJobsStore: recentJobsStatePort.store,
       actions: recentJobActions,
+    },
+    // CategoriesView.jsx/CollectionManageDialog.jsx 的唯一装配入口。没有旧
+    // 世界 controller.js 可复用(collections/collection_documents 表随图书馆
+    // 数据层建好,一直没接路由——这是纯 React 时代新建的域),controller 是
+    // 绑好 apiPrefix 的薄函数集合,不套其余域的 mountXFeature 壳子。
+    collections: {
+      controller: createCollectionsController({ apiPrefix: API_PREFIX }),
+      dialogStore: createCollectionManageDialogStore(),
+      // CollectionManageDialog.jsx 和 CategoriesView.jsx 是兄弟节点,保存/
+      // 删除成功后靠这个 version 信号桥接刷新(见两个文件头注释)。
+      reloadSignal: createStore({ name: "collectionsReload", initialState: { version: 0 }, actions: {
+        bump: (state) => ({ version: state.version + 1 }),
+      } }),
     },
     // artifact-downloads 域(dialogs 蓝图 §7)——按钮宿主(ResultActions.jsx/
     // StatusDetailDialog.jsx 的 overview 面板)唯一消费入口:busyStore 供

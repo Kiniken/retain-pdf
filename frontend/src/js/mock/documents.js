@@ -59,6 +59,7 @@ export function getMockDocumentList({
   offset = 0,
   readingStatus = "",
   tag = "",
+  collectionId = "",
 } = {}) {
   let list = documents();
   if (`${readingStatus}`.trim()) {
@@ -66,6 +67,10 @@ export function getMockDocumentList({
   }
   if (`${tag}`.trim()) {
     list = list.filter((item) => item.tags.includes(`${tag}`.trim()));
+  }
+  if (`${collectionId}`.trim()) {
+    const memberIds = collectionMembership(`${collectionId}`.trim());
+    list = list.filter((item) => memberIds.has(item.document_id));
   }
   return {
     documents: list.slice(offset, offset + limit),
@@ -128,6 +133,134 @@ export function patchMockDocument(documentId, { title, reading_status: readingSt
   }
   found.updated_at = new Date().toISOString();
   return { ...found };
+}
+
+// ===== 分类(合集):建文件夹给 PDF 分组 =====
+// 与 js/api/collections.js 同构(collection_id/name/parent_id/sort_order/
+// created_at/document_count);membership 单独存一张 collection_id → Set<document_id>
+// 表,和真实后端 collection_documents 表同样的建模方式。
+
+let mockCollections = null;
+let mockCollectionMembership = null;
+let collectionSeq = 0;
+
+function seedMockCollections() {
+  collectionSeq = 2;
+  mockCollections = [
+    { collection_id: "col-001", name: "化学", parent_id: null, sort_order: 0, created_at: "2026-06-01T10:30:00Z" },
+    { collection_id: "col-002", name: "机器学习", parent_id: null, sort_order: 1, created_at: "2026-06-08T15:00:00Z" },
+  ];
+  // mock 的"最近任务"列表(js/mock/index.js#getMockJobList)目前只有 MOCK_JOB_ID
+  // 这一条真实数据,doc-1b8c52d9a304/doc-77e0fa3c1d55 的 active_job_id 在
+  // job 列表里查不到——"机器学习"文件夹留空,顺便覆盖"空文件夹"这个真实 UI 态。
+  mockCollectionMembership = new Map([
+    ["col-001", new Set([MOCK_DOCUMENT_ID])],
+    ["col-002", new Set()],
+  ]);
+}
+
+function collectionsList() {
+  if (!mockCollections) {
+    seedMockCollections();
+  }
+  return mockCollections;
+}
+
+function collectionMembership(collectionId) {
+  if (!mockCollectionMembership) {
+    seedMockCollections();
+  }
+  if (!mockCollectionMembership.has(collectionId)) {
+    mockCollectionMembership.set(collectionId, new Set());
+  }
+  return mockCollectionMembership.get(collectionId);
+}
+
+function collectionWithCount(record) {
+  return { ...record, document_count: collectionMembership(record.collection_id).size };
+}
+
+export function getMockCollectionList() {
+  const list = [...collectionsList()].sort((a, b) => a.sort_order - b.sort_order);
+  return { collections: list.map(collectionWithCount) };
+}
+
+export function createMockCollection({ name, parent_id: parentId = null } = {}) {
+  const trimmed = `${name || ""}`.trim();
+  if (!trimmed) {
+    throw new Error("name must not be empty. (400)");
+  }
+  collectionsList(); // 确保种子数据与 collectionSeq 初始化
+  collectionSeq += 1;
+  const record = {
+    collection_id: `col-${String(collectionSeq).padStart(3, "0")}`,
+    name: trimmed,
+    parent_id: parentId || null,
+    sort_order: collectionsList().length,
+    created_at: new Date().toISOString(),
+  };
+  collectionsList().push(record);
+  return collectionWithCount(record);
+}
+
+export function patchMockCollection(collectionId, { name, sort_order: sortOrder } = {}) {
+  const found = collectionsList().find((item) => item.collection_id === collectionId);
+  if (!found) {
+    throw new Error("未找到该分类。(404)");
+  }
+  if (name !== undefined) {
+    const trimmed = `${name}`.trim();
+    if (!trimmed) {
+      throw new Error("name must not be empty. (400)");
+    }
+    found.name = trimmed;
+  }
+  if (sortOrder !== undefined) {
+    found.sort_order = Number(sortOrder) || 0;
+  }
+  return collectionWithCount(found);
+}
+
+export function deleteMockCollection(collectionId) {
+  const list = collectionsList();
+  const index = list.findIndex((item) => item.collection_id === collectionId);
+  if (index < 0) {
+    throw new Error("未找到该分类。(404)");
+  }
+  list.splice(index, 1);
+  if (mockCollectionMembership) {
+    mockCollectionMembership.delete(collectionId);
+  }
+  return { deleted: true };
+}
+
+export function addMockCollectionDocuments(collectionId, documentIds = []) {
+  const found = collectionsList().find((item) => item.collection_id === collectionId);
+  if (!found) {
+    throw new Error("未找到该分类。(404)");
+  }
+  const members = collectionMembership(collectionId);
+  for (const documentId of documentIds) {
+    const normalized = `${documentId || ""}`.trim();
+    if (!normalized) {
+      continue;
+    }
+    if (!documents().some((item) => item.document_id === normalized)) {
+      throw new Error(`未找到该文档: ${normalized}(404)`);
+    }
+    members.add(normalized);
+  }
+  return collectionWithCount(found);
+}
+
+export function removeMockCollectionDocument(collectionId, documentId) {
+  const members = collectionMembership(collectionId);
+  const normalized = `${documentId || ""}`.trim();
+  if (!members.has(normalized)) {
+    throw new Error("该文档不在此分类中。(404)");
+  }
+  members.delete(normalized);
+  return { removed: true };
 }
 
 // ===== 收藏 =====

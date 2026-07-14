@@ -4,15 +4,18 @@ import { countMockFavoritesByJob } from "../mock/documents.js";
 import { getMockJobList } from "../mock/index.js";
 import { buildApiEndpoint } from "./http.js";
 
-export async function fetchLibraryBookList(apiPrefix, { limit = 40, offset = 0, q = "" } = {}) {
+export async function fetchLibraryBookList(apiPrefix, { limit = 40, offset = 0, q = "", jobIds = [] } = {}) {
   if (isMockMode()) {
-    return getMockJobList();
+    return getMockJobList({ jobIds });
   }
   const params = new URLSearchParams();
   params.set("limit", `${limit}`);
   params.set("offset", `${offset}`);
   if (`${q || ""}`.trim()) {
     params.set("q", `${q || ""}`.trim());
+  }
+  if (Array.isArray(jobIds) && jobIds.length) {
+    params.set("job_ids", jobIds.map((id) => `${id}`.trim()).filter(Boolean).join(","));
   }
   const resp = await fetch(`${buildApiEndpoint(apiPrefix, "library/books")}?${params.toString()}`, {
     headers: buildApiHeaders(),

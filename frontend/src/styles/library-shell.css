@@ -77,6 +77,171 @@
   flex: 0 0 auto;
 }
 
+/* 顶部"图书馆/分类"分栏(阶段 D:分类文件夹)——挂在 app-shell-header(order 0)
+   和 library-view/categories-view(order 1)之间,自己占一档窄行,不挤占内容
+   区高度。 */
+@utility library-top-tabs-root {
+  width: min(1120px, 100%);
+  flex: 0 0 auto;
+  order: 0;
+  margin-bottom: 4px;
+}
+
+@utility library-top-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+
+@utility library-top-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+
+  &.is-active {
+    background: #fff;
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+
+  &:hover:not(.is-active) {
+    color: var(--ink);
+  }
+}
+
+/* library-view 已有 order:1(见文件靠前的 app-shell-header 附近定义)——
+   categories-view 用同样的 order,两者互斥渲染(tab 切换决定渲染哪一个),
+   不会同时出现,不需要再手动错开。 */
+@utility categories-view {
+  width: min(1120px, 100%);
+  flex: 1 1 auto;
+  min-height: 0;
+  order: 1;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-bottom: 116px;
+
+  &::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
+
+@utility categories-head {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 0 18px;
+}
+
+@utility categories-folder-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 0 18px;
+
+  & h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0;
+  }
+}
+
+@utility categories-back-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+@utility categories-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+@utility category-card {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+  overflow: hidden;
+}
+
+@utility category-card-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 16px 14px;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    background: var(--bg);
+  }
+}
+
+@utility category-card-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+@utility category-card-count {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+@utility category-card-manage {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+
+  & svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover {
+    background: var(--bg);
+    color: var(--ink);
+  }
+}
+
 /*
   危险区修复(Tailwind v4 迁移):`.library-brand-link` 和 `.hero-repo-link`
   同时出现在同一个 <a> 元素上(AppShellHeader.jsx),都定义了 font-size——
@@ -225,6 +390,13 @@
       font-size: 12px;
     }
   }
+}
+
+/* "分类"tab 下隐藏搜索框时占位,让 library-bottom-actions 保持在原来的
+   靠右位置,不因为少了一个 flex 子项而跳位置。 */
+@utility library-search-bar-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 @utility library-bottom-actions {

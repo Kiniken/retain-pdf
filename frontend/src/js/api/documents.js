@@ -16,7 +16,7 @@ export async function fetchDocumentList(apiPrefix, {
   collectionId = "",
 } = {}) {
   if (isMockMode()) {
-    return getMockDocumentList({ limit, offset, readingStatus, tag });
+    return getMockDocumentList({ limit, offset, readingStatus, tag, collectionId });
   }
   const params = new URLSearchParams();
   params.set("limit", `${limit}`);

@@ -51,6 +51,11 @@ function byId(id) {
 }
 
 function click(element) {
+  // Radix Tabs 的 Trigger 激活逻辑挂在 onMouseDown(不是 onClick)——
+  // LibraryTopTabs(分类改造)是本文件第一处 Radix Tabs,补上 mousedown 让
+  // 模拟点击贴近真实交互(同 status-detail-dialog-component.test.mjs 的
+  // 既有先例),对纯 <button> 元素无影响。
+  element.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true, button: 0 }));
   element.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
 }
 
@@ -242,6 +247,58 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   click(byId("translation-workflow-close-btn"));
   await waitFor(() => byId("translation-workflow-dialog") === null, "关闭按钮关闭对话框");
   assert.equal(events.close, closesBefore + 2);
+
+  root.unmount();
+  services.dispose();
+  host.remove();
+});
+
+test("HomeApp：顶部图书馆/分类分栏 + 分类管理对话框", async () => {
+  const host = dom.window.document.createElement("div");
+  host.id = "home-root-categories";
+  dom.window.document.body.appendChild(host);
+
+  const services = createServices();
+  services.initialize();
+
+  const root = createRoot(host);
+  root.render(React.createElement(HomeApp, { services }));
+  await waitFor(() => byId("app-shell"), "HomeApp 首帧渲染");
+  await wait(0);
+
+  // ---- 分栏契约:两个 tab 都在,默认落在图书馆 ----
+  assert.ok(byId("library-top-tab-library"), "契约 id 缺失：#library-top-tab-library");
+  assert.ok(byId("library-top-tab-categories"), "契约 id 缺失：#library-top-tab-categories");
+  assert.ok(byId("library-view"), "默认应停在图书馆视图");
+  assert.equal(byId("categories-view"), null, "默认不挂载分类视图");
+  assert.ok(byId("library-search-input"), "图书馆 tab 下搜索框应可见");
+
+  // ---- 切到分类:图书馆网格卸载,分类视图挂载,搜索框隐藏(语义不同,
+  //      本次不接) ----
+  click(byId("library-top-tab-categories"));
+  await waitFor(() => byId("categories-view") !== null, "分类视图挂载");
+  assert.equal(byId("library-view"), null, "切到分类后图书馆视图应卸载");
+  assert.equal(byId("library-search-input"), null, "分类 tab 下搜索框应隐藏");
+  assert.ok(byId("categories-create-btn"), "契约 id 缺失：#categories-create-btn");
+
+  // ---- 新建分类对话框:挂载/契约 id/关闭卸载(同其余 9 个对话框的既有测试
+  //      口径——jsdom 下没有真实网络,书目加载会落到 catch 分支,只验证挂载
+  //      结构本身,不断言书目内容) ----
+  assert.equal(byId("collection-manage-dialog"), null, "初始未打开时不挂载");
+  click(byId("categories-create-btn"));
+  await waitFor(() => byId("collection-manage-dialog") !== null, "分类管理对话框打开");
+  for (const id of ["collection-name-input", "collection-manage-close-btn", "collection-save-btn"]) {
+    assert.ok(byId(id), `契约 id 缺失：#${id}`);
+  }
+  assert.equal(byId("collection-delete-btn"), null, "新建模式不应有删除按钮");
+  click(byId("collection-manage-close-btn"));
+  await waitFor(() => byId("collection-manage-dialog") === null, "关闭按钮点击后对话框卸载");
+
+  // ---- 切回图书馆:分类视图卸载,图书馆网格与搜索框恢复 ----
+  click(byId("library-top-tab-library"));
+  await waitFor(() => byId("library-view") !== null, "切回图书馆");
+  assert.equal(byId("categories-view"), null, "切回图书馆后分类视图应卸载");
+  assert.ok(byId("library-search-input"), "切回图书馆后搜索框应恢复");
 
   root.unmount();
   services.dispose();

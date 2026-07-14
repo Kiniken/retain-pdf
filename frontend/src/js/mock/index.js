@@ -33,9 +33,14 @@ export function getMockJobArtifactsManifest() {
   return buildMockManifest();
 }
 
-export function getMockJobList() {
+export function getMockJobList({ jobIds = [] } = {}) {
+  let items = [buildMockJobPayload()];
+  if (Array.isArray(jobIds) && jobIds.length) {
+    const wanted = new Set(jobIds.map((id) => `${id}`.trim()).filter(Boolean));
+    items = items.filter((item) => wanted.has(item.job_id));
+  }
   return {
-    items: [buildMockJobPayload()],
+    items,
     limit: 20,
     offset: 0,
     has_more: false,
