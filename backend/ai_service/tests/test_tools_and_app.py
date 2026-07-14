@@ -128,7 +128,7 @@ class FakeAgent(RetrievalAgent):
     def __init__(self):
         pass
 
-    def ask(self, question, *, document_id="", on_event=None):
+    def ask(self, question, *, document_id="", on_event=None, chat_fn=None, history=None):
         if on_event is not None:
             on_event({"type": "tool", "round": 1, "tool": "search_fulltext", "arguments": {"query": "q"}})
         return AskResult(
@@ -149,7 +149,7 @@ class FakeAgent(RetrievalAgent):
 
 
 def test_ask_endpoint_requires_api_key_and_returns_citations():
-    settings = Settings(api_keys=frozenset({"test-key"}))
+    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
     app = build_app(settings, agent=FakeAgent())
     client = TestClient(app)
 
@@ -171,7 +171,7 @@ def test_ask_endpoint_requires_api_key_and_returns_citations():
 
 
 def test_ask_endpoint_streams_sse_events():
-    settings = Settings(api_keys=frozenset({"test-key"}))
+    settings = Settings(api_keys=frozenset({"test-key"}), llm_api_key="env-llm-key")
     app = build_app(settings, agent=FakeAgent())
     client = TestClient(app)
 
@@ -192,3 +192,138 @@ def test_ask_endpoint_streams_sse_events():
     assert events[-1]["type"] == "done"
     assert events[-1]["answer"].startswith("回答:")
     assert events[-1]["citations"][0]["block_id"] == "p003-b0001"
+
+
+def test_ask_endpoint_requires_llm_key_from_env_or_request():
+    # env 与请求都无 LLM key:提前 400,不打到上游
+    settings = Settings(api_keys=frozenset({"test-key"}))
+    client = TestClient(build_app(settings, agent=FakeAgent()))
+    missing = client.post(
+        "/v1/ask",
+        json={"question": "q"},
+        headers={"X-API-Key": "test-key"},
+    )
+    assert missing.status_code == 400
+    assert "LLM API Key" in missing.json()["detail"]
+
+    # 请求携带 LLM key:即使 env 为空也放行(FakeAgent 忽略 chat_fn)
+    ok = client.post(
+        "/v1/ask",
+        json={"question": "q", "llm_api_key": "sk-from-frontend"},
+        headers={"X-API-Key": "test-key"},
+    )
+    assert ok.status_code == 200
+    assert ok.json()["data"]["answer"].startswith("回答:")
+
+
+def test_ask_resolves_document_id_from_job_id():
+    # 历史 job 也能定位文档:job_id → 服务端解析 document_id,
+    # 不再依赖前端的 active_job_id 反查
+    captured = {}
+
+    class RecordingAgent(FakeAgent):
+        def ask(self, question, *, document_id="", on_event=None, chat_fn=None, history=None):
+            captured["document_id"] = document_id
+            return super().ask(question, document_id=document_id, on_event=on_event, chat_fn=chat_fn)
+
+    class JobAwareRust(FakeRust):
+        def get_document_by_job(self, job_id):
+            assert job_id == "job-old"
+            return {"document_id": "doc-a"}
+
+    settings = Settings(api_keys=frozenset({"test-key"}))
+    app = build_app(settings, agent=RecordingAgent(), rust=JobAwareRust())
+    client = TestClient(app)
+    response = client.post(
+        "/v1/ask",
+        json={"question": "历史任务的问题", "job_id": "job-old", "llm_api_key": "sk-test"},
+        headers={"X-API-Key": "test-key"},
+    )
+    assert response.status_code == 200
+    assert captured["document_id"] == "doc-a"
+
+
+def test_ask_keeps_explicit_document_id_over_job_id():
+    captured = {}
+
+    class RecordingAgent(FakeAgent):
+        def ask(self, question, *, document_id="", on_event=None, chat_fn=None, history=None):
+            captured["document_id"] = document_id
+            return super().ask(question, document_id=document_id, on_event=on_event, chat_fn=chat_fn)
+
+    settings = Settings(api_keys=frozenset({"test-key"}))
+    app = build_app(settings, agent=RecordingAgent(), rust=FakeRust())
+    client = TestClient(app)
+    client.post(
+        "/v1/ask",
+        json={"question": "q", "document_id": "doc-explicit", "job_id": "job-x", "llm_api_key": "sk-test"},
+        headers={"X-API-Key": "test-key"},
+    )
+    assert captured["document_id"] == "doc-explicit"
+
+
+def test_ask_injects_conversation_history_and_persists_turn():
+    calls = {"history": None, "appended": []}
+
+    class HistoryAgent(FakeAgent):
+        def ask(self, question, *, document_id="", on_event=None, chat_fn=None, history=None):
+            calls["history"] = history
+            return super().ask(question, document_id=document_id, on_event=on_event, chat_fn=chat_fn)
+
+    class ConvRust(FakeRust):
+        def get_conversation(self, conversation_id):
+            assert conversation_id == "conv-1"
+            return {
+                "conversation_id": "conv-1",
+                "messages": [
+                    {"role": "user", "content": "之前的问题", "seq": 1},
+                    {"role": "assistant", "content": "之前的回答 [1]", "seq": 2},
+                ],
+            }
+
+        def append_conversation_message(self, conversation_id, *, role, content, **kwargs):
+            calls["appended"].append((conversation_id, role, content[:20], kwargs.get("citations_json", "")))
+            return {"message_id": f"msg-{role}"}
+
+    settings = Settings(api_keys=frozenset({"test-key"}))
+    app = build_app(settings, agent=HistoryAgent(), rust=ConvRust())
+    client = TestClient(app)
+    response = client.post(
+        "/v1/ask",
+        json={"question": "接着上个问题继续", "conversation_id": "conv-1", "llm_api_key": "sk-test"},
+        headers={"X-API-Key": "test-key"},
+    )
+    assert response.status_code == 200
+    # 历史注入
+    assert calls["history"] == [
+        {"role": "user", "content": "之前的问题"},
+        {"role": "assistant", "content": "之前的回答 [1]"},
+    ]
+    # 回写 user + assistant 两条,assistant 带引用快照
+    assert [(c[1], c[0]) for c in calls["appended"]] == [("user", "conv-1"), ("assistant", "conv-1")]
+    assert "block_id" in calls["appended"][1][3]
+
+
+def test_agent_places_history_between_system_and_current_question():
+    from retainpdf_ai.agent import RetrievalAgent
+    from retainpdf_ai.tools import ToolRegistry
+
+    seen = {}
+
+    def chat(messages, tools):
+        seen["messages"] = messages
+        return {"content": "好的。", "tool_calls": []}
+
+    agent = RetrievalAgent(ToolRegistry([]), chat, max_tool_rounds=2)
+    agent.ask(
+        "当前问题",
+        history=[
+            {"role": "user", "content": "上一问"},
+            {"role": "assistant", "content": "上一答"},
+            {"role": "tool", "content": "should be dropped"},
+        ],
+    )
+    roles = [m["role"] for m in seen["messages"]]
+    assert roles == ["system", "user", "assistant", "user"]
+    assert seen["messages"][1]["content"] == "上一问"
+    assert seen["messages"][-1]["content"] == "当前问题"

@@ -18,6 +18,7 @@
 
 ```
 GET  /api/v1/documents?limit=50&offset=0&reading_status=reading&tag=化学&collection_id=xxx
+GET  /api/v1/documents?job_id=xxx          ← 任意 job_id(含历史 run)直查所属文档,勿再扫列表反查 active_job_id
      → data.documents[]: { document_id, title, source_filename, page_count, bytes,
                            active_job_id, reading_status, tags[], added_at,
                            last_opened_at, updated_at, authors_json, year, doi }
@@ -38,19 +39,24 @@ PATCH /api/v1/documents/:document_id
 ```
 POST /api/v1/favorites
      body: {
-       document_id, page_idx, block_id, quote_text,        ← 必填
-       job_id?, char_start?, char_end?, kind?,              ← 可选
+       page_idx, block_id, quote_text,                      ← 必填
+       document_id?, job_id?,                               ← 二选一至少给一个
+       char_start?, char_end?, kind?,
        translated_quote_text?, note?
      }
-     → data: FavoriteRecord(含生成的 favorite_id 和实际锚定的 job_id)
+     → data: FavoriteRecord(含生成的 favorite_id、解析出的 document_id 和实际锚定的 job_id)
 
 GET  /api/v1/favorites?document_id=xxx
      → data.favorites[](按页码排序;不传参数 = 全部收藏,按时间倒序)
 
+PATCH /api/v1/favorites/:favorite_id
+     body: { note }                          ← 原子更新笔记,favorite_id 不变
 DELETE /api/v1/favorites/:favorite_id
 ```
 
-- `job_id` 不传时后端自动锚定文档的 `active_job_id`(推荐:阅读器里收藏就不用管它);
+- **只给 `job_id`(含历史 run)时后端自动解析所属文档并锚定该 run 的块空间**——
+  阅读器里收藏直接传当前 job_id 即可,打开历史 job 也能正确入库;
+- 只给 `document_id` 时锚定其 `active_job_id`;
 - `quote_text` 是引文快照,必填(选中的原文文本);`translated_quote_text` 建议一起传——
   锚点将来失效时快照保证内容不丢;
 - `kind`: `sentence | data | figure`,默认 `sentence`;
@@ -75,8 +81,14 @@ GET /api/v1/search?q=光学光谱&limit=20
 
 ```
 POST /api/v1/ai/ask
-     body: { question: string, document_id?: string, stream?: boolean }
+     body: { question: string, document_id?: string, job_id?: string, stream?: boolean,
+             conversation_id?: string,             ← 多轮对话,见第 6 节
+             llm_api_key?: string, llm_base_url?: string, llm_model?: string }
 ```
+
+- `job_id`(含历史 run)可替代 `document_id`:服务端解析所属文档后限定检索范围;
+- `llm_*` 三个字段来自前端凭据设置,按请求覆盖服务端 env 配置;缺 key 返回
+  400「请在前端凭据设置中填写模型 API Key」。
 
 **非流式**(`stream` 缺省 false):等待完整回答(agent 多轮检索,通常 10-30 秒)
 ```json
@@ -94,6 +106,7 @@ POST /api/v1/ai/ask
 | type | 字段 | 说明 |
 |---|---|---|
 | `tool` | round, tool, arguments | agent 每次调用工具时实时推送——渲染成"正在检索:xxx"的过程提示 |
+| `answer_delta` | text | 最终回答的逐 token 增量,边到边渲染 |
 | `done` | answer, citations, tool_trace, rounds | 最终结果(结构同非流式 data) |
 | `error` | message | 失败 |
 
@@ -105,6 +118,39 @@ POST /api/v1/ai/ask
   `read_blocks`→"阅读原文上下文"、`list_documents`→"浏览图书馆"、
   `search_favorites`→"查找收藏";
 - AI 服务未启动时反代返回 502,提示"AI 服务未运行"。
+
+
+### 5. 资产(收藏截图等图片附件)
+
+```
+POST /api/v1/assets                    ← multipart,字段名 file(png/jpeg/webp,≤20MB)
+     → data: { asset_id, mime, bytes, created_at }
+GET  /api/v1/assets/:asset_id          ← 文件本体;内容寻址,响应带 immutable 缓存头,可放心 <img src>
+```
+
+- `asset_id` = 文件 sha256:同一张图重复上传自动归并,拿到相同 id;
+- **图片收藏流程**:canvas 导出 PNG → POST assets 拿 asset_id → POST favorites 时带
+  `asset_id`(建议 `kind: "figure"`)和 `rect_json`(剪裁矩形几何原样存,换设备可还原);
+- favorites 记录现在返回 `asset_id` / `rect_json` 字段,空串 = 纯文字收藏。
+
+### 6. AI 问答会话(历史存储 + 多轮对话)
+
+```
+POST   /api/v1/ai/conversations                      body: { title?, document_id? }
+GET    /api/v1/ai/conversations?limit=50&offset=0    → data.conversations[](含 message_count,按更新倒序)
+GET    /api/v1/ai/conversations/:id                  → 会话字段 + messages[](seq 正序)
+DELETE /api/v1/ai/conversations/:id                  级联删消息
+POST   /api/v1/ai/conversations/:id/messages         body: { role, content, citations_json?, tool_trace_json?, model? }
+```
+
+- **前端接多轮对话只需一步**:先建会话拿 `conversation_id`,之后每次 `/api/v1/ai/ask`
+  带上它——服务端自动注入既往轮次做上下文、回答完成后自动把 user/assistant 两条
+  写进历史(**前端不需要调 messages 接口**,那是 AI 服务回写用的);
+- 消息里的 `citations_json` 是锚点快照数组(结构同 ask 返回的 citations),渲染历史
+  时同样可点击跳转;
+- **软锚点语义**:问答引用不阻止 job 删除(与收藏的 409 保护不同),job 删除后跳转
+  失效但 snippet 文字仍在——渲染时跳转失败请优雅降级为仅展示文字;
+- 会话标题自动取首问前 40 字,可通过创建时的 `title` 覆盖。
 
 ## 两个必须处理的边界
 

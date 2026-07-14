@@ -7,6 +7,10 @@ use rusqlite::Connection;
 
 #[path = "db/artifacts.rs"]
 mod artifacts;
+#[path = "db/assets.rs"]
+mod assets;
+#[path = "db/conversations.rs"]
+mod conversations;
 #[path = "db/documents.rs"]
 pub mod documents;
 #[path = "db/events.rs"]

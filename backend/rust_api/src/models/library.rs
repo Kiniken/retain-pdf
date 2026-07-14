@@ -34,8 +34,51 @@ pub struct FavoriteRecord {
     pub quote_text: String,
     pub translated_quote_text: String,
     pub note: String,
+    /// 图片附件(assets.asset_id,内容寻址);空串 = 纯文字收藏
+    #[serde(default)]
+    pub asset_id: String,
+    /// 截图剪裁矩形几何(前端坐标系,整存整取)
+    #[serde(default)]
+    pub rect_json: String,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// 内容寻址的二进制资产(收藏截图等);文件本体在 data/assets/<2>/<hash>。
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AssetRecord {
+    pub asset_id: String,
+    pub mime: String,
+    pub bytes: u64,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
+    pub created_at: String,
+}
+
+/// AI 问答会话。document_id 为空 = 全库问答。
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ConversationRecord {
+    pub conversation_id: String,
+    pub title: String,
+    pub document_id: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    #[serde(default)]
+    pub message_count: i64,
+}
+
+/// 会话消息。citations_json 是软锚点快照:job 删除后跳转失效但内容不丢。
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MessageRecord {
+    pub message_id: String,
+    pub conversation_id: String,
+    pub seq: i64,
+    pub role: String,
+    pub content: String,
+    pub citations_json: String,
+    pub tool_trace_json: String,
+    pub model: String,
+    pub created_at: String,
 }
 
 /// blocks_fts 的一行(派生索引,可随时由任务产物重建)。

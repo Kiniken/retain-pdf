@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -49,22 +50,92 @@ class AskResult:
 ChatFn = Callable[[list[dict[str, Any]], list[dict[str, Any]]], dict[str, Any]]
 
 
-def build_deepseek_chat_fn(settings: Settings, client: httpx.Client | None = None) -> ChatFn:
+def assemble_streaming_message(
+    lines: Iterable[str | bytes],
+    on_delta: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    """把 DeepSeek 流式 SSE 组装成与非流式同构的 message dict。
+
+    逐行解析 `data: {json}`(末尾 `data: [DONE]` 终止),累积 content 与按
+    index 拼接的 tool_calls。只有当整轮没有出现 tool_calls(纯回答轮)时,
+    才对每个 content 增量调用 on_delta——工具调用轮不 emit answer_delta。
+    返回 `{"role":"assistant","content":..., "tool_calls":[...]}`,使 agent
+    循环无需感知流式与否。
+    """
+    content_parts: list[str] = []
+    tool_calls: dict[int, dict[str, Any]] = {}
+    saw_tool_calls = False
+    for raw in lines:
+        line = raw.decode("utf-8") if isinstance(raw, bytes) else raw
+        line = line.strip()
+        if not line or not line.startswith("data:"):
+            continue
+        data = line[len("data:"):].strip()
+        if data == "[DONE]":
+            break
+        try:
+            chunk = json.loads(data)
+        except json.JSONDecodeError:
+            continue
+        choices = chunk.get("choices") or []
+        if not choices:
+            continue
+        delta = choices[0].get("delta") or {}
+        delta_tool_calls = delta.get("tool_calls") or []
+        if delta_tool_calls:
+            saw_tool_calls = True
+            for call in delta_tool_calls:
+                index = call.get("index", 0)
+                slot = tool_calls.setdefault(
+                    index,
+                    {"id": "", "type": "function", "function": {"name": "", "arguments": ""}},
+                )
+                if call.get("id"):
+                    slot["id"] = call["id"]
+                if call.get("type"):
+                    slot["type"] = call["type"]
+                function = call.get("function") or {}
+                if function.get("name"):
+                    slot["function"]["name"] += function["name"]
+                if function.get("arguments"):
+                    slot["function"]["arguments"] += function["arguments"]
+        piece = delta.get("content")
+        if piece:
+            content_parts.append(piece)
+            if on_delta is not None and not saw_tool_calls:
+                on_delta(piece)
+    message: dict[str, Any] = {"role": "assistant", "content": "".join(content_parts)}
+    if tool_calls:
+        message["tool_calls"] = [tool_calls[index] for index in sorted(tool_calls)]
+    return message
+
+
+def build_deepseek_chat_fn(
+    settings: Settings,
+    client: httpx.Client | None = None,
+    *,
+    on_delta: Callable[[str], None] | None = None,
+) -> ChatFn:
     http = client or httpx.Client(timeout=settings.llm_timeout_s)
+    url = f"{settings.llm_base_url}/chat/completions"
+    headers = {"Authorization": f"Bearer {settings.llm_api_key}"}
 
     def chat(messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> dict[str, Any]:
-        response = http.post(
-            f"{settings.llm_base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {settings.llm_api_key}"},
-            json={
-                "model": settings.llm_model,
-                "messages": messages,
-                "tools": tools,
-                "temperature": 0.2,
-            },
-        )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]
+        body: dict[str, Any] = {
+            "model": settings.llm_model,
+            "messages": messages,
+            "tools": tools,
+            "temperature": 0.2,
+        }
+        if on_delta is None:
+            response = http.post(url, headers=headers, json=body)
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]
+        # 流式:逐 token 经 on_delta 推给上层,同时组装出同构 message 返回
+        body["stream"] = True
+        with http.stream("POST", url, headers=headers, json=body) as response:
+            response.raise_for_status()
+            return assemble_streaming_message(response.iter_lines(), on_delta)
 
     return chat
 
@@ -87,21 +158,31 @@ class RetrievalAgent:
         *,
         document_id: str = "",
         on_event: Callable[[dict[str, Any]], None] | None = None,
+        chat_fn: ChatFn | None = None,
+        history: list[dict[str, str]] | None = None,
     ) -> AskResult:
+        # chat_fn 覆盖:按请求携带的 LLM key 构造的临时应答器;缺省用启动期的
         emit = on_event or (lambda event: None)
+        chat = chat_fn or self._chat
         user_content = question.strip()
         if document_id:
             user_content = f"(限定文档 document_id={document_id})\n{user_content}"
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_content},
         ]
+        # 多轮对话:注入既往轮次(只保留 role/content,工具轨迹不回放)
+        for turn in history or []:
+            role = str(turn.get("role") or "")
+            content = str(turn.get("content") or "").strip()
+            if role in {"user", "assistant"} and content:
+                messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": user_content})
         citations: dict[int, Citation] = {}
         trace: list[dict[str, Any]] = []
         next_ref = 1
 
         for round_index in range(1, self._max_tool_rounds + 1):
-            message = self._chat(messages, self._registry.specs())
+            message = chat(messages, self._registry.specs())
             tool_calls = message.get("tool_calls") or []
             if not tool_calls:
                 answer = str(message.get("content") or "").strip()

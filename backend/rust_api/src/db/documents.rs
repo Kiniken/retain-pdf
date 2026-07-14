@@ -47,6 +47,40 @@ impl Db {
         Ok(record)
     }
 
+    /// 任意 job_id(含历史 run 与 -ocr 子任务)→ 所属 document。
+    /// 前端打开历史 job 时不能再靠 active_job_id 反查——那只匹配当前
+    /// 生效 run,历史 run 会静默失配(收藏不入库、问答退化全库)。
+    pub fn get_document_by_job_id(&self, job_id: &str) -> Result<Option<DocumentRecord>> {
+        let conn = self.connect()?;
+        let document_id: Option<String> = conn
+            .query_row(
+                r#"
+                SELECT COALESCE(
+                    NULLIF(j.document_id, ''),
+                    (SELECT NULLIF(u.content_hash, '') FROM uploads u WHERE u.upload_id = j.upload_id)
+                )
+                FROM jobs j WHERE j.job_id = ?1
+                "#,
+                params![job_id],
+                |row| row.get(0),
+            )
+            .optional()?
+            .flatten();
+        let Some(document_id) = document_id else {
+            return Ok(None);
+        };
+        query_document(&conn, &document_id)
+    }
+
+    pub fn update_favorite_note(&self, favorite_id: &str, note: &str) -> Result<bool> {
+        let conn = self.connect()?;
+        let changed = conn.execute(
+            "UPDATE favorites SET note = ?1, updated_at = ?2 WHERE favorite_id = ?3",
+            params![note, now_iso(), favorite_id],
+        )?;
+        Ok(changed > 0)
+    }
+
     pub fn list_documents(
         &self,
         limit: u32,
@@ -272,13 +306,15 @@ impl Db {
             INSERT INTO favorites (
                 favorite_id, document_id, job_id, page_idx, block_id,
                 char_start, char_end, kind, quote_text, translated_quote_text,
-                note, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                note, asset_id, rect_json, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
             ON CONFLICT(favorite_id) DO UPDATE SET
                 kind=excluded.kind,
                 quote_text=excluded.quote_text,
                 translated_quote_text=excluded.translated_quote_text,
                 note=excluded.note,
+                asset_id=excluded.asset_id,
+                rect_json=excluded.rect_json,
                 updated_at=excluded.updated_at
             "#,
             params![
@@ -293,6 +329,8 @@ impl Db {
                 favorite.quote_text,
                 favorite.translated_quote_text,
                 favorite.note,
+                favorite.asset_id,
+                favorite.rect_json,
                 favorite.created_at,
                 favorite.updated_at,
             ],
@@ -304,11 +342,11 @@ impl Db {
         let conn = self.connect()?;
         let (sql, args): (&str, Vec<Box<dyn rusqlite::types::ToSql>>) = match document_id {
             Some(id) => (
-                "SELECT favorite_id, document_id, job_id, page_idx, block_id, char_start, char_end, kind, quote_text, translated_quote_text, note, created_at, updated_at FROM favorites WHERE document_id = ?1 ORDER BY page_idx, created_at",
+                "SELECT favorite_id, document_id, job_id, page_idx, block_id, char_start, char_end, kind, quote_text, translated_quote_text, note, asset_id, rect_json, created_at, updated_at FROM favorites WHERE document_id = ?1 ORDER BY page_idx, created_at",
                 vec![Box::new(id.to_string())],
             ),
             None => (
-                "SELECT favorite_id, document_id, job_id, page_idx, block_id, char_start, char_end, kind, quote_text, translated_quote_text, note, created_at, updated_at FROM favorites ORDER BY created_at DESC",
+                "SELECT favorite_id, document_id, job_id, page_idx, block_id, char_start, char_end, kind, quote_text, translated_quote_text, note, asset_id, rect_json, created_at, updated_at FROM favorites ORDER BY created_at DESC",
                 Vec::new(),
             ),
         };
@@ -552,8 +590,10 @@ fn row_to_favorite(row: &rusqlite::Row<'_>) -> rusqlite::Result<FavoriteRecord> 
         quote_text: row.get(8)?,
         translated_quote_text: row.get(9)?,
         note: row.get(10)?,
-        created_at: row.get(11)?,
-        updated_at: row.get(12)?,
+        asset_id: row.get(11)?,
+        rect_json: row.get(12)?,
+        created_at: row.get(13)?,
+        updated_at: row.get(14)?,
     })
 }
 
@@ -720,6 +760,8 @@ mod tests {
             quote_text: "quoted source".to_string(),
             translated_quote_text: "引文快照".to_string(),
             note: String::new(),
+            asset_id: String::new(),
+            rect_json: String::new(),
             created_at: now_iso(),
             updated_at: now_iso(),
         }
@@ -735,7 +777,8 @@ mod tests {
         let version: i64 = conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .expect("user_version");
-        assert_eq!(version, 1);
+        // 与迁移数组长度同步:v1 图书馆地基 + v2 资产/会话
+        assert_eq!(version, 2);
     }
 
     #[test]

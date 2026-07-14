@@ -13,6 +13,7 @@ use crate::routes::jobs;
 use crate::routes::ai_proxy;
 use crate::routes::library;
 use crate::routes::library_data;
+use crate::routes::library_extras;
 use crate::routes::providers;
 use crate::routes::uploads;
 
@@ -93,10 +94,33 @@ pub fn build_app(state: AppState) -> Router {
         )
         .route(
             "/api/v1/favorites/:favorite_id",
-            axum::routing::delete(library_data::delete_favorite_route),
+            axum::routing::patch(library_data::patch_favorite_route)
+                .delete(library_data::delete_favorite_route),
         )
         .route("/api/v1/search", get(library_data::search_blocks_route))
         .route("/api/v1/ai/ask", post(ai_proxy::ask_proxy))
+        .route(
+            "/api/v1/assets",
+            post(library_extras::upload_asset_route).layer(DefaultBodyLimit::disable()),
+        )
+        .route(
+            "/api/v1/assets/:asset_id",
+            get(library_extras::download_asset_route),
+        )
+        .route(
+            "/api/v1/ai/conversations",
+            post(library_extras::create_conversation_route)
+                .get(library_extras::list_conversations_route),
+        )
+        .route(
+            "/api/v1/ai/conversations/:conversation_id",
+            get(library_extras::get_conversation_route)
+                .delete(library_extras::delete_conversation_route),
+        )
+        .route(
+            "/api/v1/ai/conversations/:conversation_id/messages",
+            post(library_extras::append_message_route),
+        )
         .route("/api/v1/library/books", get(library::list_books))
         .route("/api/v1/library/books/delete", post(library::delete_books))
         .route(

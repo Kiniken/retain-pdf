@@ -26,6 +26,8 @@ pub struct ListDocumentsQuery {
     pub reading_status: Option<String>,
     pub tag: Option<String>,
     pub collection_id: Option<String>,
+    /// 按任意 job_id(含历史 run)直查其所属文档,前端无需再扫列表反查
+    pub job_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -37,6 +39,14 @@ pub async fn list_documents_route(
     State(state): State<AppState>,
     Query(query): Query<ListDocumentsQuery>,
 ) -> Result<Json<ApiResponse<DocumentListView>>, AppError> {
+    if let Some(job_id) = query.job_id.as_deref().map(str::trim).filter(|id| !id.is_empty()) {
+        let documents = state
+            .db
+            .get_document_by_job_id(job_id)?
+            .into_iter()
+            .collect();
+        return Ok(ok_json(DocumentListView { documents }));
+    }
     let documents = state.db.list_documents(
         query.limit.clamp(1, 500),
         query.offset,
@@ -91,8 +101,10 @@ pub async fn patch_document_route(
 
 #[derive(Debug, Deserialize)]
 pub struct CreateFavoriteInput {
+    /// 可缺省:给了 job_id 时后端自动解析所属文档(历史 run 也能收藏)
+    #[serde(default)]
     pub document_id: String,
-    /// 缺省用文档当前 active_job_id(即阅读器正展示的块空间)
+    /// 锚点所在块空间;缺省用文档当前 active_job_id
     pub job_id: Option<String>,
     pub page_idx: i64,
     pub block_id: String,
@@ -105,30 +117,63 @@ pub struct CreateFavoriteInput {
     pub translated_quote_text: Option<String>,
     #[serde(default)]
     pub note: Option<String>,
+    /// 图片附件:先 POST /api/v1/assets 拿 asset_id 再挂上(kind 建议 figure)
+    #[serde(default)]
+    pub asset_id: Option<String>,
+    /// 截图剪裁矩形几何(前端坐标系原样存)
+    #[serde(default)]
+    pub rect_json: Option<String>,
 }
 
 pub async fn create_favorite_route(
     State(state): State<AppState>,
     Json(payload): Json<CreateFavoriteInput>,
 ) -> Result<Json<ApiResponse<FavoriteRecord>>, AppError> {
-    let document = state
-        .db
-        .get_document(&payload.document_id)
-        .map_err(|_| AppError::not_found(format!("document not found: {}", payload.document_id)))?;
-    let job_id = payload
+    let requested_job_id = payload
         .job_id
-        .filter(|id| !id.trim().is_empty())
-        .or(document.active_job_id)
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string);
+    let document = if !payload.document_id.trim().is_empty() {
+        state
+            .db
+            .get_document(payload.document_id.trim())
+            .map_err(|_| AppError::not_found(format!("document not found: {}", payload.document_id)))?
+    } else if let Some(job_id) = requested_job_id.as_deref() {
+        // 只给 job_id 也能收藏:历史 run 同样解析到所属文档
+        state.db.get_document_by_job_id(job_id)?.ok_or_else(|| {
+            AppError::not_found(format!("no document owns job: {job_id}"))
+        })?
+    } else {
+        return Err(AppError::bad_request(
+            "either document_id or job_id is required",
+        ));
+    };
+    let job_id = requested_job_id
+        .or(document.active_job_id.clone())
         .ok_or_else(|| {
             AppError::bad_request("document has no active job; pass job_id explicitly")
         })?;
     if payload.quote_text.trim().is_empty() {
         return Err(AppError::bad_request("quote_text must not be empty"));
     }
+    let asset_id = payload
+        .asset_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+        .unwrap_or_default();
+    if !asset_id.is_empty() && state.db.get_asset(&asset_id)?.is_none() {
+        return Err(AppError::bad_request(format!(
+            "asset not found: {asset_id}; upload it via POST /api/v1/assets first"
+        )));
+    }
     let now = now_iso();
     let favorite = FavoriteRecord {
         favorite_id: format!("fav-{}", build_job_id()),
-        document_id: payload.document_id,
+        document_id: document.document_id,
         job_id,
         page_idx: payload.page_idx,
         block_id: payload.block_id,
@@ -138,6 +183,8 @@ pub async fn create_favorite_route(
         quote_text: payload.quote_text,
         translated_quote_text: payload.translated_quote_text.unwrap_or_default(),
         note: payload.note.unwrap_or_default(),
+        asset_id,
+        rect_json: payload.rect_json.unwrap_or_default(),
         created_at: now.clone(),
         updated_at: now,
     };
@@ -161,6 +208,28 @@ pub async fn list_favorites_route(
 ) -> Result<Json<ApiResponse<FavoriteListView>>, AppError> {
     let favorites = state.db.list_favorites(query.document_id.as_deref())?;
     Ok(ok_json(FavoriteListView { favorites }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PatchFavoriteInput {
+    pub note: Option<String>,
+}
+
+pub async fn patch_favorite_route(
+    State(state): State<AppState>,
+    AxumPath(favorite_id): AxumPath<String>,
+    Json(payload): Json<PatchFavoriteInput>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let Some(note) = payload.note else {
+        return Err(AppError::bad_request("note is required"));
+    };
+    let updated = state.db.update_favorite_note(&favorite_id, &note)?;
+    if !updated {
+        return Err(AppError::not_found(format!(
+            "favorite not found: {favorite_id}"
+        )));
+    }
+    Ok(ok_json(serde_json::json!({ "updated": true })))
 }
 
 pub async fn delete_favorite_route(

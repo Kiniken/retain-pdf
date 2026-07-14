@@ -47,7 +47,50 @@ class RustApiClient:
     def get_document(self, document_id: str) -> dict[str, Any]:
         return self._get(f"/api/v1/documents/{document_id}")
 
+    def get_document_by_job(self, job_id: str) -> dict[str, Any] | None:
+        """任意 job_id(含历史 run)→ 所属文档;查不到返回 None。"""
+        data = self._get("/api/v1/documents", {"job_id": job_id})
+        documents = list(data.get("documents") or [])
+        return documents[0] if documents else None
+
     def list_favorites(self, document_id: str = "") -> list[dict[str, Any]]:
         params = {"document_id": document_id} if document_id else None
         data = self._get("/api/v1/favorites", params)
         return list(data.get("favorites") or [])
+
+    def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        response = self._client.post(f"{self._base}{path}", json=payload)
+        response.raise_for_status()
+        body = response.json()
+        if body.get("code") != 0:
+            raise RuntimeError(f"rust api error on {path}: {body.get('message')}")
+        return body.get("data") or {}
+
+    def get_conversation(self, conversation_id: str) -> dict[str, Any] | None:
+        try:
+            return self._get(f"/api/v1/ai/conversations/{conversation_id}")
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                return None
+            raise
+
+    def append_conversation_message(
+        self,
+        conversation_id: str,
+        *,
+        role: str,
+        content: str,
+        citations_json: str = "",
+        tool_trace_json: str = "",
+        model: str = "",
+    ) -> dict[str, Any]:
+        return self._post(
+            f"/api/v1/ai/conversations/{conversation_id}/messages",
+            {
+                "role": role,
+                "content": content,
+                "citations_json": citations_json,
+                "tool_trace_json": tool_trace_json,
+                "model": model,
+            },
+        )
