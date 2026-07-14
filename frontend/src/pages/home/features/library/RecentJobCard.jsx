@@ -100,6 +100,12 @@ function RecentJobCardImpl({
   const updatedAt = formatCardDate(item.updated_at);
   const fullTitle = item.title || item.display_name || item.job_id || "-";
   const jobId = `${item.job_id || ""}`.trim();
+  // 只有翻译流程真正跑完(succeeded)才有完整的原文/译文 PDF 可对照——排队中/
+  // 进行中/失败/已取消的任务点"对照阅读"以前会一路捅到阅读器里的
+  // use-reader-boot.js,那边的 loadReaderPayload/mountReaderPdfPair 深处才
+  // 报错("对照阅读加载失败"),体验上是个没头没尾的失败提示。这里提前挡掉,
+  // 按钮直接不可点,不再依赖阅读器那层的兜底报错。
+  const readerAvailable = `${item.status || ""}`.trim() === "succeeded";
   renderCountsForTests.set(jobId, (renderCountsForTests.get(jobId) || 0) + 1);
   const coverUrl = useRecentJobCover(item);
 
@@ -129,6 +135,9 @@ function RecentJobCardImpl({
   function handleReaderClick(event) {
     event.preventDefault();
     event.stopPropagation();
+    if (!readerAvailable) {
+      return;
+    }
     onReader?.(jobId);
   }
 
@@ -188,9 +197,10 @@ function RecentJobCardImpl({
           <div className="recent-job-hover-actions">
             <button
               type="button"
-              className="recent-job-hover-btn recent-job-reader"
-              title="对照阅读"
+              className={`recent-job-hover-btn recent-job-reader${readerAvailable ? "" : " is-disabled"}`}
+              title={readerAvailable ? "对照阅读" : "任务未完成，暂无法对照阅读"}
               aria-label="对照阅读"
+              aria-disabled={readerAvailable ? undefined : "true"}
               onClick={handleReaderClick}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">

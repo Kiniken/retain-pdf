@@ -181,6 +181,46 @@ test("RecentJobsLibrary：卡片交互(select / reader / delete 确认与取消 
   host.remove();
 });
 
+test("RecentJobsLibrary：未成功任务的对照阅读按钮禁用(回归)", async () => {
+  // 回归覆盖:对照阅读按钮以前不管任务状态一律可点,失败/排队中/进行中/
+  // 已取消的任务点了会一路捅进阅读器启动流程深处才报"对照阅读加载失败"
+  // (那时候压根没有可对照的 PDF)。现在按 succeeded 状态在卡片这一层就
+  // 挡掉,不依赖阅读器那层的兜底报错。
+  const dom = makeDom("?mock=parallel");
+  const { services, root, host } = await bootHomeApp(dom);
+
+  const items = [
+    makeItem(1, { status: "failed" }),
+    makeItem(2, { status: "succeeded" }),
+  ];
+  services.library.recentJobsStore.actions.setItems(items);
+  await waitFor(() => byId(dom, "recent-jobs-list").querySelectorAll(".recent-job-item").length === 2, "两张卡片就位");
+
+  const cardOf = (jobId) => byId(dom, "recent-jobs-list").querySelector(`.recent-job-item[data-job-id="${jobId}"]`);
+
+  const { APP_EVENTS } = await import("../src/js/contracts/app-contract.js");
+  let readerDetail = null;
+  dom.window.document.addEventListener(APP_EVENTS.openReaderRequested, (event) => {
+    readerDetail = event.detail;
+  });
+
+  const failedReaderButton = cardOf("job-1").querySelector(".recent-job-reader");
+  assert.equal(failedReaderButton.getAttribute("aria-disabled"), "true", "失败任务的对照阅读按钮应标记 aria-disabled");
+  assert.match(failedReaderButton.title, /未完成/);
+  click(dom, failedReaderButton);
+  await wait(30);
+  assert.equal(readerDetail, null, "失败任务点对照阅读不应触发 openReaderRequested");
+
+  const succeededReaderButton = cardOf("job-2").querySelector(".recent-job-reader");
+  assert.equal(succeededReaderButton.getAttribute("aria-disabled"), null, "已完成任务的对照阅读按钮不应标记 aria-disabled");
+  click(dom, succeededReaderButton);
+  await waitFor(() => readerDetail?.jobId === "job-2", "已完成任务点对照阅读应正常触发 openReaderRequested");
+
+  root.unmount();
+  services.dispose();
+  host.remove();
+});
+
 test("RecentJobsLibrary：卡片渲染隔离(replaceItem 单卡,其余 23 张卡片渲染计数不变)", async () => {
   const dom = makeDom("?mock=parallel");
   const { services, root, host } = await bootHomeApp(dom);
