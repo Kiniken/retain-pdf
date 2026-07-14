@@ -1,8 +1,9 @@
 // home 页 React 编排根。
 //
 // 结构对照 partials/main-content.html + dialogs.html 逐区块镜像;顶部导航
-// (品牌 / 图书馆-分类分栏 / 搜索框 / 添加-设置按钮)整合进 AppTopBar.jsx 一条
-// 导航栏(方案 A,替代早期"header + 分栏行 + 底部悬浮条"三处分离的布局)。
+// (品牌 / 图书馆-分类分栏 / 添加-设置按钮)整合进 AppTopBar.jsx 一条导航栏,
+// 搜索框单独留在 LibrarySearchDock.jsx 的底部悬浮条(用户要求搜索离内容更
+// 近,不和常驻的添加/设置按钮挤在顶部)。
 // 其余区块(library-view 网格、status 卡、credentials/glossaries/status-detail/
 // reader 等对话框)已陆续接上;剩余占位容器 id/标签契约保留、内容留空。
 // 占位自定义元素标签(<recent-jobs-dialog> 等)在新世界不注册定义,惰性无副作用。
@@ -13,6 +14,7 @@ import { AppTopBar } from "./features/app-shell/AppTopBar.jsx";
 import { TranslationWorkflowDialog } from "./features/workflow/TranslationWorkflowDialog.jsx";
 import { PageRangeDialog } from "./features/upload/PageRangeDialog.jsx";
 import { RecentJobsLibrary } from "./features/library/RecentJobsLibrary.jsx";
+import { LibrarySearchDock } from "./features/library/LibrarySearchDock.jsx";
 import { CategoriesView } from "./features/library/CategoriesView.jsx";
 import { CredentialsDialog } from "./features/credentials/CredentialsDialog.jsx";
 import { GlossariesDialog } from "./features/glossaries/GlossariesDialog.jsx";
@@ -36,12 +38,13 @@ function HomeShell() {
   return (
     <>
       <main id="app-shell" className="page app-shell">
-        <AppTopBar activeTab={activeLibraryTab} onTabChange={setActiveLibraryTab} showSearch={isLibraryTab} />
+        <AppTopBar activeTab={activeLibraryTab} onTabChange={setActiveLibraryTab} />
         {isLibraryTab ? (
           <>
             <RecentJobsLibrary />
             {/* 3b recent-jobs:搜索岛(library-search-island)接管 */}
             <library-search-island></library-search-island>
+            <LibrarySearchDock />
           </>
         ) : (
           <CategoriesView />

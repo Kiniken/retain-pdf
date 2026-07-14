@@ -1,22 +1,19 @@
-// 整合顶部导航栏(方案 A,替代原先 AppShellHeader/LibraryTopTabs/
-// LibraryBottomBar 三处分离的布局)——logo、图书馆/分类分栏、搜索框、添加/
-// 设置按钮全部收进同一条白底导航栏,不再有底部悬浮搜索栏。
+// 整合顶部导航栏(方案 A 的调整版)——logo、图书馆/分类分栏、添加/设置按钮
+// 收进同一条白底导航栏;搜索框应用户要求挪回底部悬浮条(见
+// LibrarySearchDock.jsx),不放在这条顶部栏里。
 //
-// 契约 id 全部原样保留(library-search-input/library-add-pdf-btn/
-// app-settings-btn 及其 aria-*/data-* 属性),只是从"分散在 app-shell 底部
-// fixed 定位的浮动条"挪进"顶部同一行",消费方(测试/其余组件)不用改。
+// 契约 id 全部原样保留(library-add-pdf-btn/app-settings-btn 及其
+// aria-*/data-* 属性),消费方(测试/其余组件)不用改。
 
 import { useHomeServices } from "../../home-services-context.js";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
 import { TRANSLATION_WORKFLOW_DIALOG } from "../../../../js/features/translation-workflow-dialog/contract.js";
 import { LibraryTopTabs } from "../library/LibraryTopTabs.jsx";
-import { useLibrarySearchBinding } from "../library/RecentJobsLibrary.jsx";
 
-export function AppTopBar({ activeTab, onTabChange, showSearch }) {
+export function AppTopBar({ activeTab, onTabChange }) {
   const services = useHomeServices();
   const dialog = useStoreSnapshot(services.stores.dialog);
   const open = Boolean(dialog.open);
-  const { query, onSearchChange } = useLibrarySearchBinding();
 
   return (
     <app-shell-header class="app-shell-header">
@@ -35,19 +32,7 @@ export function AppTopBar({ activeTab, onTabChange, showSearch }) {
           <button id="open-output-btn" type="button" className="secondary hidden">打开输出目录</button>
         </div>
         <LibraryTopTabs active={activeTab} onChange={onTabChange} />
-        {showSearch ? (
-          <div className="library-search-bar" role="search">
-            <input
-              id="library-search-input"
-              type="search"
-              autoComplete="off"
-              placeholder="搜索书籍、任务或日期"
-              aria-label="搜索书籍"
-              value={query}
-              onChange={onSearchChange}
-            />
-          </div>
-        ) : <div className="library-search-bar-spacer" aria-hidden="true" />}
+        <div className="library-topbar-spacer" aria-hidden="true" />
         <div className="library-bottom-actions" aria-label="快捷操作">
           <button
             id="library-add-pdf-btn"
