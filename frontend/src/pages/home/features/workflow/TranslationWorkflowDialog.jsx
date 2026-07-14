@@ -15,40 +15,36 @@
 //    open/close——mode 只影响标题文案和 statusMode/uploadMode 两个 class,
 //    与本次迁移正交,原样保留。
 //
-// 3. 两段式关闭(本文件风险最高的一处):不能像 CredentialsDialog 那样
-//    onOpenChange(false) 直接调 store 的 close()——services.workflowDialog.
-//    requestClose() 内部有分流(状态区可见时先 statusAreaPort.returnHome()
-//    回到上传视图，对话框本身不关；只有状态区不可见时才真正 dispatch
-//    closeTranslationWorkflow 关闭，见 translation-workflow-dialog-runtime.js）。
-//    这是 e61282b 修过的真实 bug 的根治点，Escape/背板/关闭按钮三条触发路径
-//    必须统一路由到 requestClose()，不能有任何一条绕过去直接调
-//    dialogStatePort.close()。
+// 3. 关闭统一路由到 requestClose():Escape/背板/关闭按钮三条触发路径都必须走
+//    services.workflowDialog.requestClose()(见 translation-workflow-dialog-
+//    runtime.js),不能有任何一条绕过去直接调 dialogStatePort.close()——3b 库
+//    刷新挂起/恢复(bindings.js)依赖 closeTranslationWorkflow 事件在 document
+//    上可见,只有走 requestClose() 才会 dispatch 这个事件。
 //
-//    Escape 键需要额外处理:本对话框在 Radix 化之前就已经有一条独立的
-//    document 级 keydown 监听(translation-workflow-dialog-runtime.js 的
-//    bindEvents，事件契约需要它在 document 上可见，3b 库刷新挂起/恢复依赖，
-//    不能删)，它已经在调 requestClose()。若同时让 Radix Content 自己的
-//    onEscapeKeyDown 走默认行为(触发 onOpenChange(false) → requestClose())，
-//    一次 Escape 按键会在同一个事件循环内触发两次 requestClose()——第一次把
-//    状态模式 returnHome()(statusArea 隐藏)，第二次因为此时 isVisible() 已
-//    经是 false，会直接把对话框整个关掉，两段式关闭被"合并"成一段，是真实的
-//    回归(实测验证过)。这里显式 onEscapeKeyDown={(e)=>e.preventDefault()}，
-//    把 Escape 完全交给既有的 document 监听器处理——DismissableLayer 的
-//    keydown 监听挂在 capture 阶段，bindEvents 的监听挂在 bubble 阶段，同一个
-//    document 目标上前者必然先跑：我们在这里 preventDefault() 之后，Radix 自
-//    己的 onDismiss(→onOpenChange(false))被跳过，随后 bubble 阶段 bindEvents
-//    的监听器正常触发一次 requestClose()——三条路径最终都恰好调用一次
-//    requestClose(),满足"统一路由,不绕过"的要求。
+//    requestClose() 现在是"一次点击直接关闭"(不再是早期的两段式:状态可见时
+//    先 returnHome、对话框不关)。两段式被用户判定为不符合预期(点任务进度的
+//    × 会弹回空上传表单、还顺带 stopPolling 把任务重置),已改成 × = 关闭;
+//    中止任务改由 StatusCard 的"取消任务"按钮负责。
+//
+//    Escape 键仍需额外处理:本对话框有一条独立的 document 级 keydown 监听
+//    (runtime 的 bindEvents,事件契约要它在 document 上可见,不能删),已经在
+//    调 requestClose()。若同时让 Radix Content 的 onEscapeKeyDown 走默认行为
+//    (触发 onOpenChange(false) → requestClose()),一次 Escape 会触发两次
+//    requestClose(),两次 closeTranslationWorkflow 事件会让 bindings.js 的
+//    挂起/恢复逻辑重复跑一遍。这里显式 onEscapeKeyDown={(e)=>e.preventDefault()}
+//    把 Escape 完全交给既有 document 监听器处理——DismissableLayer 的 keydown
+//    挂在 capture 阶段、bindEvents 挂在 bubble 阶段,前者先跑并被我们
+//    preventDefault(),Radix 自己的 onDismiss 被跳过,随后 bubble 阶段 bindEvents
+//    正常触发一次 requestClose(),三条路径最终都恰好调用一次,不重复。
 //
 // 4. 不 forceMount Content(同其余对话框的决策，见 use-dialog-return-focus.js
 //    头注释——forceMount 会让 Radix modal Content 内部的 hideOthers() 副作用
 //    在应用启动时就永久生效)。WorkflowPanel(上传表单)和 #status-section(3b
-//    StatusCard)因此随对话框关闭一起卸载——这不是新增的状态丢失:
-//    openUpload() 本来就在每次打开时无条件 resetUploadSession()，而真正的
-//    整体关闭只发生在 statusArea 不可见(没有活跃任务展示中)时(见上面第 3
-//    点)，卸载时没有"正在展示中的任务状态"可丢。job-runtime 轮询引擎是独立
-//    于 React 挂载生命周期的服务(store 驱动，不依赖 StatusCard 组件是否挂载)，
-//    卸载 StatusCard 不影响后台轮询本身。
+//    StatusCard)因此随对话框关闭一起卸载。openUpload() 每次打开都无条件
+//    resetUploadSession(),不存在跨开合保留上传态的预期;job-runtime 轮询引擎
+//    是独立于 React 挂载生命周期的服务(store 驱动,不依赖 StatusCard 是否挂载),
+//    卸载 StatusCard 不影响后台轮询——任务到终态时引擎自己 stopPolling,关闭
+//    对话框不会漏掉常驻轮询。
 //
 // <html> 级样式钩子(rootOpen class)在 React 根之外,用 effect 同步(卸载时
 // 清理),保持不动。触发按钮("添加",在 LibraryBottomBar 里)与本对话框跨

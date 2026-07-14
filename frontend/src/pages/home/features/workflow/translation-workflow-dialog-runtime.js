@@ -96,12 +96,18 @@ export function createTranslationWorkflowDialogRuntime({
     dispatch(APP_EVENTS.openTranslationWorkflow, { mode: TRANSLATION_WORKFLOW_MODES.UPLOAD });
   }
 
-  // 状态模式下关闭 = 返回主页(镜像旧 requestClose 语义)
+  // 关闭 = 直接关对话框,一次点击到位(不管当前是上传态还是任务进度态)。
+  //
+  // 旧的"两段式关闭"(状态可见时先 returnHome、对话框不关,再点一次才真关)被
+  // 用户判定为不符合预期:点任务进度的 × 会先弹回"翻译 PDF"空上传表单、还顺带
+  // 悄悄 stopPolling 把任务重置掉,像是"点关闭反而退回上一步"。现在统一成"× =
+  // 关闭"。想中止运行中的任务有 StatusCard 上专门的"取消任务"按钮
+  // (cancelCurrentJob),不靠关闭对话框来兼职做这件事。
+  //
+  // 关闭不影响后台任务:job-runtime 轮询独立于对话框挂载生命周期,任务到终态
+  // 时 controller.js 会自己 pollingPort.stop()(见该文件 §renderJob),不会因为
+  // 关了对话框就漏掉一个常驻轮询;图书馆网格的卡片仍会显示该任务的实时进度。
   function requestClose() {
-    if (statusAreaPort?.isVisible?.()) {
-      statusAreaPort.returnHome();
-      return;
-    }
     dispatch(APP_EVENTS.closeTranslationWorkflow);
   }
 

@@ -217,26 +217,26 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   await waitFor(() => byId("status-section").classList.contains("hidden") === true, "状态区隐藏");
   await waitFor(() => dialog.classList.contains("is-upload-mode"), "对话框回到上传模式");
 
-  // ---- 状态模式下的关闭 = 返回主页(returnHome 事件),不直接关框(对话框
-  //      仍处于打开状态,验证两段式关闭的第一段) ----
+  // ---- 状态模式下点 × = 一次点击直接关闭(不再是两段式:不 returnHome、不
+  //      弹回上传表单;中止任务由 StatusCard 的"取消任务"按钮负责) ----
   services.bridge.setWorkflowSections({ job_id: "job-2", status: "running" });
   await waitFor(() => dialog.classList.contains("is-status-mode"), "回到状态模式");
   let returnHomeCount = 0;
   dom.window.document.addEventListener(APP_EVENTS.returnHome, () => { returnHomeCount += 1; });
   const closesBefore = events.close;
   click(byId("translation-workflow-close-btn"));
-  await wait(30);
-  assert.equal(returnHomeCount, 1, "状态模式关闭应走 returnHome");
-  assert.equal(events.close, closesBefore, "状态模式关闭不应 dispatch closeTranslationWorkflow");
-  assert.ok(byId("translation-workflow-dialog"), "returnHome 之后对话框本身仍挂载(两段式关闭的第一段不真的关闭)");
-  await waitFor(() => dialog.classList.contains("is-upload-mode"), "returnHome 之后切回上传模式");
+  await waitFor(() => byId("translation-workflow-dialog") === null, "状态模式点 × 直接关闭对话框");
+  assert.equal(returnHomeCount, 0, "状态模式关闭不应再走 returnHome(两段式已废除)");
+  assert.equal(events.close, closesBefore + 1, "状态模式关闭应 dispatch 一次 closeTranslationWorkflow");
+  assert.equal(dom.window.document.documentElement.classList.contains("translation-workflow-open"), false);
 
-  // ---- 关闭:Escape → dispatch closeTranslationWorkflow → 对话框真正关闭
-  //      (两段式关闭的第二段:此时状态区已不可见,requestClose 直接 close) ----
+  // ---- Escape 关闭路径(重新打开→Escape,验证 Escape 也一次到位、且经
+  //      closeTranslationWorkflow 事件,3b 库刷新恢复依赖) ----
+  click(byId("library-add-pdf-btn"));
+  await waitFor(() => byId("translation-workflow-dialog") !== null, "再次打开(上传态)");
   dom.window.document.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   await waitFor(() => byId("translation-workflow-dialog") === null, "Escape 关闭对话框");
-  assert.equal(events.close, closesBefore + 1, "关闭必须经 APP_EVENTS.closeTranslationWorkflow(3b 刷新恢复依赖)");
-  assert.equal(dom.window.document.documentElement.classList.contains("translation-workflow-open"), false);
+  assert.equal(events.close, closesBefore + 2, "Escape 关闭必须经 APP_EVENTS.closeTranslationWorkflow");
 
   // ---- 关闭按钮路径(重新打开后走关闭按钮;顺带验证 openUpload 的会话复位) ----
   click(byId("library-add-pdf-btn"));
@@ -246,7 +246,7 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   dialog = byId("translation-workflow-dialog");
   click(byId("translation-workflow-close-btn"));
   await waitFor(() => byId("translation-workflow-dialog") === null, "关闭按钮关闭对话框");
-  assert.equal(events.close, closesBefore + 2);
+  assert.equal(events.close, closesBefore + 3);
 
   root.unmount();
   services.dispose();
