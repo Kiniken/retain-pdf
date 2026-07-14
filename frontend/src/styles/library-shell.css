@@ -48,12 +48,16 @@
   }
 }
 
+/* 整合顶部导航栏(方案 A)——logo/分栏/搜索框/添加-设置按钮全部在这一条白底
+   圆角栏里,取代早期"header + 独立分栏行 + 底部悬浮条"三处分离的布局。风格上
+   延续本项目"灰底页面上浮白色圆角卡片"的既有语言(对话框/按钮都是这个套路),
+   不做贴边通栏吸顶——那是另一种导航语言,和这个 app 目前的视觉体系不一致。 */
 @utility app-shell-header {
   width: min(1120px, 100%);
-  flex: 0 0 64px;
-  display: flex;
-  align-items: center;
+  flex: 0 0 auto;
   order: 0;
+  margin-top: 4px;
+  margin-bottom: 18px;
 }
 
 @utility library-view {
@@ -65,8 +69,13 @@
 }
 
 @utility library-topbar {
-  justify-content: space-between;
-  padding: 0;
+  justify-content: flex-start;
+  gap: 18px;
+  padding: 10px 18px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
 @utility library-header-actions {
@@ -77,21 +86,16 @@
   flex: 0 0 auto;
 }
 
-/* 顶部"图书馆/分类"分栏(阶段 D:分类文件夹)——挂在 app-shell-header(order 0)
-   和 library-view/categories-view(order 1)之间,自己占一档窄行,不挤占内容
-   区高度。 */
+/* 顶部"图书馆/分类"分栏——现在是整合导航栏(library-topbar)里的一个 flex
+   子项(和 logo、搜索框、按钮同一行),不再是独立占一整行的顶层元素。 */
 @utility library-top-tabs-root {
-  width: min(1120px, 100%);
   flex: 0 0 auto;
-  order: 0;
-  margin-top: 4px;
-  margin-bottom: 18px;
 }
 
 @utility library-top-tabs {
   display: inline-flex;
-  gap: 4px;
-  padding: 4px;
+  gap: 3px;
+  padding: 3px;
   border-radius: 999px;
   background: var(--bg);
   border: 1px solid var(--line);
@@ -103,8 +107,8 @@
   border: 0;
   background: transparent;
   border-radius: 999px;
-  padding: 9px 22px;
-  font-size: 14px;
+  padding: 7px 16px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
@@ -335,15 +339,15 @@
 */
 @utility library-brand-link {
   & .hero-repo-logo {
-    width: 28px;
-    height: 28px;
+    width: 22px;
+    height: 22px;
   }
 }
 
 @utility hero-repo-logo {
   .library-brand-link & {
-    width: 28px;
-    height: 28px;
+    width: 22px;
+    height: 22px;
   }
   width: 36px;
   height: 36px;
@@ -408,36 +412,10 @@
   }
 }
 
-@utility library-bottom-bar {
-  position: fixed;
-  left: 50%;
-  bottom: 16px;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: min(680px, calc(100vw - 56px));
-  min-height: 52px;
-  padding: 8px;
-  border: 1px solid rgba(210, 210, 215, 0.82);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.12);
-  transform: translateX(-50%);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-
-  @media (max-width: 767px) {
-    width: calc(100vw - 28px);
-    min-height: 54px;
-    gap: 7px;
-    padding: 7px;
-  }
-}
-
 @utility library-search-bar {
   flex: 1 1 auto;
   min-width: 0;
+  max-width: 360px;
 
   & input {
     @apply w-full rounded-full border text-[13px] font-medium text-[#1d1d1f] outline-hidden;
@@ -659,24 +637,18 @@
   @apply mx-auto max-w-[560px];
 }
 
+/* 只在整合导航栏(AppTopBar.jsx)这一处使用——早期是独立占一整行的大号
+   品牌标题(2.2rem),挤进现在这条和分栏/搜索框/按钮同高的紧凑导航栏后按
+   比例缩小,不然视觉分量会盖过其余元素。 */
 @utility hero-repo-link {
-  @apply inline-flex items-center gap-3 text-[2.2rem] font-semibold no-underline;
+  @apply inline-flex items-center gap-2 text-[17px] font-semibold no-underline;
   color: var(--ink);
-  letter-spacing: -0.03em;
-
-  & svg {
-    width: 36px;
-    height: 36px;
-  }
+  letter-spacing: -0.02em;
+  flex: 0 0 auto;
 
   @media (max-width: 767px) {
-    font-size: 1.7rem;
-    gap: 0.65rem;
-
-    & svg {
-      width: 28px;
-      height: 28px;
-    }
+    font-size: 15px;
+    gap: 0.4rem;
   }
 }
 
