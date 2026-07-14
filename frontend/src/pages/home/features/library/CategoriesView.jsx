@@ -144,23 +144,53 @@ export function CategoriesView() {
     return () => {
       cancelled = true;
     };
+    // collectionIdsKey 只在"文件夹集合本身"变化时变——只加/删书(文件夹集合
+    // 不变)不会触发这个 key 变化。version 补上这一半:管理弹窗保存成功就
+    // bump 一次,不管这次改的是名称还是成员,预览缩略图都要跟着刷新,否则
+    // 编辑完书目后卡片上的封面堆叠会停在旧数据,直到下次新建/删除文件夹。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [controller, collectionIdsKey]);
+  }, [controller, collectionIdsKey, version]);
 
+  const openFolderId = openFolder?.collection_id || "";
   useEffect(() => {
-    if (!openFolder) {
+    if (!openFolderId) {
       setFolderItems([]);
       setFolderError("");
-      return;
+      return undefined;
     }
+    let cancelled = false;
     setFolderLoading(true);
     setFolderError("");
     controller
-      .fetchFolderBooks(openFolder.collection_id)
-      .then((items) => setFolderItems(items))
-      .catch((err) => setFolderError(err?.message || "读取分类内容失败，请稍后重试。"))
-      .finally(() => setFolderLoading(false));
-  }, [controller, openFolder]);
+      .fetchFolderBooks(openFolderId)
+      .then((items) => {
+        if (cancelled) {
+          return;
+        }
+        setFolderItems(items);
+      })
+      .catch((err) => {
+        if (cancelled) {
+          return;
+        }
+        setFolderError(err?.message || "读取分类内容失败，请稍后重试。");
+      })
+      .finally(() => {
+        if (cancelled) {
+          return;
+        }
+        setFolderLoading(false);
+      });
+    // 用 collection_id(原始类型)而不是 openFolder(对象引用)做依赖——
+    // reload() 每次都会给同一个文件夹造一个新对象(见上面 setOpenFolder 里
+    // 的 items.find(...)),按对象引用算依赖会导致"没真的切换文件夹"也
+    // 重新请求一次;更关键的是原来那版完全没有 cancelled 守卫,快速切换
+    // 两个文件夹时后发的请求可能先resolve、先发的请求后resolve,导致标题
+    // 显示 B 文件夹、书目列表却是 A 文件夹的旧数据。
+    return () => {
+      cancelled = true;
+    };
+  }, [controller, openFolderId]);
 
   const handleToggleDeleteConfirm = useCallback((jobId) => {
     setConfirmingDeleteJobId(jobId || "");

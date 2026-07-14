@@ -39,8 +39,9 @@ export function CollectionManageDialog() {
   useEffect(() => {
     if (!open) {
       setConfirmingDelete(false);
-      return;
+      return undefined;
     }
+    let cancelled = false;
     setError("");
     setName(editing?.name || "");
     setLoading(true);
@@ -50,12 +51,31 @@ export function CollectionManageDialog() {
       : Promise.resolve([]);
     Promise.all([documentsPromise, memberIdsPromise])
       .then(([documents, memberIds]) => {
+        if (cancelled) {
+          return;
+        }
         setAllDocuments(documents);
         setSelectedIds(memberIds);
         setOriginalIds(memberIds);
       })
-      .catch((err) => setError(err?.message || "加载书目失败，请稍后重试。"))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (cancelled) {
+          return;
+        }
+        setError(err?.message || "加载书目失败，请稍后重试。");
+      })
+      .finally(() => {
+        if (cancelled) {
+          return;
+        }
+        setLoading(false);
+      });
+    // 关闭后快速为另一个分类重新打开(比如先编辑"化学"再编辑"机器学习"),
+    // 两次 fetch 谁先 resolve 不确定——没有这个守卫的话,后关闭的那次请求
+    // 如果晚到,会把已经在显示"机器学习"的表单覆盖回"化学"的书目数据。
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing?.collection_id]);
 

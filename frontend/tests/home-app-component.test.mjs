@@ -305,6 +305,63 @@ test("HomeApp：顶部图书馆/分类分栏 + 分类管理对话框", async () 
   host.remove();
 });
 
+test("HomeApp：分类管理对话框快速切换编辑目标不被迟到响应覆盖(回归)", async () => {
+  // 回归覆盖:CollectionManageDialog 的 open-effect 曾经没有 cancelled 守卫——
+  // 快速为 A 打开对话框、关闭、再为 B 打开,如果 A 的网络请求比 B 的晚
+  // resolve(真实网络下完全可能发生的乱序),会把正在显示 B 的表单勾选状态
+  // 覆盖回 A 的旧数据。用可控 resolve 顺序的假 controller 复现这个乱序。
+  const host = dom.window.document.createElement("div");
+  host.id = "home-root-race";
+  dom.window.document.body.appendChild(host);
+
+  const services = createServices();
+  services.initialize();
+
+  const memberResolvers = {};
+  function deferredMemberIds(collectionId) {
+    return new Promise((resolve) => {
+      memberResolvers[collectionId] = resolve;
+    });
+  }
+  services.collections.controller.listAllDocuments = () => Promise.resolve([
+    { document_id: "doc-1", title: "Doc One" },
+  ]);
+  services.collections.controller.listCollectionDocumentIds = (collectionId) => deferredMemberIds(collectionId);
+
+  const root = createRoot(host);
+  root.render(React.createElement(HomeApp, { services }));
+  await waitFor(() => byId("app-shell"), "HomeApp 首帧渲染");
+  await wait(0);
+
+  const dialogStore = services.collections.dialogStore;
+
+  dialogStore.open({ collection_id: "col-a", name: "A" });
+  await waitFor(() => byId("collection-manage-dialog") !== null, "打开 A");
+  await wait(0);
+
+  dialogStore.close();
+  await wait(0);
+  dialogStore.open({ collection_id: "col-b", name: "B" });
+  await waitFor(() => byId("collection-name-input")?.value === "B", "切到 B");
+  await wait(0);
+
+  // 乱序 resolve:B(doc-1 不属于 B)先到,A(doc-1 属于 A)后到。
+  memberResolvers["col-b"]([]);
+  await wait(10);
+  const checkboxAfterB = dom.window.document.querySelector("#collection-manage-dialog input[type=checkbox]");
+  assert.equal(checkboxAfterB.checked, false, "B 的书目勾选态应该是未勾选(doc-1 不属于 B)");
+
+  memberResolvers["col-a"](["doc-1"]);
+  await wait(10);
+  const checkboxAfterLateA = dom.window.document.querySelector("#collection-manage-dialog input[type=checkbox]");
+  assert.equal(checkboxAfterLateA.checked, false, "A 的迟到响应不应把 B 的勾选态覆盖回勾选");
+  assert.equal(byId("collection-name-input").value, "B", "表单标题应该仍是 B,没被 A 的迟到响应带跑");
+
+  root.unmount();
+  services.dispose();
+  host.remove();
+});
+
 test("HomeApp：3b 回调桥接口定型(蓝图 §4)", () => {
   const services = createServices();
   // mountJobRuntimeFeature / status-detail / credentials 接线所需的回调名
