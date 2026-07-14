@@ -100,6 +100,41 @@ test("useRecentJobCover：同一 URL+cacheVersion 命中模块级缓存,不重�
   host.remove();
 });
 
+test("useRecentJobCover：运行中进度变化不重复拉取封面(卡片不闪烁回归)", async () => {
+  const { fetchCalls } = installFetchAndObjectUrlMocks();
+  const host = dom.window.document.createElement("div");
+  dom.window.document.body.appendChild(host);
+  const root = createRoot(host);
+
+  const seen = [];
+  const running1 = {
+    job_id: "run-cover-flicker",
+    thumbnail_url: "https://example.test/run-cover-flicker.png",
+    status: "running",
+    updated_at: "2026-01-01T00:00:00Z",
+    progress: { current: 1, total: 10, percent: 10 },
+  };
+  root.render(React.createElement(HookHost, { item: running1, onUpdate: (url) => seen.push(url) }));
+  await waitFor(() => seen.some(Boolean), "运行中首帧封面到达");
+  const fetchesAfterFirst = fetchCalls.length;
+  assert.equal(fetchesAfterFirst, 1, "首次应拉取一次封面");
+
+  // 模拟一次轮询补丁:进度、updated_at 都变了,但任务仍是 running——封面不该
+  // 因此重新拉取(否则每一拍 <img> src 一换就闪一下)。
+  const running2 = { ...running1, updated_at: "2026-01-01T00:00:05Z", progress: { current: 5, total: 10, percent: 50 } };
+  root.render(React.createElement(HookHost, { item: running2, onUpdate: (url) => seen.push(url) }));
+  await wait(60);
+  assert.equal(fetchCalls.length, fetchesAfterFirst, "运行中仅进度/时间戳变化不应重新拉取封面");
+
+  // 到终态:应 bust 一次,取可能已更新的成品封面。
+  const done = { ...running1, status: "succeeded", updated_at: "2026-01-01T00:00:10Z" };
+  root.render(React.createElement(HookHost, { item: done, onUpdate: (url) => seen.push(url) }));
+  await waitFor(() => fetchCalls.length === fetchesAfterFirst + 1, "终态应重新拉取一次封面(bust)");
+
+  root.unmount();
+  host.remove();
+});
+
 test("useRecentJobCover：item 快速切换时 token 防竞态,只有最后一次请求写 state", async () => {
   const { fetchCalls } = installFetchAndObjectUrlMocks();
   // 让第一次请求刻意慢于第二次,模拟"旧请求后到达"的竞态

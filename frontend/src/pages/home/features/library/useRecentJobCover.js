@@ -14,16 +14,25 @@ import { useEffect, useRef, useState } from "react";
 import { loadFirstRecentJobImage } from "../../../../js/features/recent-jobs/image-loader.js";
 import { recentJobRawImageUrls } from "../../../../js/features/recent-jobs/card-presenter.js";
 
+// 缓存版本只在"封面可能真的变了"时才变。封面由后端 /jobs/{id}/cover 渲染
+// (运行中 = 原始 PDF 首页,任务完成后才可能换成成品封面),运行过程中封面
+// 内容并不变。原实现把 updated_at + progress.current/percent 等"每一拍轮询都在
+// 变"的字段计入缓存版本 → 每秒都命中一次缓存 miss → 重新 fetch 封面 blob、
+// 生成新的 objectURL、<img> src 一换就闪一下(还每拍泄漏一个 objectURL)。这
+// 正是用户看到的"图书馆卡片运行中闪烁"。
+//
+// 修:非终态只按 status 计版本(queued/running 期间恒定,封面拉一次就够,不再
+// 每拍重拉);到终态(succeeded/failed/canceled)才把 updated_at 计入——这时
+// 封面可能刚产出/更新,需要 bust 一次;updated_at 也能区分不同 run(重跑会有
+// 新的完成时间戳,封面随之刷新),不丢原来"重跑后换新封面"的能力。
+const TERMINAL_COVER_STATUSES = new Set(["succeeded", "failed", "canceled", "cancelled"]);
+
 function imageCacheVersionOf(item = {}) {
-  const progress = item.progress && typeof item.progress === "object" ? item.progress : {};
-  const runtimeProgress = item.runtime_status?.progress && typeof item.runtime_status.progress === "object"
-    ? item.runtime_status.progress
-    : {};
-  return [
-    item.updated_at, item.status, item.display_stage, item.substage,
-    progress.current, progress.total, progress.percent,
-    runtimeProgress.current, runtimeProgress.total, runtimeProgress.percent,
-  ].map((value) => `${value ?? ""}`).join("|");
+  const status = `${item.status || ""}`.trim();
+  if (TERMINAL_COVER_STATUSES.has(status)) {
+    return `${status}|${item.updated_at ?? ""}`;
+  }
+  return status;
 }
 
 export function useRecentJobCover(item) {
