@@ -152,6 +152,40 @@ POST   /api/v1/ai/conversations/:id/messages         body: { role, content, cita
   失效但 snippet 文字仍在——渲染时跳转失败请优雅降级为仅展示文字;
 - 会话标题自动取首问前 40 字,可通过创建时的 `title` 覆盖。
 
+### 7. 分类(合集):建文件夹给 PDF 分组
+
+> `collections`/`collection_documents` 表随图书馆数据层一起建好,一直没接
+> 路由;现在补上。v1 只做扁平文件夹(不支持嵌套,`parent_id` 传了也接受,
+> 但前端目前不需要用)。
+
+```
+POST   /api/v1/collections                body: { name, parent_id? }
+GET    /api/v1/collections                → data.collections[](按 sort_order 排序,含 document_count)
+PATCH  /api/v1/collections/:id             body: { name?, sort_order? }
+DELETE /api/v1/collections/:id             ← 只删文件夹本身,文档不受影响
+
+POST   /api/v1/collections/:id/documents              body: { document_ids: [...] }
+DELETE /api/v1/collections/:id/documents/:document_id
+```
+
+- 加入不存在的 `document_id` 返回 404;重复加入同一文档幂等(不报错、不重复计数);
+- 查看某个文件夹里有哪些文档:`GET /api/v1/documents?collection_id=xxx`(见第 1 节),
+  拿到的每条记录里的 `active_job_id` 就是该文档当前可打开的处理记录;
+- 如果前端仍在用旧世界的 `/api/v1/library/books` 渲染卡片(而不是 `/api/v1/documents`
+  投影),把上一步拿到的 `active_job_id` 集合拼进新加的 `job_ids` 参数
+  (逗号分隔,见下方对 `/api/v1/library/books` 的说明),就能拿到与首页图书馆
+  卡片同构的数据,不用另外做一套"文件夹详情卡片"渲染。
+
+### `/api/v1/library/books` 新增可选参数:`job_ids`
+
+```
+GET /api/v1/library/books?job_ids=job-a,job-b,job-c
+```
+
+- 逗号分隔的 job_id 白名单,只返回命中的记录,形状与不传该参数时完全一致;
+- 不传就是现状(分页 `limit`/`offset`),这是纯增量参数,不影响任何现有调用方;
+- 传了 `job_ids` 时不做分页截断——语义是"精确给我这几个 job",不是"翻到第几页"。
+
 ## 两个必须处理的边界
 
 1. **删除保护**:删除书籍(`DELETE /api/v1/library/books/:job_id`)时,如果该 job 被收藏

@@ -11,6 +11,7 @@ use crate::routes::glossaries;
 use crate::routes::health;
 use crate::routes::jobs;
 use crate::routes::ai_proxy;
+use crate::routes::collections;
 use crate::routes::library;
 use crate::routes::library_data;
 use crate::routes::library_extras;
@@ -120,6 +121,23 @@ pub fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/ai/conversations/:conversation_id/messages",
             post(library_extras::append_message_route),
+        )
+        .route(
+            "/api/v1/collections",
+            post(collections::create_collection_route).get(collections::list_collections_route),
+        )
+        .route(
+            "/api/v1/collections/:collection_id",
+            axum::routing::patch(collections::patch_collection_route)
+                .delete(collections::delete_collection_route),
+        )
+        .route(
+            "/api/v1/collections/:collection_id/documents",
+            post(collections::add_collection_documents_route),
+        )
+        .route(
+            "/api/v1/collections/:collection_id/documents/:document_id",
+            axum::routing::delete(collections::remove_collection_document_route),
         )
         .route("/api/v1/library/books", get(library::list_books))
         .route("/api/v1/library/books/delete", post(library::delete_books))

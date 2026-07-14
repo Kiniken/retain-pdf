@@ -578,3 +578,261 @@ async fn conversation_lifecycle_and_message_appending() {
         .expect("messages")
         .is_empty());
 }
+
+#[tokio::test]
+async fn collections_crud_and_document_membership_roundtrip() {
+    let state = test_state("library-collections");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"collections doc one");
+
+    // 创建
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/collections")
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"name": "化学"}).to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("create response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = json_response(response).await;
+    assert_eq!(payload["data"]["name"], "化学");
+    assert_eq!(payload["data"]["document_count"], 0);
+    let collection_id = payload["data"]["collection_id"]
+        .as_str()
+        .expect("collection_id")
+        .to_string();
+
+    // 空名字被拒绝
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/collections")
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::json!({"name": "  "}).to_string()))
+                .expect("request"),
+        )
+        .await
+        .expect("empty name response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // 列表能看到刚创建的文件夹
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/collections")
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("list response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = json_response(response).await;
+    assert_eq!(payload["data"]["collections"][0]["collection_id"], collection_id);
+
+    // 改名
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/v1/collections/{collection_id}"))
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"name": "有机化学"}).to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("patch response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = json_response(response).await;
+    assert_eq!(payload["data"]["name"], "有机化学");
+
+    // 加入文档,document_count 同步更新
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/collections/{collection_id}/documents"))
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"document_ids": [document_id]}).to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("add documents response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = json_response(response).await;
+    assert_eq!(payload["data"]["document_count"], 1);
+
+    // 不存在的文档被拒绝
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/collections/{collection_id}/documents"))
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({"document_ids": ["no-such-doc"]}).to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("add missing document response");
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    // GET /api/v1/documents?collection_id= 能过滤出这篇文档
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/documents?collection_id={collection_id}"))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("documents by collection response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = json_response(response).await;
+    assert_eq!(payload["data"]["documents"][0]["document_id"], document_id);
+
+    // 移除文档
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!(
+                    "/api/v1/collections/{collection_id}/documents/{document_id}"
+                ))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("remove document response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 重复移除报 404
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!(
+                    "/api/v1/collections/{collection_id}/documents/{document_id}"
+                ))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("remove again response");
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    // 删除文件夹本身
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/v1/collections/{collection_id}"))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("delete collection response");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/collections")
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("list after delete response");
+    let payload = json_response(response).await;
+    assert!(payload["data"]["collections"]
+        .as_array()
+        .expect("collections array")
+        .is_empty());
+}
+
+#[tokio::test]
+async fn library_books_job_ids_filter_returns_only_requested_jobs() {
+    use crate::models::{CreateJobInput, JobSnapshot};
+
+    let state = test_state("library-books-job-ids");
+    for job_id in ["job-alpha", "job-beta", "job-gamma"] {
+        let job = JobSnapshot::new(
+            job_id.to_string(),
+            CreateJobInput::default(),
+            vec!["python".to_string()],
+        );
+        state.db.save_job(&job).expect("save job");
+    }
+    let app = build_app(state.clone());
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/library/books?job_ids=job-alpha,job-gamma")
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("filtered response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = json_response(response).await;
+    let items = payload["data"]["items"].as_array().expect("items array");
+    let ids: Vec<&str> = items
+        .iter()
+        .map(|item| item["job_id"].as_str().expect("job_id"))
+        .collect();
+    assert_eq!(ids.len(), 2);
+    assert!(ids.contains(&"job-alpha"));
+    assert!(ids.contains(&"job-gamma"));
+    assert!(!ids.contains(&"job-beta"));
+
+    // 不传 job_ids 时行为不变:三个 job 都在
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/library/books")
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("unfiltered response");
+    let payload = json_response(response).await;
+    assert_eq!(payload["data"]["items"].as_array().expect("items").len(), 3);
+}

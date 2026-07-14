@@ -1,4 +1,5 @@
 pub mod ai_proxy;
+pub mod collections;
 pub mod common;
 pub(crate) mod download_response;
 pub mod glossaries;

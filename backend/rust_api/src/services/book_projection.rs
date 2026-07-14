@@ -124,7 +124,21 @@ fn list_books_filtered(db: &Db, query: &ListJobsQuery) -> Result<Vec<JobSnapshot
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    let (fetch_limit, fetch_offset) = if search_query.is_some() {
+    // 分类文件夹展开时用 job_ids 精确点名一批 job(见 ListJobsQuery 字段注释)——
+    // 和 q 一样需要先在全量里过滤,不能先按 limit/offset 截断再匹配。
+    let job_ids: Option<std::collections::HashSet<String>> = query
+        .job_ids
+        .as_deref()
+        .map(|raw| {
+            raw.split(',')
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .map(str::to_string)
+                .collect::<std::collections::HashSet<_>>()
+        })
+        .filter(|ids| !ids.is_empty());
+    let wide_fetch = search_query.is_some() || job_ids.is_some();
+    let (fetch_limit, fetch_offset) = if wide_fetch {
         (10_000, 0)
     } else {
         (query.limit, query.offset)
@@ -136,12 +150,18 @@ fn list_books_filtered(db: &Db, query: &ListJobsQuery) -> Result<Vec<JobSnapshot
         query.workflow.as_ref(),
     )?;
     let search_query = search_query.map(|value| value.to_ascii_lowercase());
-    Ok(jobs
+    let filtered: Vec<JobSnapshot> = jobs
         .into_iter()
         .filter(|job| {
             search_query
                 .as_deref()
                 .map(|q| library_search_text(db, job).contains(q))
+                .unwrap_or(true)
+        })
+        .filter(|job| {
+            job_ids
+                .as_ref()
+                .map(|ids| ids.contains(&job.job_id))
                 .unwrap_or(true)
         })
         .filter(|job| {
@@ -160,6 +180,14 @@ fn list_books_filtered(db: &Db, query: &ListJobsQuery) -> Result<Vec<JobSnapshot
                 })
                 .unwrap_or(true)
         })
+        .collect();
+    if job_ids.is_some() {
+        // 精确集合查询:调用方要的是"这些 job 的完整数据",不是一页列表,
+        // 不做 limit/offset 截断。
+        return Ok(filtered);
+    }
+    Ok(filtered
+        .into_iter()
         .skip(if search_query.is_some() {
             query.offset as usize
         } else {

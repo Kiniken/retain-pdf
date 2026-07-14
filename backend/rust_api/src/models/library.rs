@@ -81,6 +81,20 @@ pub struct MessageRecord {
     pub created_at: String,
 }
 
+/// 分类文件夹(合集)。v1 只用扁平结构展示,parent_id 为未来嵌套子分类预留
+/// (建表时就规划好,当前恒为 None,不是本次要拆的技术债)。
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CollectionRecord {
+    pub collection_id: String,
+    pub name: String,
+    pub parent_id: Option<String>,
+    pub sort_order: i64,
+    pub created_at: String,
+    /// 该文件夹当前文档数;只有列表接口才会填,单条查询恒为 0。
+    #[serde(default)]
+    pub document_count: i64,
+}
+
 /// blocks_fts 的一行(派生索引,可随时由任务产物重建)。
 #[derive(Debug, Clone)]
 pub struct FtsBlockRow {
