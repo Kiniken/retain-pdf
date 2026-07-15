@@ -83,6 +83,7 @@ export function RecentJobsLibrary() {
                 onReader={actions.openJobReader}
                 onReadSource={actions.openSourceReader}
                 onTranslate={actions.translateDocument}
+                onOpenDetail={actions.openBookDetail}
                 onToggleDeleteConfirm={handleToggleDeleteConfirm}
               />
             ))}

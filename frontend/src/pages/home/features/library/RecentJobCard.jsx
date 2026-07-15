@@ -87,6 +87,7 @@ function areCardPropsEqual(prevProps, nextProps) {
     && prevProps.onReader === nextProps.onReader
     && prevProps.onReadSource === nextProps.onReadSource
     && prevProps.onTranslate === nextProps.onTranslate
+    && prevProps.onOpenDetail === nextProps.onOpenDetail
     && prevProps.isConfirmingDelete === nextProps.isConfirmingDelete
     && prevProps.onToggleDeleteConfirm === nextProps.onToggleDeleteConfirm
     && cardSignatureOf(prevProps.item) === cardSignatureOf(nextProps.item);
@@ -100,6 +101,7 @@ function RecentJobCardImpl({
   onReader,
   onReadSource,
   onTranslate,
+  onOpenDetail,
   onToggleDeleteConfirm,
 }) {
   const libraryOnly = isLibraryOnlyItem(item);
@@ -126,17 +128,22 @@ function RecentJobCardImpl({
   const percentText = Number.isFinite(percent) ? `${Math.round(percent)}%` : "";
   const barWidth = Number.isFinite(percent) ? `${percent.toFixed(2)}%` : "0%";
 
+  function openTarget() {
+    // 文档卡片:点开书籍详情弹窗(读原文/对照阅读/翻译/删除/改元数据都在里面)。
+    // 极少见的运行时插入 job 项(没有 document_id)退回原来的 job 状态视图。
+    if (documentId) {
+      onOpenDetail?.(item);
+      return;
+    }
+    onSelect?.(jobId);
+  }
+
   function handleCardClick(event) {
     if (event.target?.closest?.("button")) {
       return;
     }
     event.preventDefault();
-    // 馆藏文档没有 job 状态视图可开(合成 job_id 不对应真实 job)——点击不透传到
-    // selectJob,避免拿合成 id 去起轮询。"读原文"入口在 F4 接。
-    if (libraryOnly) {
-      return;
-    }
-    onSelect?.(jobId);
+    openTarget();
   }
 
   function handleKeyDown(event) {
@@ -147,10 +154,7 @@ function RecentJobCardImpl({
       return;
     }
     event.preventDefault();
-    if (libraryOnly) {
-      return;
-    }
-    onSelect?.(jobId);
+    openTarget();
   }
 
   function handleReaderClick(event) {

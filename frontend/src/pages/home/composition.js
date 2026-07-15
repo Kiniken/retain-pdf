@@ -145,8 +145,9 @@ import { adaptJobStageSnapshot } from "../../js/job-status/job-stage-contract-ad
 
 import { fetchJobList, fetchJobPayload } from "../../js/api/jobs-query.js";
 import { fetchLibraryBookList, deleteLibraryBook } from "../../js/api/library-books.js";
-import { deleteDocument, fetchDocumentList, translateDocument } from "../../js/api/documents.js";
+import { deleteDocument, fetchDocumentList, patchDocument, translateDocument } from "../../js/api/documents.js";
 import { createDocumentLibraryResource } from "../../js/features/documents-library/document-library-resource.js";
+import { createBookDetailDialogStore } from "./features/library/book-detail-dialog-store.js";
 import { fetchJobEvents } from "../../js/api/jobs-events.js";
 import { fetchJobArtifactsManifest } from "../../js/api/jobs-artifacts.js";
 import {
@@ -744,14 +745,14 @@ export function createHomeComposition({
   // active_job_id;随后整页重载一次——该文档会以真实 job_id 重新进网格,现有
   // 轮询引擎(active-refresh 按 job_id 拉 job payload)自然接管进度。
   const translatingDocumentIds = new Set();
-  async function translateLibraryDocument(documentId) {
+  async function translateLibraryDocument(documentId, payload = {}) {
     const normalizedId = `${documentId || ""}`.trim();
     if (!normalizedId || translatingDocumentIds.has(normalizedId)) {
       return;
     }
     translatingDocumentIds.add(normalizedId);
     try {
-      await translateDocument(API_PREFIX, normalizedId);
+      await translateDocument(API_PREFIX, normalizedId, payload);
     } catch (error) {
       recentJobsViewPort.renderError(
         `${error?.message || "发起翻译失败，请稍后重试。"}`,
@@ -801,6 +802,26 @@ export function createHomeComposition({
       return;
     }
     recentJobActions.deleteJob(`${target?.jobId || ""}`.trim());
+  }
+
+  // 书籍详情弹窗:点卡片打开(BookDetailDialog 消费 payload=卡片 item)。
+  const bookDetailStore = createBookDetailDialogStore();
+  function openBookDetail(item) {
+    if (`${item?.document_id || ""}`.trim()) {
+      bookDetailStore.open(item);
+    }
+  }
+
+  // 详情弹窗里改标题/标签/阅读状态:PATCH /documents/:id + 静默整页重载(书架
+  // 卡片跟着更新),返回更新后的文档给弹窗即时刷新。
+  async function updateLibraryDocument(documentId, payload = {}) {
+    const normalizedId = `${documentId || ""}`.trim();
+    if (!normalizedId) {
+      return null;
+    }
+    const updated = await patchDocument(API_PREFIX, normalizedId, payload);
+    await features.recentJobsFeature?.loadRecentJobs?.({ reset: true, silent: true });
+    return updated;
   }
 
   // ---- app-actions 特性(提交流程域;之前 cutover 遗漏,补线接入)——
@@ -1097,8 +1118,15 @@ export function createHomeComposition({
         translateDocument: translateLibraryDocument,
         deleteDocument: deleteLibraryDocument,
         deleteCard,
+        openBookDetail,
+        updateDocument: updateLibraryDocument,
         storeOnly: storeUploadedDocumentOnly,
       },
+    },
+    // 书籍详情弹窗(参考 PDF_MD_lib 的 BookDetailModal)的装配入口——点网格卡片
+    // 打开,读原文/对照阅读/翻译/删除/改元数据都走 library.actions。
+    bookDetail: {
+      dialogStore: bookDetailStore,
     },
     // CategoriesView.jsx/CollectionManageDialog.jsx 的唯一装配入口。没有旧
     // 世界 controller.js 可复用(collections/collection_documents 表随图书馆
