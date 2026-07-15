@@ -154,6 +154,29 @@ export function getMockDocumentByJobId(jobId) {
   return null;
 }
 
+// mock 版 DELETE /documents/:id:从 mock 文档表移除该文档(连同其合集成员关系)。
+// 被收藏引用时抛 409(镜像后端收藏保护)。
+export function deleteMockDocument(documentId) {
+  const list = documents();
+  const index = list.findIndex((item) => item.document_id === documentId);
+  if (index < 0) {
+    throw new Error("未找到该文档。(404)");
+  }
+  const favoriteCount = favorites().filter((item) => item.document_id === documentId).length;
+  if (favoriteCount > 0) {
+    const error = new Error(`该文档有 ${favoriteCount} 条收藏，请先删除收藏后再删除文档。(409)`);
+    error.status = 409;
+    throw error;
+  }
+  list.splice(index, 1);
+  if (mockCollectionMembership) {
+    for (const members of mockCollectionMembership.values()) {
+      members.delete(documentId);
+    }
+  }
+  return { deleted: true, document_id: documentId, removed_paths: [] };
+}
+
 const READING_STATUSES = ["unread", "reading", "done"];
 
 export function patchMockDocument(documentId, { title, reading_status: readingStatus, tags } = {}) {

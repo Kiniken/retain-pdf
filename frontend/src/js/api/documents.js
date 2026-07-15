@@ -1,6 +1,7 @@
 import { buildApiHeaders, isMockMode } from "../config/runtime.js";
 import { unwrapEnvelope } from "../job/core.js";
 import {
+  deleteMockDocument,
   getMockDocument,
   getMockDocumentByJobId,
   getMockDocumentList,
@@ -99,6 +100,30 @@ export async function patchDocument(apiPrefix, documentId, payload = {}) {
   if (!resp.ok) {
     const envelope = await resp.json().catch(() => null);
     throw new Error(`${envelope?.message || "更新文档失败，请稍后重试。"}(${resp.status})`);
+  }
+  return unwrapEnvelope(await resp.json());
+}
+
+// 文档级删除:删掉 document + 名下所有 job/upload/文件(后端 DELETE /documents/:id)。
+// 被收藏引用时后端返回 409(force 可覆盖运行中的 job,不覆盖收藏保护)。
+export async function deleteDocument(apiPrefix, documentId, { force = false } = {}) {
+  const normalized = `${documentId || ""}`.trim();
+  if (!normalized) {
+    throw new Error("缺少 document_id。");
+  }
+  if (isMockMode()) {
+    return deleteMockDocument(normalized);
+  }
+  const params = force ? "?force=true" : "";
+  const resp = await fetch(
+    buildApiEndpoint(apiPrefix, `documents/${encodeURIComponent(normalized)}`) + params,
+    { method: "DELETE", headers: buildApiHeaders() },
+  );
+  if (!resp.ok) {
+    const envelope = await resp.json().catch(() => null);
+    const error = new Error(`${envelope?.message || "删除文档失败，请稍后重试。"}(${resp.status})`);
+    error.status = resp.status;
+    throw error;
   }
   return unwrapEnvelope(await resp.json());
 }

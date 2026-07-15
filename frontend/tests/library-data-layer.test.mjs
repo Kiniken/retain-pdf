@@ -11,6 +11,7 @@ import {
   countMockFavoritesByJob,
   patchMockDocument,
   translateMockDocument,
+  deleteMockDocument,
 } from "../src/js/mock/documents.js";
 import { MOCK_JOB_ID } from "../src/js/mock/constants.js";
 import { createRecentJobActions } from "../src/js/features/recent-jobs/actions.js";
@@ -54,6 +55,27 @@ test("translateMockDocument:给馆藏文档挂 active_job_id 并返回提交视�
   assert.equal(after.active_job_id, submission.job_id, "馆藏文档挂上 active_job_id");
   // 幂等保护:已在翻译流程中再发起应报错。
   assert.throws(() => translateMockDocument(before.document_id), /409/);
+});
+
+test("deleteMockDocument:删除后从列表消失,再取抛 404", () => {
+  // 用第二篇馆藏文档(其它 test 不碰它,避免跨用例状态串扰)。
+  const target = "doc-ref-9b7e04";
+  assert.ok(getMockDocumentList({ limit: 999 }).documents.some((doc) => doc.document_id === target));
+  const result = deleteMockDocument(target);
+  assert.equal(result.deleted, true);
+  assert.equal(result.document_id, target);
+  assert.equal(
+    getMockDocumentList({ limit: 999 }).documents.some((doc) => doc.document_id === target),
+    false,
+    "删除后不在列表里",
+  );
+  assert.throws(() => getMockDocument(target), /404/);
+  assert.throws(() => deleteMockDocument(target), /404/, "再删一次报 404");
+});
+
+test("deleteMockDocument:被收藏引用时报 409", () => {
+  // MOCK_DOCUMENT_ID 有两条 mock 收藏(fav-001/fav-002)→ 删除应被挡下。
+  assert.throws(() => deleteMockDocument(MOCK_DOCUMENT_ID), /409/);
 });
 
 test("PATCH 文档:reading_status 校验与 tags 整体替换语义", () => {

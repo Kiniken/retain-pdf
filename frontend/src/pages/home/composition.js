@@ -145,7 +145,7 @@ import { adaptJobStageSnapshot } from "../../js/job-status/job-stage-contract-ad
 
 import { fetchJobList, fetchJobPayload } from "../../js/api/jobs-query.js";
 import { fetchLibraryBookList, deleteLibraryBook } from "../../js/api/library-books.js";
-import { fetchDocumentList, translateDocument } from "../../js/api/documents.js";
+import { deleteDocument, fetchDocumentList, translateDocument } from "../../js/api/documents.js";
 import { createDocumentLibraryResource } from "../../js/features/documents-library/document-library-resource.js";
 import { fetchJobEvents } from "../../js/api/jobs-events.js";
 import { fetchJobArtifactsManifest } from "../../js/api/jobs-artifacts.js";
@@ -764,6 +764,45 @@ export function createHomeComposition({
     await features.recentJobsFeature?.loadRecentJobs?.({ reset: true });
   }
 
+  // 文档级删除(后端补了 DELETE /documents/:id 之后):删掉 document + 名下所有
+  // job/upload/文件。馆藏文档和已翻译文档统一走这条(卡片都带 document_id)。
+  // 删完整页重载——store 的 removeJobFamily 按 job_id 键控,馆藏是合成 id,
+  // 直接 reset 重载最省心。
+  function friendlyDocumentDeleteError(error) {
+    const message = `${error?.message || error || ""}`;
+    if (error?.status === 409 || message.includes("(409)")) {
+      const count = message.match(/\d+/)?.[0];
+      return count
+        ? `该文档有 ${count} 条收藏，请先删除收藏后再删除文档。`
+        : "该文档存在收藏引用，请先删除相关收藏后再删除文档。";
+    }
+    return message || "删除文档失败";
+  }
+  async function deleteLibraryDocument(documentId) {
+    const normalizedId = `${documentId || ""}`.trim();
+    if (!normalizedId) {
+      return;
+    }
+    try {
+      await deleteDocument(API_PREFIX, normalizedId);
+    } catch (error) {
+      recentJobsViewPort.renderError(friendlyDocumentDeleteError(error), { reset: false });
+      return;
+    }
+    await features.recentJobsFeature?.loadRecentJobs?.({ reset: true });
+  }
+
+  // 卡片删除入口:有 document_id 走文档级删除(删整篇文档 + 名下所有 job);
+  // 没有(极少见的运行时插入 job 项)退回老的 job 删除,保留原行为。
+  function deleteCard(target = {}) {
+    const documentId = `${target?.documentId || ""}`.trim();
+    if (documentId) {
+      void deleteLibraryDocument(documentId);
+      return;
+    }
+    recentJobActions.deleteJob(`${target?.jobId || ""}`.trim());
+  }
+
   // ---- app-actions 特性(提交流程域;之前 cutover 遗漏,补线接入)——
   // controller.js(mountAppActionsFeature)/submit-flow.js(runSubmitFlow)/
   // config-port.js/job-snapshot-port.js/runtime-env-port.js/upload-state-port.js
@@ -1056,6 +1095,8 @@ export function createHomeComposition({
         ...recentJobActions,
         openSourceReader,
         translateDocument: translateLibraryDocument,
+        deleteDocument: deleteLibraryDocument,
+        deleteCard,
         storeOnly: storeUploadedDocumentOnly,
       },
     },

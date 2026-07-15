@@ -193,7 +193,9 @@ function RecentJobCardImpl({
     event.preventDefault();
     event.stopPropagation();
     onToggleDeleteConfirm?.("");
-    onDelete?.(jobId);
+    // 传完整身份,由 composition 决定走文档级删除(有 document_id)还是老的
+    // job 删除(极少见的运行时插入 job 项没有 document_id)。
+    onDelete?.({ documentId, jobId });
   }
 
   return (
@@ -271,37 +273,33 @@ function RecentJobCardImpl({
             ? "未翻译"
             : (active ? recentJobStageLabel(item) : recentJobStatusLabel(item.status))}
         </span>
-        {/* 馆藏文档暂无文档级删除端点(后端待补 DELETE /documents/:id),先不显示
-            删除按钮,避免用合成 job_id 走 library/books 删除误伤。 */}
-        {libraryOnly ? null : (
-          <>
-            <button
-              type="button"
-              className="recent-job-delete"
-              title="删除"
-              aria-label="删除任务"
-              aria-expanded={isConfirmingDelete ? "true" : "false"}
-              onClick={handleDeleteToggle}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 7h16M10 11v6M14 11v6M9 7l1-2h4l1 2M6 7l1 14h10l1-14" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <div
-              className="recent-job-delete-popover"
-              role="group"
-              aria-label="确认删除"
-              hidden={!isConfirmingDelete}
-              inert={!isConfirmingDelete ? true : undefined}
-            >
-              <div>删除这本书？</div>
-              <div className="recent-job-delete-actions">
-                <button type="button" className="recent-job-delete-cancel" onClick={handleDeleteCancel}>取消</button>
-                <button type="button" className="recent-job-delete-confirm" onClick={handleDeleteConfirm}>删除</button>
-              </div>
-            </div>
-          </>
-        )}
+        {/* 文档级删除对馆藏和已翻译文档一视同仁(后端已补 DELETE /documents/:id):
+            删掉整篇文档 + 名下所有 job/upload/文件。 */}
+        <button
+          type="button"
+          className="recent-job-delete"
+          title="删除"
+          aria-label={libraryOnly ? "删除文档" : "删除任务"}
+          aria-expanded={isConfirmingDelete ? "true" : "false"}
+          onClick={handleDeleteToggle}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16M10 11v6M14 11v6M9 7l1-2h4l1 2M6 7l1 14h10l1-14" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <div
+          className="recent-job-delete-popover"
+          role="group"
+          aria-label="确认删除"
+          hidden={!isConfirmingDelete}
+          inert={!isConfirmingDelete ? true : undefined}
+        >
+          <div>删除这本书？</div>
+          <div className="recent-job-delete-actions">
+            <button type="button" className="recent-job-delete-cancel" onClick={handleDeleteCancel}>取消</button>
+            <button type="button" className="recent-job-delete-confirm" onClick={handleDeleteConfirm}>删除</button>
+          </div>
+        </div>
       </div>
       <div className="recent-job-title-wrap">
         <span className="recent-job-id" title={fullTitle}>{title}</span>

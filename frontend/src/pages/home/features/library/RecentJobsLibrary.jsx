@@ -79,7 +79,7 @@ export function RecentJobsLibrary() {
                 item={item}
                 isConfirmingDelete={confirmingDeleteJobId === item.job_id}
                 onSelect={actions.selectJob}
-                onDelete={actions.deleteJob}
+                onDelete={actions.deleteCard}
                 onReader={actions.openJobReader}
                 onReadSource={actions.openSourceReader}
                 onTranslate={actions.translateDocument}

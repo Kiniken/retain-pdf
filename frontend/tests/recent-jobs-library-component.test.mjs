@@ -245,7 +245,8 @@ test("RecentJobsLibrary：馆藏文档卡(未翻译)——读原文 / 无删除 
   assert.ok(card, "馆藏卡片渲染出来了");
   assert.equal(card.getAttribute("data-document-id"), "doc-ref-1");
   assert.equal(card.querySelector(".recent-job-status")?.textContent, "未翻译");
-  assert.equal(card.querySelector(".recent-job-delete"), null, "馆藏卡不显示删除按钮");
+  // 后端补了 DELETE /documents/:id 后,馆藏文档也能删了(不再隐藏删除按钮)。
+  assert.ok(card.querySelector(".recent-job-delete"), "馆藏卡也显示删除按钮(文档级删除)");
 
   const { APP_EVENTS } = await import("../src/js/contracts/app-contract.js");
   let readerDetail = null;
