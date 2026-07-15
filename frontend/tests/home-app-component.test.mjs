@@ -144,7 +144,7 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   assert.equal(events.open, 1, "打开必须经 APP_EVENTS.openTranslationWorkflow(3b 刷新挂起依赖)");
   assert.equal(dialog.dataset.open, "1");
   assert.equal(dialog.classList.contains("is-upload-mode"), true);
-  assert.equal(byId("translation-workflow-title").textContent, "翻译 PDF");
+  assert.equal(byId("translation-workflow-title").textContent, "添加 PDF 到图书馆");
   assert.equal(dom.window.document.documentElement.classList.contains("translation-workflow-open"), true);
   await waitFor(() => byId("library-add-pdf-btn").getAttribute("aria-expanded") === "true", "触发按钮 aria 同步");
   assert.equal(byId("library-add-pdf-btn").dataset.workflowOpen, "1");
@@ -157,7 +157,7 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
     "file", "upload-fill", "credential-gate", "credential-gate-title", "credential-gate-help", "credential-gate-action",
     "upload-glyph", "file-label", "upload-help", "upload-status", "upload-progress-panel", "upload-progress-text",
     "inline-page-range", "page-range-start", "page-range-end", "translation-budget-note",
-    "upload-action-slot", "page-range-btn", "submit-btn", "store-only-btn", "error-box-inline",
+    "upload-action-slot", "page-range-btn", "submit-btn", "error-box-inline",
     "status-section", "job-status-card",
   ];
   for (const id of workflowContractIds) {
@@ -186,7 +186,7 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
 
   // ---- idle 复位链:上传瓦片回到默认态,提交按钮置灰 ----
   assert.equal(byId("file-label").textContent, "点击选择文件或拖到这里");
-  assert.equal(byId("upload-help").textContent, "上传后会执行 OCR、翻译与 PDF 渲染。");
+  assert.equal(byId("upload-help").textContent, "上传后直接加入图书馆，可随时在书架上翻译。");
   assert.equal(byId("submit-btn").disabled, true);
   assert.equal(byId("submit-btn").textContent, "开始翻译");
   assert.equal(byId("job-warning").classList.contains("hidden"), true);

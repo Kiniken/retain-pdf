@@ -8,7 +8,7 @@
 // - 页码区间 input → uploadFeature.constrainPageRanges({source})
 // - #credential-gate-action → dispatch APP_EVENTS.openBrowserCredentials(3b credentials 消费)
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { APP_EVENTS } from "../../../../js/contracts/app-contract.js";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
 import { useHomeServices } from "../../home-services-context.js";
@@ -120,6 +120,18 @@ export function HeroUpload() {
     services.uploadDomRefs.fileInput = node;
   }, [services]);
 
+  // 图书馆优先(参考 PDF_MD_lib 的 UploadModal):上传完成的那一刻后端已建好
+  // document——直接入库并关掉对话框,不再让用户在"开始翻译 / 只入库"里二选一。
+  // 要翻译到书架卡片上点"翻译"(F5)。upload.ready 只有真实文件上传成功后才为
+  // true(mock/render 复用流不置位),所以这条只在普通添加流触发。
+  const prevReadyRef = useRef(false);
+  useEffect(() => {
+    if (upload.ready && !prevReadyRef.current) {
+      services.library.actions.storeOnly?.();
+    }
+    prevReadyRef.current = upload.ready;
+  }, [upload.ready, services]);
+
   // 镜像 bindUploadTilePicker:空白处点击代理到文件选择
   function handleTileClick(event) {
     const target = event.target;
@@ -210,19 +222,9 @@ export function HeroUpload() {
           >
             专业翻译
           </button>
-          {/* 只入库不翻译(F3):PDF 上传完成时后端已经建好 document 了,这里
-              只是"不提交翻译 job"——直接关对话框 + 刷新网格,新文档以馆藏态进
-              图书馆,以后想翻再在卡片上点"翻译"。上传就绪后才出现。 */}
-          <button
-            id="store-only-btn"
-            type="button"
-            className={`secondary${upload.ready ? "" : " hidden"}`}
-            title="只把这本 PDF 存进图书馆，暂不翻译"
-            disabled={workflow.submitBusy}
-            onClick={() => services.library.actions.storeOnly?.()}
-          >
-            只入库
-          </button>
+          {/* 普通添加流已改成"上传即入库 + 自动关闭"(见上方 effect),不再有
+              "开始翻译 / 只入库"二选一。#submit-btn 仅在 render/mock 等复用流里可见
+              (那些流程没有真实上传、不会触发自动入库),契约与旧世界保持不动。 */}
           <button
             id="submit-btn"
             type="submit"

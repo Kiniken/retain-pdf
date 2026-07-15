@@ -64,9 +64,8 @@ export function workflowHeadline(workflow, constants) {
   switch (workflow) {
     case constants.WORKFLOW_RENDER:
       return "当前工作流会复用已有任务产物重新生成 PDF。";
-    case constants.WORKFLOW_TRANSLATE:
-      return "上传后会执行 OCR 与正文翻译，不进入 PDF 渲染。";
+    // 图书馆优先:上传只是把 PDF 放进图书馆,不自动翻译;要翻译到书架上点"翻译"。
     default:
-      return "上传后会执行 OCR、翻译与 PDF 渲染。";
+      return "上传后直接加入图书馆，可随时在书架上翻译。";
   }
 }
