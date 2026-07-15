@@ -135,6 +135,16 @@ function scheduleAnchorJump(anchor) {
   globalThis.setTimeout(tryJump, 0);
 }
 
+// 源文件不可用时给源栏填一条明确文案(孤儿文档:有 document 行但没入库源 PDF)。
+// #reader-pdf-empty 默认是无文字的虚线占位块,直接写 textContent 让它有话可说。
+function showReaderSourceUnavailable() {
+  showReaderPaneEmpty("reader-pdf", "reader-pdf-empty");
+  const empty = document.getElementById("reader-pdf-empty");
+  if (empty) {
+    empty.textContent = "源文件不可用：该文档没有可读取的源 PDF（可能只有记录、未入库文件）。";
+  }
+}
+
 // 馆藏文档"读原文"(F4):无 job,只挂源文档一栏,切 source 单栏模式,跳过所有
 // 吃 jobId 的副功能(收藏/AI/批注/markdown/interaction)。源文档 URL 走
 // /documents/:id/source.pdf(mock 模式走 mock:// 通道)。
@@ -145,6 +155,9 @@ async function mountSourceOnlyReader({
   applyBootProgress,
   syncBootProgress,
 }) {
+  // 只读源文档全程都是单栏——**先**收进 source 单栏,无论源加载成功失败都不该
+  // 退回默认的两栏对照空态(否则源文件缺失时会是两个空白栏 = 一片空白)。
+  modeController.setMode("source");
   try {
     applyBootProgress(14, READER_PROGRESS_COPY.metadata, "metadata");
     pageState.progress.metadataReady = true;
@@ -169,14 +182,14 @@ async function mountSourceOnlyReader({
     });
 
     if (!sourceReady) {
-      showReaderPaneEmpty("reader-pdf", "reader-pdf-empty");
+      // 源文件取不到(如孤儿文档行:有 document 记录但没入库源 PDF,
+      // /documents/:id/source.pdf 404)——单栏里给一条明确文案,不留空白。
+      showReaderSourceUnavailable();
       applyBootProgress(100, READER_PROGRESS_COPY.failed, "failed");
       setReaderBootLoading(false);
       return;
     }
 
-    // 只读源文档:收进 source 单栏(译文栏隐藏,不显示"翻译加载失败"空态)。
-    modeController.setMode("source");
     applyBootProgress(100, READER_PROGRESS_COPY.ready, "ready");
     setReaderBootLoading(false);
 
@@ -185,7 +198,7 @@ async function mountSourceOnlyReader({
       scheduleAnchorJump(anchor);
     }
   } catch (_err) {
-    showBothReaderEmpty();
+    showReaderSourceUnavailable();
     applyBootProgress(100, READER_PROGRESS_COPY.failed, "failed");
     setReaderBootLoading(false);
   }
