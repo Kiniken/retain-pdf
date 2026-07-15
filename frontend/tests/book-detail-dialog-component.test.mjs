@@ -83,13 +83,17 @@ test("馆藏卡打开书籍详情:元数据 + 阅读状态切换 + 翻译/读原
   click(dom, card);
 
   const dlg = await waitFor(() => byId("book-detail-dialog"), "书籍详情弹窗打开");
-  // 元数据(标题从完整文档拉回来)
-  await waitFor(() => byId("book-detail-title-input")?.value, "标题就位");
+  // 标题默认是只读大标题(不是常驻输入框),编辑才出现输入框
+  await waitFor(() => dlg.querySelector(".book-detail-title")?.textContent?.trim(), "标题就位");
+  assert.equal(byId("book-detail-title-input"), null, "默认只读,无标题输入框");
   assert.ok(dlg.querySelector(".book-detail-status")?.textContent.includes("未翻译"), "馆藏显示未翻译");
   // 馆藏:有翻译 + 读原文,无对照阅读
   assert.ok(byId("book-detail-translate-btn"), "馆藏有翻译按钮");
   assert.ok(byId("book-detail-read-source-btn"), "有读原文");
   assert.equal(byId("book-detail-compare-btn"), null, "馆藏没有对照阅读");
+  // 点"编辑"进入标题/标签编辑
+  click(dom, byId("book-detail-edit-btn"));
+  await waitFor(() => byId("book-detail-title-input"), "点编辑出现标题输入框");
 
   // 阅读状态切换 → patchDocument(mock),按钮变激活
   const { getMockDocument } = await import("../src/js/mock/documents.js");
