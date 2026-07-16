@@ -18,6 +18,9 @@ import { HOME_LOADING_STATES } from "../../../../js/features/home/state.js";
 import { RecentJobCard } from "./RecentJobCard.jsx";
 import { BookListRow } from "./BookListRow.jsx";
 import { LibraryToolbar } from "./LibraryToolbar.jsx";
+import { LibraryFilterMenu, matchesLibraryFilter } from "./LibraryFilterMenu.jsx";
+import { isLibraryOnlyItem } from "../../../../js/features/documents-library/document-card-item.js";
+import { isRecentJobActive } from "../../../../js/features/recent-jobs/card-presenter.js";
 import { useLibraryAutoLoad } from "./useLibraryAutoLoad.js";
 
 // 客户端排序(只排已加载的这几页;/documents 无 sort 参数,和参考项目一样在前端排)。
@@ -53,9 +56,33 @@ export function RecentJobsLibrary() {
   const scrollBodyRef = useRef(null);
   const [viewMode, setViewMode] = useState("grid");
   const [sortMode, setSortMode] = useState("updated");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("");
 
   const items = Array.isArray(recentJobs.items) ? recentJobs.items : [];
-  const sortedItems = useMemo(() => sortItems(items, sortMode), [items, sortMode]);
+
+  // 标签列表 + 各状态计数(供筛选面板显示,基于已加载项)。
+  const { tags, statusCounts } = useMemo(() => {
+    const tagSet = new Set();
+    const counts = { done: 0, untranslated: 0, active: 0, failed: 0 };
+    for (const item of items) {
+      (Array.isArray(item.tags) ? item.tags : []).forEach((t) => t && tagSet.add(t));
+      if (isLibraryOnlyItem(item)) { counts.untranslated += 1; continue; }
+      const s = `${item.status || ""}`.trim();
+      if (isRecentJobActive(item)) counts.active += 1;
+      else if (s === "succeeded") counts.done += 1;
+      else if (s === "failed") counts.failed += 1;
+    }
+    return { tags: [...tagSet].sort((a, b) => a.localeCompare(b, "zh-CN")), statusCounts: counts };
+  }, [items]);
+
+  const visibleItems = useMemo(() => {
+    const filtered = (statusFilter === "all" && !tagFilter)
+      ? items
+      : items.filter((item) => matchesLibraryFilter(item, statusFilter, tagFilter, { isLibraryOnly: isLibraryOnlyItem, isActive: isRecentJobActive }));
+    return sortItems(filtered, sortMode);
+  }, [items, statusFilter, tagFilter, sortMode]);
+
   const hasItems = items.length > 0;
   const isLoading = homeState.recentJobsLoadingState === HOME_LOADING_STATES.LOADING;
   const isErrorState = !hasItems
@@ -88,11 +115,21 @@ export function RecentJobsLibrary() {
         </div>
         {mode === "list" ? (
           <LibraryToolbar
-            count={items.length}
+            count={visibleItems.length}
             viewMode={viewMode}
             setViewMode={setViewMode}
             sortMode={sortMode}
             setSortMode={setSortMode}
+            filterSlot={(
+              <LibraryFilterMenu
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
+                tagFilter={tagFilter}
+                setTagFilter={setTagFilter}
+                tags={tags}
+                statusCounts={statusCounts}
+              />
+            )}
           />
         ) : null}
         <div id="library-grid" className={viewMode === "list" ? "" : "recent-jobs-list library-grid"}>
@@ -100,7 +137,7 @@ export function RecentJobsLibrary() {
             id="recent-jobs-list"
             className={`${viewMode === "list" ? "flex flex-col gap-1" : "recent-jobs-list library-grid"}${mode === "list" ? "" : " hidden"}`}
           >
-            {sortedItems.map((item) => (
+            {visibleItems.map((item) => (
               viewMode === "list" ? (
                 <BookListRow
                   key={item.job_id}
