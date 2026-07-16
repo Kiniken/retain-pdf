@@ -11,6 +11,7 @@
 import { useState } from "react";
 import { HomeServicesProvider } from "./home-services-context.js";
 import { AppTopBar } from "./features/app-shell/AppTopBar.jsx";
+import { AppBottomActions } from "./features/app-shell/AppBottomActions.jsx";
 import { TranslationWorkflowDialog } from "./features/workflow/TranslationWorkflowDialog.jsx";
 import { PageRangeDialog } from "./features/upload/PageRangeDialog.jsx";
 import { RecentJobsLibrary } from "./features/library/RecentJobsLibrary.jsx";
@@ -50,6 +51,7 @@ function HomeShell() {
         ) : (
           <CategoriesView />
         )}
+        <AppBottomActions />
         <button id="open-query-btn" type="button" className="secondary hidden" aria-hidden="true">最近任务</button>
         {/* 3b 占位:最近任务对话框 */}
         <recent-jobs-dialog></recent-jobs-dialog>

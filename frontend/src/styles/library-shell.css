@@ -480,10 +480,22 @@
 }
 
 @utility library-bottom-actions {
+  /* 从顶栏挪到底部:固定在右下角悬浮(和底部居中的搜索条错开,搜索条在
+     left:50% 居中、这里贴右;两个 tab 下都常驻)。 */
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 21;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
   gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(8px);
 
   @media (max-width: 767px) {
     gap: 5px;

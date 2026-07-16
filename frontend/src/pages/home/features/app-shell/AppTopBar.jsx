@@ -1,20 +1,13 @@
-// 整合顶部导航栏(方案 A 的调整版)——logo、图书馆/分类分栏、添加/设置按钮
-// 收进同一条白底导航栏;搜索框应用户要求挪回底部悬浮条(见
-// LibrarySearchDock.jsx),不放在这条顶部栏里。
+// 整合顶部导航栏——参考 RetainMol 的布局:logo 靠最左、"图书馆/分类"分栏居中,
+// 添加/设置下沉到底部(见 AppBottomActions.jsx)。搜索框在底部悬浮条
+// (LibrarySearchDock.jsx)。
 //
-// 契约 id 全部原样保留(library-add-pdf-btn/app-settings-btn 及其
-// aria-*/data-* 属性),消费方(测试/其余组件)不用改。
+// 居中做法:logo 左、两侧各一条 flex:1 的 spacer 把 tabs 挤到正中。#developer-btn/
+// #open-output-btn 是契约 id(测试引用),保留在 display:none 的隐藏容器里,不占布局。
 
-import { useHomeServices } from "../../home-services-context.js";
-import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
-import { TRANSLATION_WORKFLOW_DIALOG } from "../../../../js/features/translation-workflow-dialog/contract.js";
 import { LibraryTopTabs } from "../library/LibraryTopTabs.jsx";
 
 export function AppTopBar({ activeTab, onTabChange }) {
-  const services = useHomeServices();
-  const dialog = useStoreSnapshot(services.stores.dialog);
-  const open = Boolean(dialog.open);
-
   return (
     <app-shell-header class="app-shell-header">
       <header className="topbar library-topbar">
@@ -31,44 +24,9 @@ export function AppTopBar({ activeTab, onTabChange }) {
           <button id="developer-btn" type="button" className="secondary hidden" aria-hidden="true">开发者</button>
           <button id="open-output-btn" type="button" className="secondary hidden">打开输出目录</button>
         </div>
+        <div className="library-topbar-spacer" aria-hidden="true" />
         <LibraryTopTabs active={activeTab} onChange={onTabChange} />
         <div className="library-topbar-spacer" aria-hidden="true" />
-        <div className="library-bottom-actions" aria-label="快捷操作">
-          <button
-            id="library-add-pdf-btn"
-            type="button"
-            className={`library-bottom-action primary${open ? " is-active" : ""}`}
-            aria-label="添加 PDF"
-            title="添加 PDF"
-            aria-controls="translation-workflow-dialog"
-            aria-expanded={open ? "true" : "false"}
-            data-workflow-open={open
-              ? TRANSLATION_WORKFLOW_DIALOG.datasetValues.open
-              : TRANSLATION_WORKFLOW_DIALOG.datasetValues.closed}
-            data-workflow-mode={dialog.mode}
-            onClick={() => services.workflowDialog.requestOpenUpload()}
-          >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-            <span>添加</span>
-          </button>
-          <button
-            id="app-settings-btn"
-            type="button"
-            className="library-bottom-action"
-            aria-label="设置"
-            title="设置"
-            aria-controls="app-settings-dialog"
-            onClick={() => services.settingsHub.dialogStore.open({ tab: "api" })}
-          >
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 8.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z" stroke="currentColor" strokeWidth="1.65" />
-              <path d="M19.1 13.2c.06-.39.09-.79.09-1.2s-.03-.81-.09-1.2l2.02-1.55-1.9-3.29-2.38.96a8.01 8.01 0 0 0-2.08-1.2L14.4 3.2h-3.8l-.36 2.52c-.75.28-1.45.69-2.08 1.2l-2.38-.96-1.9 3.29L5.9 10.8c-.06.39-.09.79-.09 1.2s.03.81.09 1.2l-2.02 1.55 1.9 3.29 2.38-.96c.63.51 1.33.92 2.08 1.2l.36 2.52h3.8l.36-2.52c.75-.28 1.45-.69 2.08-1.2l2.38.96 1.9-3.29-2.02-1.55Z" stroke="currentColor" strokeWidth="1.45" strokeLinejoin="round" />
-            </svg>
-            <span>设置</span>
-          </button>
-        </div>
       </header>
     </app-shell-header>
   );
