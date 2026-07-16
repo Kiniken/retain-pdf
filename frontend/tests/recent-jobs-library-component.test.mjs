@@ -158,34 +158,15 @@ test("RecentJobsLibrary：卡片交互(select / reader / delete 确认与取消 
   click(dom, readerButton);
   await waitFor(() => readerDetail?.jobId === "job-2", "reader 按钮触发 openReaderRequested");
 
-  // ---- delete 确认 popover:开 → 取消 ----
-  const deleteButton = cardOf("job-3").querySelector(".recent-job-delete");
-  click(dom, deleteButton);
-  await waitFor(() => cardOf("job-3").querySelector(".recent-job-delete-popover").hidden === false, "删除确认弹出");
-  assert.equal(deleteButton.getAttribute("aria-expanded"), "true");
-  const cancelButton = cardOf("job-3").querySelector(".recent-job-delete-cancel");
-  click(dom, cancelButton);
-  await waitFor(() => cardOf("job-3").querySelector(".recent-job-delete-popover").hidden === true, "取消关闭弹出层");
-  assert.ok(cardOf("job-3"), "取消删除后卡片仍在");
-
-  // ---- delete 确认 popover:开 → 确认(mock 模式下 deleteLibraryBook 直接成功) ----
-  click(dom, deleteButton);
-  await waitFor(() => cardOf("job-3").querySelector(".recent-job-delete-popover").hidden === false, "再次弹出删除确认");
-  const confirmButton = cardOf("job-3").querySelector(".recent-job-delete-confirm");
-  click(dom, confirmButton);
-  await waitFor(() => !cardOf("job-3"), "确认删除后卡片从网格移除");
-  assert.equal(services.library.recentJobsStore.getSnapshot().items.some((item) => item.job_id === "job-3"), false);
-
   root.unmount();
   services.dispose();
   host.remove();
 });
 
-test("RecentJobsLibrary：未成功任务的对照阅读按钮禁用(回归)", async () => {
-  // 回归覆盖:对照阅读按钮以前不管任务状态一律可点,失败/排队中/进行中/
-  // 已取消的任务点了会一路捅进阅读器启动流程深处才报"对照阅读加载失败"
-  // (那时候压根没有可对照的 PDF)。现在按 succeeded 状态在卡片这一层就
-  // 挡掉,不依赖阅读器那层的兜底报错。
+test("RecentJobsLibrary：卡片眼睛=快速阅读(已完成→对照阅读;失败无源→不误触发)", async () => {
+  // 卡片改成照搬 PDF_MD_lib 的 BookCard 后,删除/翻译都挪进书籍详情弹窗,卡片
+  // 只留一个眼睛=快速阅读:已完成派发对照阅读;没有可读目标(失败且无 document_id)
+  // 点了不派发任何东西(不再一路捅进阅读器深处报错)。
   const dom = makeDom("?mock=parallel");
   const { services, root, host } = await bootHomeApp(dom);
 
@@ -197,45 +178,37 @@ test("RecentJobsLibrary：未成功任务的对照阅读按钮禁用(回归)", a
   await waitFor(() => byId(dom, "recent-jobs-list").querySelectorAll(".recent-job-item").length === 2, "两张卡片就位");
 
   const cardOf = (jobId) => byId(dom, "recent-jobs-list").querySelector(`.recent-job-item[data-job-id="${jobId}"]`);
+  // 卡片不再有删除/翻译按钮(都进详情弹窗了)
+  assert.equal(cardOf("job-2").querySelector(".recent-job-delete"), null, "卡片不再有删除按钮");
+  assert.equal(cardOf("job-2").querySelector(".recent-job-translate"), null, "卡片不再有翻译按钮");
 
   const { APP_EVENTS } = await import("../src/js/contracts/app-contract.js");
   let readerDetail = null;
-  dom.window.document.addEventListener(APP_EVENTS.openReaderRequested, (event) => {
-    readerDetail = event.detail;
-  });
+  dom.window.document.addEventListener(APP_EVENTS.openReaderRequested, (event) => { readerDetail = event.detail; });
 
-  const failedReaderButton = cardOf("job-1").querySelector(".recent-job-reader");
-  assert.equal(failedReaderButton.getAttribute("aria-disabled"), "true", "失败任务的对照阅读按钮应标记 aria-disabled");
-  assert.match(failedReaderButton.title, /未完成/);
-  click(dom, failedReaderButton);
+  // 失败任务(makeItem 无 document_id、非 succeeded)→ 眼睛点了没有可读目标,不派发
+  click(dom, cardOf("job-1").querySelector(".recent-job-reader"));
   await wait(30);
-  assert.equal(readerDetail, null, "失败任务点对照阅读不应触发 openReaderRequested");
+  assert.equal(readerDetail, null, "失败且无源:点眼睛不触发 openReaderRequested");
 
-  const succeededReaderButton = cardOf("job-2").querySelector(".recent-job-reader");
-  assert.equal(succeededReaderButton.getAttribute("aria-disabled"), null, "已完成任务的对照阅读按钮不应标记 aria-disabled");
-  click(dom, succeededReaderButton);
-  await waitFor(() => readerDetail?.jobId === "job-2", "已完成任务点对照阅读应正常触发 openReaderRequested");
+  // 已完成 → 对照阅读
+  click(dom, cardOf("job-2").querySelector(".recent-job-reader"));
+  await waitFor(() => readerDetail?.jobId === "job-2", "已完成点眼睛派发对照阅读");
 
   root.unmount();
   services.dispose();
   host.remove();
 });
 
-test("RecentJobsLibrary：馆藏文档卡(未翻译)——读原文 / 无删除 / 点卡片不误起轮询", async () => {
-  // F2 + F4:没有 active_job_id 的文档也进网格(合成 job_id `doc:<id>` 穿过引擎)。
-  // 卡片应当:显示"未翻译"、隐藏删除(后端暂无 DELETE /documents/:id)、
-  // 眼睛按钮变成"读原文"→ 派发带 documentId(不带 jobId)的 openReaderRequested。
+test("RecentJobsLibrary：馆藏文档卡(未翻译)——徽标/点卡片开详情/眼睛读原文", async () => {
+  // 馆藏文档(合成 job_id `doc:<id>`)进网格:徽标"馆藏"、点卡片开书籍详情弹窗、
+  // 眼睛=读原文(派发带 documentId、不带 jobId 的 openReaderRequested)。
   const dom = makeDom("?mock=parallel");
   const { services, root, host } = await bootHomeApp(dom);
 
   const libraryOnlyItem = {
-    job_id: "doc:doc-ref-1",
-    document_id: "doc-ref-1",
-    library_only: true,
-    title: "只入库的参考书",
-    display_name: "只入库的参考书",
-    status: "",
-    page_count: 42,
+    job_id: "doc:doc-ref-6a1f2c", document_id: "doc-ref-6a1f2c", library_only: true,
+    title: "只入库的参考书", display_name: "只入库的参考书", status: "", page_count: 42,
     updated_at: "2026-07-01T00:00:00Z",
   };
   services.library.recentJobsStore.actions.setItems([libraryOnlyItem, makeItem(2, { status: "succeeded" })]);
@@ -243,43 +216,33 @@ test("RecentJobsLibrary：馆藏文档卡(未翻译)——读原文 / 无删除 
 
   const card = byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-library-only="true"]');
   assert.ok(card, "馆藏卡片渲染出来了");
-  assert.equal(card.getAttribute("data-document-id"), "doc-ref-1");
-  assert.equal(card.querySelector(".recent-job-status")?.textContent, "未翻译");
-  // 后端补了 DELETE /documents/:id 后,馆藏文档也能删了(不再隐藏删除按钮)。
-  assert.ok(card.querySelector(".recent-job-delete"), "馆藏卡也显示删除按钮(文档级删除)");
+  assert.equal(card.getAttribute("data-document-id"), "doc-ref-6a1f2c");
+  assert.match(card.textContent, /馆藏/, "显示馆藏徽标");
+  assert.equal(card.querySelector(".recent-job-delete"), null, "卡片无删除(在详情弹窗里)");
 
   const { APP_EVENTS } = await import("../src/js/contracts/app-contract.js");
   let readerDetail = null;
-  dom.window.document.addEventListener(APP_EVENTS.openReaderRequested, (event) => {
-    readerDetail = event.detail;
-  });
+  dom.window.document.addEventListener(APP_EVENTS.openReaderRequested, (event) => { readerDetail = event.detail; });
 
-  // 点卡片本体:馆藏文档没有 job,不应派发任何打开 job 的动作(合成 id 不能去起轮询)
+  // 点卡片本体 → 开书籍详情弹窗(不派发 openReaderRequested)
   click(dom, card);
-  await wait(30);
-  assert.equal(readerDetail, null, "点馆藏卡本体不触发 openReaderRequested");
+  await waitFor(() => byId(dom, "book-detail-dialog"), "点馆藏卡打开书籍详情弹窗");
+  assert.equal(readerDetail, null, "点卡片本体不触发 openReaderRequested");
+  services.bookDetail.dialogStore.close();
 
-  // 眼睛按钮 = 读原文
-  const readSourceButton = card.querySelector(".recent-job-reader");
-  assert.equal(readSourceButton.getAttribute("aria-label"), "读原文");
-  assert.equal(readSourceButton.getAttribute("aria-disabled"), null, "有 document_id 时可点");
-  click(dom, readSourceButton);
-  await waitFor(() => readerDetail?.documentId === "doc-ref-1", "读原文派发带 documentId 的 openReaderRequested");
-  assert.ok(!readerDetail.jobId, "馆藏文档不带 jobId(阅读器据此走只读源文档分支)");
-
-  // 翻译按钮只在馆藏卡上出现(已翻译卡没有)
-  assert.ok(card.querySelector(".recent-job-translate"), "馆藏卡有翻译按钮");
-  const succeededCard = byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-job-id="job-2"]');
-  assert.equal(succeededCard.querySelector(".recent-job-translate"), null, "已翻译卡没有翻译按钮");
+  // 眼睛 = 读原文(带 documentId,不带 jobId)
+  click(dom, card.querySelector(".recent-job-reader"));
+  await waitFor(() => readerDetail?.documentId === "doc-ref-6a1f2c", "眼睛派发带 documentId 的 openReaderRequested");
+  assert.ok(!readerDetail.jobId, "馆藏文档不带 jobId");
 
   root.unmount();
   services.dispose();
   host.remove();
 });
 
-test("RecentJobsLibrary：馆藏文档点翻译 → translateDocument 起 job 后整页重载", async () => {
-  // F5:复用文档已存的 upload 起翻译 job(不重新上传);成功后重载文档列表,
-  // 该文档带着新的 active_job_id 回到网格,轮询引擎按 job_id 接管进度。
+test("书籍详情弹窗:馆藏点翻译 → translateDocument 起 job 后整页重载", async () => {
+  // F5 的翻译入口已从卡片挪到书籍详情弹窗:点馆藏卡开详情 → 点翻译整本 →
+  // mock translateDocument 给文档挂 active_job_id → 整页重载,轮询接管。
   const dom = makeDom("?mock=parallel");
   const { services, root, host } = await bootHomeApp(dom);
 
@@ -288,22 +251,15 @@ test("RecentJobsLibrary：馆藏文档点翻译 → translateDocument 起 job �
   assert.ok(untranslated, "mock 里有馆藏文档");
 
   services.library.recentJobsStore.actions.setItems([{
-    job_id: `doc:${untranslated.document_id}`,
-    document_id: untranslated.document_id,
-    library_only: true,
-    title: untranslated.title,
-    status: "",
-    page_count: untranslated.page_count,
+    job_id: `doc:${untranslated.document_id}`, document_id: untranslated.document_id,
+    library_only: true, title: untranslated.title, status: "", page_count: untranslated.page_count,
   }]);
-  await waitFor(
-    () => byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-library-only="true"]'),
-    "馆藏卡就位",
-  );
+  await waitFor(() => byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-library-only="true"]'), "馆藏卡就位");
 
-  const card = byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-library-only="true"]');
-  click(dom, card.querySelector(".recent-job-translate"));
+  click(dom, byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-library-only="true"]'));
+  await waitFor(() => byId(dom, "book-detail-translate-btn"), "详情弹窗翻译按钮就位");
+  click(dom, byId(dom, "book-detail-translate-btn"));
 
-  // mock translateDocument 会给该文档挂上 active_job_id;重载后它不再是馆藏态。
   await waitFor(
     () => getMockDocumentList().documents
       .find((doc) => doc.document_id === untranslated.document_id)?.active_job_id,

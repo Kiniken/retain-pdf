@@ -10,7 +10,7 @@
 // 唯一不会陈旧的信号源;libraryViewStore 的 mode 只在 items 为空时才可信
 // (loading/empty/error 三态由 renderLoading()/actions.js 的边缘路径驱动)。
 
-import { useCallback, useRef, useState } from "react";
+import { useRef } from "react";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
 import { useHomeServices } from "../../home-services-context.js";
 import { buildRecentJobsSummaryViewModel } from "../../../../js/features/recent-jobs/summary-view-model.js";
@@ -33,7 +33,6 @@ export function RecentJobsLibrary() {
   const homeState = useStoreSnapshot(services.stores.homeState);
   const view = useStoreSnapshot(viewPort.store);
 
-  const [confirmingDeleteJobId, setConfirmingDeleteJobId] = useState("");
   const scrollBodyRef = useRef(null);
 
   const items = Array.isArray(recentJobs.items) ? recentJobs.items : [];
@@ -56,10 +55,6 @@ export function RecentJobsLibrary() {
     viewPort,
   });
 
-  const handleToggleDeleteConfirm = useCallback((jobId) => {
-    setConfirmingDeleteJobId(jobId || "");
-  }, []);
-
   function handleLoadMoreClick() {
     viewPort.handlersRef.current.onLoadMore?.();
   }
@@ -77,14 +72,10 @@ export function RecentJobsLibrary() {
               <RecentJobCard
                 key={item.job_id}
                 item={item}
-                isConfirmingDelete={confirmingDeleteJobId === item.job_id}
                 onSelect={actions.selectJob}
-                onDelete={actions.deleteCard}
                 onReader={actions.openJobReader}
                 onReadSource={actions.openSourceReader}
-                onTranslate={actions.translateDocument}
                 onOpenDetail={actions.openBookDetail}
-                onToggleDeleteConfirm={handleToggleDeleteConfirm}
               />
             ))}
           </div>

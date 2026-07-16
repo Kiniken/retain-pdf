@@ -29,6 +29,20 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// 轮询等待,替代脆弱的固定 wait(50):全量测试并发跑时 CPU 吃紧,固定毫秒内
+// React commit / 异步 loadAnnotations 可能还没落定(实测被首页卡片改版增加的
+// 渲染负载压垮过)。predicate 返回真即通过。
+async function waitUntil(predicate, description) {
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    if (predicate()) {
+      return;
+    }
+    await wait(15);
+  }
+  assert.fail(`等待超时：${description}`);
+}
+
 function click(element) {
   element.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
 }
@@ -101,7 +115,8 @@ test("批注面板:分组渲染、笔记编辑、乐观删除与 Markdown 导出
   };
 
   const app = mountReaderAnnotationsApp(host, ports);
-  await wait(50);
+  // 等异步 loadAnnotations 落定、三张卡片都渲染出来(固定 wait 在满载时不够)。
+  await waitUntil(() => host.querySelectorAll(".reader-annotations-item").length === 3, "三张批注卡片渲染");
 
   // 基础渲染:分组标题、卡片、徽章、已有笔记
   assert.ok(host.querySelector(".reader-annotations-panel"), "面板已渲染");
@@ -127,7 +142,7 @@ test("批注面板:分组渲染、笔记编辑、乐观删除与 Markdown 导出
   // 添加笔记:出现 textarea,输入后保存
   const secondItem = host.querySelectorAll(".reader-annotations-item")[1];
   click(secondItem.querySelector(".reader-annotations-note-add"));
-  await wait(30);
+  await waitUntil(() => secondItem.querySelector(".reader-annotations-note-input"), "编辑态出现 textarea");
   const textarea = secondItem.querySelector(".reader-annotations-note-input");
   assert.ok(textarea, "编辑态出现 textarea");
   const valueSetter = Object.getOwnPropertyDescriptor(
@@ -138,14 +153,15 @@ test("批注面板:分组渲染、笔记编辑、乐观删除与 Markdown 导出
   textarea.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
   await wait(30);
   click(secondItem.querySelector(".reader-annotations-note-save"));
-  await wait(50);
+  await waitUntil(() => saveCalls.length === 1, "saveNote 被调用");
   assert.deepEqual(saveCalls, [["fav-2", "新增的笔记"]], "saveNote 被调用");
   const noteTexts = [...host.querySelectorAll(".reader-annotations-note")].map((node) => node.textContent);
   assert.ok(noteTexts.includes("新增的笔记"), "笔记文案已更新");
 
   // 导出 Markdown:含 "# " 标题与 "> " 引用块,按钮短暂变为「已复制」
   click(host.querySelector(".reader-annotations-export"));
-  await wait(50);
+  // 等按钮真正变成「已复制」(异步 export 完成 + 重渲之后),而不是猜固定毫秒。
+  await waitUntil(() => host.querySelector(".reader-annotations-export")?.textContent === "已复制", "按钮变已复制");
   assert.equal(exportCalls.length, 1, "exportMarkdown 被调用一次");
   assert.ok(exportCalls[0].includes("# "), "Markdown 含标题");
   assert.ok(exportCalls[0].includes("> "), "Markdown 含引用块");
@@ -153,13 +169,13 @@ test("批注面板:分组渲染、笔记编辑、乐观删除与 Markdown 导出
 
   // 删除:乐观移除且 deleteAnnotation 被调
   click(host.querySelector(".reader-annotations-item .reader-annotations-remove"));
-  await wait(50);
+  await waitUntil(() => host.querySelectorAll(".reader-annotations-item").length === 2, "卡片乐观移除");
   assert.equal(host.querySelectorAll(".reader-annotations-item").length, 2, "卡片乐观移除");
   assert.deepEqual(deleteCalls, ["fav-1"], "deleteAnnotation 被调用");
 
   // 定位:传 annotationAnchor 结果
   click(host.querySelector(".reader-annotations-item .reader-annotations-locate"));
-  await wait(30);
+  await waitUntil(() => jumpCalls.length === 1, "jumpToAnchor 被调用");
   assert.deepEqual(jumpCalls, [{ pageIdx: 0, blockId: "b-2" }]);
 
   app.unmount();
