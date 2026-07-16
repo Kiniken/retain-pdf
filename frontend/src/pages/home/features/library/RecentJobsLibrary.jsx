@@ -19,6 +19,7 @@ import { RecentJobCard } from "./RecentJobCard.jsx";
 import { BookListRow } from "./BookListRow.jsx";
 import { LibraryToolbar } from "./LibraryToolbar.jsx";
 import { LibraryFilterMenu, matchesLibraryFilter } from "./LibraryFilterMenu.jsx";
+import { ContinueReadingShelf } from "./ContinueReadingShelf.jsx";
 import { isLibraryOnlyItem } from "../../../../js/features/documents-library/document-card-item.js";
 import { isRecentJobActive } from "../../../../js/features/recent-jobs/card-presenter.js";
 import { useLibraryAutoLoad } from "./useLibraryAutoLoad.js";
@@ -106,6 +107,18 @@ export function RecentJobsLibrary() {
     viewPort.handlersRef.current.onLoadMore?.();
   }
 
+  // 继续阅读:已翻译 → 对照阅读;否则 → 读原文。
+  function handleContinueRead(item) {
+    if (`${item.status || ""}`.trim() === "succeeded") {
+      actions.openJobReader(`${item.job_id || ""}`.trim());
+      return;
+    }
+    const documentId = `${item.document_id || ""}`.trim();
+    if (documentId) {
+      actions.openSourceReader(documentId);
+    }
+  }
+
   return (
     <section id="library-view" className="library-view" aria-label="图书馆">
       <div id="recent-jobs-scroll-body" className="library-scroll-body" ref={scrollBodyRef}>
@@ -113,6 +126,7 @@ export function RecentJobsLibrary() {
         <div id="recent-jobs-empty" className={`events-empty${mode === "list" ? " hidden" : ""}`}>
           {mode === "loading" ? "正在加载最近任务…" : (mode === "error" ? errorMessage : emptyMessage)}
         </div>
+        {mode === "list" ? <ContinueReadingShelf items={items} onOpen={handleContinueRead} /> : null}
         {mode === "list" ? (
           <LibraryToolbar
             count={visibleItems.length}
