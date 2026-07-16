@@ -137,8 +137,8 @@
   line-height: 1;
 
   &.is-sentence {
-    background: rgba(0, 113, 227, 0.1);
-    color: #0071e3;
+    background: rgba(29, 29, 31, 0.1);
+    color: #1d1d1f;
   }
 
   &.is-data {
@@ -154,8 +154,8 @@
 
 @utility is-sentence {
   &.reader-annotations-kind {
-    background: rgba(0, 113, 227, 0.1);
-    color: #0071e3;
+    background: rgba(29, 29, 31, 0.1);
+    color: #1d1d1f;
   }
 }
 

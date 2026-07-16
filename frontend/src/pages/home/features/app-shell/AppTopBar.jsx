@@ -1,6 +1,6 @@
-// 整合顶部导航栏——参考 RetainMol 的布局:logo 靠最左、"图书馆/分类"分栏居中,
-// 添加/设置下沉到底部(见 AppBottomActions.jsx)。搜索框在底部悬浮条
-// (LibrarySearchDock.jsx)。
+// 顶部导航区——用户要求去掉白色卡片背景:logo 靠最左、"图书馆/分类"分栏居中,
+// 直接浮在灰底页面上。添加/搜索/设置 三样都下沉到底部一条浮动栏
+// (AppBottomBar.jsx)。
 //
 // 居中做法:logo 左、两侧各一条 flex:1 的 spacer 把 tabs 挤到正中。#developer-btn/
 // #open-output-btn 是契约 id(测试引用),保留在 display:none 的隐藏容器里,不占布局。

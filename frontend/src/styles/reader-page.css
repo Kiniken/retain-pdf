@@ -360,7 +360,7 @@
 .reader-col-resizer:hover::after,
 .reader-body.reader-resizing .reader-col-resizer::after {
   width: 3px;
-  background: var(--accent, #0071e3);
+  background: var(--accent, #1d1d1f);
 }
 
 .reader-col-resizer-left {

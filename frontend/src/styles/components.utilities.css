@@ -1779,7 +1779,7 @@
   }
 
   &.running {
-    background: rgba(0, 113, 227, 0.1);
+    background: rgba(29, 29, 31, 0.1);
     color: var(--accent);
   }
 
@@ -1810,7 +1810,7 @@
 
 @utility running {
   &.badge {
-    background: rgba(0, 113, 227, 0.1);
+    background: rgba(29, 29, 31, 0.1);
     color: var(--accent);
   }
 }

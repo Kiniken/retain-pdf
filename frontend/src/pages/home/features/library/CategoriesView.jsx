@@ -1,4 +1,4 @@
-// "分类"tab 的内容:文件夹卡片网格 + 点开一个文件夹后的书目列表。
+// "合集"tab 的内容:文件夹卡片网格 + 点开一个文件夹后的书目列表。
 //
 // 图书馆网格的数据链路完全不动(调研计划「设计决策 2」)——文件夹展开时走
 // collection_id → documents(拿 active_job_id)→ job_ids 过滤 library/books
@@ -57,7 +57,7 @@ function FolderCoverStack({ items }) {
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M3 7a2 2 0 0 1 2-2h4.5l1.5 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
           </svg>
-          <span>空分类</span>
+          <span>空合集</span>
         </div>
       ) : (
         stack.map((item, index) => (
@@ -87,7 +87,6 @@ export function CategoriesView() {
   const [folderItems, setFolderItems] = useState([]);
   const [folderLoading, setFolderLoading] = useState(false);
   const [folderError, setFolderError] = useState("");
-  const [confirmingDeleteJobId, setConfirmingDeleteJobId] = useState("");
 
   const reload = useCallback(() => {
     setListLoading(true);
@@ -105,7 +104,7 @@ export function CategoriesView() {
           return stillExists ? items.find((item) => item.collection_id === current.collection_id) : null;
         });
       })
-      .catch((err) => setListError(err?.message || "读取分类失败，请稍后重试。"))
+      .catch((err) => setListError(err?.message || "读取合集失败，请稍后重试。"))
       .finally(() => setListLoading(false));
   }, [controller]);
 
@@ -173,7 +172,7 @@ export function CategoriesView() {
         if (cancelled) {
           return;
         }
-        setFolderError(err?.message || "读取分类内容失败，请稍后重试。");
+        setFolderError(err?.message || "读取合集内容失败，请稍后重试。");
       })
       .finally(() => {
         if (cancelled) {
@@ -192,13 +191,9 @@ export function CategoriesView() {
     };
   }, [controller, openFolderId]);
 
-  const handleToggleDeleteConfirm = useCallback((jobId) => {
-    setConfirmingDeleteJobId(jobId || "");
-  }, []);
-
   if (openFolder) {
     return (
-      <section id="categories-folder-view" className="library-view categories-view" aria-label={`分类:${openFolder.name}`}>
+      <section id="categories-folder-view" className="library-view categories-view" aria-label={`合集:${openFolder.name}`}>
         <div className="categories-folder-head">
           <button
             id="categories-back-btn"
@@ -206,7 +201,7 @@ export function CategoriesView() {
             className="categories-back-btn"
             onClick={() => setOpenFolder(null)}
           >
-            ← 返回分类
+            ← 返回合集
           </button>
           <h2>{openFolder.name}</h2>
         </div>
@@ -215,18 +210,17 @@ export function CategoriesView() {
         ) : folderError ? (
           <div className="events-empty">{folderError}</div>
         ) : folderItems.length === 0 ? (
-          <div className="events-empty">这个分类还没有书</div>
+          <div className="events-empty">这个合集还没有书</div>
         ) : (
           <div className="recent-jobs-list library-grid">
             {folderItems.map((item) => (
               <RecentJobCard
                 key={item.job_id}
                 item={item}
-                isConfirmingDelete={confirmingDeleteJobId === item.job_id}
                 onSelect={actions.selectJob}
-                onDelete={actions.deleteJob}
                 onReader={actions.openJobReader}
-                onToggleDeleteConfirm={handleToggleDeleteConfirm}
+                onReadSource={actions.openSourceReader}
+                onOpenDetail={actions.openBookDetail}
               />
             ))}
           </div>
@@ -236,7 +230,7 @@ export function CategoriesView() {
   }
 
   return (
-    <section id="categories-view" className="library-view categories-view" aria-label="分类">
+    <section id="categories-view" className="library-view categories-view" aria-label="合集">
       <div className="categories-head">
         <button
           id="categories-create-btn"
@@ -244,15 +238,15 @@ export function CategoriesView() {
           className="app-button"
           onClick={() => dialogStore.open(null)}
         >
-          新建分类
+          新建合集
         </button>
       </div>
       {listLoading ? (
-        <div className="events-empty">正在加载分类…</div>
+        <div className="events-empty">正在加载合集…</div>
       ) : listError ? (
         <div className="events-empty">{listError}</div>
       ) : collections.length === 0 ? (
-        <div className="events-empty">还没有分类，点击"新建分类"给 PDF 分组</div>
+        <div className="events-empty">还没有合集，点击"新建合集"给 PDF 分组</div>
       ) : (
         <div id="categories-grid" className="categories-grid">
           {collections.map((collection) => (
@@ -269,7 +263,7 @@ export function CategoriesView() {
               <button
                 type="button"
                 className="category-card-manage"
-                aria-label={`管理分类 ${collection.name}`}
+                aria-label={`管理合集 ${collection.name}`}
                 title="管理"
                 onClick={(event) => {
                   event.stopPropagation();

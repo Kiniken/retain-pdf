@@ -39,7 +39,7 @@ export function LibraryFilterMenu({
         type="button"
         onClick={onClick}
         className={cn(
-          "inline-flex items-center rounded-full border px-3 py-1 text-xs transition-colors",
+          "inline-flex items-center rounded-full border px-3 py-1 text-xs transition active:scale-95",
           active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white text-muted-foreground hover:bg-accent",
         )}
       >{children}</button>
@@ -52,7 +52,7 @@ export function LibraryFilterMenu({
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs transition-colors",
+          "inline-flex h-8 items-center gap-1 rounded-full px-3 text-xs transition active:scale-95",
           activeCount > 0 ? "bg-secondary text-secondary-foreground" : "border border-border text-foreground hover:bg-muted/30",
         )}
       >
@@ -61,7 +61,10 @@ export function LibraryFilterMenu({
       </button>
 
       {open ? (
-        <div className="absolute right-0 z-30 mt-2 w-64 rounded-2xl border border-border bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.16)]">
+        // 非 Radix 的轻量 popover(满载测试下比重型 modal 稳),没有 Presence 卸载延迟,
+        // 关闭只能瞬间收起——但至少进场要有生命感:从触发按钮所在的右上角
+        // 展开(origin-top-right),不从 scale(0) 凭空出现(emil-design-eng skill)。
+        <div className="absolute right-0 z-30 mt-2 w-64 origin-top-right rounded-2xl border border-border bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.16)] transition-[opacity,transform] duration-150 ease-[var(--ease-out)] starting:scale-95 starting:opacity-0">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">翻译状态</p>
           <div className="flex flex-wrap gap-2">
             {STATUS_FILTERS.map((s) => (

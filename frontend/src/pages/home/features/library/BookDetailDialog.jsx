@@ -42,6 +42,22 @@ function IconLayers(props) {
     </svg>
   );
 }
+// 翻译:languages(文/A 标)
+function IconLanguages(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="13" height="13" {...props}>
+      <path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" /><path d="m22 22-5-10-5 10" /><path d="M14 18h6" />
+    </svg>
+  );
+}
+// 对照阅读:双栏(book-open,左右两页对照)
+function IconCompare(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="13" height="13" {...props}>
+      <path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3Z" />
+    </svg>
+  );
+}
 
 function parseAuthors(authorsJson) {
   try {
@@ -205,7 +221,7 @@ export function BookDetailDialog() {
     } catch (err) { setError(err?.message || "更新合集失败"); } finally { setCollectionsBusy(""); }
   }
 
-  const toneText = status.tone === "done" ? "text-emerald-600"
+  const toneText = status.tone === "done" ? "text-foreground"
     : status.tone === "active" ? "text-primary"
     : status.tone === "failed" ? "text-destructive" : "text-muted-foreground";
 
@@ -215,7 +231,7 @@ export function BookDetailDialog() {
         <DialogPrimitive.Overlay className="desktop-dialog-overlay" />
         <DialogPrimitive.Content
           id="book-detail-dialog"
-          className="fixed inset-0 z-[101] m-auto h-fit w-[min(940px,94vw)] max-h-[88vh] overflow-y-auto rounded-2xl border border-border bg-white p-6 shadow-[0_30px_60px_rgba(15,23,42,0.22)] sm:p-7"
+          className="book-detail-dialog-content fixed inset-0 z-[101] m-auto h-fit w-[min(940px,94vw)] max-h-[88vh] overflow-y-auto rounded-2xl border border-border bg-white p-6 shadow-[0_30px_60px_rgba(15,23,42,0.22)] sm:p-7"
           onCloseAutoFocus={onCloseAutoFocus}
         >
           <DialogPrimitive.Title asChild><h2 className="sr-only">书籍详情</h2></DialogPrimitive.Title>
@@ -245,7 +261,9 @@ export function BookDetailDialog() {
                 <div className="flex flex-col gap-2 pt-1">
                   {readerAvailable ? (
                     <button id="book-detail-compare-btn" className={btn("default", "w-full")} disabled={Boolean(busy)}
-                      onClick={() => { actions.openJobReader(jobId); close(); }}>对照阅读</button>
+                      onClick={() => { actions.openJobReader(jobId); close(); }}>
+                      <IconCompare className="mr-1" />对照阅读
+                    </button>
                   ) : null}
                   <button id="book-detail-read-source-btn" className={btn(readerAvailable ? "outline" : "default", "w-full")}
                     disabled={Boolean(busy) || !documentId} onClick={() => { actions.openSourceReader(documentId); close(); }}>
@@ -335,6 +353,7 @@ export function BookDetailDialog() {
                       </div>
                     ) : null}
                     <button id="book-detail-translate-btn" className={btn("default")} disabled={Boolean(busy)} onClick={handleTranslate}>
+                      <IconLanguages className="mr-1" />
                       {busy === "translate" ? "提交中…" : (rangeOn ? "翻译选定页码" : "翻译整本")}
                     </button>
                   </div>

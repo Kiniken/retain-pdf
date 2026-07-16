@@ -12,7 +12,7 @@
 // 继续分页。文档级服务端全文/标题搜索是后端待补项(见 memory
 // f2-document-centric-grid-design)。
 
-import { shapeDocumentCardItem } from "./document-card-item.js";
+import { shapeDocumentsWithBooks } from "./shape-documents-with-books.js";
 
 const SEARCH_FETCH_LIMIT = 200;
 
@@ -42,25 +42,12 @@ export async function collectDocumentLibraryPage({
   const documents = Array.isArray(payload?.documents) ? payload.documents : [];
   const total = Number.isFinite(Number(payload?.total)) ? Number(payload.total) : documents.length;
 
-  // 批量取该页已翻译文档的 library/books 活态(实时 status/progress/cover)。
-  const jobIds = documents
-    .map((doc) => normalizedJobId(doc?.active_job_id))
-    .filter(Boolean);
-  const bookMap = new Map();
-  if (jobIds.length && typeof fetchLibraryBookList === "function") {
-    const bookPayload = await fetchLibraryBookList(apiPrefix, { jobIds, limit: jobIds.length });
-    for (const book of (Array.isArray(bookPayload?.items) ? bookPayload.items : [])) {
-      const id = normalizedJobId(book?.job_id);
-      if (id) {
-        bookMap.set(id, book);
-      }
-    }
-  }
+  // 文档 → 卡片的映射走统一编排(shapeDocumentsWithBooks);去重/搜索过滤这些
+  // 分页数据源自己的关切留在下面。
+  const shaped = await shapeDocumentsWithBooks(documents, { fetchLibraryBookList, apiPrefix });
 
   const collected = [];
-  for (const doc of documents) {
-    const activeJobId = normalizedJobId(doc?.active_job_id);
-    const item = shapeDocumentCardItem(doc, activeJobId ? bookMap.get(activeJobId) || null : null);
+  for (const item of shaped) {
     const key = normalizedJobId(item.job_id);
     if (!key || seen.has(key)) {
       continue;

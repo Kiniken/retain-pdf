@@ -3,6 +3,18 @@
     box-sizing: border-box;
   }
 
+  /* apple-design skill:减弱动效不等于零动效——用户开了"减弱动态效果"时,
+     整站过渡/动画统一收到几乎瞬时,不做逐组件适配(此前项目里完全没有这条,
+     是真实缺口)。 */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   html {
     color-scheme: light;
     overflow-x: hidden;

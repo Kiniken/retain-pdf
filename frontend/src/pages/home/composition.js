@@ -145,9 +145,9 @@ import { adaptJobStageSnapshot } from "../../js/job-status/job-stage-contract-ad
 
 import { fetchJobList, fetchJobPayload } from "../../js/api/jobs-query.js";
 import { fetchLibraryBookList, deleteLibraryBook } from "../../js/api/library-books.js";
-import { deleteDocument, fetchDocumentList, patchDocument, translateDocument } from "../../js/api/documents.js";
+import { fetchDocumentList } from "../../js/api/documents.js";
 import { createDocumentLibraryResource } from "../../js/features/documents-library/document-library-resource.js";
-import { createBookDetailDialogStore } from "./features/library/book-detail-dialog-store.js";
+import { createLibraryController } from "./features/library/controller.js";
 import { fetchJobEvents } from "../../js/api/jobs-events.js";
 import { fetchJobArtifactsManifest } from "../../js/api/jobs-artifacts.js";
 import {
@@ -716,113 +716,18 @@ export function createHomeComposition({
     statePort: recentJobsStatePort,
   });
 
-  // F4 馆藏文档"读原文":无 job,派发带 documentId 的 openReaderRequested,
-  // ReaderDialog 用 document_id 打开只读源文档阅读器(与卡片对照阅读同一事件契约)。
-  function openSourceReader(documentId) {
-    const normalizedId = `${documentId || ""}`.trim();
-    if (!normalizedId) {
-      return;
-    }
-    if (documentRef?.dispatchEvent && typeof globalThis.CustomEvent === "function") {
-      documentRef.dispatchEvent(new globalThis.CustomEvent(APP_EVENTS.openReaderRequested, {
-        detail: { documentId: normalizedId, pageIdx: null, blockId: "" },
-      }));
-    }
-  }
-
-  // F3 "只入库,不翻译":PDF 在**上传完成那一刻**后端就已经建好 document 了
-  // (POST /uploads → upsert_document_from_upload,document_id = 内容哈希),
-  // 所以"只入库"不需要任何新接口——就是**不提交翻译 job**:关掉工作流对话框
-  // (其 close() 顺带 resetUploadSession)+ 刷新网格,新文档以馆藏态出现。
-  function storeUploadedDocumentOnly() {
-    if (documentRef?.dispatchEvent && typeof globalThis.CustomEvent === "function") {
-      documentRef.dispatchEvent(new globalThis.CustomEvent(APP_EVENTS.closeTranslationWorkflow));
-    }
-    libraryEventPort.requestRefresh({ force: true, delay: 0 });
-  }
-
-  // F5 馆藏文档"以后再翻":复用文档已存的 upload 起 book 翻译 job,后端回填
-  // active_job_id;随后整页重载一次——该文档会以真实 job_id 重新进网格,现有
-  // 轮询引擎(active-refresh 按 job_id 拉 job payload)自然接管进度。
-  const translatingDocumentIds = new Set();
-  async function translateLibraryDocument(documentId, payload = {}) {
-    const normalizedId = `${documentId || ""}`.trim();
-    if (!normalizedId || translatingDocumentIds.has(normalizedId)) {
-      return;
-    }
-    translatingDocumentIds.add(normalizedId);
-    try {
-      await translateDocument(API_PREFIX, normalizedId, payload);
-    } catch (error) {
-      recentJobsViewPort.renderError(
-        `${error?.message || "发起翻译失败，请稍后重试。"}`,
-        { reset: false },
-      );
-      return;
-    } finally {
-      translatingDocumentIds.delete(normalizedId);
-    }
-    await features.recentJobsFeature?.loadRecentJobs?.({ reset: true });
-  }
-
-  // 文档级删除(后端补了 DELETE /documents/:id 之后):删掉 document + 名下所有
-  // job/upload/文件。馆藏文档和已翻译文档统一走这条(卡片都带 document_id)。
-  // 删完整页重载——store 的 removeJobFamily 按 job_id 键控,馆藏是合成 id,
-  // 直接 reset 重载最省心。
-  function friendlyDocumentDeleteError(error) {
-    const message = `${error?.message || error || ""}`;
-    if (error?.status === 409 || message.includes("(409)")) {
-      const count = message.match(/\d+/)?.[0];
-      return count
-        ? `该文档有 ${count} 条收藏，请先删除收藏后再删除文档。`
-        : "该文档存在收藏引用，请先删除相关收藏后再删除文档。";
-    }
-    return message || "删除文档失败";
-  }
-  async function deleteLibraryDocument(documentId) {
-    const normalizedId = `${documentId || ""}`.trim();
-    if (!normalizedId) {
-      return;
-    }
-    try {
-      await deleteDocument(API_PREFIX, normalizedId);
-    } catch (error) {
-      recentJobsViewPort.renderError(friendlyDocumentDeleteError(error), { reset: false });
-      return;
-    }
-    await features.recentJobsFeature?.loadRecentJobs?.({ reset: true });
-  }
-
-  // 卡片删除入口:有 document_id 走文档级删除(删整篇文档 + 名下所有 job);
-  // 没有(极少见的运行时插入 job 项)退回老的 job 删除,保留原行为。
-  function deleteCard(target = {}) {
-    const documentId = `${target?.documentId || ""}`.trim();
-    if (documentId) {
-      void deleteLibraryDocument(documentId);
-      return;
-    }
-    recentJobActions.deleteJob(`${target?.jobId || ""}`.trim());
-  }
-
-  // 书籍详情弹窗:点卡片打开(BookDetailDialog 消费 payload=卡片 item)。
-  const bookDetailStore = createBookDetailDialogStore();
-  function openBookDetail(item) {
-    if (`${item?.document_id || ""}`.trim()) {
-      bookDetailStore.open(item);
-    }
-  }
-
-  // 详情弹窗里改标题/标签/阅读状态:PATCH /documents/:id + 静默整页重载(书架
-  // 卡片跟着更新),返回更新后的文档给弹窗即时刷新。
-  async function updateLibraryDocument(documentId, payload = {}) {
-    const normalizedId = `${documentId || ""}`.trim();
-    if (!normalizedId) {
-      return null;
-    }
-    const updated = await patchDocument(API_PREFIX, normalizedId, payload);
-    await features.recentJobsFeature?.loadRecentJobs?.({ reset: true, silent: true });
-    return updated;
-  }
+  // 图书馆(文档)域动作:读原文/只入库/翻译/删除/批量删除/开详情/改元数据
+  // 全在 library/controller.js 里(重构①,原先这里内联 9 个 function)。依赖
+  // 注入:reloadRecentJobs 传读 features.recentJobsFeature 的闭包(features 后填,
+  // 必须调用时再取);deleteJob 兜底运行时 job-only 项。
+  const libraryController = createLibraryController({
+    documentRef,
+    libraryEventPort,
+    recentJobsViewPort,
+    reloadRecentJobs: (opts) => features.recentJobsFeature?.loadRecentJobs?.(opts),
+    deleteJob: (jobId) => recentJobActions.deleteJob(jobId),
+  });
+  const bookDetailStore = libraryController.bookDetailStore;
 
   // ---- app-actions 特性(提交流程域;之前 cutover 遗漏,补线接入)——
   // controller.js(mountAppActionsFeature)/submit-flow.js(runSubmitFlow)/
@@ -1114,13 +1019,14 @@ export function createHomeComposition({
       recentJobsStore: recentJobsStatePort.store,
       actions: {
         ...recentJobActions,
-        openSourceReader,
-        translateDocument: translateLibraryDocument,
-        deleteDocument: deleteLibraryDocument,
-        deleteCard,
-        openBookDetail,
-        updateDocument: updateLibraryDocument,
-        storeOnly: storeUploadedDocumentOnly,
+        openSourceReader: libraryController.openSourceReader,
+        translateDocument: libraryController.translateDocument,
+        deleteDocument: libraryController.deleteDocument,
+        deleteDocuments: libraryController.deleteDocuments,
+        deleteCard: libraryController.deleteCard,
+        openBookDetail: libraryController.openBookDetail,
+        updateDocument: libraryController.updateDocument,
+        storeOnly: libraryController.storeOnly,
       },
     },
     // 书籍详情弹窗(参考 PDF_MD_lib 的 BookDetailModal)的装配入口——点网格卡片

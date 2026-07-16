@@ -14,6 +14,7 @@ import {
 } from "../../../../js/api/collections.js";
 import { fetchDocumentList } from "../../../../js/api/documents.js";
 import { fetchLibraryBookList } from "../../../../js/api/library-books.js";
+import { shapeDocumentsWithBooks } from "../../../../js/features/documents-library/shape-documents-with-books.js";
 
 export function createCollectionsController({ apiPrefix }) {
   return {
@@ -38,17 +39,18 @@ export function createCollectionsController({ apiPrefix }) {
       return documents.map((doc) => doc.document_id);
     },
 
-    // 文件夹展开时的桥接路径(设计决策 2):collection_id → documents(拿
-    // active_job_id)→ job_ids 过滤 library/books → 复用 RecentJobCard 需要的
-    // job 卡片数据。图书馆主页数据链路本身不动。
+    // 文件夹展开/封面预览的数据源:collection_id → 该合集全部文档 → 每篇都
+    // 造一张卡片 item(和图书馆主页 document-library-source.js 同一套
+    // shapeDocumentCardItem)。
+    //
+    // 走和图书馆主网格(document-library-source.js)完全同一套 documents →
+    // cards 编排(shapeDocumentsWithBooks):已翻译文档叠加 library/books 活态,
+    // 馆藏(未翻译)文档造馆藏卡,全部返回。曾经这里是一份发散的旧拷贝、只保
+    // 留已翻译文档 → 满是馆藏的合集显示"空合集"(和 document_count 对不上的
+    // bug),收口到统一编排后不会再发散。
     async fetchFolderBooks(collectionId) {
       const { documents = [] } = await fetchDocumentList(apiPrefix, { collectionId, limit: 500 });
-      const jobIds = documents.map((doc) => doc.active_job_id).filter(Boolean);
-      if (!jobIds.length) {
-        return [];
-      }
-      const { items = [] } = await fetchLibraryBookList(apiPrefix, { jobIds, limit: jobIds.length });
-      return items;
+      return shapeDocumentsWithBooks(documents, { fetchLibraryBookList, apiPrefix });
     },
   };
 }

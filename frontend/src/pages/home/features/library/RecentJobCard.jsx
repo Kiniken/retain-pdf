@@ -16,6 +16,7 @@ import {
 } from "../../../../js/features/recent-jobs/card-presenter.js";
 import { isLibraryOnlyItem } from "../../../../js/features/documents-library/document-card-item.js";
 import { libraryCardBadge } from "./library-card-badge.js";
+import { BadgeIcon } from "./library-card-badge-icon.jsx";
 import { useRecentJobCover } from "./useRecentJobCover.js";
 
 function formatCardDate(value) {
@@ -60,16 +61,26 @@ function IconFile(props) {
     </svg>
   );
 }
+function IconCheck(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" width="13" height="13" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="m5 12 5 5L20 7" />
+    </svg>
+  );
+}
 
 function areCardPropsEqual(prev, next) {
   return prev.onSelect === next.onSelect
     && prev.onReader === next.onReader
     && prev.onReadSource === next.onReadSource
     && prev.onOpenDetail === next.onOpenDetail
+    && prev.batchMode === next.batchMode
+    && prev.selected === next.selected
+    && prev.onToggleSelect === next.onToggleSelect
     && cardSignatureOf(prev.item) === cardSignatureOf(next.item);
 }
 
-function RecentJobCardImpl({ item, onSelect, onReader, onReadSource, onOpenDetail }) {
+function RecentJobCardImpl({ item, onSelect, onReader, onReadSource, onOpenDetail, batchMode = false, selected = false, onToggleSelect }) {
   const libraryOnly = isLibraryOnlyItem(item);
   const documentId = `${item.document_id || ""}`.trim();
   const jobId = `${item.job_id || ""}`.trim();
@@ -86,6 +97,13 @@ function RecentJobCardImpl({ item, onSelect, onReader, onReadSource, onOpenDetai
   const coverUrl = useRecentJobCover(item);
 
   function openTarget() {
+    // 批量模式下点卡片=切选中态,不开详情/阅读器(和参考项目 BookCard 的
+    // handleCardAction 逻辑一致)。没有 document_id 的卡片(极少见的运行时
+    // job-only 项)选不了,批量模式下点它整个无反应。
+    if (batchMode) {
+      if (documentId) onToggleSelect?.(documentId);
+      return;
+    }
     if (documentId) { onOpenDetail?.(item); return; }
     onSelect?.(jobId);
   }
@@ -111,7 +129,7 @@ function RecentJobCardImpl({ item, onSelect, onReader, onReadSource, onOpenDetai
 
   return (
     <div
-      className="recent-job-item group text-left"
+      className="recent-job-item group text-left transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.99]"
       role="button"
       tabIndex={0}
       data-job-id={item.job_id || ""}
@@ -123,9 +141,10 @@ function RecentJobCardImpl({ item, onSelect, onReader, onReadSource, onOpenDetai
       onKeyDown={handleKeyDown}
     >
       <div className={cn(
-        "relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-muted/40 shadow-[0_2px_16px_rgba(0,0,0,0.07)] transition-all duration-200",
-        "group-hover:-translate-y-0.5 group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.12)]",
-        "group-focus-within:-translate-y-0.5 group-focus-within:shadow-[0_8px_28px_rgba(0,0,0,0.12)]",
+        "relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-muted/40 shadow-[0_2px_16px_rgba(0,0,0,0.07)] transition-[transform,box-shadow] duration-200 ease-[var(--ease-out)]",
+        !batchMode && "group-hover:-translate-y-0.5 group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.12)]",
+        !batchMode && "group-focus-within:-translate-y-0.5 group-focus-within:shadow-[0_8px_28px_rgba(0,0,0,0.12)]",
+        batchMode && selected && "ring-2 ring-foreground ring-offset-2",
       )}>
         {coverUrl ? (
           <img src={coverUrl} alt="" className="h-full w-full bg-white object-contain" />
@@ -138,7 +157,8 @@ function RecentJobCardImpl({ item, onSelect, onReader, onReadSource, onOpenDetai
 
         {badge ? (
           <div className="absolute right-2 top-2 z-10">
-            <span className={cn("inline-flex h-5 items-center whitespace-nowrap rounded-full px-2 text-[10px] font-medium shadow-sm", badge.cls)}>
+            <span className={cn("inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-full pl-1.5 pr-2 text-[10px] font-medium shadow-sm", badge.cls)}>
+              <BadgeIcon name={badge.icon} />
               {badge.label}{active && Number.isFinite(percent) ? ` ${Math.round(percent)}%` : ""}
             </span>
           </div>
@@ -150,18 +170,31 @@ function RecentJobCardImpl({ item, onSelect, onReader, onReadSource, onOpenDetai
           </div>
         ) : null}
 
-        {/* hover 暗遮罩 + 白色圆形眼睛 */}
-        <div className="pointer-events-none absolute inset-0 z-[6] flex items-center justify-center bg-black/35 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-          <button
-            type="button"
-            className="recent-job-reader pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-foreground shadow-md transition-colors hover:bg-white"
-            title={eyeTitle}
-            aria-label={eyeTitle}
-            onClick={handleEye}
-          >
-            <IconEye aria-hidden="true" />
-          </button>
-        </div>
+        {batchMode ? (
+          <>
+            {/* 批量模式:选中态暗遮罩 + 左上角选择圆点(不再是 hover 才出现,常驻可见) */}
+            <div className={cn("pointer-events-none absolute inset-0 z-[6] transition-colors", selected ? "bg-foreground/10" : "bg-transparent")} aria-hidden />
+            <div className={cn(
+              "absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full border transition-colors",
+              selected ? "border-foreground bg-foreground text-background" : "border-white/80 bg-white/70 text-transparent",
+            )} aria-hidden>
+              <IconCheck />
+            </div>
+          </>
+        ) : (
+          /* hover 暗遮罩 + 白色圆形眼睛 */
+          <div className="pointer-events-none absolute inset-0 z-[6] flex items-center justify-center bg-black/35 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+            <button
+              type="button"
+              className="recent-job-reader pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-foreground shadow-md transition hover:bg-white active:scale-90"
+              title={eyeTitle}
+              aria-label={eyeTitle}
+              onClick={handleEye}
+            >
+              <IconEye aria-hidden="true" />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="mt-2 flex flex-col gap-0.5">

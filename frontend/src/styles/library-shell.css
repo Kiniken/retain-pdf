@@ -48,16 +48,15 @@
   }
 }
 
-/* 整合顶部导航栏(方案 A)——logo/分栏/搜索框/添加-设置按钮全部在这一条白底
-   圆角栏里,取代早期"header + 独立分栏行 + 底部悬浮条"三处分离的布局。风格上
-   延续本项目"灰底页面上浮白色圆角卡片"的既有语言(对话框/按钮都是这个套路),
-   不做贴边通栏吸顶——那是另一种导航语言,和这个 app 目前的视觉体系不一致。 */
+/* 顶部导航区——用户要求去掉白色卡片背景:logo 左、图书馆/分类分栏居中,直接
+   浮在灰底页面上,不再是一条独立的白色圆角栏。添加/搜索/设置 三样已下沉到
+   底部一条浮动栏(AppBottomBar.jsx / library-bottom-bar)。 */
 @utility app-shell-header {
   width: min(1120px, 100%);
   flex: 0 0 auto;
   order: 0;
-  margin-top: 4px;
-  margin-bottom: 18px;
+  margin-top: 6px;
+  margin-bottom: 16px;
 }
 
 @utility library-view {
@@ -68,14 +67,15 @@
   overflow: hidden;
 }
 
+/* 去白卡:顶栏透明,只做 flex 布局(logo 左 + 两侧 spacer 把分栏挤到正中)。 */
 @utility library-topbar {
   justify-content: flex-start;
   gap: 18px;
-  padding: 10px 18px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  padding: 2px 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 @utility library-header-actions {
@@ -92,30 +92,40 @@
   flex: 0 0 auto;
 }
 
+/* 顶栏去白卡后,分栏 pill 自己需要一个白底(不然灰 pill 贴在同色灰页面上
+   会隐形)——白底 + 细描边 + 轻阴影,成为顶栏中央唯一的浮起小控件。 */
 @utility library-top-tabs {
   display: inline-flex;
   gap: 3px;
-  padding: 3px;
+  padding: 4px;
   border-radius: 999px;
-  background: var(--bg);
+  background: #fff;
   border: 1px solid var(--line);
-  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
-/* 选中态用和"添加"按钮同一套实底深色(--ink),不是浅灰底换白底那种弱对比
-   ——用户反馈"图书馆/分类根本区分不出来",弱对比在这条紧凑导航栏里确实
-   不够,直接照实底按钮的既有强对比方案来。 */
+/* 选中态用和"添加"按钮同一套实底深色(--ink)强对比。图标化:icon + 短文字
+   横排,图标比文字略淡,选中时一起转白。 */
 @utility library-top-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   appearance: none;
   border: 0;
   background: transparent;
   border-radius: 999px;
-  padding: 7px 16px;
+  padding: 7px 15px;
   font-size: 13px;
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: transform 0.12s var(--ease-out), background-color 0.15s ease, color 0.15s ease;
+
+  & svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+  }
 
   &.is-active {
     background: var(--ink);
@@ -124,6 +134,11 @@
 
   &:hover:not(.is-active) {
     color: var(--ink);
+    background: var(--bg);
+  }
+
+  &:active {
+    transform: scale(0.96);
   }
 }
 
@@ -473,7 +488,129 @@
   }
 }
 
-/* 导航栏里 logo/分栏 和 添加/设置按钮之间的弹性占位,把按钮推到最右侧。 */
+/* 底部三合一浮动栏(AppBottomBar.jsx)——添加(左)+ 搜索(中)+ 设置(右)收成
+   一条居中玻璃 pill,取代早期分离的"底部搜索条 + 右下角添加/设置胶囊"两个浮岛。
+   宽度交给中间的搜索槽(library-bottom-search)决定:有搜索时是一条宽 pill,
+   分类 tab 无搜索时自然收成"添加/设置"两颗按钮的小 pill(inline-flex 贴合内容)。 */
+@utility library-bottom-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  z-index: 20;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+  padding: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(210, 210, 215, 0.82);
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transition: opacity 0.18s var(--ease-out), transform 0.18s var(--ease-out);
+
+  /* 批量模式:隐藏但不卸载(visibility 保住 DOM 节点 + library-search-island
+     的 input 引用,退出批量后搜索照常工作),淡出下沉一点点。 */
+  &.is-hidden {
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-50%) translateY(8px);
+  }
+
+  @media (max-width: 767px) {
+    gap: 6px;
+    padding: 7px;
+  }
+}
+
+@utility library-bottom-search {
+  flex: 0 0 auto;
+  width: min(440px, calc(100vw - 148px));
+  min-width: 0;
+  display: flex;
+
+  & input {
+    @apply w-full rounded-full border text-[13px] font-medium text-[#1d1d1f] outline-hidden;
+    width: 100%;
+    height: 40px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 999px;
+    background: rgba(245, 245, 247, 0.86);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 500;
+    outline: none;
+    box-shadow: inset 0 0 0 1px rgba(210, 210, 215, 0.56);
+    transition: background-color 0.16s ease, box-shadow 0.16s ease;
+  }
+
+  & input::placeholder {
+    color: #86868b;
+  }
+
+  & input:focus {
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: inset 0 0 0 1.5px rgba(29, 29, 31, 0.8);
+  }
+
+  @media (max-width: 767px) {
+    & input {
+      height: 40px;
+      font-size: 12px;
+    }
+  }
+}
+
+/* 底部栏两侧的图标按钮(icon-only,"少文字多图标"):添加=实底深色主按钮,
+   设置=白底幽灵按钮。 */
+@utility library-bottom-icon-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.12s var(--ease-out), background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+
+  & svg {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 auto;
+  }
+
+  &:hover {
+    background: var(--bg);
+  }
+
+  &:active {
+    transform: scale(0.94);
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(29, 29, 31, 0.3);
+    outline-offset: 2px;
+  }
+
+  &.primary {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: #fff;
+  }
+
+  &.primary:hover {
+    background: #000;
+  }
+}
+
+/* 导航栏里 logo/分栏 两侧的弹性占位,把分栏挤到正中。 */
 @utility library-topbar-spacer {
   flex: 1 1 auto;
   min-width: 0;
@@ -518,6 +655,14 @@
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
+  /* 按下要有反馈(emil-design-eng skill):scale(0.97) 让"添加/设置"这两个
+     常驻悬浮按钮感觉真的在响应点击,而不是死板的纯色块切换。只做
+     transform/背景/边框,不用 transition: all。 */
+  transition: transform 120ms var(--ease-out), background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+
+  &:active {
+    transform: scale(0.97);
+  }
 
   & svg {
     width: 16px;

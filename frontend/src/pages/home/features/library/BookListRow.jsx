@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { recentJobTitle } from "../../../../js/features/recent-jobs/card-presenter.js";
 import { cardSignatureOf } from "./RecentJobCard.jsx";
 import { libraryCardBadge } from "./library-card-badge.js";
+import { BadgeIcon } from "./library-card-badge-icon.jsx";
 import { useRecentJobCover } from "./useRecentJobCover.js";
 
 function formatDate(value) {
@@ -31,16 +32,26 @@ function IconFile() {
     </svg>
   );
 }
+function IconCheck(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" width="12" height="12" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="m5 12 5 5L20 7" />
+    </svg>
+  );
+}
 
 function areEqual(prev, next) {
   return prev.onOpenDetail === next.onOpenDetail
     && prev.onReader === next.onReader
     && prev.onReadSource === next.onReadSource
     && prev.onSelect === next.onSelect
+    && prev.batchMode === next.batchMode
+    && prev.selected === next.selected
+    && prev.onToggleSelect === next.onToggleSelect
     && cardSignatureOf(prev.item) === cardSignatureOf(next.item);
 }
 
-function BookListRowImpl({ item, onOpenDetail, onReader, onReadSource, onSelect }) {
+function BookListRowImpl({ item, onOpenDetail, onReader, onReadSource, onSelect, batchMode = false, selected = false, onToggleSelect }) {
   const documentId = `${item.document_id || ""}`.trim();
   const jobId = `${item.job_id || ""}`.trim();
   const title = recentJobTitle(item);
@@ -51,6 +62,10 @@ function BookListRowImpl({ item, onOpenDetail, onReader, onReadSource, onSelect 
   const coverUrl = useRecentJobCover(item);
 
   function open() {
+    if (batchMode) {
+      if (documentId) onToggleSelect?.(documentId);
+      return;
+    }
     if (documentId) { onOpenDetail?.(item); return; }
     onSelect?.(jobId);
   }
@@ -74,7 +89,7 @@ function BookListRowImpl({ item, onOpenDetail, onReader, onReadSource, onSelect 
 
   return (
     <div
-      className="recent-job-item group flex w-full cursor-pointer items-start gap-4 rounded-2xl px-3 py-3.5 text-left shadow-[0_1px_0_rgba(0,0,0,0.04)] transition-colors hover:bg-muted/45 sm:px-4"
+      className="recent-job-item group flex w-full cursor-pointer items-start gap-4 rounded-2xl px-3 py-3.5 text-left shadow-[0_1px_0_rgba(0,0,0,0.04)] transition duration-150 ease-[var(--ease-out)] hover:bg-muted/45 active:scale-[0.99] sm:px-4"
       role="button"
       tabIndex={0}
       data-job-id={item.job_id || ""}
@@ -84,7 +99,16 @@ function BookListRowImpl({ item, onOpenDetail, onReader, onReadSource, onSelect 
       onClick={handleClick}
       onKeyDown={handleKeyDown}
     >
-      <div className="relative aspect-[3/4] w-11 shrink-0 overflow-hidden rounded-xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.06)] sm:w-12">
+      {batchMode ? (
+        <div className={cn(
+          "mt-1 flex h-5 w-5 shrink-0 items-center justify-center self-start rounded-full border transition-colors",
+          selected ? "border-foreground bg-foreground text-background" : "border-border bg-white text-transparent",
+        )} aria-hidden>
+          <IconCheck />
+        </div>
+      ) : null}
+
+      <div className={cn("relative aspect-[3/4] w-11 shrink-0 overflow-hidden rounded-xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.06)] sm:w-12", batchMode && selected && "ring-2 ring-foreground ring-offset-2")}>
         {coverUrl ? (
           <img src={coverUrl} alt="" className="h-full w-full bg-white object-contain" />
         ) : (
@@ -92,7 +116,10 @@ function BookListRowImpl({ item, onOpenDetail, onReader, onReadSource, onSelect 
         )}
         {badge ? (
           <div className="absolute right-1 top-1 z-[2]">
-            <span className={cn("inline-flex h-5 items-center whitespace-nowrap rounded-full px-2 text-[10px] font-medium shadow-sm", badge.cls)}>{badge.label}</span>
+            <span className={cn("inline-flex h-5 items-center gap-1 whitespace-nowrap rounded-full pl-1.5 pr-2 text-[10px] font-medium shadow-sm", badge.cls)}>
+              <BadgeIcon name={badge.icon} />
+              {badge.label}
+            </span>
           </div>
         ) : null}
       </div>
@@ -102,17 +129,19 @@ function BookListRowImpl({ item, onOpenDetail, onReader, onReadSource, onSelect 
         <p className="mt-2 text-[11px] tabular-nums text-muted-foreground/55">{pageCount} 页 · 更新 {formatDate(item.updated_at)}</p>
       </div>
 
-      <div className="flex shrink-0 items-center self-center">
-        <button
-          type="button"
-          className="recent-job-reader flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 text-foreground transition-colors hover:bg-muted"
-          title={readerAvailable ? "对照阅读" : "读原文"}
-          aria-label={readerAvailable ? "对照阅读" : "读原文"}
-          onClick={handleEye}
-        >
-          <IconEye />
-        </button>
-      </div>
+      {batchMode ? null : (
+        <div className="flex shrink-0 items-center self-center">
+          <button
+            type="button"
+            className="recent-job-reader flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 text-foreground transition hover:bg-muted active:scale-90"
+            title={readerAvailable ? "对照阅读" : "读原文"}
+            aria-label={readerAvailable ? "对照阅读" : "读原文"}
+            onClick={handleEye}
+          >
+            <IconEye />
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,7 +10,8 @@
 // 唯一不会陈旧的信号源;libraryViewStore 的 mode 只在 items 为空时才可信
 // (loading/empty/error 三态由 renderLoading()/actions.js 的边缘路径驱动)。
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
 import { useHomeServices } from "../../home-services-context.js";
 import { buildRecentJobsSummaryViewModel } from "../../../../js/features/recent-jobs/summary-view-model.js";
@@ -19,6 +20,7 @@ import { RecentJobCard } from "./RecentJobCard.jsx";
 import { BookListRow } from "./BookListRow.jsx";
 import { LibraryToolbar } from "./LibraryToolbar.jsx";
 import { LibraryFilterMenu, matchesLibraryFilter } from "./LibraryFilterMenu.jsx";
+import { LibraryBatchToolbar } from "./LibraryBatchToolbar.jsx";
 import { ContinueReadingShelf } from "./ContinueReadingShelf.jsx";
 import { isLibraryOnlyItem } from "../../../../js/features/documents-library/document-card-item.js";
 import { isRecentJobActive } from "../../../../js/features/recent-jobs/card-presenter.js";
@@ -46,7 +48,7 @@ const VIEW_TEXT = Object.freeze({
   emptySearch: "没有匹配的书籍",
 });
 
-export function RecentJobsLibrary() {
+export function RecentJobsLibrary({ onBatchModeChange } = {}) {
   const services = useHomeServices();
   const { viewPort, recentJobsStore, actions } = services.library;
 
@@ -59,6 +61,40 @@ export function RecentJobsLibrary() {
   const [sortMode, setSortMode] = useState("updated");
   const [statusFilter, setStatusFilter] = useState("all");
   const [tagFilter, setTagFilter] = useState("");
+
+  // 批量选择(#31):选中态用 document_id 做 key(和网格主键一致);批量模式
+  // 开关经 onBatchModeChange 上报给 HomeApp,由它把底部栏(AppBottomBar)用
+  // CSS 隐藏(batchMode 期间让位给这条批量工具栏——两者都固定在底部居中)。
+  const [batchMode, setBatchModeState] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [collections, setCollections] = useState([]);
+
+  function setBatchMode(next) {
+    setBatchModeState(next);
+    if (!next) setSelectedIds(new Set());
+    onBatchModeChange?.(next);
+  }
+  // useCallback:稳定引用——传给每张卡片当 onToggleSelect,不然
+  // areCardPropsEqual 里的 onToggleSelect 每次 render 都判不相等,
+  // RecentJobsLibrary 一重渲就拖着所有卡片一起重渲(memo 白做)。
+  const toggleSelect = useCallback((documentId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(documentId)) next.delete(documentId);
+      else next.add(documentId);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!batchMode) return;
+    services.collections?.controller?.listCollections().then((list) => {
+      const rows = Array.isArray(list?.collections) ? list.collections : (Array.isArray(list) ? list : []);
+      setCollections(rows);
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batchMode]);
 
   const items = Array.isArray(recentJobs.items) ? recentJobs.items : [];
 
@@ -83,6 +119,51 @@ export function RecentJobsLibrary() {
       : items.filter((item) => matchesLibraryFilter(item, statusFilter, tagFilter, { isLibraryOnly: isLibraryOnlyItem, isActive: isRecentJobActive }));
     return sortItems(filtered, sortMode);
   }, [items, statusFilter, tagFilter, sortMode]);
+
+  // 批量选择只作用"可选中"的项(有 document_id 的);极少见的运行时插入
+  // job-only 项(无 document_id)选不了,也不计入"全选已加载"的分母。
+  const selectableIds = useMemo(
+    () => visibleItems.map((item) => `${item.document_id || ""}`.trim()).filter(Boolean),
+    [visibleItems],
+  );
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selectedIds.has(id));
+
+  function handleSelectAllToggle() {
+    setSelectedIds(allSelected ? new Set() : new Set(selectableIds));
+  }
+
+  async function handleBatchDelete() {
+    const ids = [...selectedIds];
+    if (!ids.length || batchBusy) return;
+    if (!window.confirm(`确定删除选中的 ${ids.length} 篇文档？此操作不可恢复。`)) return;
+    setBatchBusy(true);
+    try {
+      const { confirmed, failed } = await actions.deleteDocuments(ids);
+      if (failed === 0) toast.success(`已删除 ${confirmed} 篇`);
+      else if (confirmed > 0) toast.warning(`已删除 ${confirmed} 篇，${failed} 篇失败`);
+      else toast.error("删除失败，请稍后重试");
+      setBatchMode(false);
+    } catch (err) {
+      toast.error(err?.message || "删除失败，请稍后重试");
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+
+  async function handleBatchAddToCollection(collectionId) {
+    const ids = [...selectedIds];
+    if (!ids.length || batchBusy) return;
+    setBatchBusy(true);
+    try {
+      await services.collections.controller.addDocuments(collectionId, ids);
+      toast.success(`已加入合集，共 ${ids.length} 篇`);
+      setBatchMode(false);
+    } catch (err) {
+      toast.error(err?.message || "加入合集失败，请稍后重试");
+    } finally {
+      setBatchBusy(false);
+    }
+  }
 
   const hasItems = items.length > 0;
   const isLoading = homeState.recentJobsLoadingState === HOME_LOADING_STATES.LOADING;
@@ -134,6 +215,8 @@ export function RecentJobsLibrary() {
             setViewMode={setViewMode}
             sortMode={sortMode}
             setSortMode={setSortMode}
+            batchMode={batchMode}
+            onToggleBatchMode={setBatchMode}
             filterSlot={(
               <LibraryFilterMenu
                 statusFilter={statusFilter}
@@ -160,6 +243,9 @@ export function RecentJobsLibrary() {
                   onReader={actions.openJobReader}
                   onReadSource={actions.openSourceReader}
                   onOpenDetail={actions.openBookDetail}
+                  batchMode={batchMode}
+                  selected={selectedIds.has(`${item.document_id || ""}`.trim())}
+                  onToggleSelect={toggleSelect}
                 />
               ) : (
                 <RecentJobCard
@@ -169,6 +255,9 @@ export function RecentJobsLibrary() {
                   onReader={actions.openJobReader}
                   onReadSource={actions.openSourceReader}
                   onOpenDetail={actions.openBookDetail}
+                  batchMode={batchMode}
+                  selected={selectedIds.has(`${item.document_id || ""}`.trim())}
+                  onToggleSelect={toggleSelect}
                 />
               )
             ))}
@@ -186,6 +275,19 @@ export function RecentJobsLibrary() {
           </button>
         </div>
       </div>
+      {batchMode ? (
+        <LibraryBatchToolbar
+          count={selectedIds.size}
+          totalSelectable={selectableIds.length}
+          allSelected={allSelected}
+          onSelectAll={handleSelectAllToggle}
+          onCancel={() => setBatchMode(false)}
+          onDelete={handleBatchDelete}
+          collections={collections}
+          onAddToCollection={handleBatchAddToCollection}
+          busy={batchBusy}
+        />
+      ) : null}
     </section>
   );
 }

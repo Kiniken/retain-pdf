@@ -16,7 +16,7 @@ function ContinueReadingCard({ item, onOpen }) {
     <button
       type="button"
       onClick={() => onOpen(item)}
-      className="flex items-center gap-3 rounded-2xl border border-border/40 bg-white/60 p-2 pr-3 text-left transition-colors hover:bg-muted/40"
+      className="flex items-center gap-3 rounded-2xl border border-border/40 bg-white/60 p-2 pr-3 text-left transition duration-150 ease-[var(--ease-out)] hover:bg-muted/40 active:scale-[0.98]"
     >
       <div className="relative h-[74px] w-[50px] shrink-0 overflow-hidden rounded-xl bg-muted/35">
         {coverUrl ? (

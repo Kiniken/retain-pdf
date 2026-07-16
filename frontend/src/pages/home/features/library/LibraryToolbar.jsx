@@ -25,8 +25,19 @@ function IconList() {
     </svg>
   );
 }
+function IconCheckSquare(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" width="14" height="14" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="3" />
+      <path d="m8 12 2.5 2.5L16 9" />
+    </svg>
+  );
+}
 
-export function LibraryToolbar({ count, viewMode, setViewMode, sortMode, setSortMode, filterSlot = null }) {
+export function LibraryToolbar({
+  count, viewMode, setViewMode, sortMode, setSortMode, filterSlot = null,
+  batchMode = false, onToggleBatchMode = null,
+}) {
   return (
     <div className="mb-4 border-b border-border/10 pb-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -38,6 +49,18 @@ export function LibraryToolbar({ count, viewMode, setViewMode, sortMode, setSort
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {onToggleBatchMode ? (
+            <button
+              type="button"
+              title="批量操作" aria-label="批量操作" aria-pressed={batchMode}
+              onClick={() => onToggleBatchMode(!batchMode)}
+              className={cn(
+                "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs transition active:scale-95",
+                batchMode ? "bg-secondary text-secondary-foreground" : "border border-border text-foreground hover:bg-muted/30",
+              )}
+            ><IconCheckSquare className="opacity-70" />批量</button>
+          ) : null}
+
           {filterSlot}
 
           <label className="inline-flex h-8 shrink-0 items-center rounded-full px-2.5 text-xs transition-colors hover:bg-muted/30">
@@ -58,13 +81,13 @@ export function LibraryToolbar({ count, viewMode, setViewMode, sortMode, setSort
             <button
               type="button" title="网格" aria-label="网格视图" aria-pressed={viewMode === "grid"}
               onClick={() => setViewMode("grid")}
-              className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors",
+              className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full transition active:scale-90",
                 viewMode === "grid" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground/45 hover:bg-background/60 hover:text-foreground")}
             ><IconGrid /></button>
             <button
               type="button" title="列表" aria-label="列表视图" aria-pressed={viewMode === "list"}
               onClick={() => setViewMode("list")}
-              className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors",
+              className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full transition active:scale-90",
                 viewMode === "list" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground/45 hover:bg-background/60 hover:text-foreground")}
             ><IconList /></button>
           </div>

@@ -1,4 +1,4 @@
-// 新建/管理分类对话框(shadcn 改造后新增的第 10 个对话框,和其余 9 个同一套
+// 新建/管理合集对话框(shadcn 改造后新增的第 10 个对话框,和其余 9 个同一套
 // 路:DialogPrimitive.Root/Portal/Overlay/Content + desktop-dialog/
 // desktop-shell + useDialogReturnFocus)。
 //
@@ -70,7 +70,7 @@ export function CollectionManageDialog() {
         }
         setLoading(false);
       });
-    // 关闭后快速为另一个分类重新打开(比如先编辑"化学"再编辑"机器学习"),
+    // 关闭后快速为另一个合集重新打开(比如先编辑"化学"再编辑"机器学习"),
     // 两次 fetch 谁先 resolve 不确定——没有这个守卫的话,后关闭的那次请求
     // 如果晚到,会把已经在显示"机器学习"的表单覆盖回"化学"的书目数据。
     return () => {
@@ -94,7 +94,7 @@ export function CollectionManageDialog() {
   async function handleSave() {
     const trimmed = name.trim();
     if (!trimmed) {
-      setError("请输入分类名称。");
+      setError("请输入合集名称。");
       return;
     }
     setSaving(true);
@@ -118,7 +118,7 @@ export function CollectionManageDialog() {
       reloadSignal.actions.bump();
       dialogStore.close();
     } catch (err) {
-      setError(err?.message || (isCreate ? "新建分类失败，请稍后重试。" : "保存失败，请稍后重试。"));
+      setError(err?.message || (isCreate ? "新建合集失败，请稍后重试。" : "保存失败，请稍后重试。"));
     } finally {
       setSaving(false);
     }
@@ -136,7 +136,7 @@ export function CollectionManageDialog() {
       reloadSignal.actions.bump();
       dialogStore.close();
     } catch (err) {
-      setError(err?.message || "删除分类失败，请稍后重试。");
+      setError(err?.message || "删除合集失败，请稍后重试。");
       setSaving(false);
     }
   }
@@ -153,7 +153,7 @@ export function CollectionManageDialog() {
           <div className="desktop-shell">
             <div className="desktop-head">
               <DialogPrimitive.Title asChild>
-                <h2>{isCreate ? "新建分类" : "管理分类"}</h2>
+                <h2>{isCreate ? "新建合集" : "管理合集"}</h2>
               </DialogPrimitive.Title>
               <DialogPrimitive.Close asChild>
                 <button id="collection-manage-close-btn" type="button" className="dialog-close-btn" aria-label="关闭">×</button>
@@ -172,7 +172,7 @@ export function CollectionManageDialog() {
                 />
               </label>
               <div className="collection-doc-picker">
-                <p className="muted">从书库勾选加入这个分类的书</p>
+                <p className="muted">从书库勾选加入这个合集的书</p>
                 {loading ? (
                   <div className="collection-doc-list-empty">正在加载书目…</div>
                 ) : allDocuments.length === 0 ? (
@@ -204,7 +204,7 @@ export function CollectionManageDialog() {
                   disabled={saving}
                   onClick={handleDelete}
                 >
-                  {confirmingDelete ? "确认删除？" : "删除分类"}
+                  {confirmingDelete ? "确认删除？" : "删除合集"}
                 </Button>
               ) : <span />}
               <Button

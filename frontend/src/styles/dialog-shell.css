@@ -1,8 +1,40 @@
+/* 弹窗进出场关键帧(此前整站零动效——Radix Content 挂载即瞬间可见,关闭即瞬间
+   消失,是真实体验缺口)。踩坑记录:一开始用 `transition` + `data-state` +
+   `@starting-style` 实现,进场确实有效,但 Radix 的 Presence 组件只通过监听
+   `animationend` 事件来判断"退场动画播完了没",对纯 `transition` 完全不感知
+   ——于是关闭时 data-state 一变 closed,Presence 立刻卸载 DOM,退场过渡根本
+   没机会播放(浏览器里挂 JS 实测:close() 后 50ms 节点已经不在了)。必须用
+   真正的 `@keyframes` + `animation` 才能让 Presence 等它播完。 */
+@keyframes dialog-content-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes dialog-content-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.96); }
+}
+@keyframes dialog-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dialog-overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 @utility desktop-dialog {
   @apply fixed inset-0 z-[101] m-auto overflow-visible border-0 bg-transparent p-0;
   width: min(720px, calc(100vw - 24px));
   max-height: calc(100vh - 24px);
   border-radius: 24px;
+
+  /* 模态居中显示,transform-origin 用默认 center(不像 popover 要跟随触发点)。
+     scale 起点/终点 0.96 而非 0——emil-design-eng skill:现实世界没有东西从
+     "不存在"直接变出来。 */
+  &[data-state='open'] { animation: dialog-content-in 200ms var(--ease-out); }
+  /* forwards:退场动画播完后停在终帧(opacity:0/scale(0.96)),不因
+     animation-fill-mode 默认值 none 而在 Presence 卸载前那一帧弹回可见态。 */
+  &[data-state='closed'] { animation: dialog-content-out 200ms var(--ease-out) forwards; }
 
   /* ::backdrop 只对原生 <dialog>(showModal 后的浏览器 top-layer)生效——阶段 C
      收官批(ReaderDialog/PageRangeDialog)完成后,9 个对话框已全部换成 Radix
@@ -18,6 +50,9 @@
 @utility desktop-dialog-overlay {
   @apply fixed inset-0 z-[100];
   background: rgba(15, 23, 42, 0.3);
+
+  &[data-state='open'] { animation: dialog-overlay-in 200ms var(--ease-out); }
+  &[data-state='closed'] { animation: dialog-overlay-out 200ms var(--ease-out) forwards; }
 }
 
 @utility status-detail-dialog-overlay {
@@ -27,6 +62,9 @@
      之上时能正确盖住它,视觉色值和 desktop-dialog-overlay 保持一致。 */
   @apply fixed inset-0 z-[110];
   background: rgba(15, 23, 42, 0.3);
+
+  &[data-state='open'] { animation: dialog-overlay-in 200ms var(--ease-out); }
+  &[data-state='closed'] { animation: dialog-overlay-out 200ms var(--ease-out) forwards; }
 }
 
 @utility desktop-shell {
@@ -45,4 +83,13 @@
 
 @utility desktop-body {
   @apply grid gap-4 p-6;
+}
+
+/* BookDetailDialog 用的是自己那套原始 Tailwind 类(照搬 PDF_MD_lib 视觉),
+   没有走 desktop-dialog 工具类,单独补同一套进出场关键帧。 */
+@utility book-detail-dialog-content {
+  &[data-state='open'] { animation: dialog-content-in 200ms var(--ease-out); }
+  /* forwards:退场动画播完后停在终帧(opacity:0/scale(0.96)),不因
+     animation-fill-mode 默认值 none 而在 Presence 卸载前那一帧弹回可见态。 */
+  &[data-state='closed'] { animation: dialog-content-out 200ms var(--ease-out) forwards; }
 }

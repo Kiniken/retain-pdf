@@ -1,9 +1,9 @@
 // home 页 React 编排根。
 //
-// 结构对照 partials/main-content.html + dialogs.html 逐区块镜像;顶部导航
-// (品牌 / 图书馆-分类分栏 / 添加-设置按钮)整合进 AppTopBar.jsx 一条导航栏,
-// 搜索框单独留在 LibrarySearchDock.jsx 的底部悬浮条(用户要求搜索离内容更
-// 近,不和常驻的添加/设置按钮挤在顶部)。
+// 结构对照 partials/main-content.html + dialogs.html 逐区块镜像;顶部只留
+// 品牌 + 图书馆/分类分栏(AppTopBar.jsx,去掉白卡背景);添加/搜索/设置 三样
+// 收进底部一条居中浮动栏(AppBottomBar.jsx,取代早期分离的 AppBottomActions +
+// LibrarySearchDock 两个浮岛)。
 // 其余区块(library-view 网格、status 卡、credentials/glossaries/status-detail/
 // reader 等对话框)已陆续接上;剩余占位容器 id/标签契约保留、内容留空。
 // 占位自定义元素标签(<recent-jobs-dialog> 等)在新世界不注册定义,惰性无副作用。
@@ -11,11 +11,10 @@
 import { useState } from "react";
 import { HomeServicesProvider } from "./home-services-context.js";
 import { AppTopBar } from "./features/app-shell/AppTopBar.jsx";
-import { AppBottomActions } from "./features/app-shell/AppBottomActions.jsx";
+import { AppBottomBar } from "./features/app-shell/AppBottomBar.jsx";
 import { TranslationWorkflowDialog } from "./features/workflow/TranslationWorkflowDialog.jsx";
 import { PageRangeDialog } from "./features/upload/PageRangeDialog.jsx";
 import { RecentJobsLibrary } from "./features/library/RecentJobsLibrary.jsx";
-import { LibrarySearchDock } from "./features/library/LibrarySearchDock.jsx";
 import { CategoriesView } from "./features/library/CategoriesView.jsx";
 import { CredentialsDialog } from "./features/credentials/CredentialsDialog.jsx";
 import { GlossariesDialog } from "./features/glossaries/GlossariesDialog.jsx";
@@ -36,6 +35,10 @@ function HomeShell() {
   // (刷新页面回到"图书馆"是可接受的默认行为)。
   const [activeLibraryTab, setActiveLibraryTab] = useState("library");
   const isLibraryTab = activeLibraryTab === "library";
+  // #31 批量选择工具栏和底部栏都固定在底部居中,批量模式期间底部栏用 CSS
+  // 隐藏(不卸载——搜索 input 卸载会让 library-search-island 的引用失效)让位
+  // 给批量工具栏,两者不同时可见。
+  const [batchModeActive, setBatchModeActive] = useState(false);
 
   return (
     <>
@@ -43,15 +46,21 @@ function HomeShell() {
         <AppTopBar activeTab={activeLibraryTab} onTabChange={setActiveLibraryTab} />
         {isLibraryTab ? (
           <>
-            <RecentJobsLibrary />
+            <RecentJobsLibrary onBatchModeChange={setBatchModeActive} />
+            {/* AppBottomBar 先于 island 渲染,保证 island connectedCallback 时
+                #library-search-input 已在 DOM 里;island 与 input 同处"图书馆"
+                tab 生命周期,切到分类时一起卸载、切回时一起重挂,引用自然重取。 */}
+            <AppBottomBar showSearch hidden={batchModeActive} />
             {/* 3b recent-jobs:搜索岛(library-search-island)接管 */}
             <library-search-island></library-search-island>
-            <LibrarySearchDock />
           </>
         ) : (
-          <CategoriesView />
+          <>
+            <CategoriesView />
+            {/* 分类 tab:只留添加/设置,不渲染搜索 input(语义不同 + 测试断言) */}
+            <AppBottomBar showSearch={false} />
+          </>
         )}
-        <AppBottomActions />
         <button id="open-query-btn" type="button" className="secondary hidden" aria-hidden="true">最近任务</button>
         {/* 3b 占位:最近任务对话框 */}
         <recent-jobs-dialog></recent-jobs-dialog>

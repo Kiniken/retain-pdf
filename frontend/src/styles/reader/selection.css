@@ -17,8 +17,8 @@
 .reader-selection-box {
   position: absolute;
   z-index: 24;
-  border: 2px solid rgba(0, 113, 227, 0.95);
-  background: rgba(0, 113, 227, 0.12);
+  border: 2px solid rgba(29, 29, 31, 0.95);
+  background: rgba(29, 29, 31, 0.12);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.92) inset;
   pointer-events: auto;
   cursor: move;
@@ -32,8 +32,8 @@
 }
 
 .reader-selection-box.is-final {
-  border-color: rgba(0, 113, 227, 0.78);
-  background: rgba(0, 113, 227, 0.08);
+  border-color: rgba(29, 29, 31, 0.78);
+  background: rgba(29, 29, 31, 0.08);
 }
 
 .reader-selection-box.is-clipping {
@@ -185,9 +185,9 @@
 
 @keyframes readerSelectionPulse {
   0% {
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.92) inset, 0 0 0 0 rgba(0, 113, 227, 0.28);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.92) inset, 0 0 0 0 rgba(29, 29, 31, 0.28);
   }
   100% {
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.92) inset, 0 0 0 16px rgba(0, 113, 227, 0);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.92) inset, 0 0 0 16px rgba(29, 29, 31, 0);
   }
 }
