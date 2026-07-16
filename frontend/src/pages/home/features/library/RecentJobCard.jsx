@@ -15,6 +15,7 @@ import {
   recentJobTitle,
 } from "../../../../js/features/recent-jobs/card-presenter.js";
 import { isLibraryOnlyItem } from "../../../../js/features/documents-library/document-card-item.js";
+import { libraryCardBadge } from "./library-card-badge.js";
 import { useRecentJobCover } from "./useRecentJobCover.js";
 
 function formatCardDate(value) {
@@ -42,17 +43,6 @@ export function cardSignatureOf(item = {}) {
 const renderCountsForTests = new Map();
 export function getCardRenderCountForTests(jobId) { return renderCountsForTests.get(jobId) || 0; }
 export function resetCardRenderCountsForTests() { renderCountsForTests.clear(); }
-
-// 状态徽标:映射到参考项目 getLibraryCardBadge 的四态(已翻译/处理中/失败/馆藏)。
-function badgeOf(item, libraryOnly, active) {
-  if (libraryOnly) return { label: "馆藏", cls: "border border-border bg-white/95 text-muted-foreground" };
-  const status = `${item.status || ""}`.trim();
-  if (active) return { label: "处理中", cls: "bg-primary/12 text-primary" };
-  if (status === "succeeded") return { label: "已翻译", cls: "bg-primary text-primary-foreground" };
-  if (status === "failed") return { label: "失败", cls: "bg-destructive/12 text-destructive" };
-  if (status === "queued") return { label: "排队中", cls: "bg-muted text-muted-foreground" };
-  return null;
-}
 
 function IconEye(props) {
   return (
@@ -89,7 +79,7 @@ function RecentJobCardImpl({ item, onSelect, onReader, onReadSource, onOpenDetai
   const pageCount = item.page_count || "-";
   const updatedAt = formatCardDate(item.updated_at);
   const readerAvailable = `${item.status || ""}`.trim() === "succeeded";
-  const badge = badgeOf(item, libraryOnly, active);
+  const badge = libraryCardBadge(item);
   const percent = active ? recentJobProgressPercent(item) : NaN;
 
   renderCountsForTests.set(jobId, (renderCountsForTests.get(jobId) || 0) + 1);
@@ -148,7 +138,7 @@ function RecentJobCardImpl({ item, onSelect, onReader, onReadSource, onOpenDetai
 
         {badge ? (
           <div className="absolute right-2 top-2 z-10">
-            <span className={cn("inline-flex h-5 items-center rounded-full px-2 text-[10px] font-medium shadow-sm", badge.cls)}>
+            <span className={cn("inline-flex h-5 items-center whitespace-nowrap rounded-full px-2 text-[10px] font-medium shadow-sm", badge.cls)}>
               {badge.label}{active && Number.isFinite(percent) ? ` ${Math.round(percent)}%` : ""}
             </span>
           </div>

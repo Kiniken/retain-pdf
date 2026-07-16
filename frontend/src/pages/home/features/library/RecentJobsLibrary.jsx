@@ -10,13 +10,30 @@
 // 唯一不会陈旧的信号源;libraryViewStore 的 mode 只在 items 为空时才可信
 // (loading/empty/error 三态由 renderLoading()/actions.js 的边缘路径驱动)。
 
-import { useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
 import { useHomeServices } from "../../home-services-context.js";
 import { buildRecentJobsSummaryViewModel } from "../../../../js/features/recent-jobs/summary-view-model.js";
 import { HOME_LOADING_STATES } from "../../../../js/features/home/state.js";
 import { RecentJobCard } from "./RecentJobCard.jsx";
+import { BookListRow } from "./BookListRow.jsx";
+import { LibraryToolbar } from "./LibraryToolbar.jsx";
 import { useLibraryAutoLoad } from "./useLibraryAutoLoad.js";
+
+// 客户端排序(只排已加载的这几页;/documents 无 sort 参数,和参考项目一样在前端排)。
+function sortItems(items, sortMode) {
+  const arr = [...items];
+  const desc = (key) => (a, b) => `${b?.[key] || ""}`.localeCompare(`${a?.[key] || ""}`);
+  switch (sortMode) {
+    case "created": return arr.sort(desc("added_at"));
+    case "opened": return arr.sort(desc("last_opened_at"));
+    case "title":
+      return arr.sort((a, b) => `${a?.title || a?.display_name || ""}`.localeCompare(`${b?.title || b?.display_name || ""}`, "zh-CN"));
+    case "updated":
+    default:
+      return arr.sort(desc("updated_at"));
+  }
+}
 
 const VIEW_TEXT = Object.freeze({
   loadMore: "更多",
@@ -34,8 +51,11 @@ export function RecentJobsLibrary() {
   const view = useStoreSnapshot(viewPort.store);
 
   const scrollBodyRef = useRef(null);
+  const [viewMode, setViewMode] = useState("grid");
+  const [sortMode, setSortMode] = useState("updated");
 
   const items = Array.isArray(recentJobs.items) ? recentJobs.items : [];
+  const sortedItems = useMemo(() => sortItems(items, sortMode), [items, sortMode]);
   const hasItems = items.length > 0;
   const isLoading = homeState.recentJobsLoadingState === HOME_LOADING_STATES.LOADING;
   const isErrorState = !hasItems
@@ -66,17 +86,40 @@ export function RecentJobsLibrary() {
         <div id="recent-jobs-empty" className={`events-empty${mode === "list" ? " hidden" : ""}`}>
           {mode === "loading" ? "正在加载最近任务…" : (mode === "error" ? errorMessage : emptyMessage)}
         </div>
-        <div id="library-grid" className="recent-jobs-list library-grid">
-          <div id="recent-jobs-list" className={`recent-jobs-list library-grid${mode === "list" ? "" : " hidden"}`}>
-            {items.map((item) => (
-              <RecentJobCard
-                key={item.job_id}
-                item={item}
-                onSelect={actions.selectJob}
-                onReader={actions.openJobReader}
-                onReadSource={actions.openSourceReader}
-                onOpenDetail={actions.openBookDetail}
-              />
+        {mode === "list" ? (
+          <LibraryToolbar
+            count={items.length}
+            viewMode={viewMode}
+            setViewMode={setViewMode}
+            sortMode={sortMode}
+            setSortMode={setSortMode}
+          />
+        ) : null}
+        <div id="library-grid" className={viewMode === "list" ? "" : "recent-jobs-list library-grid"}>
+          <div
+            id="recent-jobs-list"
+            className={`${viewMode === "list" ? "flex flex-col gap-1" : "recent-jobs-list library-grid"}${mode === "list" ? "" : " hidden"}`}
+          >
+            {sortedItems.map((item) => (
+              viewMode === "list" ? (
+                <BookListRow
+                  key={item.job_id}
+                  item={item}
+                  onSelect={actions.selectJob}
+                  onReader={actions.openJobReader}
+                  onReadSource={actions.openSourceReader}
+                  onOpenDetail={actions.openBookDetail}
+                />
+              ) : (
+                <RecentJobCard
+                  key={item.job_id}
+                  item={item}
+                  onSelect={actions.selectJob}
+                  onReader={actions.openJobReader}
+                  onReadSource={actions.openSourceReader}
+                  onOpenDetail={actions.openBookDetail}
+                />
+              )
             ))}
           </div>
         </div>
