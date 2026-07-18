@@ -120,6 +120,34 @@ test("normalizeJobPayload exposes canonical stage snapshot", () => {
   assert.equal(job.stage_snapshot.progress.unit, "batch");
 });
 
+test("normalizeJobPayload keeps library identity fields for home-card upsert", () => {
+  // 回归：重试/轮询 notify 前走 normalize；若丢掉 document_id/source_job_id，
+  // 主页卡对不上原书，一直显示「已翻译」不转圈。
+  const job = normalizeJobPayload({
+    job_id: "mock-ocr-retry-1",
+    source_job_id: "20260520-att-001",
+    document_id: "doc-1b8c52d9a304",
+    title: "Attention Is All You Need",
+    display_name: "Attention Is All You Need",
+    cover_url: "mock://document-cover.png",
+    thumbnail_url: "mock://document-thumb.png",
+    page_count: 15,
+    status: "running",
+    display_stage: "ocr",
+    library_only: false,
+    active_job_id: "mock-ocr-retry-1",
+  });
+
+  assert.equal(job.job_id, "mock-ocr-retry-1");
+  assert.equal(job.source_job_id, "20260520-att-001");
+  assert.equal(job.document_id, "doc-1b8c52d9a304");
+  assert.equal(job.title, "Attention Is All You Need");
+  assert.equal(job.cover_url, "mock://document-cover.png");
+  assert.equal(job.page_count, 15);
+  assert.equal(job.active_job_id, "mock-ocr-retry-1");
+  assert.equal(job.status, "running");
+});
+
 test("normalizeJobPayload reads new-contract stage_snapshot and projects legacy fields", () => {
   // Backend rust_api v1 stopped emitting top-level display_stage/stage/substage/lane/
   // stage_detail/progress/background_stages. They live inside stage_snapshot now.

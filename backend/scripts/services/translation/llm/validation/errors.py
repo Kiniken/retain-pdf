@@ -92,6 +92,24 @@ class MathDelimiterError(ValueError):
         self.translated_text = translated_text
 
 
+class TruncatedTranslationError(ValueError):
+    def __init__(
+        self,
+        item_id: str,
+        *,
+        source_text: str = "",
+        translated_text: str = "",
+        ratio: float = 0.0,
+    ) -> None:
+        super().__init__(
+            f"{item_id}: translated output is abnormally short vs source (ratio={ratio:.3f})"
+        )
+        self.item_id = item_id
+        self.source_text = source_text
+        self.translated_text = translated_text
+        self.ratio = ratio
+
+
 __all__ = [
     "EmptyTranslationError",
     "EnglishResidueError",
@@ -99,5 +117,6 @@ __all__ = [
     "PlaceholderInventoryError",
     "SuspiciousKeepOriginError",
     "TranslationProtocolError",
+    "TruncatedTranslationError",
     "UnexpectedPlaceholderError",
 ]

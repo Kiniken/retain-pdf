@@ -10,11 +10,14 @@ Files under `src/routes/**` should only:
 
 - extract Axum state, headers, path params, query params, and JSON bodies;
 - compute HTTP-only context such as `base_url`;
-- call `JobsFacade` through response boundary modules;
-- wrap results in `ApiResponse`.
+- call application facades (`JobsFacade`, `library_api`, `glossary_api`,
+  `upload_api`) through deps builders in `routes/common.rs`;
+- wrap results in `ApiResponse` or stream files via `stream_file` /
+  `download_response`.
 
-Routes should not read job files, inspect artifacts, merge event streams, or
-construct view payloads directly.
+Routes should not read job files, inspect artifacts, merge event streams,
+touch `state.db` / `state.config` directly, import internal services (e.g.
+`derived_artifacts`), or construct view payloads from DB rows.
 
 `src/routes/jobs/json_response/**` is the JSON response boundary for job routes:
 it calls `JobsFacade`, computes HTTP-only values such as `base_url`, and wraps
@@ -28,7 +31,23 @@ module to reuse a private download helper.
 
 Create routes are the intentional input-side exception: they parse JSON or
 multipart request bodies before delegating to `JobsFacade`, then still return a
-typed `ApiResponse`.
+typed `ApiResponse`. Library asset upload is the same pattern: multipart stays
+in the route; persistence goes through `library_api::store_asset_view`.
+
+## Library Facade
+
+Files under `src/services/library/**` implement library-domain use cases.
+`src/services/library_api.rs` is the only application entry routes may import
+for library work (books, documents, media, translate-from-library, favorites,
+search, assets, conversations, collections).
+
+- Routes use `build_library_route_deps` (`LibraryDeps` + `JobsFacade`).
+- Translate-from-library binds a document's stored upload, then creates jobs
+  only via `JobsFacade::create_submission`.
+- Cover/thumbnail generation uses `derived_artifacts` inside `library/media`,
+  not from routes.
+- Library DTOs are re-exported through `models::api`; do not import
+  `models::library` from routes or migrated `db/*` modules.
 
 ## API Contract Tests
 

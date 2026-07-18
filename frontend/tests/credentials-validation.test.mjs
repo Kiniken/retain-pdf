@@ -208,7 +208,6 @@ test("credentials DOM contract centralizes hidden inputs and browser dialog ids"
   assert.equal(CREDENTIAL_DOM_IDS.browser.ocrProviderSelect, "browser-ocr-provider-select");
   assert.equal(CREDENTIAL_DOM_IDS.browser.validations.deepseek, "browser-deepseek-validation");
   assert.equal(browserValidationIdForProvider("paddle"), CREDENTIAL_DOM_IDS.browser.validations.paddle);
-  assert.equal(browserValidationIdForProvider("mineru"), CREDENTIAL_DOM_IDS.browser.validations.mineru);
   assert.equal(CREDENTIAL_DOM_DATASETS.credentialTab, "credentialTab");
   assert.equal(CREDENTIAL_DOM_SELECTORS.trigger, "#credentials-btn, #credential-gate-action");
 });
@@ -219,7 +218,6 @@ test("credentials state port owns credential source of truth and token helpers",
     initialState: {
       ocrProvider: "paddle",
       paddleToken: "paddle-token",
-      mineruToken: "mineru-token",
       modelApiKey: "sk-test",
     },
     mirrorToDom: (snapshot) => mirrored.push(snapshot),
@@ -373,7 +371,6 @@ test("browser credential gate reads upload readiness from upload state port", ()
       state,
       uploadStatePort,
       applyHiddenCredentialInputs() {},
-      defaultMineruToken: () => "",
       defaultPaddleToken: () => "",
       defaultModelApiKey: () => "",
       defaultModelBaseUrl: () => "",
@@ -382,7 +379,6 @@ test("browser credential gate reads upload readiness from upload state port", ()
       saveBrowserStoredConfig() {},
       readHiddenCredentialInputs: () => ({
         ocrProvider: "paddle",
-        mineruToken: "mineru",
         paddleToken: "paddle",
         modelApiKey: "sk",
       }),
@@ -427,7 +423,6 @@ test("browser credentials controller routes UI operations through view port", ()
     initialState: {
       ocrProvider: "paddle",
       paddleToken: "paddle-token",
-      mineruToken: "mineru-token",
       modelApiKey: "sk-test",
     },
   });
@@ -438,7 +433,6 @@ test("browser credentials controller routes UI operations through view port", ()
       uploadStatePort,
       credentialsStatePort,
       applyHiddenCredentialInputs() {},
-      defaultMineruToken: () => "",
       defaultPaddleToken: () => "",
       defaultModelApiKey: () => "",
       defaultModelBaseUrl: () => "",
@@ -475,7 +469,6 @@ test("browser credentials controller routes UI operations through view port", ()
       },
       dialogElementsPort: {
         elements: () => ({
-          mineruInput: createCredentialNode(),
           paddleInput: createCredentialNode(),
           apiKeyInput: createCredentialNode(),
           modelBaseUrlInput: createCredentialNode(),
@@ -492,7 +485,7 @@ test("browser credentials controller routes UI operations through view port", ()
     workflowNeedsUpload: () => true,
     refreshSubmitControls: () => calls.push(["refresh-submit"]),
   });
-  boundHandlers.changeProvider({ currentTarget: { value: "mineru" } });
+  boundHandlers.changeProvider({ currentTarget: { value: "unknown-provider" } });
 
   assert.equal(calls.some(([kind]) => kind === "bind"), true);
   assert.equal(calls.some(([kind]) => kind === "open"), true);
@@ -512,7 +505,6 @@ test("browser credentials controller reads runtime and balance state through por
     initialState: {
       ocrProvider: "paddle",
       paddleToken: "paddle-token",
-      mineruToken: "mineru-token",
       modelApiKey: "sk-test",
     },
   });
@@ -540,7 +532,6 @@ test("browser credentials controller reads runtime and balance state through por
     },
     credentialsStatePort,
     applyHiddenCredentialInputs() {},
-    defaultMineruToken: () => "",
     defaultPaddleToken: () => "",
     defaultModelApiKey: () => "",
     defaultModelBaseUrl: () => "",
@@ -576,7 +567,6 @@ test("browser credentials controller reads runtime and balance state through por
     },
     dialogElementsPort: {
       elements: () => ({
-        mineruInput: createCredentialNode(),
         paddleInput: createCredentialNode({ value: "paddle-token" }),
         apiKeyInput: createCredentialNode({ value: "sk-test" }),
         modelBaseUrlInput: createCredentialNode(),

@@ -857,3 +857,364 @@
     border-radius: 999px;
   }
 }
+
+/* ========== 书籍详情右栏 Tabs + 内嵌完整 StatusCard ========== */
+
+.book-detail-right-tabs-list {
+  display: inline-flex;
+  max-width: calc(100% - 4px);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid #e5e5e5;
+  background: #f5f5f5;
+}
+
+.book-detail-right-tab {
+  display: inline-flex;
+  flex: 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #525252 !important;
+  background: transparent !important;
+  transition: background-color 0.12s, color 0.12s;
+}
+
+.book-detail-right-tab-icon {
+  flex-shrink: 0;
+  display: block;
+}
+
+.book-detail-right-tab-label {
+  min-width: 0;
+}
+
+.book-detail-right-tab:hover {
+  color: #171717 !important;
+}
+
+.book-detail-right-tab[data-state="active"],
+.book-detail-right-tab.is-active {
+  color: #fff !important;
+  background: #000 !important;
+}
+
+/* 翻译 Tab 宿主 */
+.book-detail-translate-workspace {
+  min-width: 0;
+}
+
+.book-detail-status-card-host {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/*
+ * #book-detail-job-status-card 内部布局（bd-job-status-*）
+ * 与主流程 .status-card-shell / .status-progress-hero 完全隔离，高度固定不抖。
+ */
+#book-detail-job-status-card.bd-job-status-card,
+.bd-job-status-card {
+  display: block;
+  width: 100%;
+  height: auto;
+  box-sizing: border-box;
+  color: #1d1d1f;
+  background: #fff;
+  border: 1px solid #ececf1;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.bd-job-status-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  box-sizing: border-box;
+  /* head + flow + main(进度条+重试) + error */
+  min-height: 248px;
+}
+
+.bd-job-status-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  flex: 0 0 auto;
+}
+
+.bd-job-status-head-center {
+  min-width: 0;
+  text-align: center;
+}
+
+.bd-job-status-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bd-job-status-elapsed {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #86868b;
+  font-variant-numeric: tabular-nums;
+}
+
+.bd-job-status-btn {
+  appearance: none;
+  border: 1px solid #e5e5ea;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  border-radius: 999px;
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bd-job-status-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.bd-job-status-btn-primary {
+  background: #1d1d1f;
+  border-color: #1d1d1f;
+  color: #fff;
+}
+
+.bd-job-status-flow {
+  flex: 0 0 auto;
+}
+
+/* 主区：进度文案 + 进度条（重试改到 StageFlow 阶段左侧） */
+.bd-job-status-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 12px 14px;
+  flex: 0 0 auto;
+  min-height: 112px;
+  padding: 12px 14px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  border: 1px solid #ececf1;
+  background: linear-gradient(180deg, #fff 0%, #fbfbfd 100%);
+  overflow: hidden;
+}
+
+.bd-job-status-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+/* 标题行：左文案 + 右「重新 xxx」 */
+.bd-job-status-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.bd-job-status-value {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 进度区动作：轮廓小按钮，不抢主进度 */
+.bd-job-status-retry-action {
+  appearance: none;
+  flex: 0 0 auto;
+  border: 1px solid #e5e5ea;
+  background: #fff;
+  color: #1d1d1f;
+  border-radius: 999px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 26px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.bd-job-status-retry-action:hover {
+  background: #f5f5f7;
+  border-color: #d4d4d8;
+}
+
+.bd-job-status-retry-action:active {
+  background: #ebebed;
+}
+
+.bd-job-status-detail {
+  min-height: 32px;
+  max-height: 32px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 12px;
+  line-height: 16px;
+  color: #6e6e73;
+}
+
+.bd-job-status-bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.bd-job-status-bar {
+  height: 10px;
+  width: 100%;
+  border-radius: 999px;
+  background: #f0f0f2;
+  border: 1px solid #ececf1;
+  overflow: hidden;
+}
+
+.bd-job-status-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #1d1d1f;
+  transition: width 0.35s ease;
+}
+
+.bd-job-status-bar.is-done .bd-job-status-bar-fill {
+  background: #248a3d;
+}
+
+.bd-job-status-bar.is-failed .bd-job-status-bar-fill {
+  background: #d70015;
+}
+
+.bd-job-status-percent {
+  font-size: 13px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: #1d1d1f;
+  min-width: 2.75rem;
+  text-align: right;
+}
+
+.bd-job-status-bar-meta {
+  min-height: 14px;
+  font-size: 11px;
+  color: #86868b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bd-job-status-detail.is-empty,
+.bd-job-status-bar-meta.is-empty {
+  display: none;
+}
+
+/* 详情内嵌 StageFlow：四枚 pill 一行，干净无重试 */
+#book-detail-job-status-card .status-stage-flow,
+.bd-job-status-card .status-stage-flow {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  align-items: stretch;
+}
+
+.bd-job-status-error {
+  flex: 0 0 18px;
+  min-height: 18px;
+  max-height: 18px;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 18px;
+  color: #d70015;
+}
+
+.bd-job-status-error.is-empty {
+  visibility: hidden;
+}
+
+.bd-job-status-retry {
+  flex: 0 0 auto;
+}
+
+/* 书架卡右上角徽标：完整显示「已翻译/馆藏/失败」，禁止省略号 */
+.book-card-status-badge {
+  max-width: none !important;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.book-card-status-badge > span {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  flex-shrink: 0;
+}
+
+/* Mock 演示模式提示条 */
+.mock-mode-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  margin: 0 1rem 0.75rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in oklab, #f59e0b 35%, transparent);
+  background: color-mix(in oklab, #f59e0b 12%, white);
+  color: #78350f;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mock-mode-banner strong {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mock-mode-banner code {
+  font-size: 11px;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.3rem;
+  background: color-mix(in oklab, #78350f 10%, white);
+}

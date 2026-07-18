@@ -153,7 +153,7 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   //      过才存在于 DOM) ----
   const workflowContractIds = [
     "translation-workflow-close-btn", "job-warning",
-    "job-form", "ocr_provider", "mineru_token", "paddle_token", "api_key",
+    "job-form", "ocr_provider", "paddle_token", "api_key",
     "file", "upload-fill", "credential-gate", "credential-gate-title", "credential-gate-help", "credential-gate-action",
     "upload-glyph", "file-label", "upload-help", "upload-status", "upload-progress-panel", "upload-progress-text",
     "inline-page-range", "page-range-start", "page-range-end", "translation-budget-note",

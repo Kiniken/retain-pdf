@@ -123,10 +123,19 @@ function isOwned(literal, ownership) {
 }
 
 function analyzePage({ jsDir, prefix, htmlFile, jsxDir = "" }) {
-  const jsFiles = walkFiles(join(PROJECT_ROOT, jsDir), ".js");
+  // TS 迁移后源文件是 .ts/.tsx；仍兼容残留 .js/.jsx
+  const jsFiles = [
+    ...walkFiles(join(PROJECT_ROOT, jsDir), ".ts"),
+    ...walkFiles(join(PROJECT_ROOT, jsDir), ".js"),
+  ];
   const jsTexts = jsFiles.map((file) => readFileSync(file, "utf8"));
   const jsxTexts = jsxDir
-    ? walkFiles(join(PROJECT_ROOT, jsxDir), ".jsx").map((file) => readFileSync(file, "utf8"))
+    ? [
+      ...walkFiles(join(PROJECT_ROOT, jsxDir), ".tsx"),
+      ...walkFiles(join(PROJECT_ROOT, jsxDir), ".jsx"),
+      ...walkFiles(join(PROJECT_ROOT, jsxDir), ".ts"),
+      ...walkFiles(join(PROJECT_ROOT, jsxDir), ".js"),
+    ].map((file) => readFileSync(file, "utf8"))
     : [];
   const htmlText = readFileSync(join(PROJECT_ROOT, htmlFile), "utf8");
   const cssText = walkFiles(STYLES_ROOT, ".css")

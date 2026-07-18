@@ -28,6 +28,16 @@ pub(crate) fn job_artifacts_dir(data_root: &Path, job: &JobSnapshot) -> Result<P
     Ok(output_dir)
 }
 
+/// 文档级缓存目录（无 job 时封面/缩略图仍可落盘）。
+pub(crate) fn document_artifacts_dir(
+    data_root: &Path,
+    document_id: &str,
+) -> Result<PathBuf, AppError> {
+    let output_dir = data_root.join("documents").join(document_id);
+    std::fs::create_dir_all(&output_dir)?;
+    Ok(output_dir)
+}
+
 pub(crate) fn cached_output_is_fresh(
     output_path: &Path,
     inputs: &[&Path],

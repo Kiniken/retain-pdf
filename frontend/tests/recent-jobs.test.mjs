@@ -375,12 +375,16 @@ test("recent jobs state port normalizes pagination state", () => {
     { job_id: "job-new", title: "updated" },
   ]);
 
+  port.setItems([{ job_id: "job-keep" }]);
+  port.setInvocationSummary({ stage_spec_count: 2 });
+  port.setOffset(5);
   port.resetPagination();
+  // soft reset：保留 items / summary，只清分页游标
   assert.deepEqual(port.getSnapshot(), {
     offset: 0,
     hasMore: true,
-    invocationSummary: null,
-    items: [],
+    invocationSummary: { stage_spec_count: 2 },
+    items: [{ job_id: "job-keep" }],
   });
 });
 
@@ -532,7 +536,7 @@ test("recent jobs store can be used without the legacy global state object", () 
     offset: 0,
     hasMore: true,
     invocationSummary: null,
-    items: [],
+    items: [{ job_id: "job-initial" }],
   });
   assert.deepEqual(actions, [
     ["setOffset", 7],
@@ -1303,19 +1307,24 @@ test("recent jobs command handlers invalidate list resource before patching and 
   });
 
   handlers.onRefreshRequested({ delay: 50, force: true });
-  handlers.onJobUpdated({ job: { job_id: "job-updated" } });
+  // 运行中补丁：只 update 单卡，不整页 refresh（避免轮询期间主页闪烁）
+  handlers.onJobUpdated({ job: { job_id: "job-updated", status: "running" } });
   handlers.onJobCreated({ job: { job_id: "job-created" } });
+  // 终态才触发整页 scheduleRefresh
+  handlers.onJobUpdated({ job: { job_id: "job-done", status: "succeeded" } });
   await Promise.resolve();
   subscription.destroy();
 
+  // running update 不 invalidate；refresh / create / 终态 update 各一次
   assert.deepEqual(invalidations, ["invalidate", "invalidate", "invalidate"]);
   assert.deepEqual(fetches, [["job-created", "/api"]]);
-  assert.deepEqual(updates, ["job-updated", "job-created"]);
+  // hydrateCreatedRecentJob 异步补丁 job-created，可能排在终态 update 之后
+  assert.deepEqual(updates, ["job-updated", "job-done", "job-created"]);
   assert.deepEqual(inserts, ["job-created"]);
+  // onJobCreated 不再 force 整页 refresh；仅 onRefreshRequested + 终态 update
   assert.deepEqual(refreshes, [
     { delay: 50, force: true },
-    { delay: 300, bypassThrottle: true },
-    { delay: 1200, force: true },
+    { delay: 400, bypassThrottle: true },
   ]);
 });
 
@@ -1558,6 +1567,120 @@ test("recent jobs runtime patches keep terminal state over stale running snapsho
   assert.equal(item.runtime_status.stageKey, "done");
 });
 
+test("recent jobs runtime patches accept new job_id retry after terminal (home card leaves 已翻译)", () => {
+  // 回归：完成后再「重新 OCR」换了 job_id 时，旧终态补丁不得盖住新 running，
+  // 否则主页卡一直显示「已翻译」、封面不转圈。
+  const statePort = createRecentJobsStatePort({
+    recentJobsItems: [
+      {
+        job_id: "job-done",
+        document_id: "doc-attention",
+        title: "Attention Is All You Need",
+        cover_url: "mock://document-cover.png",
+        status: "succeeded",
+        display_stage: "done",
+      },
+    ],
+  });
+  const patches = createRecentJobsRuntimePatches({
+    statePort,
+    replaceRecentJobCard: () => true,
+    renderCurrentRecentJobs() {},
+    scheduleActiveRefresh() {},
+    storeDrivenRendering: true,
+    stageAdapterPort: recentJobsStageAdapterPort,
+  });
+
+  patches.update({
+    job_id: "job-done",
+    document_id: "doc-attention",
+    title: "Attention Is All You Need",
+    cover_url: "mock://document-cover.png",
+    status: "succeeded",
+    display_stage: "done",
+  });
+  patches.update({
+    job_id: "job-retry-ocr",
+    source_job_id: "job-done",
+    document_id: "doc-attention",
+    title: "Attention Is All You Need",
+    cover_url: "mock://document-cover.png",
+    status: "running",
+    display_stage: "ocr",
+    stage: "ocr_processing",
+  });
+
+  const items = statePort.getSnapshot().items;
+  assert.equal(items.length, 1, "must update in place, not insert a second card");
+  const item = items[0];
+  assert.equal(item.job_id, "job-retry-ocr");
+  assert.equal(item.document_id, "doc-attention");
+  assert.equal(item.status, "running");
+  assert.equal(item.display_stage, "ocr");
+  assert.equal(item.title, "Attention Is All You Need");
+  assert.equal(item.cover_url, "mock://document-cover.png");
+});
+
+test("recent jobs runtime patches do not prepend retry job_id shell after soft refresh", () => {
+  // 回归（真实后端）：「重新渲染」换新 job_id，payload 常只有 job_id 当标题；
+  // soft refresh 不得再 prepend 一张「job_id + PDF 占位」空壳（原书还在）。
+  const statePort = createRecentJobsStatePort({
+    recentJobsItems: [
+      {
+        job_id: "20260717220928-50d025",
+        document_id: "doc-multipole",
+        title: "multipole-expansion-of-atomic.pdf",
+        cover_url: "http://example/cover.jpg",
+        page_count: 14,
+        status: "succeeded",
+        display_stage: "done",
+      },
+    ],
+  });
+  const patches = createRecentJobsRuntimePatches({
+    statePort,
+    replaceRecentJobCard: () => true,
+    renderCurrentRecentJobs() {},
+    scheduleActiveRefresh() {},
+    storeDrivenRendering: true,
+    stageAdapterPort: recentJobsStageAdapterPort,
+  });
+
+  patches.update({
+    job_id: "20260717220928-50d025",
+    status: "succeeded",
+    display_stage: "done",
+  });
+  // 真实重试首帧：无 document_id、title=新 job_id
+  patches.update({
+    job_id: "20260717235341-af4675",
+    source_job_id: "20260717220928-50d025",
+    title: "20260717235341-af4675",
+    status: "running",
+    display_stage: "render",
+  });
+
+  assert.equal(statePort.getSnapshot().items.length, 1);
+  assert.equal(statePort.getSnapshot().items[0].job_id, "20260717235341-af4675");
+  assert.equal(statePort.getSnapshot().items[0].title, "multipole-expansion-of-atomic.pdf");
+  assert.equal(statePort.getSnapshot().items[0].status, "running");
+
+  const afterRefresh = patches.apply([
+    {
+      job_id: "20260717220928-50d025",
+      document_id: "doc-multipole",
+      title: "multipole-expansion-of-atomic.pdf",
+      cover_url: "http://example/cover.jpg",
+      page_count: 14,
+      status: "succeeded",
+      display_stage: "done",
+    },
+  ]);
+  assert.equal(afterRefresh.length, 1, "must not prepend orphan shell");
+  assert.equal(afterRefresh[0].title, "multipole-expansion-of-atomic.pdf");
+  assert.notEqual(afterRefresh[0].title, afterRefresh[0].job_id);
+});
+
 test("created recent job hydration fetches full payload and patches the card", async () => {
   const updates = [];
   const payload = await hydrateCreatedRecentJob({
@@ -1670,7 +1793,7 @@ test("recent jobs feature bindings route ui library and workflow events", () => 
     ["suspended", false],
     ["suspended", true],
     ["suspended", false],
-    ["schedule", { delay: 300 }],
+    ["schedule", { delay: 300, bypassThrottle: true }],
   ]);
 });
 
@@ -1841,9 +1964,18 @@ test("recent jobs navigation port owns workflow reader and recovery side effects
     assert.equal(port.recoverJob(" job-recover "), true);
     assert.equal(port.openJob(""), false);
     assert.deepEqual(closed, ["close", "close"]);
-    assert.deepEqual(dispatched, [APP_EVENTS.openTranslationWorkflow]);
+    // 默认 openWorkflowOnSelect=false：网格选任务不弹旧工作流窗
+    assert.deepEqual(dispatched, []);
     assert.deepEqual(opened, ["job-open", "job-recover"]);
     assert.deepEqual(read, ["job-reader"]);
+
+    const legacy = createRecentJobsNavigationPort({
+      doc,
+      openWorkflowOnSelect: true,
+      jobRuntimePort: { openJob: () => true, currentJobId: () => "" },
+    });
+    legacy.openJob("job-legacy");
+    assert.deepEqual(dispatched, [APP_EVENTS.openTranslationWorkflow]);
   } finally {
     global.CustomEvent = previousCustomEvent;
   }
@@ -1936,7 +2068,8 @@ test("recent jobs runtime wires loader actions and scheduler callbacks", async (
     assert.deepEqual(statePort.getSnapshot().items.map((item) => item.job_id), ["job-runtime"]);
     assert.deepEqual(closed, ["close"]);
     assert.deepEqual(opened, ["job-runtime"]);
-    assert.deepEqual(dispatched.map((event) => event.type), [APP_EVENTS.openTranslationWorkflow]);
+    // 进度改在书籍详情 Tab：selectJob 默认不弹 translation-workflow-dialog
+    assert.deepEqual(dispatched.map((event) => event.type), []);
   } finally {
     global.document = previousDocument;
     global.CustomEvent = previousCustomEvent;
@@ -2136,7 +2269,8 @@ test("recent jobs active refresh skips the current runtime job", async () => {
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(fetched, ["job-other"]);
   assert.deepEqual(updates, ["job-other"]);
-  assert.deepEqual(loads, [{ reset: true, silent: true }]);
+  // 周期 active-refresh 只单卡 patch，不再全量 loadRecentJobs（避免网格闪）
+  assert.deepEqual(loads, []);
   loop.stop();
 
   timers.length = 0;

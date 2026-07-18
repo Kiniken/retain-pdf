@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rusqlite::{params, OptionalExtension};
 
-use crate::models::library::AssetRecord;
+use crate::models::api::AssetRecord;
 
 use super::Db;
 

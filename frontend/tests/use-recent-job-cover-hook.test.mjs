@@ -23,7 +23,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = false;
 
 const { createRoot } = await import("react-dom/client");
 const React = await import("react");
-const { useRecentJobCover } = await import("../src/pages/home/features/library/useRecentJobCover.js");
+const { useRecentJobCover } = await import("../src/pages/home/features/library/display/useRecentJobCover.js");
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

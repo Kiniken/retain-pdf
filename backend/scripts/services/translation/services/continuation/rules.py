@@ -7,6 +7,8 @@ TERMINAL_PUNCTUATION = (".", "!", "?", ":", ";")
 LOWER_START_RE = re.compile(r"^[a-z]")
 UPPER_START_RE = re.compile(r"^[A-Z]")
 HEADING_START_RE = re.compile(r"^(?:\(?\d+(?:\.\d+)*\)?[.)]?\s+|[A-Z][A-Z\s\-]{3,}|[•\-*]\s+)")
+# Multi-level section numbers like "2.2.1 Title" / "2.1 Lithium-halogen..." — not body continuations.
+SECTION_NUMBER_START_RE = re.compile(r"^\d+(?:\.\d+){1,}\s+[A-Z]")
 SOFT_BREAK_PUNCTUATION = (",",)
 CONTINUATION_START_WORDS = {
     "and",
@@ -51,6 +53,34 @@ CONTINUATION_END_WORDS = {
     "many",
     "more",
     "less",
+    # Common mid-sentence cuts at column/page boundaries (SCI dual-column).
+    "under",
+    "only",
+    "into",
+    "from",
+    "as",
+    "at",
+    "by",
+    "via",
+    "onto",
+    "upon",
+    "within",
+    "without",
+    "between",
+    "among",
+    "across",
+    "through",
+    "during",
+    "before",
+    "after",
+    "against",
+    "about",
+    "over",
+    "above",
+    "below",
+    "using",
+    "including",
+    "such",
 }
 SUSPICIOUS_END_WORDS = {
     "is",
@@ -115,6 +145,11 @@ def ends_with_soft_break(text: str) -> bool:
 def starts_like_heading_or_list(text: str) -> bool:
     stripped = normalize_text(text)
     return bool(stripped) and bool(HEADING_START_RE.match(stripped))
+
+
+def starts_like_section_number(text: str) -> bool:
+    stripped = normalize_text(text)
+    return bool(stripped) and bool(SECTION_NUMBER_START_RE.match(stripped))
 
 
 def starts_with_upper(text: str) -> bool:
@@ -212,26 +247,43 @@ def is_reading_boundary_cross_page_pair(prev_item: dict, next_item: dict) -> boo
     )
 
 
+def is_same_page_cross_column_pair(prev_item: dict, next_item: dict) -> bool:
+    """True when next item is the right-hand column peer of prev on the same page.
+
+    Prefer layout_zone (stable for dual-column papers). BBox fallback allows a
+    narrow gutter: next may start only a few points to the right of prev.x1.
+    """
+    if not same_page(prev_item, next_item):
+        return False
+    prev_zone = layout_zone(prev_item)
+    next_zone = layout_zone(next_item)
+    if prev_zone == "left_column" and next_zone == "right_column":
+        return True
+    prev_bbox = bbox(prev_item)
+    next_bbox = bbox(next_item)
+    if not prev_bbox or not next_bbox:
+        return False
+    # Clearly to the right of the previous block (even with a ~0–8pt gutter).
+    to_the_right = next_bbox[0] >= prev_bbox[2] - 4 and (next_bbox[0] - prev_bbox[0]) >= 40
+    if not to_the_right:
+        return False
+    # Reject extreme horizontal leaps that are unlikely to be adjacent columns.
+    return column_gap(prev_bbox, next_bbox) <= 120 or next_bbox[0] <= prev_bbox[2] + 120
+
+
 def likely_pair_geometry(prev_item: dict, next_item: dict) -> bool:
     prev_bbox = bbox(prev_item)
     next_bbox = bbox(next_item)
     if not prev_bbox or not next_bbox:
         return True
     if same_page(prev_item, next_item):
-        cross_column = next_bbox[0] > prev_bbox[2] + 8
+        # Dual-column L→R flow often jumps from bottom-left to mid/top-right;
+        # zone/bbox cross-column detection is enough (no vertical proximity).
+        if is_same_page_cross_column_pair(prev_item, next_item):
+            return True
         near_vertical = same_column(prev_bbox, next_bbox) and vertical_gap(prev_bbox, next_bbox) <= 40
-        if cross_column:
-            return column_gap(prev_bbox, next_bbox) <= 96
         return near_vertical
     return True
-
-
-def is_same_page_cross_column_pair(prev_item: dict, next_item: dict) -> bool:
-    prev_bbox = bbox(prev_item)
-    next_bbox = bbox(next_item)
-    if not prev_bbox or not next_bbox or not same_page(prev_item, next_item):
-        return False
-    return next_bbox[0] > prev_bbox[2] + 8 and column_gap(prev_bbox, next_bbox) <= 96
 
 
 def pair_join_score(prev_item: dict, next_item: dict) -> int:
@@ -283,7 +335,9 @@ def pair_break_score(prev_item: dict, next_item: dict) -> int:
         score += 2
     if starts_like_continuation(next_text):
         score -= 3
-    if starts_like_heading_or_list(next_text):
+    if starts_like_section_number(next_text):
+        score += 6
+    elif starts_like_heading_or_list(next_text):
         score += 3
     if starts_with_upper(next_text) and not starts_like_continuation(next_text):
         score += 1
@@ -298,6 +352,10 @@ def pair_break_score(prev_item: dict, next_item: dict) -> int:
 def pair_decision(prev_item: dict, next_item: dict) -> str:
     join_score = pair_join_score(prev_item, next_item)
     if join_score < 0:
+        return "break"
+    next_text = normalize_text(next_item.get("protected_source_text", ""))
+    # Section headings are never body continuations (e.g. "...that of" + "2.2.1 Title").
+    if starts_like_section_number(next_text):
         return "break"
     break_score = pair_break_score(prev_item, next_item)
     if join_score >= 4 and join_score >= break_score + 2:

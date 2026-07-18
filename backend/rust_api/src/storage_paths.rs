@@ -64,6 +64,93 @@ mod tests {
     }
 
     #[test]
+    fn to_relative_handles_relative_data_root() {
+        // 回归:DATA_ROOT 配成相对值(dev 环境 RUST_API_DATA_ROOT=../../data)时,
+        // resolve_typst_source 之类会拼出 `../../data/jobs/x/...book-overlay.typ`
+        // 这种带 `..` 的相对路径,再喂回 to_relative_data_path 做相对化。旧实现
+        // 只对绝对路径 strip_prefix,这里会落到 `..` 校验被拒,导致产物清单
+        // 接口 500、阅读器报"对照阅读加载失败"。现在无条件先剥 data_root 前缀。
+        let data_root = Path::new("../../data");
+        let joined = data_root.join("jobs/job-1/rendered/typst/book-overlays/book-overlay.typ");
+        assert_eq!(
+            to_relative_data_path(data_root, &joined).expect("relative path"),
+            "jobs/job-1/rendered/typst/book-overlays/book-overlay.typ"
+        );
+    }
+
+    #[test]
+    fn to_relative_passes_through_already_job_relative_path() {
+        // 已经是作业相对路径的情形(如 job 记录里存的 source_pdf)剥不掉 data_root
+        // 前缀,应原样规范化返回,不受上面改动影响。
+        let data_root = Path::new("../../data");
+        assert_eq!(
+            to_relative_data_path(data_root, Path::new("jobs/job-1/source/in.pdf"))
+                .expect("relative path"),
+            "jobs/job-1/source/in.pdf"
+        );
+    }
+
+    #[test]
+    fn to_relative_rejects_absolute_path_outside_data_root() {
+        // 绝对路径但不在 DATA_ROOT 下,仍应报错(保持旧行为)。
+        let data_root = Path::new("/tmp/data-root");
+        assert!(to_relative_data_path(data_root, Path::new("/etc/passwd")).is_err());
+    }
+
+    #[test]
+    fn to_relative_accepts_cwd_relative_paths_under_relative_data_root() {
+        // Reproduces local boot with RUST_API_DATA_ROOT=../../data from rust_api/.
+        let temp = std::env::temp_dir().join(format!("retainpdf-rel-data-{}", fastrand::u64(..)));
+        let data_root = temp.join("data");
+        let upload = data_root.join("uploads").join("job-1").join("paper.pdf");
+        fs::create_dir_all(upload.parent().expect("parent")).expect("mkdir");
+        fs::write(&upload, b"%PDF-1.4").expect("write pdf");
+
+        let cwd = std::env::current_dir().expect("cwd");
+        let rel_root = pathdiff_simple(&cwd, &data_root);
+        let rel_upload = pathdiff_simple(&cwd, &upload);
+        assert!(
+            !rel_root.is_absolute(),
+            "expected a relative data root for this test setup, got {}",
+            rel_root.display()
+        );
+
+        let relative =
+            to_relative_data_path(&rel_root, &rel_upload).expect("relative path under relative DATA_ROOT");
+        assert_eq!(relative, "uploads/job-1/paper.pdf");
+        let _ = fs::remove_dir_all(&temp);
+    }
+
+    /// Best-effort relative path from `from` to `to` without extra crates.
+    fn pathdiff_simple(from: &Path, to: &Path) -> std::path::PathBuf {
+        use std::path::{Component, PathBuf};
+        let from = from.canonicalize().unwrap_or_else(|_| from.to_path_buf());
+        let to = to.canonicalize().unwrap_or_else(|_| to.to_path_buf());
+        let from_components: Vec<_> = from.components().collect();
+        let to_components: Vec<_> = to.components().collect();
+        let mut common = 0;
+        for (a, b) in from_components.iter().zip(to_components.iter()) {
+            if a == b {
+                common += 1;
+            } else {
+                break;
+            }
+        }
+        let mut result = PathBuf::new();
+        for _ in common..from_components.len() {
+            result.push(Component::ParentDir.as_os_str());
+        }
+        for component in to_components.iter().skip(common) {
+            result.push(component.as_os_str());
+        }
+        if result.as_os_str().is_empty() {
+            PathBuf::from(".")
+        } else {
+            result
+        }
+    }
+
+    #[test]
     fn resolve_data_path_expands_relative_paths_under_data_root() {
         let data_root = Path::new("/tmp/data-root");
         let resolved =

@@ -44,6 +44,7 @@ from services.translation.llm.validation.errors import MathDelimiterError
 from services.translation.llm.validation.errors import PlaceholderInventoryError
 from services.translation.llm.validation.errors import SuspiciousKeepOriginError
 from services.translation.llm.validation.errors import TranslationProtocolError
+from services.translation.llm.validation.errors import TruncatedTranslationError
 from services.translation.llm.validation.errors import UnexpectedPlaceholderError
 from services.translation.llm.validation.math_safety import UNESCAPED_INLINE_DOLLAR_RE
 from services.translation.llm.validation.math_safety import has_balanced_inline_math_delimiters
@@ -72,6 +73,7 @@ __all__ = [
     "PlaceholderInventoryError",
     "SuspiciousKeepOriginError",
     "TranslationProtocolError",
+    "TruncatedTranslationError",
     "TranslationDiagnosticsCollector",
     "UNESCAPED_INLINE_DOLLAR_RE",
     "UnexpectedPlaceholderError",

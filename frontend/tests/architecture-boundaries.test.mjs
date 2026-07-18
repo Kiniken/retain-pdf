@@ -60,9 +60,38 @@ const BOOTSTRAP_GROUPED_PORT_DISCOVERY_ALLOWLIST = new Set([]);
 
 const BOOTSTRAP_EXTERNAL_IMPORT_ALLOWLIST = new Set([
   "reader-dialog-runtime-port.js",
+  "reader-dialog-runtime-port.ts",
 ]);
 
+function isSourceFile(filePath) {
+  return filePath.endsWith(".ts")
+    || filePath.endsWith(".tsx")
+    || filePath.endsWith(".js")
+    || filePath.endsWith(".jsx");
+}
+
+/** 源文件已迁 TS 后，测试里仍可写 foo.js，实际读 foo.ts */
+function resolveSourcePath(filePath) {
+  if (existsSync(filePath)) {
+    return filePath;
+  }
+  if (filePath.endsWith(".js")) {
+    const asTs = `${filePath.slice(0, -3)}.ts`;
+    if (existsSync(asTs)) return asTs;
+    const asTsx = `${filePath.slice(0, -3)}.tsx`;
+    if (existsSync(asTsx)) return asTsx;
+  }
+  if (filePath.endsWith(".jsx")) {
+    const asTsx = `${filePath.slice(0, -4)}.tsx`;
+    if (existsSync(asTsx)) return asTsx;
+  }
+  return filePath;
+}
+
 function walkFiles(root) {
+  if (!existsSync(root)) {
+    return [];
+  }
   const pending = [root];
   const files = [];
   while (pending.length > 0) {
@@ -74,7 +103,7 @@ function walkFiles(root) {
       }
       continue;
     }
-    if (current.endsWith(".js")) {
+    if (isSourceFile(current)) {
       files.push(current);
     }
   }
@@ -102,7 +131,7 @@ function readRootSource(fileName) {
 }
 
 function readSource(filePath) {
-  return readFileSync(filePath, "utf8");
+  return readFileSync(resolveSourcePath(filePath), "utf8");
 }
 
 function readBootstrapSource(fileName) {
@@ -129,9 +158,19 @@ function filesUnder(...roots) {
   return roots.flatMap((root) => walkFiles(root));
 }
 
+/** 去掉 `import type` 再匹配——TS 类型导入不构成运行时对 view 层的依赖 */
+function sourceWithoutTypeImports(source) {
+  return source
+    .replace(/import\s+type\s+[\s\S]*?from\s+["'][^"']+["']\s*;?/g, "")
+    .replace(/import\s*\{[^}]*\}\s*from\s+["'][^"']+["']\s*;?/g, (block) => {
+      // 保留值导入；若整行只有 type 已在上一步处理
+      return block;
+    });
+}
+
 function findMatchingImports(files, pattern) {
   return files
-    .filter((file) => pattern.test(readSource(file)))
+    .filter((file) => pattern.test(sourceWithoutTypeImports(readSource(file))))
     .map((file) => relativeToProject(file));
 }
 
@@ -149,13 +188,8 @@ function stripCompatibilityReExports(source) {
 
 function isViewBoundaryModule(filePath) {
   const fileName = filePath.split("/").pop() || "";
-  return fileName.endsWith("-view-port.js")
-    || fileName.endsWith("view-port.js")
-    || fileName === "dialog-elements-port.js"
-    || fileName === "deepseek-view-port.js"
-    || fileName === "setup-mode-port.js"
-    || fileName === "presenter-port.js"
-    || fileName === "translation-view-port.js";
+  return /(?:-view-port|view-port)\.(?:js|ts)$/.test(fileName)
+    || /^(?:dialog-elements-port|deepseek-view-port|setup-mode-port|presenter-port|translation-view-port)\.(?:js|ts)$/.test(fileName);
 }
 
 test("source tree does not contain notebook checkpoint artifacts", () => {
@@ -215,10 +249,7 @@ test("feature modules import local view.js only through explicit view boundary p
 
 function isLegacyStateBoundaryModule(filePath) {
   const fileName = filePath.split("/").pop() || "";
-  return fileName === "state.js"
-    || fileName.endsWith("-state.js")
-    || fileName.endsWith("-state-port.js")
-    || fileName.endsWith("runtime-state-port.js");
+  return /^(?:state|.*-state|.*-state-port|.*runtime-state-port)\.(?:js|ts)$/.test(fileName);
 }
 
 test("feature modules import legacy global state only through state boundary ports", () => {
@@ -361,9 +392,7 @@ test("bootstrap grouped port list covers grouped port files", () => {
   const groupedPortSet = new Set(BOOTSTRAP_GROUPED_PORT_FILES);
   const discovered = walkFiles(BOOTSTRAP_ROOT)
     .map((file) => relative(BOOTSTRAP_ROOT, file))
-    .filter((file) => file.endsWith("-ports.js")
-      || file.endsWith("mount-ports.js")
-      || file.endsWith("feature-controllers-port.js"))
+    .filter((file) => /(?:-ports|mount-ports|feature-controllers-port)\.(?:js|ts)$/.test(file))
     .filter((file) => !BOOTSTRAP_GROUPED_PORT_DISCOVERY_ALLOWLIST.has(file));
   const missing = discovered.filter((file) => !groupedPortSet.has(file));
 
@@ -374,7 +403,8 @@ test("runtime source paths avoid the legacy hidden credential facade", () => {
   const bootstrapFiles = walkFiles(BOOTSTRAP_ROOT);
   const desktopFiles = walkFiles(SOURCE_ROOTS.desktop);
   const featureFiles = walkFiles(FEATURE_ROOT).filter((filePath) => {
-    return !filePath.endsWith("/features/credentials/hidden-inputs.js");
+    return !filePath.endsWith("/features/credentials/hidden-inputs.js")
+      && !filePath.endsWith("/features/credentials/hidden-inputs.ts");
   });
   for (const filePath of [...bootstrapFiles, ...desktopFiles, ...featureFiles]) {
     const source = readFileSync(filePath, "utf8");
@@ -390,13 +420,14 @@ test("runtime source paths avoid the legacy hidden credential facade", () => {
 
 test("job runtime default adapter shims are not kept in feature layer", () => {
   for (const fileName of ["job-actions-runtime-port.js", "presentation-runtime-port.js"]) {
-    assert.equal(existsSync(join(FEATURE_ROOT, "job-runtime", fileName)), false);
+    assert.equal(existsSync(resolveSourcePath(join(FEATURE_ROOT, "job-runtime", fileName))), false);
   }
 });
 
 test("recent jobs feature does not import home state directly", () => {
   for (const fileName of ["controller.js", "loader.js", "commit.js", "runtime-item.js"]) {
-    const source = readFeatureSource("recent-jobs", fileName);
+    // 允许 `import type { HomeStatePort }`（编译期擦除，无运行时依赖）
+    const source = sourceWithoutTypeImports(readFeatureSource("recent-jobs", fileName));
 
     assert.equal(source.includes("../home/state.js"), false);
   }
@@ -422,7 +453,11 @@ test("current job state is store-only with no legacy mirror", () => {
   // 迁移完成:镜像 port 文件不得存在,选择器读 store 快照
   assert.equal(existsSync(join(SOURCE_ROOTS.features, "job-runtime", "legacy-current-job-state-port.js")), false);
   assert.equal(/state\.currentJob[A-Za-z]*\s*=(?!=)/.test(currentJobStateSource), false);
-  assert.match(currentJobStateSource, /currentJobStoreFor\(state\)\.getSnapshot\(\)/);
+  // 允许 TS 收窄：currentJobStoreFor(state as object | null | undefined).getSnapshot()
+  assert.match(
+    currentJobStateSource,
+    /currentJobStoreFor\(\s*state(?:\s+as\s+[^)]+)?\s*\)\.getSnapshot\(\)/,
+  );
   assert.equal(currentJobStateSource.includes("secondary-resource-cache.js"), false);
   assert.match(currentJobStateSource, /current-job-secondary-selectors\.js/);
   assert.match(secondarySelectorSource, /secondary-resource-cache\.js/);
@@ -521,7 +556,7 @@ test("React 新世界禁止 import 旧视图层(防回弹)", () => {
         }
         continue;
       }
-      if (current.endsWith(".js") || current.endsWith(".jsx")) {
+      if (isSourceFile(current)) {
         files.push(current);
       }
     }

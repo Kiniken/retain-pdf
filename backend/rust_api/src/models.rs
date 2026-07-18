@@ -13,7 +13,7 @@ mod input;
 #[path = "models/job.rs"]
 mod job;
 #[path = "models/library.rs"]
-pub mod library;
+mod library;
 #[path = "models/ocr.rs"]
 mod ocr;
 #[path = "models/public_contract.rs"]
@@ -60,8 +60,8 @@ pub use view::{
     build_artifact_links, build_artifact_manifest, build_job_actions, build_job_links,
     build_job_links_with_workflow, summarize_list_invocation, to_absolute_url, upload_to_response,
     ActionLinkView, ArtifactDisplayItemView, ArtifactDownloadQuery, ArtifactLinksView,
-    BookSummaryView, GlossaryUsageSummaryView, InvocationSummaryView, JobActionsView,
-    JobArtifactItemView, JobArtifactManifestView, JobContractsView, JobDetailView,
+    BookSummaryView, DocumentDeleteResultView, GlossaryUsageSummaryView, InvocationSummaryView,
+    JobActionsView, JobArtifactItemView, JobArtifactManifestView, JobContractsView, JobDetailView,
     JobDiagnosticsView, JobEventListView, JobEventProgressView, JobEventRawView, JobEventRecord,
     JobFailureDiagnosticView, JobLinksView, JobListInvocationSummaryView, JobListItemView,
     JobListView, JobProgressView, JobResumePlanView, JobStageContractArtifactView,

@@ -277,8 +277,8 @@ test("CredentialsDialog：保存(桌面模式)——走 saveDesktopConfig 分支
   const desktopCalls = [];
   const services = createServices({
     initialDesktopMode: true,
-    saveDesktopConfig: async (mineruToken, modelApiKey, afterSave, extra) => {
-      desktopCalls.push({ mineruToken, modelApiKey, extra });
+    saveDesktopConfig: async (browserConfig, afterSave) => {
+      desktopCalls.push({ browserConfig });
       await afterSave?.();
       return { firstRunCompleted: true };
     },
@@ -286,7 +286,7 @@ test("CredentialsDialog：保存(桌面模式)——走 saveDesktopConfig 分支
   const { host, root } = await mountHome(services);
 
   // 阶段 C(shadcn 改造):saveDesktopConfig 分支同样会读 HiddenCredentialInputs
-  // 挂在 TranslationWorkflowDialog 内部的隐藏 input(mineru_token 等),需要先
+  // 挂在 TranslationWorkflowDialog 内部的隐藏 input(paddle_token 等),需要先
   // 打开一次工作流对话框才会挂载。
   services.workflowDialog.openUpload();
   await waitFor(() => byId("paddle_token"), "工作流对话框打开后隐藏 input 挂载");
@@ -301,10 +301,9 @@ test("CredentialsDialog：保存(桌面模式)——走 saveDesktopConfig 分支
 
   click(byId("browser-credentials-save-btn"));
   await waitFor(() => desktopCalls.length === 1, "saveDesktopConfig 被调用");
-  assert.equal(desktopCalls[0].mineruToken, "");
-  assert.equal(desktopCalls[0].modelApiKey, "deepseek-desktop");
-  assert.equal(desktopCalls[0].extra.paddleToken, "paddle-desktop");
-  assert.equal(desktopCalls[0].extra.markConfigured, true, "setupMode 下应标记首次配置完成");
+  assert.equal(desktopCalls[0].browserConfig.modelApiKey, "deepseek-desktop");
+  assert.equal(desktopCalls[0].browserConfig.paddleToken, "paddle-desktop");
+  assert.equal(desktopCalls[0].browserConfig.markConfigured, true, "setupMode 下应标记首次配置完成");
   await waitFor(() => byId("browser-credentials-dialog") === null, "保存成功后对话框关闭");
 
   root.unmount();

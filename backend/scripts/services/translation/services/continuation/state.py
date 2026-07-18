@@ -192,6 +192,12 @@ def _annotate_provider_continuation_context(payload: list[dict]) -> int:
 
 
 def _next_candidate_index(payload: list[dict], start: int) -> int | None:
+    """Return the next eligible item index at or after ``start``.
+
+    Missing intermediate page indices (e.g. page 4 then page 6 in the flat
+    payload) must not abort the scan: pair_join_score still rejects non-adjacent
+    page_idx pairs, while later adjacent pairs remain discoverable.
+    """
     if start >= len(payload):
         return None
     current_page_idx = payload[start - 1].get("page_idx", -1) if start > 0 else payload[start].get("page_idx", -1)
@@ -202,8 +208,6 @@ def _next_candidate_index(payload: list[dict], start: int) -> int | None:
         page_idx = item.get("page_idx", -1)
         if page_idx < current_page_idx:
             continue
-        if page_idx - current_page_idx > 1:
-            return None
         if eligible(item):
             return idx
     return None
@@ -224,7 +228,10 @@ def annotate_continuation_context(payload: list[dict]) -> int:
             continue
         next_idx = _next_candidate_index(payload, i + 1)
         if next_idx is None:
-            break
+            # No further eligible items after this point — advance instead of
+            # aborting the whole remainder of the book (historical bug: break).
+            i += 1
+            continue
         nxt = payload[next_idx]
         decision = pair_decision(current, nxt)
         if decision != "join":

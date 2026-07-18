@@ -1093,10 +1093,10 @@ test("reader page exposes ai/favorites/download entries, keeps paused tools hidd
   // Phase 2b cutover 后 reader.html 只剩 #reader-root 挂载点,页面骨架改由
   // src/pages/reader 的 JSX 渲染:入口断言改扫新世界组件源码。
   const jsxSources = [
-    "../src/pages/reader/components/ReaderSideDrawers.jsx",
-    "../src/pages/reader/components/ReaderTopbarActions.jsx",
-    "../src/pages/reader/components/ReaderDownloadMenu.jsx",
-    "../src/pages/reader/components/ReaderAiChat.jsx",
+    "../src/pages/reader/components/ReaderSideDrawers.tsx",
+    "../src/pages/reader/components/ReaderTopbarActions.tsx",
+    "../src/pages/reader/components/ReaderDownloadMenu.tsx",
+    "../src/pages/reader/components/ReaderAiChat.tsx",
   ].map((file) => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
 
   assert.match(jsxSources, /id="reader-favorites-drawer"/);

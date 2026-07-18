@@ -130,6 +130,7 @@ def translate_direct_typst_plain_text_with_retries(
                 "EnglishResidueError",
                 "MathDelimiterError",
                 "TranslationProtocolError",
+                "TruncatedTranslationError",
             ):
                 if isinstance(exc, (ValueError, KeyError, json.JSONDecodeError)):
                     last_error = exc

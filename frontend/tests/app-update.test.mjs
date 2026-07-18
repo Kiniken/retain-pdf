@@ -16,7 +16,7 @@ import { mountAppUpdateFeature } from "../src/js/features/app-update/controller.
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const frontendRoot = path.resolve(__dirname, "..");
-const generatedVersionPath = path.join(frontendRoot, "src/js/generated/app-version.js");
+const generatedVersionPath = path.join(frontendRoot, "src/js/generated/app-version.ts");
 
 function createMemoryStorage() {
   const store = new Map();

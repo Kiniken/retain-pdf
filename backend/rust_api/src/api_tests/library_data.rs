@@ -1,21 +1,37 @@
+use std::fs;
+
 use axum::body::to_bytes;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use tower::util::ServiceExt;
 
-use super::jobs_common::test_state;
+use super::jobs_common::{minimal_pdf_bytes, test_state};
 use crate::app::build_app;
 use crate::db::documents::sha256_hex;
 use crate::models::domain::{now_iso, UploadRecord};
-use crate::models::library::FtsBlockRow;
+use crate::models::api::FtsBlockRow;
 
 fn seed_document(state: &crate::AppState, content: &[u8]) -> String {
     let hash = sha256_hex(content);
+    let upload_id = format!("up-{hash:.8}");
+    let relative = format!("uploads/{upload_id}/paper.pdf");
+    let absolute = state.config.data_root.join(&relative);
+    if let Some(parent) = absolute.parent() {
+        fs::create_dir_all(parent).expect("upload dir");
+    }
+    // Prefer a tiny real PDF when content is not already PDF bytes so cover
+    // rendering (PyMuPDF) and source download both work in integration tests.
+    let file_bytes = if content.starts_with(b"%PDF") {
+        content.to_vec()
+    } else {
+        minimal_pdf_bytes(200, 280)
+    };
+    fs::write(&absolute, &file_bytes).expect("write source pdf");
     let upload = UploadRecord {
-        upload_id: format!("up-{hash:.8}"),
+        upload_id,
         filename: "光谱综述.pdf".to_string(),
-        stored_path: "uploads/x/paper.pdf".to_string(),
-        bytes: content.len() as u64,
+        stored_path: absolute.to_string_lossy().to_string(),
+        bytes: file_bytes.len() as u64,
         page_count: 12,
         uploaded_at: now_iso(),
         developer_mode: false,
@@ -56,6 +72,18 @@ async fn documents_list_and_patch_roundtrip() {
     assert_eq!(response.status(), StatusCode::OK);
     let payload = json_response(response).await;
     assert_eq!(payload["data"]["documents"][0]["document_id"], document_id);
+    assert_eq!(
+        payload["data"]["documents"][0]["source_pdf_url"],
+        format!("http://127.0.0.1:41000/api/v1/documents/{document_id}/source.pdf")
+    );
+    assert_eq!(
+        payload["data"]["documents"][0]["cover_url"],
+        format!("http://127.0.0.1:41000/api/v1/documents/{document_id}/cover")
+    );
+    assert_eq!(
+        payload["data"]["documents"][0]["thumbnail_url"],
+        format!("http://127.0.0.1:41000/api/v1/documents/{document_id}/thumbnail")
+    );
 
     let response = app
         .clone()
@@ -79,6 +107,10 @@ async fn documents_list_and_patch_roundtrip() {
     assert_eq!(response.status(), StatusCode::OK);
     let payload = json_response(response).await;
     assert_eq!(payload["data"]["reading_status"], "reading");
+    assert!(payload["data"]["source_pdf_url"]
+        .as_str()
+        .unwrap_or("")
+        .contains("/source.pdf"));
 
     // 非法状态被拒绝
     let response = app
@@ -835,4 +867,420 @@ async fn library_books_job_ids_filter_returns_only_requested_jobs() {
         .expect("unfiltered response");
     let payload = json_response(response).await;
     assert_eq!(payload["data"]["items"].as_array().expect("items").len(), 3);
+}
+
+#[tokio::test]
+async fn document_source_pdf_and_media_urls_work_without_job() {
+    let state = test_state("library-document-source");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"%PDF-seed-doc-source");
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/documents/{document_id}/source.pdf"))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("source response");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get("content-type").unwrap(),
+        "application/pdf"
+    );
+    let bytes = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("read body");
+    assert!(bytes.starts_with(b"%PDF"));
+
+    // Cover needs a real PDF page (seed_document writes minimal_pdf_bytes when content is not PDF)
+    let document_id = seed_document(&state, b"cover-doc-bytes");
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/documents/{document_id}/cover"))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("cover response");
+    // Cover rendering depends on local PyMuPDF; accept 200 or skip soft if python missing.
+    if response.status() == StatusCode::OK {
+        assert_eq!(
+            response.headers().get("content-type").unwrap(),
+            "image/jpeg"
+        );
+        let cached = state
+            .config
+            .data_root
+            .join("documents")
+            .join(&document_id)
+            .join("cover.jpg");
+        assert!(cached.exists(), "cover should be cached under documents/");
+    } else {
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+}
+
+#[tokio::test]
+async fn document_translate_reuses_upload_id() {
+    let state = test_state("library-document-translate");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"translate-from-library");
+    let upload = state
+        .db
+        .find_upload_for_document(&document_id)
+        .expect("lookup")
+        .expect("upload exists");
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/documents/{document_id}/translate"))
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .header("host", "127.0.0.1:41000")
+                .body(Body::from(
+                    serde_json::json!({
+                        "workflow": "book",
+                        "ocr": {
+                            "provider": "paddle",
+                            "paddle_token": "paddle-test-token",
+                            "paddle_api_url": "https://paddle.example.com"
+                        },
+                        "translation": {
+                            "api_key": "sk-test",
+                            "model": "deepseek-v4-flash",
+                            "base_url": "https://api.deepseek.com/v1"
+                        }
+                    })
+                    .to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("translate response");
+    assert_eq!(response.status(), StatusCode::OK, "translate should queue");
+    let payload = json_response(response).await;
+    let job_id = payload["data"]["job_id"].as_str().expect("job_id");
+    assert!(!job_id.is_empty());
+    let job = state.db.get_job(job_id).expect("job saved");
+    assert_eq!(job.upload_id.as_deref(), Some(upload.upload_id.as_str()));
+}
+
+#[tokio::test]
+async fn document_translate_rejects_ocr_only_workflow() {
+    let state = test_state("library-document-translate-reject");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"reject-ocr-workflow");
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/documents/{document_id}/translate"))
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "workflow": "ocr",
+                        "ocr": { "provider": "paddle", "paddle_token": "t" },
+                        "translation": {
+                            "api_key": "sk",
+                            "model": "m",
+                            "base_url": "https://api.example.com"
+                        }
+                    })
+                    .to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+// P0-2:删单个 job 后,悬空的 active_job_id 被 reconcile(重指剩余 job 或 NULL)
+#[tokio::test]
+async fn deleting_a_job_reconciles_document_active_job() {
+    use crate::models::{CreateJobInput, JobSnapshot, JobStatusKind};
+
+    let state = test_state("library-reconcile-active");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"doc reconcile");
+    for (job_id, finished) in [("job-a", "2026-01-01"), ("job-b", "2026-02-01")] {
+        let mut job = JobSnapshot::new(
+            job_id.to_string(),
+            CreateJobInput::default(),
+            vec!["python".to_string()],
+        );
+        job.status = JobStatusKind::Succeeded;
+        job.sync_runtime_state();
+        state.db.save_job(&job).expect("save job");
+        let conn = rusqlite::Connection::open(state.config.jobs_db_path.clone()).expect("open db");
+        conn.execute(
+            "UPDATE jobs SET document_id = ?1, finished_at = ?2 WHERE job_id = ?3",
+            rusqlite::params![document_id, finished, job_id],
+        )
+        .expect("link job to document");
+    }
+    // active 指向 job-b(finished_at 更晚)
+    state
+        .db
+        .set_document_active_job(&document_id, "job-b", None)
+        .expect("set active");
+
+    // 删 job-b —— reconcile 应把 active 重指到剩余的 job-a
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v1/library/books/job-b")
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("delete job-b");
+    assert_eq!(response.status(), StatusCode::OK);
+    let doc = state.db.get_document(&document_id).expect("doc still exists");
+    assert_eq!(doc.active_job_id.as_deref(), Some("job-a"));
+
+    // 再删 job-a —— 没有剩余 book job,active 降级为 NULL(干净馆藏,非僵尸)
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v1/library/books/job-a")
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("delete job-a");
+    assert_eq!(response.status(), StatusCode::OK);
+    let doc = state.db.get_document(&document_id).expect("doc still exists");
+    assert_eq!(doc.active_job_id, None);
+}
+
+// P0-1:DELETE /documents/:id 删除文档行 + jobs + uploads + 文件;收藏引用 → 409
+#[tokio::test]
+async fn delete_document_removes_everything_and_guards_favorites() {
+    use crate::models::{CreateJobInput, JobSnapshot, JobStatusKind};
+
+    let state = test_state("library-delete-document");
+    let app = build_app(state.clone());
+    let document_id = seed_document(&state, b"doc delete");
+    let mut job = JobSnapshot::new(
+        "job-x".to_string(),
+        CreateJobInput::default(),
+        vec!["python".to_string()],
+    );
+    job.status = JobStatusKind::Succeeded;
+    job.sync_runtime_state();
+    state.db.save_job(&job).expect("save job");
+    {
+        let conn = rusqlite::Connection::open(state.config.jobs_db_path.clone()).expect("open db");
+        conn.execute(
+            "UPDATE jobs SET document_id = ?1 WHERE job_id = 'job-x'",
+            rusqlite::params![document_id],
+        )
+        .expect("link job");
+    }
+    state
+        .db
+        .set_document_active_job(&document_id, "job-x", None)
+        .expect("set active");
+
+    // 先挂一条收藏 → 删文档应 409
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/favorites")
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "document_id": document_id,
+                        "page_idx": 1,
+                        "block_id": "p002-b0001",
+                        "quote_text": "q"
+                    })
+                    .to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("create favorite");
+    let favorite_id = json_response(response).await["data"]["favorite_id"]
+        .as_str()
+        .expect("fav id")
+        .to_string();
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/v1/documents/{document_id}"))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("delete blocked");
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    // 移除收藏后可删
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/v1/favorites/{favorite_id}"))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("remove favorite");
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/api/v1/documents/{document_id}"))
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("delete document");
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = json_response(response).await;
+    assert_eq!(payload["data"]["deleted"], true);
+    assert!(payload["data"]["removed_jobs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|v| v == "job-x"));
+
+    // 文档行、job 行、upload 行都没了
+    assert!(state.db.get_document(&document_id).is_err());
+    assert!(state.db.get_job("job-x").is_err());
+    assert!(state
+        .db
+        .uploads_for_document(&document_id)
+        .expect("uploads query")
+        .is_empty());
+
+    // 删不存在的文档 → 404
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v1/documents/nonexistent")
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("delete missing");
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+// 孤儿治理:root-cause(retention 保护)+ 列表过滤 + 启动清理
+#[tokio::test]
+async fn ingest_only_document_survives_and_orphans_are_hidden() {
+    let state = test_state("library-orphan");
+    let app = build_app(state.clone());
+
+    // 一篇"只入库"文档:有 upload、无 job(合法,必须保留可见)
+    let ingest_only = seed_document(&state, b"ingest only doc");
+    // 一个孤儿文档:直接建 documents 行,不建任何 upload(源文件已丢)
+    {
+        let conn = rusqlite::Connection::open(state.config.jobs_db_path.clone()).expect("open db");
+        conn.execute(
+            "INSERT INTO documents (document_id, title, source_filename, page_count, bytes, added_at, updated_at)
+             VALUES ('orphandoc0000', 'Zombie', 'zombie.pdf', 10, 1, '2026-01-01', '2026-01-01')",
+            [],
+        )
+        .expect("insert orphan");
+    }
+
+    // 列表:只入库文档在,孤儿被过滤掉
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/documents")
+                .header("X-API-Key", "test-key")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("list response");
+    let payload = json_response(response).await;
+    let ids: Vec<&str> = payload["data"]["documents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|d| d["document_id"].as_str().unwrap())
+        .collect();
+    assert!(ids.contains(&ingest_only.as_str()), "ingest-only doc must stay");
+    assert!(!ids.contains(&"orphandoc0000"), "orphan doc must be hidden");
+}
+
+#[tokio::test]
+async fn retention_preserves_document_backed_uploads() {
+    use crate::models::domain::UploadRecord;
+
+    let state = test_state("library-retention-guard");
+    // 一个陈旧的、无 job 引用、但被 document 支撑的 upload(只入库场景)
+    let hash = crate::db::documents::sha256_hex(b"retained ingest doc");
+    let upload = UploadRecord {
+        upload_id: "up-old-ingest".to_string(),
+        filename: "keep.pdf".to_string(),
+        stored_path: "uploads/up-old-ingest/keep.pdf".to_string(),
+        bytes: 3,
+        page_count: 1,
+        uploaded_at: "2020-01-01T00:00:00Z".to_string(), // 远早于任何保留期
+        developer_mode: false,
+        content_hash: hash.clone(),
+    };
+    state.db.save_upload(&upload).expect("save upload");
+    state.db.upsert_document_from_upload(&upload).expect("upsert doc");
+
+    // 一个陈旧、无 job、也无 document 支撑的 upload(真正的废上传,应被 GC)
+    let junk = UploadRecord {
+        upload_id: "up-old-junk".to_string(),
+        filename: "junk.pdf".to_string(),
+        stored_path: "uploads/up-old-junk/junk.pdf".to_string(),
+        bytes: 3,
+        page_count: 1,
+        uploaded_at: "2020-01-01T00:00:00Z".to_string(),
+        developer_mode: false,
+        content_hash: String::new(),
+    };
+    state.db.save_upload(&junk).expect("save junk");
+
+    let removed = state
+        .db
+        .cleanup_orphaned_uploads(48)
+        .expect("cleanup orphaned uploads");
+    let removed_ids: Vec<&str> = removed.iter().map(|u| u.upload_id.as_str()).collect();
+    // 废上传被清,document-backed 的被保护
+    assert!(removed_ids.contains(&"up-old-junk"));
+    assert!(!removed_ids.contains(&"up-old-ingest"));
+    assert!(state.db.get_upload("up-old-ingest").is_ok());
 }

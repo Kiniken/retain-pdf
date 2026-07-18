@@ -257,10 +257,6 @@ def normalize_sized_delimiters_for_mitex(expr: str) -> str:
     return LATEX_SIZED_DELIMITER_RE.sub(_replacement, expr or "")
 
 
-def normalize_prefix_scripts_for_mitex(expr: str) -> str:
-    return re.sub(r"(?P<prefix>[⟨(\\[{|])\s*(?P<script>[\^_]\s*\{)", r"\g<prefix>{}\g<script>", expr or "")
-
-
 def sanitize_direct_typst_inline_math(text: str) -> str:
     from services.rendering.layout.inline_content.fallback.latex_normalizer import (
         normalize_formula_for_latex_math,
@@ -289,7 +285,11 @@ def sanitize_direct_typst_inline_math(text: str) -> str:
         expr = re.sub(r"\\langle\b", "⟨", expr)
         expr = re.sub(r"\\rangle\b", "⟩", expr)
         expr = normalize_sized_delimiters_for_mitex(expr)
-        expr = normalize_prefix_scripts_for_mitex(expr)
+        # Do not rewrite prefix scripts (e.g. ⟨^{N} → ⟨{}^{N}).
+        # That regex treated LaTeX "\ " (backslash-space) as a delimiter and
+        # corrupted temperatures like -78\ ^{\circ}\mathrm{C} into -78\{}^{\circ}...
+        # Prefix-script form is owned by translation (protect / match-then-translate);
+        # rendering only does light mitex-compatible delimiter/symbol cleanup.
         expr = re.sub(r"\\circled\s*\{\s*\\times\s*\}", r"\\otimes", expr)
         expr = re.sub(r"\\circled\s*\{\s*\\parallel\s*\}", r"\\circ", expr)
         expr = re.sub(r"\\circled\s*\{\s*([^{}]+?)\s*\}", r"\1", expr)

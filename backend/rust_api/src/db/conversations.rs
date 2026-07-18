@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use rusqlite::{params, OptionalExtension};
 
 use crate::models::domain::now_iso;
-use crate::models::library::{ConversationRecord, MessageRecord};
+use crate::models::api::{ConversationRecord, MessageRecord};
 
 use super::Db;
 

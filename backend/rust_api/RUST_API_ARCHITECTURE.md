@@ -77,6 +77,9 @@ app -> routes -> application services -> internal services -> job_runner / ocr_p
 
 - `routes/common.rs`
   负责 route 侧公共轻量 deps builder、`request_base_url(...)` 和 `ok_json(...)`
+  - `build_jobs_route_deps` → `JobsFacade`
+  - `build_library_route_deps` → `LibraryDeps` + `JobsFacade`（馆藏发起翻译等 library→job 场景）
+  - `build_glossary_route_deps` / `build_upload_route_deps` / `build_health_route_deps`
 - `routes/download_response.rs` / `routes/download_response/**`
   负责文件下载、markdown、preview、cover、thumbnail 的 response boundary
 - `routes/jobs/json_response/**`
@@ -337,13 +340,18 @@ Rust 侧关键落点：
 - 不自己读 artifacts 文件
 - 不自己拼 Python 命令
 
-当前 `jobs` 路由已经统一收口到：
+当前路由已经统一收口到 application facade：
 
-- [src/services/jobs/facade.rs](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/jobs/facade.rs)
+- jobs → [src/services/jobs/facade.rs](src/services/jobs/facade.rs)
+- library → [src/services/library_api.rs](src/services/library_api.rs)
+- glossaries → [src/services/glossary_api.rs](src/services/glossary_api.rs)
+- uploads → [src/services/upload_api.rs](src/services/upload_api.rs)
 
 也就是：
 
 - `routes/jobs/*` 只通过 response boundary 调 `JobsFacade`
+- `routes/library.rs` / `library_data.rs` / `library_extras.rs` / `collections.rs`
+  只调 `services/library_api.rs`（经 `build_library_route_deps`）
 - `routes/common.rs`
   只保留 route 侧公共 deps builder、base URL 和统一 HTTP envelope helper
 - `routes/download_response/**`
@@ -355,6 +363,15 @@ Rust 侧关键落点：
 - `routes/uploads.rs`
   只调 `services/upload_api.rs`
 
+**Library route 文件分工（HTTP 边界，业务不进 route）：**
+
+| Route 文件 | HTTP 面 |
+|------------|---------|
+| `library.rs` | books 列表/详情/删除、book cover/thumbnail |
+| `library_data.rs` | documents CRUD/media/translate、favorites、search |
+| `library_extras.rs` | assets、conversations |
+| `collections.rs` | 合集 CRUD 与文档成员 |
+
 快速判断：
 
 - 要改 HTTP 入参/出参，先看 `routes/*`
@@ -365,7 +382,7 @@ Rust 侧关键落点：
 
 目录：
 
-- [src/services](/home/wxyhgk/tmp/Code/backend/rust_api/src/services)
+- [src/services](src/services)
 
 职责：
 
@@ -375,28 +392,59 @@ Rust 侧关键落点：
 
 当前已经成型的 application 入口：
 
-- [src/services/jobs/facade.rs](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/jobs/facade.rs)
-- [src/services/glossary_api.rs](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/glossary_api.rs)
-- [src/services/upload_api.rs](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/upload_api.rs)
+- [src/services/jobs/facade.rs](src/services/jobs/facade.rs)
+- [src/services/library_api.rs](src/services/library_api.rs)
+- [src/services/glossary_api.rs](src/services/glossary_api.rs)
+- [src/services/upload_api.rs](src/services/upload_api.rs)
 
 规则：
 
 - route 优先只依赖这些入口
 - 不要让 route 直接再去拼 `db + config + helper + artifact service`
 - application service 内部如果继续长大，优先拆 facade 子模块或 deps 子结构，不要再回退成一个总入口文件加一个总 deps
+- library 域 DTO（`DocumentRecord`、favorites/search/collections 等）经
+  `models::api` 再导出；route 与 migrated `db/*` **不得** 直连 `models::library`
+
+#### `services/library_api` + `services/library/*`
+
+模块化单体下的 Library 域（**不是**微服务拆分）：
+
+```text
+routes/library*.rs, collections.rs
+  → library_api (view 级 API)
+      → services/library/*
+           books | documents | media | translate
+           favorites | search | assets | conversations | collections
+      → JobsFacade   (仅 translate-from-library 创建 job)
+      → derived_artifacts (仅 media 内部使用 cover/thumbnail)
+```
+
+- [src/services/library_api.rs](src/services/library_api.rs)
+  route 唯一允许的 library service import
+- [src/services/library/](src/services/library/)
+  内部实现；`LibraryDeps` 持有 `db + data_root + output_root + downloads_dir + scripts_dir + python_bin`
+- 从馆藏发起翻译：`library/translate.rs` 绑定文档 upload 后只调用
+  `JobsFacade::create_submission`，不绕过 job 创建管线
+- 文件流式响应仍在 route：`stream_file` / download response；service 只返回路径或字节
 
 ### 2.4 `services/` 中的内部实现
 
 当前关键分工：
 
-- [src/services/job_snapshot_factory.rs](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/job_snapshot_factory.rs)
+- [src/services/job_snapshot_factory.rs](src/services/job_snapshot_factory.rs)
   负责 job snapshot / command 组装
-- [src/services/job_launcher.rs](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/job_launcher.rs)
+- [src/services/job_launcher.rs](src/services/job_launcher.rs)
   负责 job 持久化与执行启动
-- [src/services/runtime_gateway.rs](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/runtime_gateway.rs)
+- [src/services/runtime_gateway.rs](src/services/runtime_gateway.rs)
   负责 services 侧 runtime 能力收口
-- [src/services/jobs](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/jobs)
+- [src/services/jobs](src/services/jobs)
   负责 jobs 相关业务
+- [src/services/library](src/services/library)
+  负责图书馆域业务（见 2.3）
+- [src/services/book_projection](src/services/book_projection)
+  负责 library books 投影（由 `library/books` 调用）
+- [src/services/derived_artifacts](src/services/derived_artifacts)
+  负责 cover/thumbnail/page preview 等派生产物（由 library media / jobs downloads 调用，**不**被 route 直连）
 
 其中 `services/jobs` 又拆成：
 

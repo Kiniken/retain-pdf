@@ -499,6 +499,14 @@ pub struct LibraryBatchDeleteResultView {
     pub items: Vec<LibraryDeleteResultView>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct DocumentDeleteResultView {
+    pub deleted: bool,
+    pub document_id: String,
+    pub removed_jobs: Vec<String>,
+    pub removed_paths: Vec<String>,
+}
+
 fn default_preview_kind() -> String {
     "translated".to_string()
 }

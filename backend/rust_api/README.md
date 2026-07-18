@@ -79,6 +79,8 @@
 - `AppState` 回流到 `services/job_runner/ocr_provider`
 - `routes` 直接依赖 `job_runner`
 - `routes/jobs/*` 重新手写局部 `route_deps(...)`
+- `routes` 直接 `state.db` / `state.config`，或绕过 facade import 内部 service
+- library / glossary / upload route 不经 `*_api` 入口
 - `ProcessRuntimeDeps::new(...)` 在 `app` 边界层之外被随手组装
 - `JobPersistDeps` 从 leaf helper 边界重新外溢
 - `runtime_deps` 结构体被重新散落回多个 runner 文件

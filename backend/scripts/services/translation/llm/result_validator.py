@@ -14,6 +14,7 @@ from services.translation.llm.validation.errors import MathDelimiterError
 from services.translation.llm.validation.errors import PlaceholderInventoryError
 from services.translation.llm.validation.errors import SuspiciousKeepOriginError
 from services.translation.llm.validation.errors import TranslationProtocolError
+from services.translation.llm.validation.errors import TruncatedTranslationError
 from services.translation.llm.validation.errors import UnexpectedPlaceholderError
 from services.translation.core.text_rules import looks_like_code_literal_text_value
 from services.translation.core.text_rules import looks_like_url_fragment
@@ -113,6 +114,14 @@ def _handle_quality_issue(
             state.item_id,
             source_text=state.source_text,
             translated_text=state.translated_text,
+        )
+    if issue.kind == "truncated_translation":
+        ratio = float((issue.details or {}).get("ratio") or 0.0)
+        raise TruncatedTranslationError(
+            state.item_id,
+            source_text=state.source_text,
+            translated_text=state.translated_text,
+            ratio=ratio,
         )
     if issue.kind == "unexpected_placeholder":
         unexpected = list((issue.details or {}).get("unexpected") or [])

@@ -43,7 +43,9 @@ async function waitFor(predicate, description) {
 }
 
 function click(dom, element) {
-  element.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+  // Radix Tabs Trigger 挂在 mousedown 上，只 dispatch click 不会切 tab
+  element.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0 }));
+  element.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
 }
 
 async function bootHomeApp(dom) {
@@ -87,6 +89,10 @@ test("馆藏卡打开书籍详情:元数据 + 阅读状态切换 + 翻译/读原
   await waitFor(() => dlg.querySelector(".book-detail-title")?.textContent?.trim(), "标题就位");
   assert.equal(byId("book-detail-title-input"), null, "默认只读,无标题输入框");
   assert.ok(dlg.querySelector(".book-detail-status")?.textContent.includes("未翻译"), "馆藏显示未翻译");
+  // 未翻译：轻量空态 + StageFlow 预览（尚无真实 job，不嵌完整 StatusCard）
+  assert.ok(byId("book-detail-translate-progress"), "馆藏有翻译进度面板");
+  assert.ok(byId("book-detail-stage-flow"), "未翻译进度区有 StageFlow 预览");
+  assert.equal(byId("book-detail-job-status-card"), null, "未翻译不嵌 StatusCard");
   // 馆藏:有翻译 + 读原文,无对照阅读
   assert.ok(byId("book-detail-translate-btn"), "馆藏有翻译按钮");
   assert.ok(byId("book-detail-read-source-btn"), "有读原文");
@@ -121,7 +127,58 @@ test("已翻译卡打开书籍详情:有对照阅读,无翻译按钮", async () 
   click(dom, card);
 
   const dlg = await waitFor(() => byId("book-detail-dialog"), "书籍详情弹窗打开");
-  assert.ok(dlg.querySelector(".book-detail-status")?.textContent.includes("已完成"), "显示已完成");
+  // 默认在「简介」：不应弹出工作流对话框
+  assert.equal(
+    services.stores.dialog.getSnapshot().open,
+    false,
+    "打开书籍详情不得自动打开工作流弹窗",
+  );
+  // 已翻译书默认落在「翻译」Tab；进度卡应立刻在 DOM
+  await waitFor(
+    () => dlg.querySelector(".book-detail-status")?.textContent?.includes("已完成"),
+    "显示已完成",
+  );
+  const statusCard = await waitFor(() => byId("book-detail-job-status-card"), "翻译 Tab 内嵌 StatusCard");
+  assert.ok(statusCard.classList.contains("bd-job-status-card"), "详情专用进度卡");
+  assert.equal(statusCard.getAttribute("data-embedded"), "true", "embedded 模式");
+  assert.ok(
+    statusCard.closest("#book-detail-panel-translate"),
+    "StatusCard 在翻译 Tab 面板内",
+  );
+  // 书籍详情专用内部结构（bd-job-status-*），固定高度
+  assert.ok(statusCard.classList.contains("bd-job-status-card"), "bd-job-status-card 根类");
+  assert.ok(statusCard.querySelector(".bd-job-status-inner"), "独立 inner，非 status-card-shell");
+  assert.ok(statusCard.querySelector(".bd-job-status-main"), "固定高度主区");
+  assert.ok(
+    statusCard.querySelector(".status-stage-flow .status-stage-step"),
+    "含阶段流",
+  );
+  assert.equal(statusCard.querySelector(".status-card-shell"), null, "不使用主流程 shell");
+  assert.equal(statusCard.querySelector(".status-progress-hero"), null, "不使用主流程 hero");
+  await waitFor(
+    () => `${statusCard.getAttribute("data-status") || ""}` === "succeeded"
+      || statusCard.querySelector(".status-stage-step.is-active, .status-stage-step.is-done"),
+    "StatusCard 进入完成/有阶段高亮",
+  );
+  const doneStep = statusCard.querySelector(
+    '.status-stage-flow .status-stage-step[data-stage-key="done"]',
+  );
+  assert.ok(
+    doneStep?.classList.contains("is-active")
+      || doneStep?.classList.contains("is-selected")
+      || doneStep?.classList.contains("is-done"),
+    "完成阶段高亮",
+  );
+  const ringValue = statusCard.querySelector(".bd-job-status-value")?.textContent?.trim();
+  assert.ok(ringValue && ringValue !== "准备中", `完成态应有进度文案，实际: ${ringValue}`);
+  const pct = statusCard.querySelector(".bd-job-status-ring-text")?.textContent?.trim();
+  assert.equal(pct, "100%", "完成态进度环 100%");
+  // 仍然不得弹工作流
+  assert.equal(
+    services.stores.dialog.getSnapshot().open,
+    false,
+    "切换翻译 Tab / 加载进度后仍不打开工作流弹窗",
+  );
   assert.ok(byId("book-detail-compare-btn"), "已翻译有对照阅读");
   assert.equal(byId("book-detail-translate-btn"), null, "已翻译没有翻译按钮");
   assert.ok(byId("book-detail-read-source-btn"), "仍可读原文");

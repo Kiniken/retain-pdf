@@ -40,10 +40,15 @@ impl Db {
     }
 
     /// Deletes rows from `uploads` older than `retention_hours` that no row
-    /// in `jobs` references (i.e. an upload nobody ever turned into a job,
-    /// or whose job(s) were later deleted). Returns the deleted records with
-    /// `stored_path` resolved to an absolute path, so the caller can also
-    /// remove the on-disk `uploads_dir/<upload_id>/` directory.
+    /// in `jobs` references AND that back no `documents` row. Returns the
+    /// deleted records with `stored_path` resolved to an absolute path, so the
+    /// caller can also remove the on-disk `uploads_dir/<upload_id>/` directory.
+    ///
+    /// The `documents` guard is essential: an "ingest-only" library document
+    /// (uploaded but never translated) is referenced by a document via
+    /// `content_hash` yet by no job. Without this guard, retention would GC its
+    /// source PDF after `retention_hours`, orphaning the document row into a
+    /// broken "zombie" library card.
     ///
     /// `retention_hours == 0` disables cleanup entirely and is a no-op.
     pub fn cleanup_orphaned_uploads(&self, retention_hours: u64) -> Result<Vec<UploadRecord>> {
@@ -61,6 +66,9 @@ impl Db {
                   AND upload_id NOT IN (
                       SELECT upload_id FROM jobs WHERE upload_id IS NOT NULL
                   )
+                  AND (content_hash = '' OR content_hash NOT IN (
+                      SELECT document_id FROM documents
+                  ))
                 "#,
             )?;
             let rows = stmt.query_map(params![cutoff], |row| {

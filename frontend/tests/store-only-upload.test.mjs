@@ -85,18 +85,23 @@ test("上传即入库:上传完成自动关对话框 + 刷新图书馆,不提交
   assert.equal(byId("translation-workflow-title").textContent, "添加 PDF 到图书馆");
   assert.equal(byId("store-only-btn"), null, "不再有独立的只入库按钮(上传即入库)");
 
-  let libraryRefreshed = false;
   let jobSubmitted = false;
-  dom.window.document.addEventListener(APP_EVENTS.libraryRefreshRequested, () => { libraryRefreshed = true; });
+  let libraryRefreshForced = false;
   dom.window.document.addEventListener(APP_EVENTS.libraryJobCreated, () => { jobSubmitted = true; });
+  dom.window.document.addEventListener(APP_EVENTS.libraryRefreshRequested, (event) => {
+    if (event?.detail?.force) {
+      libraryRefreshForced = true;
+    }
+  });
 
   // 模拟"上传完成"(真实上传成功后 markUploadReady(true))——应触发自动入库 + 关闭。
+  // 关对话框会 scheduleRefresh soft（不再 force 连闪两次）。
   services.uploadViewActions.patch({ ready: true, actionSlotVisible: true });
 
   await waitFor(() => byId("translation-workflow-dialog") === null, "上传完成后自动关闭添加对话框");
-  await waitFor(() => libraryRefreshed, "上传完成后自动刷新图书馆(新书以馆藏态出现)");
-  await wait(50);
+  await wait(400); // close → scheduleRefresh(delay:300) soft 对齐书架
   assert.equal(jobSubmitted, false, "上传入库不提交任何翻译 job");
+  assert.equal(libraryRefreshForced, false, "上传入库不 force 整页刷库");
 
   root.unmount();
   services.dispose();

@@ -35,9 +35,11 @@
 
 ```bash
 cd backend/rust_api
+# Prefer absolute DATA_ROOT/SCRIPTS_DIR so DB path storage never sees "../../data/...".
+# Relative values still work after startup absolutization, but absolute is clearest.
 RUST_API_BIND_HOST=0.0.0.0 \
-RUST_API_DATA_ROOT=../../data \
-RUST_API_SCRIPTS_DIR=../scripts \
+RUST_API_DATA_ROOT="$(cd ../../data && pwd)" \
+RUST_API_SCRIPTS_DIR="$(cd ../scripts && pwd)" \
 cargo run
 ```
 

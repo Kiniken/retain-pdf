@@ -14,6 +14,7 @@ from services.translation.llm.validation.errors import MathDelimiterError
 from services.translation.llm.validation.errors import PlaceholderInventoryError
 from services.translation.llm.validation.errors import SuspiciousKeepOriginError
 from services.translation.llm.validation.errors import TranslationProtocolError
+from services.translation.llm.validation.errors import TruncatedTranslationError
 from services.translation.llm.validation.errors import UnexpectedPlaceholderError
 
 
@@ -27,6 +28,7 @@ _PARTIAL_RETRY_ERRORS = (
     UnexpectedPlaceholderError,
     PlaceholderInventoryError,
     TranslationProtocolError,
+    TruncatedTranslationError,
     SuspiciousKeepOriginError,
 )
 

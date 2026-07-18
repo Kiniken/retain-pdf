@@ -56,6 +56,17 @@ ROUTE_SERVICE_IMPORT_ALLOWLIST = {
     Path("src/routes/library.rs"): (
         "crate::services::library_api::",
     ),
+    # Library thick routes migrate to library_api in PR2–PR5; allowlist is
+    # ready so partial moves do not require revisiting this file each PR.
+    Path("src/routes/library_data.rs"): (
+        "crate::services::library_api::",
+    ),
+    Path("src/routes/library_extras.rs"): (
+        "crate::services::library_api::",
+    ),
+    Path("src/routes/collections.rs"): (
+        "crate::services::library_api::",
+    ),
     Path("src/routes/uploads.rs"): (
         "crate::services::upload_api::",
     ),
@@ -311,7 +322,7 @@ def check_service_model_facade_boundaries(errors: list[str]) -> None:
         SRC_ROOT / "services" / "jobs" / "summary_loaders",
         SRC_ROOT / "services" / "jobs" / "summary_loaders.rs",
         SRC_ROOT / "services" / "jobs" / "support.rs",
-        SRC_ROOT / "services" / "library.rs",
+        SRC_ROOT / "services" / "library",
         SRC_ROOT / "services" / "library_api.rs",
         SRC_ROOT / "services" / "provider_probe.rs",
         SRC_ROOT / "services" / "upload_api.rs",

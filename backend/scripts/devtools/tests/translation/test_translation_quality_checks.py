@@ -124,6 +124,61 @@ def test_quality_still_blocks_body_empty_translation() -> None:
     assert [issue.kind for issue in report.issues] == ["empty_translation"]
 
 
+def test_quality_flags_abnormally_short_translation() -> None:
+    """Tail-only model outputs (e.g. p010-b007) must not pass as translated."""
+    source = (
+        "The corresponding one-pot borylation precursors were synthesised from the commercially "
+        "available 1-bromo-2,3-dichlorobenzene by Buchwald–Hartwig coupling. The reaction of this "
+        "starting material with diphenylamine (2.2 equiv.) afforded the key borylation precursor in "
+        "66% yield (Scheme 6, left). The chlorine atom for the subsequent lithium–halogen exchange "
+        "was retained because of its sterically hindered environment. A non-symmetric intermediate "
+        "could be synthesised by the sequential coupling based on the difference in reactivity "
+        "between bromine and chlorine atoms (Scheme 6, right). The final one-pot borylation afforded "
+        "N,B,N-embedded compounds DABNA-1 and DABNA-2 in yields of 32% and 31%, respectively. In the "
+        "case of DABNA-2, tandem electrophilic C–H borylation occurred at the para-position relative "
+        "to the diphenylamine group, probably because of its electron-donating nature and bulkiness. "
+        "These processes were robust and scalable, as confirmed by the synthesis of the target "
+        "compounds in amounts of 6.0 g."
+    )
+    item = _body_item("p010-b007", source, math_mode="direct_typst")
+    short_zh = (
+        "相应的二苯胺基团的对位发生了串联亲电C–H硼化，这可能是由于其给电子性质和体积位阻所致。"
+        "这些过程稳健且可放大，通过以6.0 g的量合成目标化合物得到了验证。"
+    )
+
+    report = review_translation_item(
+        item,
+        {"decision": "translate", "translated_text": short_zh},
+    )
+
+    kinds = [issue.kind for issue in report.issues]
+    assert report.has_errors
+    assert "truncated_translation" in kinds
+    trunc = next(issue for issue in report.issues if issue.kind == "truncated_translation")
+    assert trunc.details is not None
+    assert trunc.details["ratio"] < 0.15
+
+
+def test_quality_allows_normal_length_chinese_translation() -> None:
+    source = (
+        "Commercially available 2-bromo-1,3-difluorobenzene is one of the most promising starting "
+        "materials for one-pot borylation via lithium–halogen exchange. The first example of such "
+        "synthesis was reported together with the first directed ortho-lithiation method."
+    )
+    item = _body_item("p007-b012", source, math_mode="direct_typst")
+    translated = (
+        "市售2-溴-1,3-二氟苯是通过锂-卤交换进行一锅硼基化最常用的起始原料之一。"
+        "这类合成的首个实例与首次导向邻位锂化方法同时被报道。"
+    )
+
+    report = review_translation_item(
+        item,
+        {"decision": "translate", "translated_text": translated},
+    )
+
+    assert "truncated_translation" not in {issue.kind for issue in report.issues}
+
+
 def test_long_english_residue_span_skips_data_dense_nmr_segments() -> None:
     from services.translation.llm.validation.english_residue import _has_long_english_residue_span
 

@@ -148,12 +148,27 @@ def test_direct_typst_normalizes_nested_left_right_matrix_element_for_mitex() ->
     assert r"$⟨\Psi_a^{rs}|\mathcal{H}|\Psi_{ab}^{rs}⟩$" in markdown
 
 
-def test_direct_typst_adds_empty_base_for_prefix_script_after_angle_bracket() -> None:
+def test_direct_typst_does_not_inject_empty_base_for_prefix_scripts() -> None:
+    """Prefix-script empty bases are translation's job, not render-time regex."""
     markdown = build_direct_typst_passthrough_text(
         r"能量为 $ ^{N}E_0 = \langle ^{N}\Psi_0 | \mathcal{H} | ^{N}\Psi_0 \rangle $。"
     )
 
-    assert r"$^{N}E_0 = ⟨{}^{N}\Psi_0 | \mathcal{H} |{}^{N}\Psi_0⟩$" in markdown
+    assert r"\{}^{" not in markdown
+    assert "⟨" in markdown and "⟩" in markdown
+    assert r"^{N}\Psi_0" in markdown
+
+
+def test_direct_typst_preserves_backslash_space_before_degree_mathrm() -> None:
+    r"""LaTeX backslash-space before ^{\circ} must not become \{}^{\circ}."""
+    markdown = build_direct_typst_passthrough_text(
+        r"反应在 $-78\ ^{\circ}\mathrm{C}$ 至室温下进行。"
+    )
+
+    assert r"-78\{}^{\circ}" not in markdown
+    assert r"\{}^{" not in markdown
+    assert r"^{\circ}\mathrm{C}" in markdown
+    assert r"\ ^{\circ}\mathrm{C}" in markdown
 
 
 def test_body_rendering_folds_model_visual_line_breaks_for_flow_text() -> None:

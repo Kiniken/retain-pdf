@@ -10,6 +10,7 @@ from services.translation.llm.validation.errors import EnglishResidueError
 from services.translation.llm.validation.errors import MathDelimiterError
 from services.translation.llm.validation.errors import PlaceholderInventoryError
 from services.translation.llm.validation.errors import TranslationProtocolError
+from services.translation.llm.validation.errors import TruncatedTranslationError
 from services.translation.llm.validation.errors import UnexpectedPlaceholderError
 
 
@@ -23,6 +24,7 @@ _CACHE_VALIDATION_ERRORS = (
     UnexpectedPlaceholderError,
     PlaceholderInventoryError,
     TranslationProtocolError,
+    TruncatedTranslationError,
 )
 
 

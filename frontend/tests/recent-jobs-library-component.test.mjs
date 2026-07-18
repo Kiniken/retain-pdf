@@ -138,15 +138,19 @@ test("RecentJobsLibrary：卡片交互(select / reader / delete 确认与取消 
 
   const cardOf = (jobId) => byId(dom, "recent-jobs-list").querySelector(`.recent-job-item[data-job-id="${jobId}"]`);
 
-  // ---- select:点击卡片主体 → openTranslationWorkflow + 开始轮询 ----
+  // ---- select 无 document_id：仍开书籍详情（不弹旧工作流窗）+ silent 轮询 ----
   let openCount = 0;
   dom.window.document.addEventListener(
     (await import("../src/js/contracts/app-contract.js")).APP_EVENTS.openTranslationWorkflow,
     () => { openCount += 1; },
   );
   click(dom, cardOf("job-1"));
-  await waitFor(() => openCount === 1, "select 触发 openTranslationWorkflow");
-  await waitFor(() => services.features.jobRuntimeFeature.currentJobId() === "job-1", "select 触发轮询");
+  await waitFor(() => byId(dom, "book-detail-dialog"), "点卡打开书籍详情");
+  assert.equal(openCount, 0, "点卡不打开 #translation-workflow-dialog");
+  await waitFor(
+    () => services.features.jobRuntimeFeature.currentJobId() === "job-1",
+    "select/详情路径 silent 轮询",
+  );
 
   // ---- reader:点击悬浮"对照阅读"按钮 → openReaderRequested ----
   const { APP_EVENTS } = await import("../src/js/contracts/app-contract.js");
@@ -240,11 +244,12 @@ test("RecentJobsLibrary：馆藏文档卡(未翻译)——徽标/点卡片开详
   host.remove();
 });
 
-test("书籍详情弹窗:馆藏点翻译 → translateDocument 起 job 后整页重载", async () => {
-  // F5 的翻译入口已从卡片挪到书籍详情弹窗:点馆藏卡开详情 → 点翻译整本 →
-  // mock translateDocument 给文档挂 active_job_id → 整页重载,轮询接管。
+test("书籍详情弹窗:馆藏点翻译 → 立刻接进度 + 网格静默更新(不闪 loading)", async () => {
+  // 点馆藏卡开详情 → 翻译整本 → mock 挂 active_job_id →
+  // 详情 payload/进度卡立刻有 job_id，网格有真实 job 行，不靠整页 loading 重载。
   const dom = makeDom("?mock=parallel");
   const { services, root, host } = await bootHomeApp(dom);
+  const { HOME_LOADING_STATES } = await import("../src/js/features/home/state.js");
 
   const { getMockDocumentList } = await import("../src/js/mock/documents.js");
   const untranslated = getMockDocumentList().documents.find((doc) => !`${doc.active_job_id || ""}`.trim());
@@ -257,6 +262,8 @@ test("书籍详情弹窗:馆藏点翻译 → translateDocument 起 job 后整页
   await waitFor(() => byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-library-only="true"]'), "馆藏卡就位");
 
   click(dom, byId(dom, "recent-jobs-list").querySelector('.recent-job-item[data-library-only="true"]'));
+  await waitFor(() => byId(dom, "book-detail-dialog"), "详情弹窗打开");
+  click(dom, byId(dom, "book-detail-tab-translate"));
   await waitFor(() => byId(dom, "book-detail-translate-btn"), "详情弹窗翻译按钮就位");
   click(dom, byId(dom, "book-detail-translate-btn"));
 
@@ -265,10 +272,53 @@ test("书籍详情弹窗:馆藏点翻译 → translateDocument 起 job 后整页
       .find((doc) => doc.document_id === untranslated.document_id)?.active_job_id,
     "translateDocument 给文档挂上 active_job_id",
   );
+
+  // 详情 payload 立刻挂真实 job（翻译 Tab 可嵌 StatusCard）
+  await waitFor(() => {
+    const payload = services.bookDetail.dialogStore.getState().payload;
+    const jobId = `${payload?.job_id || ""}`.trim();
+    return jobId && !jobId.startsWith("doc:") && payload?.library_only === false;
+  }, "详情 payload 立刻有真实 job_id");
+
+  // 进度卡应出现在详情内 bd-job-status-inner（不需等整页重载）
+  await waitFor(() => byId(dom, "book-detail-job-status-card"), "翻译 Tab 立刻出现 StatusCard");
+  const statusCard = byId(dom, "book-detail-job-status-card");
+  assert.ok(
+    statusCard.querySelector(".bd-job-status-inner"),
+    "进度落在 bd-job-status-inner（详情内嵌，非工作流弹窗）",
+  );
+  assert.ok(
+    statusCard.querySelector(".bd-job-status-bar"),
+    "内嵌区用进度条（无圆环）",
+  );
+  assert.ok(
+    statusCard.querySelector(".status-stage-flow"),
+    "阶段流在详情内嵌卡内",
+  );
+
+  // 绝不能打开工作流弹窗当进度 UI
+  assert.equal(
+    byId(dom, "translation-workflow-dialog"),
+    null,
+    "详情点翻译不打开工作流弹窗",
+  );
+  assert.equal(
+    services.stores.statusArea.getSnapshot().visible,
+    false,
+    "主状态区保持隐藏（进度不在弹窗 StatusCard）",
+  );
+
+  // 网格有真实 job 行
   await waitFor(
     () => services.library.recentJobsStore.getSnapshot().items
       .some((item) => item.document_id === untranslated.document_id && !item.library_only),
-    "整页重载后该文档以真实 job 回到网格(轮询接管)",
+    "网格出现真实 job 行",
+  );
+
+  assert.notEqual(
+    services.stores.homeState.getSnapshot().recentJobsLoadingState,
+    HOME_LOADING_STATES.LOADING,
+    "翻译后静默更新，不把 recentJobs 打成 loading",
   );
 
   root.unmount();
@@ -282,7 +332,7 @@ test("RecentJobsLibrary：卡片渲染隔离(replaceItem 单卡,其余 23 张卡
   const {
     getCardRenderCountForTests,
     resetCardRenderCountsForTests,
-  } = await import("../src/pages/home/features/library/RecentJobCard.jsx");
+  } = await import("../src/pages/home/features/library/index.js");
 
   const items = Array.from({ length: 24 }, (_, index) => makeItem(index));
   services.library.recentJobsStore.actions.setItems(items);

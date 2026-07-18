@@ -748,15 +748,10 @@ test("secondary resource scheduler port owns controller scheduling dependencies"
   assert.equal(patches.some((patch) => patch.source === "stageActions"), true);
   assert.equal(patches.find((patch) => patch.source === "events").context.events.items.at(-1).progress.current, 4);
   assert.equal(patches.find((patch) => patch.source === "manifest").context.manifest.requestedJobId, jobId);
-  assert.equal(libraryUpdates[0].job_id, jobId);
-  assert.equal(libraryUpdates[0].stage_snapshot.publicStage, "translation");
-  assert.equal(libraryUpdates[0].stage_snapshot.substage, "translation_batches");
-  assert.equal(libraryUpdates[0].stage_snapshot.progress.current, 4);
-  assert.equal(libraryUpdates[0].stage_snapshot.progress.total, 8);
-  assert.equal(libraryUpdates[0].stage_snapshot.progress.unit, "batch");
+  // events 副资源不再推图书馆（由主 poll 负责），避免双路 publish 抖网格
+  assert.deepEqual(libraryUpdates, []);
   assert.equal(portCalls.some((call) => call[0] === "cache" && call[1] === "events"), true);
   assert.equal(portCalls.some((call) => call[0] === "currentFor" && call[1] === jobId), true);
-  assert.equal(portCalls.some((call) => call[0] === "snapshotFor" && call[1] === jobId), true);
 });
 
 test("secondary resource scheduler ignores stale generations through polling port", async () => {
@@ -1267,6 +1262,91 @@ test("job runtime startPolling immediately publishes placeholder to the library"
   assert.equal(libraryUpdated.at(-1).status, "running");
 });
 
+test("job runtime startPolling({ silent: true }) skips library create and workflow sections", async () => {
+  const state = createInitialState();
+  const libraryCreated = [];
+  const libraryUpdated = [];
+  const workflowCalls = [];
+  const feature = mountJobRuntimeFeature({
+    state,
+    apiPrefix: "/api/v1",
+    buildJobDetailEndpoint: (jobId, apiPrefix) => `${apiPrefix}/jobs/${jobId}`,
+    fetchJobPayload: async (jobId) => ({ job_id: jobId, status: "running", display_stage: "ocr" }),
+    fetchJobEvents: async () => ({ items: [] }),
+    fetchJobArtifactsManifest: async () => ({ artifacts: [] }),
+    fetchJobStageActions: async () => ({ actions: [] }),
+    retryJobStage: async () => ({}),
+    submitJson: async () => ({}),
+    renderJob: () => {},
+    renderJobSecondaryPatch: () => {},
+    setText: () => {},
+    setWorkflowSections: (job) => workflowCalls.push(job?.job_id || null),
+    resetUploadProgress: () => {},
+    resetUploadedFile: () => {},
+    applyWorkflowMode: () => {},
+    clearPageRanges: () => {},
+    updateJobWarning: () => {},
+    activateDetailTab: () => {},
+    libraryEventPort: {
+      publishJobCreated(job) {
+        libraryCreated.push(job);
+      },
+      publishJobUpdated(job) {
+        libraryUpdated.push(job);
+      },
+      requestRefresh() {},
+    },
+    pollingPort: {
+      beginPoll: () => 1,
+      finishPoll() {},
+      isCurrentGeneration: () => true,
+      startJob(jobId) {
+        state.currentJobId = jobId;
+        return { generation: 1, startedAt: "2026-06-17T00:00:00Z" };
+      },
+      startTimer() {},
+      stop() {},
+    },
+    currentJobPort: {
+      jobId: () => state.currentJobId,
+    },
+    secondaryResourcePort: {
+      cachedFor: () => null,
+    },
+    renderContextPort: {
+      applySnapshot: (input) => ({ job: input.payload, jobId: input.payload.job_id }),
+    },
+    secondaryResourceSchedulerPort: {
+      schedule() {},
+    },
+    jobEventsResource: {
+      load: async () => ({ status: "success", data: { items: [] } }),
+    },
+    jobPresentationPort: {
+      isTerminalStatus,
+      normalizeJobPayload,
+    },
+    shellViewPort: {
+      closeDialogs() {},
+      isReaderOpen: () => false,
+      resetEvents() {},
+      setCancelDisabled() {},
+    },
+  });
+
+  feature.startPolling("job-silent", { silent: true });
+
+  assert.deepEqual(libraryCreated, [], "silent 不 publishJobCreated");
+  assert.deepEqual(workflowCalls, [], "silent 不 setWorkflowSections");
+  // silent：status/stage 变化仍会 notify（封面转圈），但不整页 refresh
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.ok(libraryUpdated.length >= 1, "silent 首帧/阶段变化应 notify 书架以驱动封面 loading");
+  assert.ok(
+    libraryUpdated.every((job) => job.job_id === "job-silent"),
+    "silent notify 仅当前 job",
+  );
+});
+
 test("job runtime controller routes cancel button state through shell view port", async () => {
   const state = createInitialState();
   state.currentJobId = "job-cancel";
@@ -1382,12 +1462,8 @@ test("secondary event refresh uses patch renderer instead of full job render", a
   assert.equal(patches.find((patch) => patch.source === "manifest").context.manifest.artifacts.length, 0);
   assert.equal(patches.find((patch) => patch.source === "stageActions").context.stageActions.actions.length, 0);
   assert.deepEqual(currentJobStateModule.currentJobSnapshot(runtimeState), job);
-  assert.equal(libraryUpdates[0].job_id, jobId);
-  assert.equal(libraryUpdates[0].stage_snapshot.publicStage, "translation");
-  assert.equal(libraryUpdates[0].stage_snapshot.substage, "translation_batches");
-  assert.equal(libraryUpdates[0].stage_snapshot.progress.current, 2);
-  assert.equal(libraryUpdates[0].stage_snapshot.progress.total, 10);
-  assert.equal(libraryUpdates[0].stage_snapshot.progress.unit, "batch");
+  // events 副资源不再推图书馆
+  assert.deepEqual(libraryUpdates, []);
 });
 
 test("secondary resource patches pass render context instead of raw cache inputs", async () => {

@@ -50,7 +50,13 @@ impl RuntimePathsConfig {
         rust_api_root: PathBuf,
         scripts_dir: PathBuf,
     ) -> Result<Self> {
-        let data_root = resolve_data_root(&project_root);
+        // Relative env paths (e.g. RUST_API_DATA_ROOT=../../data) must be
+        // absolutized against the process cwd. Otherwise uploads_dir becomes
+        // "../../data/uploads/..." and DB storage rejects parent-relative paths.
+        let project_root = absolutize_path(&project_root);
+        let rust_api_root = absolutize_path(&rust_api_root);
+        let scripts_dir = absolutize_path(&scripts_dir);
+        let data_root = absolutize_path(&resolve_data_root(&project_root));
         Ok(Self::from_roots_unchecked(
             project_root,
             rust_api_root,
@@ -143,4 +149,25 @@ fn resolve_data_root(project_root: &Path) -> PathBuf {
     env_path("RUST_API_DATA_ROOT")
         .or_else(|| env_path("RUST_API_DATA_DIR"))
         .unwrap_or_else(|| project_root.join("data"))
+}
+
+/// Resolve a possibly-relative path to an absolute path.
+///
+/// Prefer `canonicalize` when the path already exists so `..` segments collapse.
+/// Fall back to `cwd.join(path)` without requiring the target to exist yet
+/// (e.g. a brand-new data root on first boot).
+fn absolutize_path(path: &Path) -> PathBuf {
+    if let Ok(canonical) = path.canonicalize() {
+        return canonical;
+    }
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    match std::env::current_dir() {
+        Ok(cwd) => {
+            let joined = cwd.join(path);
+            joined.canonicalize().unwrap_or(joined)
+        }
+        Err(_) => path.to_path_buf(),
+    }
 }

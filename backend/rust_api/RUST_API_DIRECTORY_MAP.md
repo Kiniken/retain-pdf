@@ -7,17 +7,20 @@
 ## 最常见入口
 
 - 改 HTTP 接口：
-  [`src/routes`](/home/wxyhgk/tmp/Code/backend/rust_api/src/routes)
+  [`src/routes`](src/routes)
 - 改 jobs 用例编排：
-  [`src/services/jobs`](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/jobs)
+  [`src/services/jobs`](src/services/jobs)
+- 改图书馆域（文档/收藏/检索/资产/会话/合集）：
+  [`src/services/library_api.rs`](src/services/library_api.rs) +
+  [`src/services/library`](src/services/library)
 - 改 worker 运行链路：
-  [`src/job_runner`](/home/wxyhgk/tmp/Code/backend/rust_api/src/job_runner)
+  [`src/job_runner`](src/job_runner)
 - 改 OCR provider 分发和适配：
-  [`src/ocr_provider`](/home/wxyhgk/tmp/Code/backend/rust_api/src/ocr_provider)
+  [`src/ocr_provider`](src/ocr_provider)
 - 改后端运行参数、provider 超时/重试、路径和认证配置：
-  [`src/config`](/home/wxyhgk/tmp/Code/backend/rust_api/src/config)
+  [`src/config`](src/config)
 - 改 Python worker 入口命令或 stage spec：
-  [`src/worker_command`](/home/wxyhgk/tmp/Code/backend/rust_api/src/worker_command)
+  [`src/worker_command`](src/worker_command)
 
 ## 目录地图
 
@@ -67,15 +70,28 @@
 - 作用：
   HTTP 参数提取、请求转发、统一响应封装。
 - 不该做的事：
-  不直接碰 `job_runner`，不自己拼底层业务逻辑。
+  不直接碰 `job_runner`，不自己拼底层业务逻辑，不 `state.db` / 内部 service，
+  models 只经 `models::api` / `domain` / `request`。
 
 #### `src/routes/jobs`
 
 - `json_response/`
-  jobs JSON 查询 / debug / cancel / retry 的响应出口，只调用 `JobsFacade`
+  jobs JSON 查询 / detail / cancel / retry 的响应出口，只调用 `JobsFacade`
   并封装 `ApiResponse`。
 - `create.rs` / `download.rs` / `query.rs` / `control.rs` / `translation_debug.rs`
   真正的 axum route 入口。
+
+#### `src/routes` library 面
+
+- `library.rs`
+  books 投影 API；只调 `library_api`；cover/thumbnail 走 `download_response`。
+- `library_data.rs`
+  documents / media / translate-from-library / favorites / search；只调 `library_api`。
+- `library_extras.rs`
+  assets / conversations；multipart 解包留在 route，业务进 `library_api`。
+- `collections.rs`
+  合集 CRUD 与成员关系；只调 `library_api`。
+- deps：`routes/common.rs::build_library_route_deps`（`LibraryDeps` + `JobsFacade`）。
 
 #### `src/routes/download_response`
 
@@ -97,6 +113,22 @@
   创建、取消、同步 bundle 这类命令型能力。
 - `query/*`
   列表、详情、下载、artifacts、translation debug 这类查询型能力。
+
+#### `src/services/library_api.rs` + `src/services/library/*`
+
+- 作用：
+  给 route 提供统一 **Library** 入口（与 `JobsFacade` / `glossary_api` 同级）。
+- 进入条件：
+  改文档、馆藏翻译入口、收藏、全文检索、资产、会话、合集业务时进这里；
+  **不要** 把逻辑写回 `routes/library_*`。
+- 子模块：
+  - `books.rs` — library books 列表/详情/删除（投影委托 `book_projection`）
+  - `documents.rs` / `media.rs` — 文档 CRUD 与 source.pdf/cover/thumbnail
+  - `translate.rs` — 绑定文档 upload 后调 `JobsFacade::create_submission`
+  - `favorites.rs` / `search.rs` — 锚点收藏与 blocks FTS
+  - `assets.rs` / `conversations.rs` / `collections.rs` — 资产、会话、合集
+- 规则：
+  route 只 import `library_api::`；`derived_artifacts` 只允许在 service 内部使用。
 
 #### `src/services/jobs/creation`
 
@@ -122,15 +154,17 @@
 
 #### 其他 service 入口
 
-- [`src/services/upload_api.rs`](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/upload_api.rs)
+- [`src/services/upload_api.rs`](src/services/upload_api.rs)
   上传接口入口。
-- [`src/services/glossary_api.rs`](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/glossary_api.rs)
+- [`src/services/glossary_api.rs`](src/services/glossary_api.rs)
   术语表接口入口。
-- [`src/services/job_snapshot_factory.rs`](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/job_snapshot_factory.rs)
+- [`src/services/library_api.rs`](src/services/library_api.rs)
+  图书馆接口入口（见上）。
+- [`src/services/job_snapshot_factory.rs`](src/services/job_snapshot_factory.rs)
   job snapshot/command 构造边界。
-- [`src/services/job_launcher.rs`](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/job_launcher.rs)
+- [`src/services/job_launcher.rs`](src/services/job_launcher.rs)
   job 持久化与启动边界。
-- [`src/services/runtime_gateway.rs`](/home/wxyhgk/tmp/Code/backend/rust_api/src/services/runtime_gateway.rs)
+- [`src/services/runtime_gateway.rs`](src/services/runtime_gateway.rs)
   services 访问 runtime 能力的收口层。
 
 ### `src/worker_command.rs` + `src/worker_command/*`

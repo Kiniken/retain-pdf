@@ -112,6 +112,8 @@ pub fn build_glossary_route_deps(state: &AppState) -> GlossaryRouteDeps<'_> {
 
 pub struct LibraryRouteDeps<'a> {
     pub library: LibraryDeps<'a>,
+    /// Jobs creation path for document translate-from-library (and future library→job flows).
+    pub jobs: JobsFacade<'a>,
     pub default_port: u16,
 }
 
@@ -122,7 +124,10 @@ pub fn build_library_route_deps(state: &AppState) -> LibraryRouteDeps<'_> {
             data_root: &state.config.data_root,
             output_root: &state.config.output_root,
             downloads_dir: &state.config.downloads_dir,
+            scripts_dir: &state.config.scripts_dir,
+            python_bin: &state.config.python_bin,
         },
+        jobs: build_jobs_facade_from_state(state),
         default_port: state.config.port,
     }
 }

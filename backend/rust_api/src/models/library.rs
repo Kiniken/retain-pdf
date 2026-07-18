@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+fn default_documents_limit() -> u32 {
+    50
+}
+
 /// 文档:图书馆一等公民,document_id = sha256(文件字节)。
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DocumentRecord {
@@ -17,6 +21,15 @@ pub struct DocumentRecord {
     pub last_opened_at: Option<String>,
     pub updated_at: String,
     pub tags: Vec<String>,
+    /// 源 PDF 下载 URL（列表/详情由 API 层填充，不入库）
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source_pdf_url: String,
+    /// 封面图 URL（列表/详情由 API 层填充，不入库）
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub cover_url: String,
+    /// 缩略图 URL（列表/详情由 API 层填充，不入库）
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub thumbnail_url: String,
 }
 
 /// 收藏:锚点 = (document_id, job_id, page_idx, block_id[, 选区]) + 引文快照。
@@ -113,4 +126,183 @@ pub struct BlockSearchHit {
     pub block_id: String,
     pub source_snippet: String,
     pub translated_snippet: String,
+}
+
+/// GET /api/v1/documents 查询参数。
+#[derive(Debug, Deserialize)]
+pub struct ListDocumentsQuery {
+    #[serde(default = "default_documents_limit")]
+    pub limit: u32,
+    #[serde(default)]
+    pub offset: u32,
+    pub reading_status: Option<String>,
+    pub tag: Option<String>,
+    pub collection_id: Option<String>,
+    /// 按任意 job_id(含历史 run)直查其所属文档,前端无需再扫列表反查
+    pub job_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DocumentListView {
+    pub documents: Vec<DocumentRecord>,
+}
+
+/// PATCH /api/v1/documents/:id
+#[derive(Debug, Deserialize)]
+pub struct PatchDocumentInput {
+    pub title: Option<String>,
+    pub reading_status: Option<String>,
+    pub tags: Option<Vec<String>>,
+}
+
+/// POST /api/v1/favorites
+#[derive(Debug, Deserialize)]
+pub struct CreateFavoriteInput {
+    /// 可缺省:给了 job_id 时后端自动解析所属文档(历史 run 也能收藏)
+    #[serde(default)]
+    pub document_id: String,
+    /// 锚点所在块空间;缺省用文档当前 active_job_id
+    pub job_id: Option<String>,
+    pub page_idx: i64,
+    pub block_id: String,
+    pub char_start: Option<i64>,
+    pub char_end: Option<i64>,
+    #[serde(default)]
+    pub kind: Option<String>,
+    pub quote_text: String,
+    #[serde(default)]
+    pub translated_quote_text: Option<String>,
+    #[serde(default)]
+    pub note: Option<String>,
+    /// 图片附件:先 POST /api/v1/assets 拿 asset_id 再挂上(kind 建议 figure)
+    #[serde(default)]
+    pub asset_id: Option<String>,
+    /// 截图剪裁矩形几何(前端坐标系原样存)
+    #[serde(default)]
+    pub rect_json: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListFavoritesQuery {
+    pub document_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FavoriteListView {
+    pub favorites: Vec<FavoriteRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PatchFavoriteInput {
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FavoriteMutationResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<bool>,
+}
+
+fn default_search_limit() -> u32 {
+    20
+}
+
+/// GET /api/v1/search
+#[derive(Debug, Deserialize)]
+pub struct SearchQuery {
+    pub q: String,
+    #[serde(default = "default_search_limit")]
+    pub limit: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SearchResultView {
+    pub query: String,
+    pub hits: Vec<BlockSearchHit>,
+}
+
+// --- conversations ---
+
+#[derive(Debug, Deserialize)]
+pub struct CreateConversationInput {
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub document_id: String,
+}
+
+fn default_conversations_limit() -> u32 {
+    50
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListConversationsQuery {
+    #[serde(default = "default_conversations_limit")]
+    pub limit: u32,
+    #[serde(default)]
+    pub offset: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ConversationListView {
+    pub conversations: Vec<ConversationRecord>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ConversationDetailView {
+    #[serde(flatten)]
+    pub conversation: ConversationRecord,
+    pub messages: Vec<MessageRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AppendMessageInput {
+    pub role: String,
+    pub content: String,
+    #[serde(default)]
+    pub citations_json: String,
+    #[serde(default)]
+    pub tool_trace_json: String,
+    #[serde(default)]
+    pub model: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ConversationMutationResult {
+    pub deleted: bool,
+}
+
+// --- collections ---
+
+#[derive(Debug, Deserialize)]
+pub struct CreateCollectionInput {
+    pub name: String,
+    #[serde(default)]
+    pub parent_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CollectionListView {
+    pub collections: Vec<CollectionRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PatchCollectionInput {
+    pub name: Option<String>,
+    pub sort_order: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddCollectionDocumentsInput {
+    pub document_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CollectionMutationResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deleted: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub removed: Option<bool>,
 }

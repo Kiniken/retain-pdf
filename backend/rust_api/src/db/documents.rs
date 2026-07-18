@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::models::domain::{now_iso, UploadRecord};
-use crate::models::library::{BlockSearchHit, DocumentRecord, FavoriteRecord, FtsBlockRow};
+use crate::models::api::{BlockSearchHit, DocumentRecord, FavoriteRecord, FtsBlockRow};
 use crate::storage_paths::resolve_data_path;
 
 use super::Db;
@@ -90,7 +90,12 @@ impl Db {
         collection_id: Option<&str>,
     ) -> Result<Vec<DocumentRecord>> {
         let conn = self.connect()?;
-        let mut clauses: Vec<String> = Vec::new();
+        // 防御性:图书馆列表永不返回无 upload 支撑的孤儿文档(源文件已丢的
+        // 僵尸卡)。"只入库"文档有 upload 只是没 job,不受影响。
+        let mut clauses: Vec<String> = vec![
+            "EXISTS (SELECT 1 FROM uploads u WHERE u.content_hash = d.document_id AND u.content_hash <> '')"
+                .to_string(),
+        ];
         let mut args: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
         if let Some(status) = reading_status {
             clauses.push(format!("d.reading_status = ?{}", args.len() + 1));
@@ -197,6 +202,150 @@ impl Db {
             params![document_id, job_id],
         )?;
         Ok(Some(document_id))
+    }
+
+    /// 按 document_id(= content_hash) 找到最近一次上传记录，用于源 PDF / 封面 / 重译。
+    pub fn find_upload_for_document(&self, document_id: &str) -> Result<Option<UploadRecord>> {
+        let conn = self.connect()?;
+        let upload = conn
+            .query_row(
+                r#"
+                SELECT upload_id, filename, stored_path, bytes, page_count, uploaded_at,
+                       developer_mode, content_hash
+                FROM uploads
+                WHERE content_hash = ?1 AND content_hash <> ''
+                ORDER BY uploaded_at DESC
+                LIMIT 1
+                "#,
+                params![document_id],
+                |row| {
+                    Ok(UploadRecord {
+                        upload_id: row.get(0)?,
+                        filename: row.get(1)?,
+                        stored_path: row.get(2)?,
+                        bytes: row.get::<_, i64>(3)? as u64,
+                        page_count: row.get::<_, i64>(4)? as u32,
+                        uploaded_at: row.get(5)?,
+                        developer_mode: row.get::<_, i64>(6)? != 0,
+                        content_hash: row.get(7)?,
+                    })
+                },
+            )
+            .optional()?;
+        let Some(upload) = upload else {
+            return Ok(None);
+        };
+        Ok(Some(UploadRecord {
+            stored_path: resolve_data_path(&self.data_root, &upload.stored_path)?
+                .to_string_lossy()
+                .to_string(),
+            ..upload
+        }))
+    }
+
+    /// 该文档名下的所有 job_id(经 jobs.document_id 关联)。
+    pub fn job_ids_for_document(&self, document_id: &str) -> Result<Vec<String>> {
+        let conn = self.connect()?;
+        let mut stmt =
+            conn.prepare("SELECT job_id FROM jobs WHERE document_id = ?1 ORDER BY created_at")?;
+        let rows = stmt.query_map(params![document_id], |row| row.get::<_, String>(0))?;
+        let mut ids = Vec::new();
+        for row in rows {
+            ids.push(row?);
+        }
+        Ok(ids)
+    }
+
+    /// 该文档对应的所有 upload 记录(可能同一文件多次上传成多个 upload_id),
+    /// stored_path 解析为绝对路径供删除磁盘文件。
+    pub fn uploads_for_document(&self, document_id: &str) -> Result<Vec<UploadRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT upload_id, filename, stored_path, bytes, page_count, uploaded_at,
+                   developer_mode, content_hash
+            FROM uploads
+            WHERE content_hash = ?1 AND content_hash <> ''
+            "#,
+        )?;
+        let rows = stmt.query_map(params![document_id], |row| {
+            Ok(UploadRecord {
+                upload_id: row.get(0)?,
+                filename: row.get(1)?,
+                stored_path: row.get(2)?,
+                bytes: row.get::<_, i64>(3)? as u64,
+                page_count: row.get::<_, i64>(4)? as u32,
+                uploaded_at: row.get(5)?,
+                developer_mode: row.get::<_, i64>(6)? != 0,
+                content_hash: row.get(7)?,
+            })
+        })?;
+        let mut uploads = Vec::new();
+        for row in rows {
+            let upload = row?;
+            let resolved = resolve_data_path(&self.data_root, &upload.stored_path)?
+                .to_string_lossy()
+                .to_string();
+            uploads.push(UploadRecord {
+                stored_path: resolved,
+                ..upload
+            });
+        }
+        Ok(uploads)
+    }
+
+    pub fn delete_upload(&self, upload_id: &str) -> Result<bool> {
+        let conn = self.connect()?;
+        let changed = conn.execute("DELETE FROM uploads WHERE upload_id = ?1", params![upload_id])?;
+        Ok(changed > 0)
+    }
+
+    pub fn favorites_count_for_document(&self, document_id: &str) -> Result<u64> {
+        let conn = self.connect()?;
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM favorites WHERE document_id = ?1",
+            params![document_id],
+            |row| row.get(0),
+        )?;
+        Ok(count as u64)
+    }
+
+    /// 删除文档行(FK 级联清 favorites/document_tags/collection_documents,
+    /// ai_conversations.document_id 置 NULL)+ 派生的 blocks_fts 行。
+    pub fn delete_document(&self, document_id: &str) -> Result<bool> {
+        let conn = self.connect()?;
+        conn.execute(
+            "DELETE FROM blocks_fts WHERE document_id = ?1",
+            params![document_id],
+        )?;
+        let changed = conn.execute(
+            "DELETE FROM documents WHERE document_id = ?1",
+            params![document_id],
+        )?;
+        Ok(changed > 0)
+    }
+
+    /// 修复悬空的 active_job_id:若它指向的 job 已不存在,重指该文档下最新的
+    /// 成功 book job;没有则置 NULL(降级为干净馆藏)。删 job 后必调,防僵尸卡。
+    pub fn reconcile_document_active_job(&self, document_id: &str) -> Result<()> {
+        let conn = self.connect()?;
+        conn.execute(
+            r#"
+            UPDATE documents SET active_job_id = (
+                SELECT j.job_id FROM jobs j
+                WHERE j.document_id = documents.document_id
+                  AND j.workflow <> '"ocr"'
+                  AND j.status_json = '"succeeded"'
+                ORDER BY j.finished_at DESC
+                LIMIT 1
+            ), updated_at = ?2
+            WHERE documents.document_id = ?1
+              AND documents.active_job_id IS NOT NULL
+              AND documents.active_job_id NOT IN (SELECT job_id FROM jobs)
+            "#,
+            params![document_id, now_iso()],
+        )?;
+        Ok(())
     }
 
     pub fn set_document_active_job(
@@ -389,6 +538,50 @@ impl Db {
         self.backfill_job_document_links()?;
         self.backfill_active_jobs()?;
         self.backfill_fts_indexes()?;
+        self.cleanup_orphan_documents()?;
+        Ok(())
+    }
+
+    /// 一次性清理孤儿文档:没有任何 upload 支撑(源文件早被 retention GC 掉)
+    /// 的文档行,是永远打不开的僵尸卡。只清没有收藏引用的——有收藏的降级
+    /// 数据保留给用户经 DELETE /documents/:id 显式处理,不无声销毁策展内容。
+    /// root-cause(retention 不再删 document-backed upload)已堵住新孤儿产生,
+    /// 此清理只处理历史遗留。
+    fn cleanup_orphan_documents(&self) -> Result<()> {
+        let conn = self.connect()?;
+        let orphan_ids: Vec<String> = {
+            let mut stmt = conn.prepare(
+                r#"
+                SELECT d.document_id FROM documents d
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM uploads u
+                    WHERE u.content_hash = d.document_id AND u.content_hash <> ''
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM favorites f WHERE f.document_id = d.document_id
+                )
+                "#,
+            )?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+            rows.collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        if orphan_ids.is_empty() {
+            return Ok(());
+        }
+        for document_id in &orphan_ids {
+            conn.execute(
+                "DELETE FROM blocks_fts WHERE document_id = ?1",
+                params![document_id],
+            )?;
+            conn.execute(
+                "DELETE FROM documents WHERE document_id = ?1",
+                params![document_id],
+            )?;
+        }
+        eprintln!(
+            "[library] cleaned {} orphan document(s) with no backing upload",
+            orphan_ids.len()
+        );
         Ok(())
     }
 
@@ -563,6 +756,9 @@ fn row_to_document(row: &rusqlite::Row<'_>) -> rusqlite::Result<DocumentRecord> 
         last_opened_at: row.get(11)?,
         updated_at: row.get(12)?,
         tags: Vec::new(),
+        source_pdf_url: String::new(),
+        cover_url: String::new(),
+        thumbnail_url: String::new(),
     })
 }
 
@@ -787,10 +983,13 @@ mod tests {
         let db = fs.db();
         db.init().expect("init");
         let hash = sha256_hex(b"same pdf bytes");
-        db.upsert_document_from_upload(&upload_with_hash("up-1", &hash))
-            .expect("first upsert");
-        db.upsert_document_from_upload(&upload_with_hash("up-2", &hash))
-            .expect("second upsert");
+        // 生产路径:save_upload 先于 upsert_document(列表过滤依赖 upload 存在)
+        let up1 = upload_with_hash("up-1", &hash);
+        db.save_upload(&up1).expect("save up-1");
+        db.upsert_document_from_upload(&up1).expect("first upsert");
+        let up2 = upload_with_hash("up-2", &hash);
+        db.save_upload(&up2).expect("save up-2");
+        db.upsert_document_from_upload(&up2).expect("second upsert");
         let documents = db
             .list_documents(10, 0, None, None, None)
             .expect("list documents");
@@ -866,8 +1065,9 @@ mod tests {
         let db = fs.db();
         db.init().expect("init");
         let hash = sha256_hex(b"patch doc");
-        db.upsert_document_from_upload(&upload_with_hash("up-1", &hash))
-            .expect("upsert");
+        let up = upload_with_hash("up-1", &hash);
+        db.save_upload(&up).expect("save upload");
+        db.upsert_document_from_upload(&up).expect("upsert");
         let updated = db
             .update_document_fields(
                 &hash,

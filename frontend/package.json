@@ -10,6 +10,7 @@
     "stamp:assets": "node ./scripts/stamp-cache-version.mjs",
     "generate:version": "node ./scripts/generate-app-version.mjs",
     "prepare:vendor": "node ./scripts/prepare-runtime-deps.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "smoke:desktop-first-run": "node ./scripts/desktop-first-run-smoke.mjs",
     "smoke:homepage-actions": "python3 ./scripts/frontend-homepage-actions-smoke.py",
     "smoke:homepage": "python3 ./scripts/frontend-homepage-smoke.py",
@@ -24,12 +25,16 @@
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.2",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "esbuild": "^0.28.0",
     "jsdom": "^29.1.1",
     "pixelmatch": "^7.2.0",
     "playwright": "^1.61.1",
     "pngjs": "^7.0.0",
-    "tailwindcss": "^4.3.2"
+    "tailwindcss": "^4.3.2",
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

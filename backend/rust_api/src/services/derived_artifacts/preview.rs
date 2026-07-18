@@ -36,11 +36,33 @@ pub(crate) fn ensure_book_image(
 ) -> Result<PathBuf, AppError> {
     let output_dir = job_artifacts_dir(data_root, job)?;
     let output_path = output_dir.join(kind.file_name());
+    ensure_book_image_at_path(deps, source_pdf, &output_path, kind)
+}
+
+/// 文档级封面/缩略图：从源 PDF 首页渲染，缓存到 documents/<id>/。
+pub(crate) fn ensure_document_book_image(
+    deps: DerivedArtifactDeps<'_>,
+    data_root: &Path,
+    document_id: &str,
+    source_pdf: &Path,
+    kind: BookImageKind,
+) -> Result<PathBuf, AppError> {
+    let output_dir = super::document_artifacts_dir(data_root, document_id)?;
+    let output_path = output_dir.join(kind.file_name());
+    ensure_book_image_at_path(deps, source_pdf, &output_path, kind)
+}
+
+fn ensure_book_image_at_path(
+    deps: DerivedArtifactDeps<'_>,
+    source_pdf: &Path,
+    output_path: &Path,
+    kind: BookImageKind,
+) -> Result<PathBuf, AppError> {
     if output_path.exists() && output_path.is_file() {
-        return Ok(output_path);
+        return Ok(output_path.to_path_buf());
     }
-    render_book_image(deps.python_bin, source_pdf, &output_path, kind.width_px())?;
-    Ok(output_path)
+    render_book_image(deps.python_bin, source_pdf, output_path, kind.width_px())?;
+    Ok(output_path.to_path_buf())
 }
 
 pub(crate) fn ensure_page_preview(

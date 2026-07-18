@@ -22,6 +22,9 @@
 - 这些 item 标记为 `provider_joined`，后续规则不再重复消费
 - 没有可用 provider hint 的部分，仍继续走本地规则拼接
 - 不满足受控条件的 `cross_page` provider hint 会继续保留在 payload 里，但不会直接驱动拼接
+- 规则扫描不得因中间缺页（payload 里 page_idx 不连续）整段中止；`pair_join_score` 仍只允许相邻 `page_idx` 直接 join
+- 双栏 L→R 优先信 `layout_zone`，窄栏缝（&lt;8pt）也允许 bbox 判定
+- 后一段若像章节号标题（如 `2.2.1 Title`），硬 break，避免把残句拼进新小节
 
 这样做的目的很明确：
 

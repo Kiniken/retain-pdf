@@ -87,7 +87,25 @@ pub fn build_app(state: AppState) -> Router {
         )
         .route(
             "/api/v1/documents/:document_id",
-            get(library_data::get_document_route).patch(library_data::patch_document_route),
+            get(library_data::get_document_route)
+                .patch(library_data::patch_document_route)
+                .delete(library_data::delete_document_route),
+        )
+        .route(
+            "/api/v1/documents/:document_id/source.pdf",
+            get(library_data::download_document_source_pdf_route),
+        )
+        .route(
+            "/api/v1/documents/:document_id/cover",
+            get(library_data::download_document_cover_route),
+        )
+        .route(
+            "/api/v1/documents/:document_id/thumbnail",
+            get(library_data::download_document_thumbnail_route),
+        )
+        .route(
+            "/api/v1/documents/:document_id/translate",
+            post(library_data::translate_document_route),
         )
         .route(
             "/api/v1/favorites",
