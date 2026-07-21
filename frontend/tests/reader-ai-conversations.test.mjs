@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 
 // 多会话对话管理(React 组件版):旧版驱动 src/js/reader/ai/chat.js 的 DOM 控制器,
-// Phase 2b 起 AI 问答 UI 迁入 React(src/pages/reader/components/ReaderAiChat.jsx)。
+// Phase 2b 起 AI 问答 UI 迁入 React(src/pages/reader/legacy/components/ReaderAiChat.jsx)。
 // 断言语义与旧版一致:气泡类名(.reader-ai-message-body-el)、会话下拉选项、
 // historyStore 会话数。另收编旧 reader.test.mjs 的两条 chat 语义:
 // 提交状态流转、502 回退本地检索。
@@ -29,7 +29,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = false;
 
 const { createRoot } = await import("react-dom/client");
 const React = await import("react");
-const { ReaderAiChat } = await import("../src/pages/reader/components/ReaderAiChat.jsx");
+const { ReaderAiChat } = await import("../src/pages/reader/legacy/components/ReaderAiChat.jsx");
 const { createReaderAiHistoryStore } = await import("../src/js/reader/ai/chat-history-store.js");
 
 function wait(ms) {

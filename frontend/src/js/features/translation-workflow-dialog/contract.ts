@@ -26,7 +26,7 @@ export const TRANSLATION_WORKFLOW_DIALOG = {
   },
   copy: {
     statusTitle: "任务进度",
-    // 图书馆优先(参考 PDF_MD_lib 的 UploadModal):添加 = 入库,不是翻译。
-    uploadTitle: "添加 PDF 到图书馆",
+    uploadTitle: "添加 PDF",
+    uploadDescription: "上传后可直接翻译，或只收藏到书架。",
   },
 };

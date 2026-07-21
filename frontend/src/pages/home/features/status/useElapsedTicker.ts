@@ -5,8 +5,10 @@
 // 即停,直接复用 job/elapsed-view-model.js 的纯函数。
 
 import { useEffect, useState } from "react";
-import { buildElapsedViewModel } from "../../../../js/job/elapsed-view-model.js";
-import { isTerminalStatus } from "../../../../js/job/core.js";
+import {
+  buildElapsedViewModel,
+  isTerminalStatus,
+} from "../../composition/external.js";
 
 export function useElapsedTicker(job, { finishedAtFallback = "" } = {}) {
   const [tick, setTick] = useState(0);

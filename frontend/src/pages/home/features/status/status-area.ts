@@ -1,3 +1,11 @@
+import {
+  APP_EVENTS,
+  createStore,
+  buildWorkflowSectionsViewModel,
+  createTranslationWorkflowStatusAreaPort,
+} from "../../composition/external.js";
+import type { Store } from "../../composition/external.js";
+
 // 状态区(#status-section)可见性 feature。
 //
 // 3a 只落"可见性 + 事件契约"(镜像 ui/status-area-view.js 的 setStatusAreaVisible
@@ -7,11 +15,6 @@
 //
 // 事件契约:每次 setVisible 都 dispatch statusAreaVisibilityChanged(旧世界
 // 同款,translation-workflow-dialog 靠它同步 upload/status 模式)。
-
-import { APP_EVENTS } from "../../../../js/contracts/app-contract.js";
-import { createStore, type Store } from "../../../../js/app-framework/store.js";
-import { createTranslationWorkflowStatusAreaPort } from "../../../../js/features/translation-workflow-dialog/status-area-port.js";
-import { buildWorkflowSectionsViewModel } from "../../../../js/job/workflow-visibility-view-model.js";
 
 export type StatusAreaState = {
   visible: boolean;

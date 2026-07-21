@@ -5,6 +5,7 @@
 // 纯格式化函数(finalStatusOf/finalStatusLabel/finalStatusClass/previewText/
 // pageNumberOf/errorTypesOf)保留直接 import。
 
+import { STATUS_DETAIL_DIALOG_IDS } from "./status-detail-dom-ids.js";
 import {
   errorTypesOf,
   finalStatusClass,
@@ -12,8 +13,7 @@ import {
   finalStatusOf,
   pageNumberOf,
   previewText,
-} from "../../../../js/features/status-detail/formatters.js";
-import { STATUS_DETAIL_DIALOG_IDS } from "./status-detail-dom-ids.js";
+} from "../../composition/external.js";
 
 function TranslationItemCard({ item, active, onSelect }) {
   const finalStatus = finalStatusOf(item);

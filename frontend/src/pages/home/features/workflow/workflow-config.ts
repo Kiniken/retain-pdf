@@ -1,10 +1,3 @@
-// 工作流常量与归一化。
-//
-// 拷贝自 bootstrap/workflow-constants.js 与 bootstrap/workflow-normalizers.js:
-// bootstrap/ 属旧 DI 装配层,architecture-boundaries 门禁禁止 pages import;
-// 常量本体仍从 src/js/config/(纯逻辑)取,拷贝的只是组装样板。
-// home cutover 删除旧世界时,bootstrap 版随之退役,此处成为唯一出处。
-
 import {
   DEFAULT_BATCH_SIZE,
   DEFAULT_BODY_FONT_SIZE_FACTOR,
@@ -24,8 +17,15 @@ import {
   DEFAULT_TRANSLATED_PDF_NAME,
   DEFAULT_TYPST_FONT_FAMILY,
   DEFAULT_WORKERS,
-} from "../../../../js/config/workflow-defaults.js";
-import { DEFAULT_MODEL_VERSION } from "../../../../js/config/model-constants.js";
+  DEFAULT_MODEL_VERSION,
+} from "../../composition/external.js";
+
+// 工作流常量与归一化。
+//
+// 拷贝自 bootstrap/workflow-constants.js 与 bootstrap/workflow-normalizers.js:
+// bootstrap/ 属旧 DI 装配层,architecture-boundaries 门禁禁止 pages import;
+// 常量本体仍从 src/js/config/(纯逻辑)取,拷贝的只是组装样板。
+// home cutover 删除旧世界时,bootstrap 版随之退役,此处成为唯一出处。
 
 export const WORKFLOW_BOOK = "book";
 export const WORKFLOW_TRANSLATE = "translate";

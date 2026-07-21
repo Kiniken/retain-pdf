@@ -12,7 +12,6 @@ let readerResourceResolver;
 let readerRegionInteractions;
 let readerAiMarkdown;
 let readerAiConfig;
-let readerAiRemote;
 let readerModeController;
 let readerChromeController;
 let readerView;
@@ -55,7 +54,6 @@ before(async () => {
   readerRegionInteractions = await import("../src/js/reader/region-interactions.js");
   readerAiMarkdown = await import("../src/js/reader/ai/markdown-answerer.js");
   readerAiConfig = await import("../src/js/reader/ai/config.js");
-  readerAiRemote = await import("../src/js/reader/ai/remote-answerer.js");
   readerModeController = await import("../src/js/reader/mode-controller.js");
   readerChromeController = await import("../src/js/reader/chrome-controller.js");
   readerView = await import("../src/js/reader/view.js");
@@ -1093,10 +1091,10 @@ test("reader page exposes ai/favorites/download entries, keeps paused tools hidd
   // Phase 2b cutover 后 reader.html 只剩 #reader-root 挂载点,页面骨架改由
   // src/pages/reader 的 JSX 渲染:入口断言改扫新世界组件源码。
   const jsxSources = [
-    "../src/pages/reader/components/ReaderSideDrawers.tsx",
-    "../src/pages/reader/components/ReaderTopbarActions.tsx",
-    "../src/pages/reader/components/ReaderDownloadMenu.tsx",
-    "../src/pages/reader/components/ReaderAiChat.tsx",
+    "../src/pages/reader/legacy/components/ReaderSideDrawers.tsx",
+    "../src/pages/reader/legacy/components/ReaderTopbarActions.tsx",
+    "../src/pages/reader/legacy/components/ReaderDownloadMenu.tsx",
+    "../src/pages/reader/legacy/components/ReaderAiChat.tsx",
   ].map((file) => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
 
   assert.match(jsxSources, /id="reader-favorites-drawer"/);
@@ -1224,58 +1222,7 @@ test("reader markdown answerer answers from markdown sections", async () => {
 
 // chat 提交/状态流转已随 AI 问答 UI 迁入 React(use-reader-ai-chat),
 // 等价断言见 tests/reader-ai-conversations.test.mjs(React 组件版)。
-
-test("reader remote ai answerer posts backend chat payload", async () => {
-  const calls = [];
-  const answerer = readerAiRemote.createReaderRemoteAnswerer({
-    apiKey: "sk-reader",
-    baseUrl: "https://api.deepseek.com/v1",
-    jobId: "job-ai",
-    model: "deepseek-chat",
-    provider: "deepseek",
-    submitAiChat: async (jobId, payload) => {
-      calls.push([jobId, payload]);
-      return {
-        answer: "Backend answer",
-        citations: [{ title: "Intro", page: 1, snippet: "snippet" }],
-        used_context: { source: "markdown", scope: "selection" },
-      };
-    },
-  });
-
-  const result = await answerer.answer({
-    context: {
-      mode: "compare",
-      page: 4,
-      rect: { left: 1, top: 2, width: 30, height: 40 },
-    },
-    history: [{ role: "user", content: "before" }],
-    question: "Explain",
-    scope: "selection",
-  });
-
-  assert.equal(result.answer, "Backend answer");
-  assert.deepEqual(calls, [[
-    "job-ai",
-    {
-      message: "Explain",
-      scope: "selection",
-      provider: "deepseek",
-      model: "deepseek-chat",
-      api_key: "sk-reader",
-      base_url: "https://api.deepseek.com/v1",
-      context: {
-        page: 4,
-        selection: {
-          page: 4,
-          rect: { left: 1, top: 2, width: 30, height: 40 },
-        },
-        mode: "compare",
-      },
-      history: [{ role: "user", content: "before" }],
-    },
-  ]]);
-});
+// 旧 remote-answerer（/reader/ai/chat payload）已删除；现网走 ask-answerer。
 
 test("reader ai config prefers persisted browser credentials", () => {
   const config = readerAiConfig.resolveReaderAiConfig({

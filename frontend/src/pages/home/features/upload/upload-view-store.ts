@@ -1,3 +1,9 @@
+import {
+  createStore,
+  DEFAULT_FILE_LABEL,
+} from "../../composition/external.js";
+import type { Store } from "../../composition/external.js";
+
 // upload 域视图 store + React viewPort。
 //
 // 旧世界 features/upload/upload-view-port.js + tile-view.js 直接写 DOM;
@@ -8,9 +14,6 @@
 //
 // 注意:File 对象不进 store(store 会 structuredClone 深拷贝),
 // 文件本体始终从 domRefs.fileInput(React ref 回填)读取。
-
-import { createStore, type Store } from "../../../../js/app-framework/store.js";
-import { DEFAULT_FILE_LABEL } from "../../../../js/config/upload-constants.js";
 
 export type UploadViewState = {
   tileLocked: boolean;

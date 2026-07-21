@@ -19,22 +19,25 @@
 // status-detail-store.js,而不是拼 DOM markup。逐个方法在 pages 层重新
 // 暴露,JSX 直接调用。
 
-import { buildStatusDetailSnapshot } from "../../../../js/status-detail/snapshot.js";
-import { createStatusDetailOverviewCoordinator } from "../../../../js/features/status-detail/overview-coordinator.js";
-import {
-  rerunCurrentJob as rerunCurrentJobAction,
-  syncRerunAction as syncRerunActionState,
-} from "../../../../js/features/status-detail/resume-actions.js";
-import { createStatusDetailTranslationDataPort } from "../../../../js/features/status-detail/translation-data-port.js";
-import { createStatusDetailTranslationTabCoordinator } from "../../../../js/features/status-detail/translation-tab-coordinator.js";
-import { createTranslationState } from "../../../../js/features/status-detail/translation-state.js";
-import { defaultStatusDetailConfigPort } from "../../../../js/features/status-detail/config-port.js";
-import { resolveJobActions } from "../../../../js/job/actions.js";
-import type { JobLike, JobPayload } from "../../../../js/job/types.js";
-import type { EventsPayload } from "../../../../js/job-status/types.js";
 import type { StatusDetailRuntimePort } from "./status-detail-runtime-port.js";
 import type { StatusDetailStore, StatusDetailTranslation } from "./status-detail-store.js";
 import type { StatusDetailDialogStore } from "./status-detail-dialog-store.js";
+import {
+  buildStatusDetailSnapshot,
+  resolveJobActions,
+  createStatusDetailOverviewCoordinator,
+  rerunCurrentJob as rerunCurrentJobAction,
+  syncRerunAction as syncRerunActionState,
+  createStatusDetailTranslationDataPort,
+  createStatusDetailTranslationTabCoordinator,
+  createTranslationState,
+  defaultStatusDetailConfigPort,
+} from "../../composition/external.js";
+import type {
+  JobLike,
+  JobPayload,
+  EventsPayload,
+} from "../../composition/external.js";
 
 export type JobActionResolver = typeof resolveJobActions;
 

@@ -3,8 +3,8 @@
 // 默认不上卡片；由调用方显式 concat。
 // 展示条件：馆藏未翻译 或 job 失败，且有 document_id + onTranslate。
 
-import { isLibraryOnlyItem } from "../../../../../js/features/documents-library/document-card-item.js";
 import type { BookCardAction, BookCardActionHandlers, LibraryCardItem } from "../types.js";
+import { isLibraryOnlyItem } from "../../../composition/external.js";
 
 export const BOOK_CARD_ACTION_TRANSLATE = "translate";
 

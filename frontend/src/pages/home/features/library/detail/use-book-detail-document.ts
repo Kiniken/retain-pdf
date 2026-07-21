@@ -1,8 +1,10 @@
 // 详情：拉 document 全文、标题/标签编辑、阅读状态、合集、删除。
 
 import { useEffect, useMemo, useState } from "react";
-import { fetchDocument } from "../../../../../js/api/documents.js";
-import { API_PREFIX } from "../../../../../js/config/api-constants.js";
+import {
+  fetchDocument,
+  API_PREFIX,
+} from "../../../composition/external.js";
 
 function parseAuthors(authorsJson) {
   try {

@@ -19,14 +19,14 @@
   padding: 0 8px;
   border: 1px solid rgba(29, 29, 31, 0.12);
   border-radius: 8px;
-  background: #fff;
+  background: var(--paper);
   color: var(--ink);
   font-size: 11px;
   font-weight: 600;
 }
 
 .reader-ai-session-select:disabled {
-  color: #86868b;
+  color: var(--muted);
   background: rgba(245, 245, 247, 0.82);
 }
 
@@ -36,7 +36,7 @@
   padding: 0 10px;
   border: 1px solid rgba(29, 29, 31, 0.12);
   border-radius: 999px;
-  background: #fff;
+  background: var(--paper);
   color: var(--ink);
   box-shadow: none;
   font-size: 11px;
@@ -53,7 +53,7 @@
 }
 
 .reader-ai-session-btn:disabled {
-  color: #c7c7cc;
+  color: var(--line);
   background: rgba(245, 245, 247, 0.82);
 }
 
@@ -69,7 +69,7 @@
   padding: 4px;
   border: 1px solid rgba(29, 29, 31, 0.1);
   border-radius: 999px;
-  background: #fff;
+  background: var(--paper);
 }
 
 .reader-ai-scope button {
@@ -87,7 +87,7 @@
 
 .reader-ai-scope button.is-active {
   background: var(--ink);
-  color: #fff;
+  color: var(--paper);
 }
 
 .reader-ai-context {
@@ -98,7 +98,7 @@
   border: 1px solid rgba(29, 29, 31, 0.08);
   border-radius: 10px;
   background: rgba(245, 245, 247, 0.82);
-  color: #424245;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
 }
@@ -109,7 +109,7 @@
   padding: 10px;
   border: 1px solid rgba(29, 29, 31, 0.08);
   border-radius: 14px;
-  background: #fff;
+  background: var(--paper);
 }
 
 .reader-ai-message {
@@ -139,7 +139,7 @@
 .reader-ai-message p,
 .reader-ai-message-body-el {
   margin: 0;
-  color: #424245;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.55;
 }
@@ -155,7 +155,7 @@
 
 .reader-ai-message-body-el p {
   margin: 0 0 8px;
-  color: #424245;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -194,7 +194,7 @@
   margin: 0 0 8px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: #f7f8fa;
+  background: var(--bg);
   overflow-x: auto;
 }
 
@@ -216,7 +216,7 @@
 
 /* agentic 问答:检索过程提示行 */
 .reader-ai-message-progress .reader-ai-message-body-el {
-  color: #86868b;
+  color: var(--muted);
   font-style: italic;
 }
 
@@ -239,7 +239,7 @@
 
 .reader-ai-citation-ref:hover {
   background: var(--ink);
-  color: #fff;
+  color: var(--paper);
 }
 
 /* 回答底部引用脚注列表 */
@@ -257,7 +257,7 @@
   border: 1px solid rgba(29, 29, 31, 0.08);
   border-radius: 8px;
   background: rgba(245, 245, 247, 0.82);
-  color: #424245;
+  color: var(--muted);
   box-shadow: none;
   font-size: 11px;
   font-weight: 500;
@@ -269,7 +269,7 @@
 
 .reader-ai-citation-item:hover {
   border-color: rgba(29, 29, 31, 0.2);
-  background: #fff;
+  background: var(--paper);
   color: var(--ink);
 }
 
@@ -279,7 +279,7 @@
   padding: 10px;
   border: 1px solid rgba(29, 29, 31, 0.1);
   border-radius: 14px;
-  background: #fff;
+  background: var(--paper);
 }
 
 .reader-ai-composer textarea {
@@ -299,7 +299,7 @@
 }
 
 .reader-ai-composer-foot span {
-  color: #86868b;
+  color: var(--muted);
   font-size: 11px;
 }
 
@@ -309,7 +309,7 @@
   border: 1px solid rgba(29, 29, 31, 0.1);
   border-radius: 999px;
   background: var(--ink);
-  color: #fff;
+  color: var(--paper);
   box-shadow: none;
   font-size: 11px;
   font-weight: 700;
@@ -317,5 +317,5 @@
 
 .reader-ai-composer-foot button:disabled {
   background: var(--bg);
-  color: #86868b;
+  color: var(--muted);
 }

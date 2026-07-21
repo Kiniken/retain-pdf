@@ -1,33 +1,21 @@
-/* 颜色与字体的唯一真值。tailwind.config.js 的 theme 引用这里的变量,
-   手写 CSS 一律用 var(--token),不要再写字面 hex/字体栈。 */
-:root {
-  --bg: #f5f5f7;
-  --paper: #ffffff;
-  --surface: rgba(255, 255, 255, 0.78);
-  --ink: #1d1d1f;
-  --muted: #6e6e73;
-  --line: #e5e5ea;
-  /* 整体配色改黑白灰(apple-design skill 里"Simplicity"——克制,靠对比/字重
-     分层,不靠品牌色装饰):--accent 原本是品牌蓝(#0071e3),现在改成和
-     --ink 同色,按钮/徽标/焦点环/激活态全部走黑白灰。danger/ok/warn 三个
-     语义色(失败/成功/警告)保留原色——这是功能性状态信号,不是装饰性品牌色,
-     去掉会削弱"删除/失败"这类操作的可辨识度,和主流"黑白灰"设计系统
-     (Linear/Vercel/Things 等)的通行做法一致。 */
-  --accent: var(--ink);
-  --accent-weak: rgba(29, 29, 31, 0.12);
-  --danger: #ff3b30;
-  --danger-weak: rgba(255, 59, 48, 0.12);
-  --ok: #34c759;
-  --ok-weak: rgba(52, 199, 89, 0.12);
-  --warn: #ff9f0a;
-  --warn-weak: rgba(255, 159, 10, 0.14);
+/* 颜色与字体的语义契约（真值在 themes/* 皮肤文件）。
+ *
+ * 规则：
+ * - 组件 / 工具类只用 var(--bg|--ink|--accent|…) 语义名
+ * - 换肤 = 换 data-theme，不改组件
+ * - 新增皮肤：themes/<id>.css + themes/index.css 一行 + shared/theme/registry.ts
+ * - 见 docs/theme-system/ADDING_A_THEME.md
+ */
 
+@import "./themes/index.css";
+
+:root {
+  /* 字体与动效与皮肤无关，固定在此 */
   --font-sans: "SF Pro Display", "SF Pro SC", "PingFang SC", "Helvetica Neue", "Noto Sans CJK SC", sans-serif;
   --font-display: "SF Pro Display", "SF Pro SC", "PingFang SC", sans-serif;
   --font-mono: "Iosevka", "JetBrains Mono", monospace;
 
-  /* 动效基准曲线(emil-design-eng skill):内置 CSS easing 太弱,统一用这三条
-     加强版曲线——进入/退出用 ease-out,屏内位移用 ease-in-out,抽屉用 iOS 曲线。 */
+  /* 动效基准曲线 */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);

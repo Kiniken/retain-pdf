@@ -1,32 +1,40 @@
-// 阅读器编排根(Phase 2b 全量):静态 JSX 复刻 reader.html 的可见骨架,
-// DOM 顺序与旧页 body 保持一致(paint/stacking 依赖顺序)。
-// 启动编排(boot loading → 数据加载 → 双 PDF 挂载 → HUD → 各工具接线)在
-// useReaderBoot 里,PDF/摘录/批注锚点等命令式核心走 src/js/reader/;
-// 抽屉开合、AI 问答 UI、下载菜单、顶栏动作组为 React(见 components/)。
+// 阅读器编排根：默认 react-pdf 引擎；?engine=legacy 回退命令式 boot。
 
-import { useState } from "react";
-import { ReaderBootLoading } from "./components/ReaderBootLoading.jsx";
-import { ReaderTopbar } from "./components/ReaderTopbar.jsx";
-import { ReaderTopbarActions } from "./components/ReaderTopbarActions.jsx";
-import { ReaderLeftNav } from "./components/ReaderLeftNav.jsx";
-import { ReaderColumnChrome } from "./components/ReaderColumnChrome.jsx";
-import { ReaderScrollShell } from "./components/ReaderScrollShell.jsx";
+import { useMemo, useState } from "react";
+import { ReaderBootLoading } from "./legacy/components/ReaderBootLoading.jsx";
+import { ReaderTopbar } from "./legacy/components/ReaderTopbar.jsx";
+import { ReaderTopbarActions } from "./legacy/components/ReaderTopbarActions.jsx";
+import { ReaderLeftNav } from "./legacy/components/ReaderLeftNav.jsx";
+import { ReaderColumnChrome } from "./legacy/components/ReaderColumnChrome.jsx";
+import { ReaderScrollShell } from "./legacy/components/ReaderScrollShell.jsx";
 import {
   ReaderAiDrawer,
   ReaderAnnotationsDrawer,
   ReaderFavoritesDrawer,
   ReaderMarkdownDrawer,
-} from "./components/ReaderSideDrawers.jsx";
+} from "./legacy/components/ReaderSideDrawers.jsx";
 import { DownloadToastHost } from "../../shared/react/DownloadToastHost.jsx";
-import { createReaderDrawerStore } from "./state/drawer-store.js";
-import { useReaderBoot } from "./hooks/use-reader-boot.js";
+import { createReaderDrawerStore } from "./legacy/state/drawer-store.js";
+import { useReaderBoot } from "./legacy/hooks/use-reader-boot.js";
+import { ReaderAppReactPdf } from "./ReaderAppReactPdf.jsx";
+import { ReaderCloseHome } from "./components/react-pdf/ReaderCloseHome.jsx";
 
-export function ReaderApp() {
+function resolveReaderEngine(search = globalThis.location?.search || "") {
+  const engine = new URLSearchParams(search).get("engine")?.trim().toLowerCase() || "";
+  if (engine === "legacy" || engine === "classic") {
+    return "legacy";
+  }
+  // 默认全 React + react-pdf
+  return "react-pdf";
+}
+
+function ReaderAppLegacy() {
   const [drawerStore] = useState(() => createReaderDrawerStore());
   const runtime = useReaderBoot(drawerStore);
   return (
     <>
       <ReaderBootLoading />
+      <ReaderCloseHome />
       <ReaderTopbar />
       <ReaderTopbarActions drawerStore={drawerStore} downloadContext={runtime.downloads} />
       <ReaderLeftNav />
@@ -39,4 +47,12 @@ export function ReaderApp() {
       <DownloadToastHost />
     </>
   );
+}
+
+export function ReaderApp() {
+  const engine = useMemo(() => resolveReaderEngine(), []);
+  if (engine === "legacy") {
+    return <ReaderAppLegacy />;
+  }
+  return <ReaderAppReactPdf />;
 }

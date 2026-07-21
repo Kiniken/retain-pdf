@@ -1,12 +1,16 @@
-// reader 页 React 入口(Phase 2a 探针):挂载 #reader-root,渲染阅读器壳。
-// PDF 本体不进虚拟 DOM——由 src/js/reader/ 的命令式模块驱动(见 hooks/use-reader-boot.js)。
-// 打包产物为 dist/reader.bundle.js(见 scripts/build-js-bundle.mjs)。
+// reader 页 React 入口。默认 react-pdf 引擎（ReaderAppReactPdf）；
+// ?engine=legacy 回退命令式 js/reader 挂载（use-reader-boot）。
+// 打包产物 dist/reader.bundle.js（scripts/build-js-bundle.mjs）。
 
 import { createRoot } from "react-dom/client";
+import { bootTheme } from "../../shared/theme/theme.js";
 import { ReaderApp } from "./ReaderApp.jsx";
 
+bootTheme();
+
 // 渲染前同步 body class:CSS 的 :has()/body-class 驱动规则(reader-page.css)依赖它们。
-// reader-embedded 必须在首帧前设好,否则嵌入态(reader-dialog iframe)动作组会从右上角闪到左上角。
+// 主页已改为跳转独立 reader.html，不再用 iframe 嵌入。
+// 若仍有旧书签/测试以 iframe 打开，保留 embedded class 兼容。
 function syncReaderBodyClasses(body = document.body) {
   body.classList.add("reader-body", "reader-mode-compare");
   if (globalThis.window && window.self !== window.top) {
@@ -35,6 +39,46 @@ function resolveReaderRoot(body = document.body) {
   return host;
 }
 
+function resolveReaderEngine(search = globalThis.location?.search || "") {
+  const engine = new URLSearchParams(search).get("engine")?.trim().toLowerCase() || "";
+  if (engine === "legacy" || engine === "classic") {
+    return "legacy";
+  }
+  return "react-pdf";
+}
+
+/**
+ * Legacy 抽屉/选区/AI 样式已拆到 dist/css/reader-legacy.css。
+ * 默认 react-pdf 不加载；仅 ?engine=legacy 时注入。
+ * 相对路径对齐 reader.html 里已有的 reader.css link（保留同目录）。
+ */
+function ensureLegacyReaderCss() {
+  if (typeof document === "undefined") {
+    return;
+  }
+  if (document.querySelector('link[data-reader-legacy-css]')) {
+    return;
+  }
+  const main = document.querySelector(
+    'link[rel="stylesheet"][href*="reader.css"]',
+  ) as HTMLLinkElement | null;
+  let href = "./dist/css/reader-legacy.css";
+  if (main?.getAttribute("href")) {
+    // ./dist/css/reader.css?v=abc → ./dist/css/reader-legacy.css（去掉主包 hash，避免错绑）
+    href = main
+      .getAttribute("href")!
+      .replace(/reader\.css(\?v=[^"']*)?$/i, "reader-legacy.css");
+  }
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = href;
+  link.dataset.readerLegacyCss = "1";
+  document.head.appendChild(link);
+}
+
 syncReaderBodyClasses();
 purgeLegacyMarkup();
+if (resolveReaderEngine() === "legacy") {
+  ensureLegacyReaderCss();
+}
 createRoot(resolveReaderRoot()).render(<ReaderApp />);

@@ -9,10 +9,13 @@
 // setUpdateAvailable/setUpdateLatest/setUpdateError),controller.js
 // (checkForUpdates 编排 + 24h 缓存)一行不改地复用。
 
-import { createStore, type Store } from "../../../../js/app-framework/store.js";
-import { APP_VERSION } from "../../../../js/features/app-update/current-version.js";
 import { APP_UPDATE_STATES } from "./app-update-contract.js";
 import type { HandlersBag } from "../../composition/types.js";
+import {
+  createStore,
+  APP_VERSION,
+} from "../../composition/external.js";
+import type { Store } from "../../composition/external.js";
 
 export type AppUpdatePanel = {
   title: string;

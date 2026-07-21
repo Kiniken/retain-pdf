@@ -3,9 +3,9 @@
 // job-status-card-substages.js 的 syncStageSubstageStates DOM 结构,
 // --status-substage-count CSS 变量契约保留)。
 
-import { buildSubstageViewModel } from "../../../../js/job-status/substage-view-model.js";
 import type { StatusCardSnapshot, StatusCardStageProgress } from "./status-card-store.js";
 import type { CSSProperties } from "react";
+import { buildSubstageViewModel } from "../../composition/external.js";
 
 type SubstageFlowProps = {
   selectedStageKey?: string;

@@ -351,55 +351,6 @@ export interface ReaderAiSessionSummary {
   active: boolean;
 }
 
-export interface BuildReaderAiChatPayloadOptions {
-  apiKey?: string;
-  baseUrl?: string;
-  question?: string;
-  model?: string;
-  provider?: string;
-  scope?: ReaderAiScope | string;
-  context?: ReaderAiSelectionContext | null;
-  history?: ReaderAiChatHistoryTurn[];
-}
-
-export interface ReaderAiChatSelectionPayload {
-  page?: number;
-  rect?: PixelRect;
-  [key: string]: unknown;
-}
-
-export interface ReaderAiChatApiPayload {
-  message: string;
-  scope: string;
-  provider: string;
-  model?: string;
-  api_key?: string;
-  base_url?: string;
-  context: {
-    page?: number;
-    selection?: ReaderAiChatSelectionPayload | null;
-    mode?: string;
-  };
-  history: ReaderAiChatHistoryTurn[];
-}
-
-export interface CreateReaderRemoteAnswererOptions {
-  apiKey?: string;
-  baseUrl?: string;
-  jobId?: string;
-  model?: string;
-  provider?: string;
-  /** Required at call time; optional only so `= {}` default args type-check. */
-  submitAiChat?: (jobId: string, payload: ReaderAiChatApiPayload) => Promise<unknown>;
-}
-
-export interface ReaderRemoteAnswerRequest {
-  question?: string;
-  scope?: ReaderAiScope | string;
-  context?: ReaderAiSelectionContext | null;
-  history?: ReaderAiChatHistoryTurn[];
-}
-
 export interface CreateReaderAiContextOptions {
   documentRef?: Document | null;
   drawerController?: ReaderDrawerController | null;

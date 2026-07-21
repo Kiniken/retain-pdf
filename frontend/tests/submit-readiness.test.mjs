@@ -9,7 +9,7 @@ import { resolveSubmitControlState } from "../src/js/features/workflow/submit-co
 
 const workflowNeedsUpload = (workflow) => workflow !== "render";
 const workflowNeedsCredentials = (workflow) => workflow !== "render";
-const workflowSubmitLabel = (workflow) => workflow === "render" ? "开始渲染" : "开始翻译";
+const workflowSubmitLabel = (workflow) => workflow === "render" ? "开始渲染" : "直接翻译";
 
 test("resolveSubmitReadiness allows mock submissions without source or credentials", () => {
   const readiness = resolveSubmitReadiness({
@@ -91,7 +91,7 @@ test("resolveSubmitControlState consumes shared submit readiness", () => {
   assert.equal(state.disabled, false);
   assert.equal(state.actionVisible, true);
   assert.equal(state.pageRangeVisible, true);
-  assert.equal(state.label, "开始翻译");
+  assert.equal(state.label, "直接翻译");
   assert.equal(state.readiness.ready, true);
 });
 

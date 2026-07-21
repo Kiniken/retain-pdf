@@ -1,17 +1,13 @@
-// 主页顶部"图书馆 / 分类"分栏(裸 Tabs 原语,不经 src/components/ui/tabs.jsx
+// 主页顶部"图书馆 / 合集 / 收藏"分栏(裸 Tabs 原语,不经 src/components/ui/tabs.jsx
 // 默认皮肤——同 StatusDetailDialog/SettingsHubDialog 的既有选择,用项目自有
 // class,不接 shadcn 默认视觉)。
 //
-// 图标化(用户要求"少文字多图标"):每个 tab 前置一个语义图标(图书馆=书、
-// 分类=文件夹),文字保留但压缩——两个主导航项去掉文字会伤 wayfinding
-// (apple-design skill:导航项要有可辨识的名字),所以走 icon + 短文字。
-//
-// 激活的 tab 是纯页面级 UI 态,提升到 HomeApp.jsx 的一个 useState(不建独立
-// store/不持久化——刷新页面回到"图书馆"是可接受的默认行为)。
+// 图标化:每个 tab 前置语义图标 + 短文字(纯图标伤 wayfinding)。
+// 激活 tab 是纯页面级 UI 态(HomeApp useState),不持久化——刷新回到图书馆。
 
 import { Tabs as TabsPrimitive } from "radix-ui";
 
-// 图书馆:library(书脊排列在书架上,比单本书更"图书馆")
+// 图书馆:书脊排列在书架上
 function IconLibrary() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -22,7 +18,7 @@ function IconLibrary() {
     </svg>
   );
 }
-// 合集:layers(多本叠成一摞,对应"合集=一堆书归到一起")
+// 合集:多层叠书
 function IconLayers() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -32,13 +28,21 @@ function IconLayers() {
     </svg>
   );
 }
+// 收藏:书签(段落级摘录/笔记,与合集=文档分组区分)
+function IconBookmark() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
 
-// key 保持 "categories"(内部逻辑 + 契约 id library-top-tab-categories 不变,
-// 测试引用),只把展示文案从"分类"改成"合集"——和书籍详情/批量里的"加入
-// 合集"统一叫法。
+// key 保持 "categories"(契约 id library-top-tab-categories / 测试引用不变)。
+// "favorites" 为新增:收藏列表入口。
 const TABS = [
   { key: "library", label: "图书馆", Icon: IconLibrary },
   { key: "categories", label: "合集", Icon: IconLayers },
+  { key: "favorites", label: "收藏", Icon: IconBookmark },
 ];
 
 export function LibraryTopTabs({ active, onChange }) {

@@ -190,7 +190,7 @@ test("chat:agentic 回答渲染 [n] 可点击引用与脚注,模型文本 XSS �
   const progressTexts = [];
   const { createRoot } = await import("react-dom/client");
   const React = await import("react");
-  const { ReaderAiChat } = await import("../src/pages/reader/components/ReaderAiChat.jsx");
+  const { ReaderAiChat } = await import("../src/pages/reader/legacy/components/ReaderAiChat.jsx");
   const host = documentRef.createElement("div");
   documentRef.body.appendChild(host);
   createRoot(host).render(React.createElement(ReaderAiChat, {

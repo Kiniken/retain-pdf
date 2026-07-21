@@ -3,8 +3,8 @@
 // 逻辑(finalStatusCounts 优先于 counts,和旧世界一致);summarizeTranslationFilter
 // 是纯格式化函数,保留直接 import。
 
-import { summarizeTranslationFilter } from "../../../../js/features/status-detail/formatters.js";
 import { STATUS_DETAIL_DIALOG_IDS } from "./status-detail-dom-ids.js";
+import { summarizeTranslationFilter } from "../../composition/external.js";
 
 export function TranslationSummary({ translation }) {
   const summary = translation.summary?.summary || {};

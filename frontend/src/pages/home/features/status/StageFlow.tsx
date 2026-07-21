@@ -5,13 +5,13 @@
 // 重试操作不放在阶段 pill 上（拥挤、易顶歪布局），由 StatusCardEmbedded
 // 在进度文案行右侧按「当前选中阶段」单独渲染。
 
+import { useStatusCardIds } from "./status-card-ids-context.js";
 import {
   isSelectableStatusStage,
   STATUS_STAGE_FLOW,
   STATUS_STAGE_LABELS,
   statusStageIndex,
-} from "../../../../js/job-status/stage-flow-model.js";
-import { useStatusCardIds } from "./status-card-ids-context.js";
+} from "../../composition/external.js";
 
 /** @deprecated 重试已迁出 StageFlow；保留类型以免旧 import 断裂 */
 export type StageFlowRetryAction = {

@@ -7,9 +7,10 @@
 // GlossariesDialog.jsx 系的组件订阅渲染。controller.js(reload/select/save/
 // delete/export/applyImport 等编排逻辑)一行不改地复用。
 
-import { createStore, type Store } from "../../../../js/app-framework/store.js";
 import type { DialogStore } from "../../state/dialog-store.js";
 import type { HandlersBag } from "../../composition/types.js";
+import { createStore } from "../../composition/external.js";
+import type { Store } from "../../composition/external.js";
 
 /** 列表项（API 列表摘要） */
 export type GlossaryListItem = {

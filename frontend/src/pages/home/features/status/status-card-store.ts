@@ -1,3 +1,11 @@
+import {
+  createStore,
+  buildRuntimeStatusCardSnapshot,
+  buildJobStatusSummaryViewModel,
+  currentJobFinishedAt,
+} from "../../composition/external.js";
+import type { Store } from "../../composition/external.js";
+
 // 状态卡 store + presenter(蓝图 §2 features/status/,§4 生命周期)。
 //
 // 唯一 VM 源:job-status/status-card-runtime-source.js 的
@@ -19,11 +27,6 @@
 // 主快照一起写 store,statusCardStore 的 useStoreSnapshot 会被拖着每秒重渲
 // 整卡;真正的秒表由 useElapsedTicker.js 独立驱动(读 snapshot.job 的
 // started_at/finished_at,不读本 store 的任何"已计算好的" elapsed 字段)。
-
-import { createStore, type Store } from "../../../../js/app-framework/store.js";
-import { buildRuntimeStatusCardSnapshot } from "../../../../js/job-status/status-card-runtime-source.js";
-import { buildJobStatusSummaryViewModel } from "../../../../js/job-status/job-status-summary-view-model.js";
-import { currentJobFinishedAt } from "../../../../js/features/job-runtime/current-job-state.js";
 
 /** 阶段重试按钮（normalizeStageRetryActions 输出） */
 export type StatusCardStageRetryAction = {

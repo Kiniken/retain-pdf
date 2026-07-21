@@ -48,15 +48,16 @@ export function workflowUsesRenderStage(workflow, constants) {
 }
 
 export function workflowSubmitLabel(workflow, constants) {
+  // UI 文案：上传弹窗主按钮「直接翻译」；render 仍用「开始渲染」
   switch (workflow) {
     case constants.WORKFLOW_RENDER:
       return "开始渲染";
     case constants.WORKFLOW_TRANSLATE:
-      return "开始翻译";
+      return "直接翻译";
     case constants.WORKFLOW_BOOK:
-      return "开始翻译";
+      return "直接翻译";
     default:
-      return "开始翻译";
+      return "直接翻译";
   }
 }
 
@@ -64,8 +65,7 @@ export function workflowHeadline(workflow, constants) {
   switch (workflow) {
     case constants.WORKFLOW_RENDER:
       return "当前工作流会复用已有任务产物重新生成 PDF。";
-    // 图书馆优先:上传只是把 PDF 放进图书馆,不自动翻译;要翻译到书架上点"翻译"。
     default:
-      return "上传后直接加入图书馆，可随时在书架上翻译。";
+      return "选择 PDF 后，可直接翻译或仅收藏到书架。";
   }
 }

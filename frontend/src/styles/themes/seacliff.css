@@ -1,0 +1,26 @@
+/* 皮肤 seacliff：冷静雾蓝 — 避免脏青绿 */
+
+[data-theme="seacliff"] {
+  --bg: #eef1f4;
+  --paper: #f8f9fb;
+  --surface: rgba(248, 249, 251, 0.9);
+  --ink: #1a1d21;
+  --muted: #636b73;
+  --line: #e0e4e8;
+
+  --accent: #2d5f6e;
+  --accent-weak: rgba(45, 95, 110, 0.11);
+  --selection: #e6eef1;
+
+  --danger: #c23b32;
+  --danger-weak: rgba(194, 59, 50, 0.11);
+  --ok: #2d7a4f;
+  --ok-weak: rgba(45, 122, 79, 0.11);
+  --warn: #a67c2d;
+  --warn-weak: rgba(166, 124, 45, 0.12);
+
+  --gold: #7a7f86;
+  --gold-weak: rgba(122, 127, 134, 0.12);
+  --chrome: #14181c;
+  --reader-page: #f8f9fb;
+}

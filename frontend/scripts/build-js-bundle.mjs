@@ -92,8 +92,15 @@ function bundleOptions({ entry, outfile }) {
   };
 }
 
-fs.rmSync(outdir, { recursive: true, force: true });
+// 只清 JS 产物，保留 dist/css/（build:css 独立写入；整目录 rm 会把主页样式弄没）
 fs.mkdirSync(outdir, { recursive: true });
+for (const page of PAGE_BUNDLES) {
+  try {
+    fs.rmSync(page.outfile, { force: true });
+  } catch {
+    // ignore
+  }
+}
 
 if (watchMode) {
   const contexts = await Promise.all(

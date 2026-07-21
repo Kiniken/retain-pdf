@@ -1,3 +1,10 @@
+import {
+  APP_EVENTS,
+  TRANSLATION_WORKFLOW_DIALOG,
+  TRANSLATION_WORKFLOW_MODES,
+} from "../../composition/external.js";
+import type { TranslationWorkflowDialogStatePort } from "../../composition/external.js";
+
 // 翻译工作流对话框 runtime(React 世界版控制器)。
 //
 // 复用纯逻辑:state.js 的 dialogStatePort(store 驱动开合/模式,并同步 home
@@ -11,13 +18,6 @@
 //   runtime 的 document 监听统一落状态——3b recent-jobs 的库刷新挂起/恢复
 //   (bindings.js)与 app-actions 提交流程都依赖这两个事件在 document 上可见。
 // - translationWorkflowSync / statusAreaVisibilityChanged → 同步模式。
-
-import { APP_EVENTS } from "../../../../js/contracts/app-contract.js";
-import {
-  TRANSLATION_WORKFLOW_DIALOG,
-  TRANSLATION_WORKFLOW_MODES,
-} from "../../../../js/features/translation-workflow-dialog/contract.js";
-import type { TranslationWorkflowDialogStatePort } from "../../../../js/features/translation-workflow-dialog/state.js";
 
 export interface TranslationWorkflowStatusAreaPort {
   isVisible?: () => boolean;

@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 
-// 三个页面共用一份编译后的 styles.css,页面级样式文件必须带页面命名空间,
-// 否则会跨页污染。当前 reader/detail 两组文件已 100% 合规,本测试锁住约定,
-// 禁止新增无命名空间的全局选择器。
+// 源码级命名空间门禁：reader/detail 源文件选择器必须带页前缀。
+// 构建已按页拆包 dist/css/{home,detail,reader}.css，跨页污染风险已大幅下降；
+// 本测试继续锁住「别在 reader/detail 源码里写裸全局选择器」。
 
 const PROJECT_ROOT = process.cwd();
 const STYLES_ROOT = join(PROJECT_ROOT, "src/styles");
@@ -129,7 +129,7 @@ for (const group of GROUPS) {
     assert.deepEqual(
       violations,
       [],
-      `以下选择器没有页面命名空间,会污染其他页面(三页共用一份 styles.css):\n  ${violations.join("\n  ")}`,
+      `以下选择器没有页面命名空间(应使用 reader-/detail- 前缀):\n  ${violations.join("\n  ")}`,
     );
   });
 }

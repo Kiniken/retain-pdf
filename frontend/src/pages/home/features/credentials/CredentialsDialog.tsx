@@ -40,7 +40,6 @@
 // 打开态时才有意义(对话框关闭时 Content 整体卸载,tab 常驻挂载无从谈起)。
 
 import { Dialog as DialogPrimitive, Tabs as TabsPrimitive } from "radix-ui";
-import { APP_EVENTS } from "../../../../js/contracts/app-contract.js";
 import { useAppEvent } from "../../../../shared/react/use-app-event.js";
 import { useDialogReturnFocus } from "../../../../shared/react/use-dialog-return-focus.js";
 import { CREDENTIAL_DOM_IDS } from "./credentials-dom-ids.js";
@@ -49,6 +48,7 @@ import { OcrProviderPanels } from "./OcrProviderPanels.jsx";
 import { DeepSeekPanel } from "./DeepSeekPanel.jsx";
 import { TaskOptionsPanel } from "./TaskOptionsPanel.jsx";
 import { Button as ButtonBase } from "../../../../components/Button.jsx";
+import { APP_EVENTS } from "../../composition/external.js";
 
 // Button.size 在未注解源文件里被推断为必填;unstyled 路径运行时不用 size。
 const Button = ButtonBase as any;

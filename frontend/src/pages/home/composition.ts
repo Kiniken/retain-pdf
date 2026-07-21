@@ -202,7 +202,6 @@ export function createHomeComposition({
     libraryEventPort: library.libraryEventPort,
     jobRuntimeShellViewPort: status.jobRuntimeShellViewPort,
     artifactDownloadsViewPort: status.artifactDownloadsViewPort,
-    readerDialogStore: status.readerDialogStore,
     recentJobsStatePort: library.recentJobsStatePort,
     recentJobsViewPort: library.recentJobsViewPort,
     recentJobsJobRuntimePort: library.recentJobsJobRuntimePort,

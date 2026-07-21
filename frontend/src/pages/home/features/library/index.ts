@@ -6,6 +6,7 @@
 //   display/    展示辅助（封面、徽标、继续阅读条）
 //   page/       书架页编排（网格、工具条、viewPort）
 //   categories/ 合集 tab
+//   favorites/  收藏 tab（摘录/笔记）
 //   detail/     书籍详情（shell 壳 + Dialog 容器）
 //   domain/     领域 controller
 
@@ -33,6 +34,7 @@ export { createLibraryViewStore } from "./page/library-view-store.js";
 export { LibraryTopTabs } from "./page/LibraryTopTabs.jsx";
 
 export { CategoriesView } from "./categories/CategoriesView.jsx";
+export { FavoritesView } from "./favorites/FavoritesView.jsx";
 
 export { BookDetailDialog } from "./detail/BookDetailDialog.jsx";
 export { BookDetailShell } from "./detail/shell/BookDetailShell.jsx";

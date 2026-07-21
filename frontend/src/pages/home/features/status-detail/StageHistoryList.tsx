@@ -5,13 +5,15 @@
 // 耗时/时间戳计算复用保留的纯逻辑 job/stage-history.js + status-detail/utils.js
 // (与 detail 页 EventsTimeline.jsx 的先例一致,不重新发明这部分公式)。
 
-import { formatEventTimestamp, formatRuntimeDuration, isJobTerminal } from "../../../../js/status-detail/utils.js";
+import { STATUS_DETAIL_DIALOG_IDS } from "./status-detail-dom-ids.js";
 import {
+  formatEventTimestamp,
+  formatRuntimeDuration,
+  isJobTerminal,
   resolveStageHistory,
   resolveStageHistoryDuration,
   stageHistoryDisplay,
-} from "../../../../js/job/stage-history.js";
-import { STATUS_DETAIL_DIALOG_IDS } from "./status-detail-dom-ids.js";
+} from "../../composition/external.js";
 
 function StageHistoryItem({ entry, index, job, finishedAtFallback }) {
   const duration = resolveStageHistoryDuration(entry, job, { finishedAtFallback });

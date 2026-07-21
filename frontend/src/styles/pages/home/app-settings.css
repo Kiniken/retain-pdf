@@ -1,0 +1,276 @@
+@utility app-settings-dialog {
+  width: min(520px, calc(100vw - 24px));
+}
+
+@utility app-settings-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  max-height: min(620px, calc(100vh - 24px));
+}
+
+@utility app-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+
+  & h2 {
+    margin: 0;
+    color: var(--ink);
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  & p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+}
+
+@utility app-settings-body {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+  padding: 16px;
+  background: color-mix(in srgb, var(--bg) 88%, var(--paper));
+}
+
+@utility app-settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+
+  & button {
+    min-height: 32px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: none;
+    cursor: pointer;
+  }
+
+  & button.is-active {
+    background: var(--accent);
+    color: var(--paper);
+  }
+}
+
+@utility is-active {
+  .app-settings-tabs &button {
+    background: var(--accent);
+    color: var(--paper);
+  }
+
+  &.app-settings-panel {
+    display: grid;
+  }
+}
+
+@utility app-settings-panel {
+  display: none;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+
+  &.is-active {
+    display: grid;
+  }
+}
+
+@utility app-settings-panel-copy {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+
+  & svg {
+    width: 42px;
+    height: 42px;
+    padding: 9px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  & strong {
+    display: block;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  & span {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+}
+
+@utility app-settings-action {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 15px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--paper);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: none;
+
+  &:hover {
+    filter: brightness(0.92);
+    color: var(--paper);
+  }
+}
+
+/* —— 外观 / 主题卡片 —— */
+@utility theme-appearance {
+  display: grid;
+  gap: 16px;
+}
+
+@utility theme-appearance-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@utility theme-appearance-group {
+  display: grid;
+  gap: 8px;
+}
+
+@utility theme-appearance-group-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+@utility theme-appearance-grid {
+  display: grid;
+  gap: 10px;
+}
+
+@utility theme-option {
+  appearance: none;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg);
+  cursor: pointer;
+  color: var(--ink);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  }
+
+  &.is-selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-weak);
+    background: var(--paper);
+  }
+
+  &:active {
+    transform: scale(0.995);
+  }
+}
+
+@utility theme-option-swatch {
+  display: block;
+  width: 72px;
+  height: 48px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+@utility theme-option-swatch-paper {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+@utility theme-option-swatch-bar {
+  position: absolute;
+  left: 6px;
+  right: 18px;
+  bottom: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+
+@utility theme-option-swatch-dot {
+  position: absolute;
+  right: 6px;
+  bottom: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+
+@utility theme-option-copy {
+  min-width: 0;
+
+  & strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  & span {
+    display: block;
+    margin-top: 3px;
+    font-size: 11.5px;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+}
+
+@utility theme-option-check {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--paper);
+  font-size: 12px;
+  font-weight: 700;
+}
+

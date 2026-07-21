@@ -3,8 +3,8 @@
 // 直接续读(已翻译→对照阅读,否则→读原文)。无在读文档时不渲染。
 
 import { useMemo } from "react";
-import { recentJobTitle } from "../../../../../js/features/recent-jobs/card-presenter.js";
 import { useRecentJobCover } from "./useRecentJobCover.js";
+import { recentJobTitle } from "../../../composition/external.js";
 
 const MAX_SHELF = 8;
 

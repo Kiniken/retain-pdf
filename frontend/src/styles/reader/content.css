@@ -1,0 +1,1352 @@
+/* 阅读器正文区：markdown / pdf / react-pdf / 窄屏补充 */
+
+.reader-markdown {
+  background: var(--reader-markdown-bg);
+  color: var(--ink);
+}
+
+.reader-markdown blockquote {
+  border-left-color: var(--reader-markdown-border);
+  color: var(--muted);
+  background: var(--bg);
+}
+
+.reader-markdown pre,
+.reader-markdown-raw {
+  background: var(--reader-markdown-raw-bg);
+  color: var(--paper);
+}
+
+.reader-pdf-frame {
+  background: var(--paper);
+}
+
+.reader-markdown,
+.reader-markdown-raw {
+  color: var(--ink);
+}
+
+@media (max-width: 720px) {
+  /* 窄屏：三栏退化为单栏；右抽屉改底部浮层（见 reader/side-drawer.css） */
+  .reader-body {
+    --reader-left-w: 0px;
+    --reader-right-w: 0px;
+  }
+
+  .reader-col-left,
+  .reader-col-resizer,
+  .reader-col-collapse {
+    display: none;
+  }
+
+  .reader-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .reader-topbar {
+    top: 10px;
+    width: calc(100vw - 16px);
+    border-radius: 999px;
+  }
+
+  .reader-tabs {
+    flex: none;
+    width: 100%;
+    max-width: none;
+  }
+
+  .reader-page {
+    padding-top: 56px;
+  }
+
+  .reader-toolbar {
+    flex-direction: column;
+  }
+
+  .reader-toolbar-actions {
+    justify-content: flex-start;
+  }
+
+  .reader-markdown,
+  .reader-markdown-raw,
+  .reader-pdf-frame {
+    max-height: none;
+    min-height: 56vh;
+  }
+
+  .reader-page-indicator {
+    bottom: 12px;
+    width: calc(100vw - 24px);
+    min-width: 0;
+    min-height: 32px;
+    padding-inline: 12px;
+    font-size: 11px;
+  }
+
+  .reader-bottom-hud-progress {
+    flex-basis: 64px;
+  }
+
+  .reader-mode-source .reader-grid,
+  .reader-mode-translated .reader-grid {
+    padding-inline: 0;
+  }
+
+  .reader-mode-source .reader-viewer-host,
+  .reader-mode-translated .reader-viewer-host {
+    padding-inline: 8px;
+  }
+
+  .reader-panel {
+    min-height: auto;
+  }
+
+  .reader-panel + .reader-panel {
+    border-left: none;
+    border-top: 8px solid var(--reader-page-bg);
+  }
+
+  .reader-mode-source [data-reader-pane="translated"],
+  .reader-mode-translated [data-reader-pane="source"] {
+    display: none;
+  }
+
+  .reader-viewer-wrap,
+  .reader-viewer-host,
+  .reader-empty {
+    min-height: 56vh;
+  }
+}
+
+/* 馆藏文档"读原文"只读态(F4):没有 job,所有吃 jobId 的入口都不该出现——
+   译文/对照两个模式 tab、Markdown/摘录/批注/AI 问答/下载工具组全部隐藏,
+   只留原文单栏。根节点的 .reader-source-only 由 use-reader-boot.js 打上。 */
+.reader-source-only .reader-topbar-actions,
+.reader-source-only .reader-tab[data-reader-mode="translated"],
+.reader-source-only .reader-tab[data-reader-mode="compare"] {
+  display: none;
+}
+
+/* —— react-pdf engine (R1) —— */
+.reader-react-root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg, var(--reader-page-bg));
+  color: var(--ink);
+}
+
+.reader-react-title {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  z-index: 30;
+  max-width: min(520px, calc(100vw - 48px));
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(29, 29, 31, 0.06);
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(12px);
+  transform: translateX(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--muted, var(--muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* 对齐旧 #reader-scroll-shell：唯一纵向滚动容器；双栏不各自 overflow */
+.reader-react-scroll-shell {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--bg, var(--reader-page-bg));
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.reader-react-scroll-shell::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* 对齐旧 .reader-grid：两列并排、内容撑高、由 shell 统一滚 */
+.reader-react-grid {
+  position: relative;
+  display: grid;
+  gap: 0;
+  min-height: 100%;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  align-items: start;
+  box-sizing: border-box;
+}
+
+/* 对照：左右各占半屏，用满 shell 宽度 */
+.reader-react-grid.reader-mode-compare {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  width: 100%;
+}
+
+/* 原文/译文：单栏铺满可视区域，不再卡在中间 1040px 窄条 */
+.reader-react-grid.reader-mode-source,
+.reader-react-grid.reader-mode-translated {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  justify-content: stretch;
+  padding-inline: 0;
+}
+
+/* 模式切换：隐藏栏不卸载 */
+.reader-react-pdf-pane.is-hidden {
+  display: none !important;
+}
+
+.reader-react-pdf-pane {
+  min-width: 0;
+  width: 100%;
+  height: auto;
+  /* 放大超出栏宽时栏内横向滚；100% 适应时铺满整栏 */
+  overflow-x: auto;
+  overflow-y: visible;
+  background: var(--bg, var(--reader-page-bg));
+  border: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.reader-react-pdf-pane::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.reader-react-grid.reader-mode-compare .reader-react-pdf-pane[data-reader-pane="translated"] {
+  border-left: 1px solid var(--line, rgba(29, 29, 31, 0.08));
+}
+
+/* 页槽：父级 flex 居中；只留底边距做页间距 */
+.reader-react-pdf-page-slot {
+  display: block;
+  margin: 0 0 12px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  background: transparent;
+}
+
+.reader-react-pdf-page-slot .reader-react-pdf-page,
+.reader-react-pdf-page-slot .react-pdf__Page {
+  display: block;
+  margin: 0 auto;
+}
+
+.reader-react-pdf-wrap {
+  /* 对齐旧 .reader-viewer-host padding；随内容变宽，至少铺满栏宽以便居中 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px 20vh;
+  box-sizing: border-box;
+  width: max-content;
+  min-width: 100%;
+}
+
+.reader-react-pdf-document {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: max-content;
+  min-width: 100%;
+}
+
+.reader-react-pdf-page {
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.1);
+  background: var(--paper);
+}
+
+/* 不要覆盖 canvas 的 width/height：react-pdf 已按 DPR 设置 CSS 尺寸，
+   max-width:100% 会把高清 canvas 压扁拉伸 → 发糊 */
+.reader-react-pdf-page canvas {
+  display: block;
+  max-width: none !important;
+}
+
+/* react-pdf 文本层：透明字可选中 */
+.reader-react-pdf-page {
+  position: relative;
+}
+.reader-react-pdf-page .textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  line-height: 1;
+  opacity: 1;
+  z-index: 2;
+  transform-origin: 0 0;
+}
+.reader-react-pdf-page .textLayer span,
+.reader-react-pdf-page .textLayer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0 0;
+}
+/* 选区高亮：暖黄荧光笔感，比冷蓝更像「批注」 */
+.reader-react-pdf-page .textLayer ::selection {
+  background: rgba(255, 204, 0, 0.42);
+  color: transparent;
+}
+.reader-react-pdf-page .textLayer ::-moz-selection {
+  background: rgba(255, 204, 0, 0.42);
+  color: transparent;
+}
+
+/* —— 悬浮工具钮 FAB（可拖动，点击展开） —— */
+.reader-fab {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  position: fixed;
+  z-index: 42;
+  width: 52px;
+  height: 52px;
+  touch-action: none;
+  user-select: none;
+}
+
+.reader-fab-trigger {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: linear-gradient(160deg, var(--ink) 0%, var(--ink) 100%);
+  color: var(--paper);
+  box-shadow:
+    0 14px 32px rgba(15, 23, 42, 0.24),
+    0 1px 0 rgba(255, 255, 255, 0.14) inset;
+  cursor: grab;
+  transition:
+    transform 160ms var(--ease-out),
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+.reader-fab-trigger:active {
+  cursor: grabbing;
+  transform: scale(0.96);
+}
+.reader-fab-trigger.is-open {
+  background: linear-gradient(160deg, var(--ink) 0%, #111 100%);
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.2),
+    0 0 0 3px rgba(29, 29, 31, 0.12);
+}
+.reader-fab-trigger.has-notes:not(.is-open) {
+  box-shadow:
+    0 14px 32px rgba(15, 23, 42, 0.24),
+    0 0 0 2px rgba(59, 130, 246, 0.4);
+}
+.reader-fab-icon {
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  pointer-events: none;
+}
+.reader-fab-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.reader-fab-dots i {
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--paper);
+  opacity: 0.95;
+}
+.reader-fab-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #3b82f6;
+  color: var(--paper);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+  pointer-events: none;
+}
+
+/* 菜单卡片 */
+.reader-fab-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 12px);
+  display: grid;
+  gap: 8px;
+  width: min(228px, calc(100vw - 24px));
+  padding: 10px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(250, 250, 252, 0.9) 100%);
+  box-shadow:
+    0 20px 48px rgba(15, 23, 42, 0.16),
+    0 1px 0 rgba(255, 255, 255, 0.8) inset;
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  transform-origin: bottom right;
+  animation: reader-fab-menu-in 200ms var(--ease-out) both;
+}
+.reader-fab.is-open-up .reader-fab-menu {
+  bottom: calc(100% + 12px);
+  top: auto;
+  transform-origin: bottom right;
+}
+.reader-fab:not(.is-open-up) .reader-fab-menu {
+  bottom: auto;
+  top: calc(100% + 12px);
+  transform-origin: top right;
+}
+@keyframes reader-fab-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.reader-fab-menu-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px 2px 8px;
+}
+.reader-fab-menu-head-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.reader-fab-menu-head-text strong {
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--ink, var(--ink));
+}
+.reader-fab-menu-head-text span {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--muted, var(--muted));
+}
+.reader-fab-menu-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(29, 29, 31, 0.06);
+  color: var(--ink, var(--ink));
+  cursor: pointer;
+  transition: background 120ms ease, transform 100ms var(--ease-out);
+}
+.reader-fab-menu-close:hover {
+  background: rgba(29, 29, 31, 0.1);
+}
+.reader-fab-menu-close:active {
+  transform: scale(0.94);
+}
+
+/* 批注主行 */
+.reader-fab-row {
+  --fab-i: 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(29, 29, 31, 0.06);
+  color: var(--ink, var(--ink));
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease,
+    transform 100ms var(--ease-out);
+  animation: reader-fab-item-in 220ms var(--ease-out) both;
+  animation-delay: calc(var(--fab-i) * 35ms);
+}
+.reader-fab-row:hover {
+  background: var(--paper);
+  box-shadow:
+    inset 0 0 0 1px rgba(29, 29, 31, 0.08),
+    0 6px 16px rgba(15, 23, 42, 0.06);
+}
+.reader-fab-row:active {
+  transform: scale(0.98);
+}
+.reader-fab-row.is-active {
+  background: linear-gradient(160deg, var(--ink) 0%, var(--ink) 100%);
+  color: var(--paper);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.18);
+}
+.reader-fab-row-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: rgba(29, 29, 31, 0.06);
+  color: var(--ink, var(--ink));
+}
+.reader-fab-row.is-active .reader-fab-row-icon {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--paper);
+}
+.reader-fab-row-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.reader-fab-row-title {
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+}
+.reader-fab-row-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted, var(--muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reader-fab-row.is-active .reader-fab-row-sub {
+  color: rgba(255, 255, 255, 0.7);
+}
+.reader-fab-row-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.14);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 750;
+}
+.reader-fab-row.is-active .reader-fab-row-badge {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--paper);
+}
+
+/* 下载区：三列 chip */
+.reader-fab-section {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 14px;
+  background: rgba(29, 29, 31, 0.035);
+  box-shadow: inset 0 0 0 1px rgba(29, 29, 31, 0.04);
+}
+.reader-fab-section-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 2px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--muted, var(--muted));
+}
+.reader-fab-download-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.reader-fab-chip {
+  --fab-i: 1;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  min-height: 68px;
+  padding: 10px 6px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(29, 29, 31, 0.07);
+  color: var(--ink, var(--ink));
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease,
+    transform 100ms var(--ease-out);
+  animation: reader-fab-item-in 220ms var(--ease-out) both;
+  animation-delay: calc(var(--fab-i) * 35ms);
+}
+.reader-fab-chip:hover:not(:disabled) {
+  background: var(--paper);
+  box-shadow:
+    inset 0 0 0 1px rgba(29, 29, 31, 0.1),
+    0 6px 14px rgba(15, 23, 42, 0.07);
+}
+.reader-fab-chip:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.reader-fab-chip.is-busy {
+  background: rgba(29, 29, 31, 0.06);
+}
+.reader-fab-chip.is-disabled,
+.reader-fab-chip:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+.reader-fab-chip-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: rgba(29, 29, 31, 0.06);
+  color: var(--ink, var(--ink));
+}
+.reader-fab-chip-label {
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+.reader-fab-chip-state {
+  font-size: 10px;
+  font-weight: 650;
+  color: var(--muted, var(--muted));
+  line-height: 1;
+}
+.reader-fab-empty {
+  margin: 0;
+  padding: 2px 4px 0;
+  font-size: 11px;
+  color: var(--muted, var(--muted));
+  text-align: center;
+}
+
+@keyframes reader-fab-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-fab-menu,
+  .reader-fab-row,
+  .reader-fab-chip {
+    animation: none;
+  }
+  .reader-fab-trigger,
+  .reader-fab-row,
+  .reader-fab-chip,
+  .reader-fab-menu-close {
+    transition: none;
+  }
+}
+
+/* —— 选文批注浮层 —— */
+.reader-sel-pop {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  position: fixed;
+  z-index: 55;
+  width: min(280px, calc(100vw - 24px));
+  transform: translateX(-50%);
+  pointer-events: auto;
+  filter: drop-shadow(0 14px 32px rgba(15, 23, 42, 0.16));
+  animation: reader-sel-pop-in 180ms var(--ease-out) both;
+}
+.reader-sel-pop--above {
+  transform: translateX(-50%) translateY(-100%);
+}
+.reader-sel-pop--below {
+  transform: translateX(-50%);
+  animation-name: reader-sel-pop-in-below;
+}
+@keyframes reader-sel-pop-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(calc(-100% + 6px)) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-100%) scale(1);
+  }
+}
+@keyframes reader-sel-pop-in-below {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.reader-sel-pop-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px 10px 9px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(250, 250, 252, 0.94) 100%);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    0 0 0 1px rgba(29, 29, 31, 0.04);
+}
+
+.reader-sel-pop-quote {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 6px;
+  align-items: start;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 214, 10, 0.22) 0%, rgba(255, 214, 10, 0.1) 100%);
+  box-shadow: inset 0 0 0 1px rgba(212, 160, 0, 0.18);
+}
+.reader-sel-pop-mark {
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(180, 120, 0, 0.55);
+  font-family: Georgia, "Times New Roman", serif;
+}
+.reader-sel-pop-quote-text {
+  min-width: 0;
+  color: var(--ink, var(--ink));
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.reader-sel-pop-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 2px;
+}
+.reader-sel-pop-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(29, 29, 31, 0.06);
+  color: var(--muted, var(--muted));
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.reader-sel-pop-chip--source {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--accent);
+}
+.reader-sel-pop-chip--translated {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--ok);
+}
+
+.reader-sel-pop-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.reader-sel-pop-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  cursor: pointer;
+  transition:
+    transform 100ms var(--ease-out),
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+.reader-sel-pop-btn:active {
+  transform: scale(0.97);
+}
+.reader-sel-pop-btn--primary {
+  flex: 1 1 auto;
+  background: linear-gradient(160deg, var(--ink) 0%, var(--ink) 100%);
+  color: var(--paper);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
+}
+.reader-sel-pop-btn--primary:hover {
+  filter: brightness(1.06);
+}
+.reader-sel-pop-btn--ghost {
+  flex: 0 0 auto;
+  width: 34px;
+  padding: 0;
+  background: rgba(29, 29, 31, 0.06);
+  color: var(--ink, var(--ink));
+}
+.reader-sel-pop-btn--ghost:hover {
+  background: rgba(29, 29, 31, 0.1);
+}
+
+/* 指向选区的小三角 */
+.reader-sel-pop-caret {
+  position: absolute;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(250, 250, 252, 0.94) 100%);
+  border-right: 1px solid rgba(29, 29, 31, 0.06);
+  border-bottom: 1px solid rgba(29, 29, 31, 0.06);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.reader-sel-pop--above .reader-sel-pop-caret {
+  bottom: -5px;
+}
+.reader-sel-pop--below .reader-sel-pop-caret {
+  top: -5px;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 1px solid rgba(29, 29, 31, 0.06);
+  border-top: 1px solid rgba(29, 29, 31, 0.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-sel-pop {
+    animation: none;
+  }
+  .reader-sel-pop-btn {
+    transition: none;
+  }
+}
+
+.reader-notes-panel {
+  position: fixed;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  z-index: 38;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  width: min(380px, 92vw);
+  border-left: 1px solid rgba(29, 29, 31, 0.08);
+  background: var(--paper);
+  box-shadow: -12px 0 32px rgba(15, 23, 42, 0.06);
+}
+.reader-react-root:has(.reader-notes-panel) .reader-react-scroll-shell {
+  right: min(380px, 92vw);
+}
+.reader-notes-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 10px;
+}
+.reader-notes-panel-head strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 750;
+}
+.reader-notes-panel-head span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted, var(--muted));
+  font-size: 11px;
+  font-weight: 600;
+}
+.reader-notes-close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(29, 29, 31, 0.05);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.reader-notes-panel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 16px 12px;
+  border-bottom: 1px solid rgba(29, 29, 31, 0.06);
+}
+.reader-notes-count {
+  color: var(--muted, var(--muted));
+  font-size: 12px;
+  font-weight: 650;
+}
+.reader-notes-export {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(29, 29, 31, 0.06);
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.reader-notes-export:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.reader-notes-panel-body {
+  overflow: auto;
+  padding: 12px 16px 24px;
+}
+.reader-notes-empty {
+  margin: 24px 0;
+  color: var(--muted, var(--muted));
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.reader-notes-group {
+  margin-bottom: 16px;
+}
+.reader-notes-group-title {
+  margin: 0 0 8px;
+  color: var(--muted, var(--muted));
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+.reader-notes-item {
+  margin-bottom: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(29, 29, 31, 0.03);
+  border: 1px solid rgba(29, 29, 31, 0.05);
+}
+.reader-notes-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.reader-notes-kind {
+  display: inline-flex;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+.reader-notes-item-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+.reader-notes-link,
+.reader-notes-danger,
+.reader-notes-primary,
+.reader-notes-add-note {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.reader-notes-link {
+  color: var(--accent);
+}
+.reader-notes-danger {
+  color: var(--danger);
+}
+.reader-notes-primary {
+  background: var(--ink);
+  color: var(--paper);
+}
+.reader-notes-quote {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 214, 10, 0.16) 0%, rgba(255, 214, 10, 0.07) 100%);
+  box-shadow: inset 3px 0 0 rgba(212, 160, 0, 0.45);
+  color: var(--ink, var(--ink));
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.reader-notes-note,
+.reader-notes-add-note {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px dashed rgba(29, 29, 31, 0.12);
+  color: var(--muted, var(--muted));
+  font-size: 12px;
+  line-height: 1.4;
+}
+.reader-notes-note {
+  border-style: solid;
+  color: var(--ink, var(--ink));
+  white-space: pre-wrap;
+}
+.reader-notes-editor {
+  display: grid;
+  gap: 8px;
+}
+.reader-notes-textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 8px 10px;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  border-radius: 8px;
+  resize: vertical;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.reader-notes-editor-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.reader-react-pdf-empty,
+.reader-react-pdf-loading {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 80px 24px;
+  text-align: center;
+  color: var(--muted, var(--muted));
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reader-react-error {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 50;
+  transform: translateX(-50%);
+  max-width: min(480px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(29, 29, 31, 0.92);
+  color: var(--paper);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* —— R2 HUD / zoom —— */
+.reader-react-hud {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 36;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid rgba(29, 29, 31, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transform: translateX(-50%);
+}
+
+.reader-react-hud-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reader-react-hud-page {
+  min-width: 64px;
+  padding: 0 8px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.reader-react-hud-btn {
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, transform 100ms ease;
+}
+
+.reader-react-hud-btn:hover:not(:disabled) {
+  background: rgba(29, 29, 31, 0.06);
+}
+
+.reader-react-hud-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.reader-react-hud-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.reader-react-hud-zoom-label {
+  min-width: 48px;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.reader-react-pdf-page-slot {
+  display: flex;
+  justify-content: center;
+}
+
+
+.reader-react-hud-page-btn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 999px;
+}
+.reader-react-hud-page-btn:hover:not(:disabled) {
+  background: rgba(29, 29, 31, 0.06);
+}
+.reader-react-hud-page-btn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.reader-react-hud-page-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.reader-react-hud-page-input {
+  width: 40px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  outline: none;
+}
+.reader-react-hud-page-input:focus {
+  border-color: rgba(29, 29, 31, 0.35);
+  box-shadow: 0 0 0 3px rgba(29, 29, 31, 0.08);
+}
+.reader-react-hud-page-suffix {
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted, var(--muted));
+}
+
+/* 快捷键帮助 */
+.reader-react-hud-help {
+  margin-left: 2px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(29, 29, 31, 0.08);
+}
+.reader-react-shortcuts {
+  position: relative;
+}
+.reader-react-shortcuts-btn {
+  font-weight: 800;
+  font-size: 13px;
+}
+.reader-react-shortcuts-btn.is-active {
+  background: rgba(29, 29, 31, 0.1);
+}
+.reader-react-shortcuts-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 12px);
+  width: min(320px, calc(100vw - 32px));
+  padding: 12px 12px 10px;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(16px);
+  color: var(--ink);
+  text-align: left;
+}
+.reader-react-shortcuts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.reader-react-shortcuts-head strong {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.reader-react-shortcuts-close {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted, var(--muted));
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.reader-react-shortcuts-close:hover {
+  background: rgba(29, 29, 31, 0.06);
+  color: var(--ink);
+}
+.reader-react-shortcuts-body {
+  display: grid;
+  gap: 10px;
+}
+.reader-react-shortcuts-group h3 {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, var(--muted));
+}
+.reader-react-shortcuts-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.reader-react-shortcuts-group li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+.reader-react-shortcuts-group kbd {
+  display: inline-block;
+  padding: 3px 6px;
+  border: 1px solid rgba(29, 29, 31, 0.1);
+  border-radius: 6px;
+  background: rgba(29, 29, 31, 0.04);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--ink);
+}
+.reader-react-shortcuts-group span {
+  color: var(--muted, var(--muted));
+  font-weight: 550;
+}
+.reader-react-shortcuts-foot {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--muted, var(--muted));
+}
+
+
+/* 模式 tab：纯图标 */
+.reader-tab.reader-tab-icon {
+  flex: 1 1 0;
+  min-width: 40px;
+  padding: 0 8px;
+  gap: 0;
+}
+.reader-tab-lucide {
+  display: block;
+  flex-shrink: 0;
+}
+.reader-react-shortcuts-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+}
+.reader-react-shortcuts-icon {
+  display: block;
+}
+
+.reader-body .reader-react-topbar {
+  width: min(200px, calc(100vw - 48px));
+}
+
+.reader-react-pdf-page-placeholder {
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(29,29,31,0.04), rgba(29,29,31,0.02));
+  box-shadow: inset 0 0 0 1px rgba(29, 29, 31, 0.04);
+}

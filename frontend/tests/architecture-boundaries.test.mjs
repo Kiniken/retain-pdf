@@ -225,7 +225,7 @@ test("shared dialog shell styles stay in dialog-shell css", () => {
 test("app update styles stay in app-update css", () => {
   const styleSources = allPathsUnder(join(PROJECT_ROOT, "src/styles"))
     .filter((filePath) => filePath.endsWith(".css"))
-    .filter((filePath) => filePath !== join(PROJECT_ROOT, "src/styles/app-update.css"));
+    .filter((filePath) => filePath !== join(PROJECT_ROOT, "src/styles/pages/home/app-update.css"));
   const offenders = findMatchingSources(styleSources, APP_UPDATE_SELECTOR_PATTERN);
 
   assert.deepEqual(offenders, []);
@@ -234,7 +234,7 @@ test("app update styles stay in app-update css", () => {
 test("library shell styles stay in library-shell css", () => {
   const styleSources = allPathsUnder(join(PROJECT_ROOT, "src/styles"))
     .filter((filePath) => filePath.endsWith(".css"))
-    .filter((filePath) => filePath !== join(PROJECT_ROOT, "src/styles/library-shell.css"));
+    .filter((filePath) => filePath !== join(PROJECT_ROOT, "src/styles/pages/home/library-shell.css"));
   const offenders = findMatchingSources(styleSources, LIBRARY_SHELL_SELECTOR_PATTERN);
 
   assert.deepEqual(offenders, []);
@@ -581,5 +581,75 @@ test("React 新世界禁止 import 旧视图层(防回弹)", () => {
     violations,
     [],
     `React 新世界引用了旧视图层,请改为消费纯逻辑层或在 React 内重写:\n  ${violations.join("\n  ")}`,
+  );
+});
+
+
+const HOME_FEATURES_ROOT = join(PROJECT_ROOT, "src/pages/home/features");
+/** Any import whose module path reaches src/js (…/js/…); composition/external is the only gate. */
+const HOME_FEATURES_DIRECT_JS_IMPORT =
+  /from\s+["'][^"']*(?:^|\/)js\/[^"']+["']|from\s+["'][^"']*(?:\.\.\/)+js\/[^"']+["']/;
+
+function pageHasDirectJsImport(source) {
+  return source.split("\n").some((line) => {
+    const code = line.split("//")[0];
+    return (
+      /\bfrom\s+["']/.test(code)
+      && /js\//.test(code)
+      && !/\/external(?:\.js)?["']/.test(code)
+      && !/composition\/external/.test(code)
+    );
+  });
+}
+
+test("home features must not import src/js/* directly (use composition/external)", () => {
+  const offenders = walkFiles(HOME_FEATURES_ROOT)
+    .filter((file) => /\.(?:ts|tsx|js|jsx)$/.test(file))
+    .filter((file) => pageHasDirectJsImport(readSource(file)))
+    .map((file) => relative(HOME_FEATURES_ROOT, file));
+
+  assert.deepEqual(
+    offenders,
+    [],
+    "import src/js/* only via pages/home/composition/external.ts",
+  );
+});
+
+const DETAIL_PAGE_ROOT = join(PROJECT_ROOT, "src/pages/detail");
+
+test("detail page must not import src/js/* directly (use pages/detail/external)", () => {
+  const offenders = walkFiles(DETAIL_PAGE_ROOT)
+    .filter((file) => /\.(?:ts|tsx|js|jsx)$/.test(file))
+    .filter((file) => {
+      const base = relative(DETAIL_PAGE_ROOT, file).replace(/\\/g, "/");
+      if (base === "external.ts") return false;
+      return pageHasDirectJsImport(readSource(file));
+    })
+    .map((file) => relative(DETAIL_PAGE_ROOT, file).replace(/\\/g, "/"));
+
+  assert.deepEqual(
+    offenders,
+    [],
+    "import src/js/* only via pages/detail/external.ts",
+  );
+});
+
+const READER_PAGE_ROOT = join(PROJECT_ROOT, "src/pages/reader");
+
+test("reader non-legacy must not import src/js/* directly (use pages/reader/external)", () => {
+  const offenders = walkFiles(READER_PAGE_ROOT)
+    .filter((file) => /\.(?:ts|tsx|js|jsx)$/.test(file))
+    .filter((file) => {
+      const base = relative(READER_PAGE_ROOT, file).replace(/\\/g, "/");
+      if (base === "external.ts") return false;
+      if (base.startsWith("legacy/")) return false; // legacy 可直接依赖 js/reader
+      return pageHasDirectJsImport(readSource(file));
+    })
+    .map((file) => relative(READER_PAGE_ROOT, file).replace(/\\/g, "/"));
+
+  assert.deepEqual(
+    offenders,
+    [],
+    "non-legacy reader code imports src/js/* only via pages/reader/external.ts",
   );
 });

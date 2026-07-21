@@ -1,0 +1,26 @@
+/* 皮肤 night：黛瓦夜色 — 深底阅读 */
+
+[data-theme="night"] {
+  --bg: #141618;
+  --paper: #1e2226;
+  --surface: rgba(30, 34, 38, 0.88);
+  --ink: #e8e6e3;
+  --muted: #9a9590;
+  --line: #2c3238;
+
+  --accent: #5aa88e;
+  --accent-weak: rgba(90, 168, 142, 0.18);
+  --selection: #24352f;
+
+  --danger: #e07068;
+  --danger-weak: rgba(224, 112, 104, 0.16);
+  --ok: #6bc48a;
+  --ok-weak: rgba(107, 196, 138, 0.14);
+  --warn: #d4a24a;
+  --warn-weak: rgba(212, 162, 74, 0.14);
+
+  --gold: #c9a227;
+  --gold-weak: rgba(201, 162, 39, 0.16);
+  --chrome: #0e1012;
+  --reader-page: #1a1d21;
+}

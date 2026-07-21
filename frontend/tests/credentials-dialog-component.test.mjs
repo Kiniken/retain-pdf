@@ -355,7 +355,7 @@ test("CredentialsDialog：隐藏 input 与 credentialsStatePort 单向受控同�
   host.remove();
 });
 
-test("SettingsHubDialog：词表/更新两个 tab 的占位契约 id", async () => {
+test("SettingsHubDialog：词表/外观/更新 tab 契约", async () => {
   const services = createServices();
   const { host, root } = await mountHome(services);
 
@@ -366,6 +366,37 @@ test("SettingsHubDialog：词表/更新两个 tab 的占位契约 id", async () 
   click(glossaryTab);
   await waitFor(() => byId("glossary-btn"), "词表 tab 占位按钮存在");
   assert.equal(dom.window.document.querySelector('[data-settings-panel="glossary"]').hidden, false);
+
+  const appearanceTab = dom.window.document.querySelector('[data-settings-tab="appearance"]');
+  assert.ok(appearanceTab, "外观 tab 存在");
+  click(appearanceTab);
+  await waitFor(() => byId("theme-appearance-panel"), "外观面板挂载");
+  assert.equal(dom.window.document.querySelector('[data-settings-panel="appearance"]').hidden, false);
+  assert.ok(byId("theme-option-classic"), "经典皮肤选项");
+  assert.ok(byId("theme-option-jiangnan"), "江南院落选项");
+  assert.ok(byId("theme-option-seacliff"), "海岬选项");
+  assert.ok(byId("theme-option-night"), "黛瓦夜色选项");
+
+  // 切换皮肤应写入 data-theme
+  click(byId("theme-option-jiangnan"));
+  await waitFor(
+    () => dom.window.document.documentElement.dataset.theme === "jiangnan",
+    "选中江南院落后 html[data-theme=jiangnan]",
+  );
+  click(byId("theme-option-night"));
+  await waitFor(
+    () =>
+      dom.window.document.documentElement.dataset.theme === "night"
+      && dom.window.document.documentElement.classList.contains("theme-dark"),
+    "黛瓦夜色 + theme-dark class",
+  );
+  click(byId("theme-option-classic"));
+  await waitFor(
+    () =>
+      dom.window.document.documentElement.dataset.theme === "classic"
+      && !dom.window.document.documentElement.classList.contains("theme-dark"),
+    "切回经典并去掉 theme-dark",
+  );
 
   const updateTab = dom.window.document.querySelector('[data-settings-tab="update"]');
   click(updateTab);

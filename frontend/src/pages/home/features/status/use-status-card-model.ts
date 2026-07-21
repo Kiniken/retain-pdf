@@ -4,8 +4,6 @@
 import { useMemo } from "react";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
 import { useHomeServices } from "../../home-services-context.js";
-import { statusStageLabel } from "../../../../js/job-status/stage-flow-model.js";
-import { buildSelectedStageDisplay } from "../../../../js/job-status/selected-stage-display-view-model.js";
 import { useStageSelection } from "./useStageSelection.js";
 import { useElapsedTicker } from "./useElapsedTicker.js";
 import { useStagedProgressAnimation } from "./useStagedProgressAnimation.js";
@@ -21,6 +19,10 @@ import type {
   StatusCardStore,
 } from "./status-card-store.js";
 import type { ProgressRenderModelInput } from "./progress-model.js";
+import {
+  statusStageLabel,
+  buildSelectedStageDisplay,
+} from "../../composition/external.js";
 
 export type StatusCardPrimaryActions = {
   pdfReady: boolean;

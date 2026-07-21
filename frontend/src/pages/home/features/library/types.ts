@@ -1,8 +1,11 @@
 // library 域共享类型：网格卡片 item、controller 契约、viewPort / viewStore。
 // 字段从 shapeDocumentCardItem / mergeLibraryJobItem / cardSignatureOf 反推。
 
-import type { Store, StoreChangeMeta } from "../../../../js/app-framework/store.js";
 import type { DialogStore } from "../../state/dialog-store.js";
+import type {
+  Store,
+  StoreChangeMeta,
+} from "../../composition/external.js";
 
 // ─── 进度 / 运行时 ───────────────────────────────────────────────
 

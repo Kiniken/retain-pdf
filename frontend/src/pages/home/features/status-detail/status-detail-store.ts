@@ -1,3 +1,6 @@
+import { createStore } from "../../composition/external.js";
+import type { Store } from "../../composition/external.js";
+
 // StatusDetailDialog 的读面 store(蓝图 §1 "新 store"清单)。
 //
 // 两个并行段(数据源铁律,蓝图 §1.0 + §0 全局发现):
@@ -12,8 +15,6 @@
 // 平行读路径,不合并——status-detail 自己 fetch(events/diagnostics/
 // resumePlan),写入频率远低于状态卡的 1s 轮询,合并会污染 StatusCard 的高频
 // 订阅快照(蓝图 §1.0 明确铁律)。
-
-import { createStore, type Store } from "../../../../js/app-framework/store.js";
 
 export type StatusDetailHeadline = {
   iconMarkup: string;

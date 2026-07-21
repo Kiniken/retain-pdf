@@ -45,13 +45,14 @@
 
 import { useEffect, useState } from "react";
 import { Dialog as DialogPrimitive, Tabs as TabsPrimitive } from "radix-ui";
-import { APP_EVENTS } from "../../../../js/contracts/app-contract.js";
 import { useHomeServices } from "../../home-services-context.js";
 import { useDialogState } from "../../state/use-dialog-state.js";
 import { useDialogReturnFocus } from "../../../../shared/react/use-dialog-return-focus.js";
 import { APP_SETTINGS_DIALOG_IDS } from "../credentials/credentials-dom-ids.js";
 import { AppUpdateBanner } from "../app-update/AppUpdateBanner.jsx";
+import { ThemeAppearancePanel } from "./ThemeAppearancePanel.jsx";
 import { Button as ButtonBase } from "../../../../components/Button.jsx";
+import { APP_EVENTS } from "../../composition/external.js";
 
 // Button.size 在未注解源文件里被推断为必填;unstyled 路径运行时不用 size。
 const Button = ButtonBase as any;
@@ -59,6 +60,7 @@ const Button = ButtonBase as any;
 const TABS = [
   { id: "api", label: "API 设置" },
   { id: "glossary", label: "词表" },
+  { id: "appearance", label: "外观" },
   { id: "update", label: "更新" },
 ];
 
@@ -110,7 +112,7 @@ export function SettingsHubDialog() {
                 <DialogPrimitive.Title asChild>
                   <h2>设置</h2>
                 </DialogPrimitive.Title>
-                <p>接口、术语表和版本更新</p>
+                <p>接口、术语表、外观和版本更新</p>
               </div>
               <DialogPrimitive.Close asChild>
                 <Button
@@ -179,6 +181,28 @@ export function SettingsHubDialog() {
                   <Button id={APP_SETTINGS_DIALOG_IDS.glossaryButton} className="app-settings-action" onClick={openGlossaries}>
                     打开词表
                   </Button>
+                </TabsPrimitive.Content>
+
+                <TabsPrimitive.Content
+                  value="appearance"
+                  forceMount
+                  hidden={activeTab !== "appearance"}
+                  className={`app-settings-panel${activeTab === "appearance" ? " is-active" : ""}`}
+                  data-settings-panel="appearance"
+                >
+                  <div className="app-settings-panel-copy">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M12 3a9 9 0 1 0 9 9c0-.5-.04-1-.12-1.48a5 5 0 0 1-6.4-6.4A9 9 0 0 0 12 3Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                      <circle cx="8.5" cy="10" r="1.1" fill="currentColor" />
+                      <circle cx="11.5" cy="7.2" r="1.1" fill="currentColor" />
+                      <circle cx="15.2" cy="9" r="1.1" fill="currentColor" />
+                    </svg>
+                    <div>
+                      <strong>外观</strong>
+                      <span>切换主题皮肤。江南院落：青砖、宣纸、铜绿与朱砂。</span>
+                    </div>
+                  </div>
+                  <ThemeAppearancePanel />
                 </TabsPrimitive.Content>
 
                 <TabsPrimitive.Content

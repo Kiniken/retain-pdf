@@ -1,5 +1,5 @@
-/* 三栏骨架:工具面板停靠为右栏,占满右侧栏位(不再是浮层覆盖)。
-   同一时刻仅一个 .is-open,互斥切换即右栏内容切换(后期加显式 tab)。 */
+/* 右侧工具抽屉 chrome（布局宽变量 / 折叠见 reader-page.css） */
+
 .reader-side-drawer {
   position: fixed;
   top: 56px;
@@ -10,7 +10,7 @@
   grid-template-rows: auto minmax(0, 1fr);
   width: var(--reader-right-w, 384px);
   border-left: 1px solid var(--reader-surface-border);
-  background: #fff;
+  background: var(--paper);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -22,11 +22,6 @@
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-}
-
-.reader-body:has(.reader-side-drawer.is-open) .reader-page-indicator {
-  opacity: 0.18;
-  pointer-events: none;
 }
 
 .reader-ai-drawer {
@@ -68,19 +63,8 @@
   line-height: 1;
 }
 
+/* 窄屏：抽屉改底部浮层（栏宽归零 / 左栏隐藏在 reader-page） */
 @media (max-width: 720px) {
-  /* 窄屏退回底部浮层:左栏收起、右栏不占位,中间铺满 */
-  .reader-body {
-    --reader-left-w: 0px;
-    --reader-right-w: 0px;
-  }
-
-  .reader-col-left,
-  .reader-col-resizer,
-  .reader-col-collapse {
-    display: none;
-  }
-
   .reader-side-drawer {
     top: auto;
     right: 8px;

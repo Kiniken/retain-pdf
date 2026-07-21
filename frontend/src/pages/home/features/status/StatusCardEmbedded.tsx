@@ -3,7 +3,6 @@
 // - 进度文案行右侧：仅当前选中阶段的「重新 OCR / 翻译 / 渲染」
 //   （动作与导航分离，不挤 pill、不顶乱布局）
 
-import { APP_EVENTS } from "../../../../js/contracts/app-contract.js";
 import { StageFlow } from "./StageFlow.jsx";
 import { buildProgressRenderModel, type ProgressRenderModelInput } from "./progress-model.js";
 import { StatusCardIdsContext } from "./status-card-ids-context.js";
@@ -13,6 +12,7 @@ import type {
   StatusCardSnapshot,
   StatusCardStageRetryAction,
 } from "./status-card-store.js";
+import { APP_EVENTS } from "../../composition/external.js";
 
 function resolvePercent(
   renderOptions: ProgressRenderModelInput | null | undefined,

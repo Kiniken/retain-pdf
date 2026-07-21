@@ -27,7 +27,7 @@
   - --background           ← --bg           页面底色。
   - --muted-surface(新)   ← --line         shadcn "--muted" 背景色语义,项目
                                             没有专门的浅灰底 token,借用现有
-                                            描边色 --line(#e5e5ea)当浅灰底。
+                                            描边色 --line(var(--line))当浅灰底。
   - --destructive          ← --danger       危险色。
   - --border / --input     ← --line         项目唯一的描边/分隔线 token。
   - --primary / --ring     ← --accent       项目没有独立的"品牌主色"token,
@@ -51,7 +51,7 @@
   对应 token,按判断派生(阶段 B/C 走查具体页面时如观感不对可以再收紧):
   - --primary-foreground  ← --paper(白)   叠在品牌蓝底上的文字,取高对比度白。
   - --secondary            ← --paper(白)   对应现有 .app-button.secondary 的
-                                            实际背景(background:#fff)。
+                                            实际背景(background:var(--paper))。
   - --secondary-foreground ← --ink          对应 .app-button.secondary 的实际
                                             文字色(color: var(--ink))。
   - --accent-foreground    ← --paper(白)   --accent 现在是品牌蓝,叠字取白以

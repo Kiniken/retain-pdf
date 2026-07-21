@@ -1,0 +1,37 @@
+/* 皮肤 jiangnan：素雅纸本
+ * 避免黄褐「土气」——底色偏冷石灰，强调色偏冷青绿，点缀克制。
+ * 见 docs/theme-system/skins/jiangnan.md
+ */
+
+[data-theme="jiangnan"] {
+  /* 院落：冷石灰（非米黄夯土） */
+  --bg: #f1f0ed;
+  /* 纸面：近白，仅极弱暖 */
+  --paper: #fbfaf8;
+  --surface: rgba(251, 250, 248, 0.88);
+  /* 墨：中性偏冷 */
+  --ink: #1b1b1d;
+  --muted: #6e6e72;
+  /* 缝：冷灰，不发黄 */
+  --line: #e5e4e1;
+
+  /* 冷青绿（非铜锈橄榄绿）— 主按钮 / 选中 */
+  --accent: #2a5f57;
+  --accent-weak: rgba(42, 95, 87, 0.11);
+  --selection: #e8efed;
+
+  /* 朱砂改为干净正红，避免砖红发脏 */
+  --danger: #c23b32;
+  --danger-weak: rgba(194, 59, 50, 0.11);
+  --ok: #2d7a4f;
+  --ok-weak: rgba(45, 122, 79, 0.11);
+  /* 警告：哑光琥珀，不做亮金黄 */
+  --warn: #a67c2d;
+  --warn-weak: rgba(166, 124, 45, 0.12);
+
+  /* 「金」改为哑青铜灰，大面积不用 */
+  --gold: #8a7a5c;
+  --gold-weak: rgba(138, 122, 92, 0.12);
+  --chrome: #1a1b1c;
+  --reader-page: #fbfaf8;
+}

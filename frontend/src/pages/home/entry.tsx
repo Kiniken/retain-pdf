@@ -10,8 +10,12 @@
 // 双调用会重复 dispatch;命令式复用件与 StrictMode 解耦是三页统一约定)。
 
 import { createRoot } from "react-dom/client";
+import { bootTheme } from "../../shared/theme/theme.js";
 import { createHomeComposition } from "./composition.js";
 import { HomeApp } from "./HomeApp.jsx";
+
+// 尽早挂 data-theme，减少换肤 FOUC（见 docs/theme-system/THEME_SYSTEM.md）
+bootTheme();
 
 // appUpdateAutoCheckEnabled: true——composition.js 默认关闭 app-update 的后台
 // GitHub 自检(测试隔离,见 composition.js 头注释),生产入口这里显式打开,

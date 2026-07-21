@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "npm run prepare:vendor && npm run generate:version && npm run build:css && npm run build:js",
-    "build:css": "tailwindcss -i ./src/input.css -o ./styles.css --minify && node ./scripts/stamp-cache-version.mjs",
+    "build:css": "node ./scripts/build-css.mjs && node ./scripts/stamp-cache-version.mjs",
     "build:js": "node ./scripts/build-js-bundle.mjs && node ./scripts/stamp-cache-version.mjs",
     "stamp:assets": "node ./scripts/stamp-cache-version.mjs",
     "generate:version": "node ./scripts/generate-app-version.mjs",
@@ -18,7 +18,7 @@
     "smoke:parallel-status": "python3 ./scripts/frontend-parallel-status-smoke.py",
     "smoke:status": "node ./scripts/frontend-status-smoke.mjs",
     "test": "node --import ./tests/helpers/register-jsx.mjs --test --test-force-exit tests/*.test.mjs",
-    "watch:css": "tailwindcss -i ./src/input.css -o ./styles.css --watch",
+    "watch:css": "node ./scripts/build-css.mjs --watch",
     "watch:js": "node ./scripts/build-js-bundle.mjs --watch",
     "visual:check": "node ./scripts/visual-check.mjs",
     "visual:update": "node ./scripts/visual-check.mjs --update"
@@ -48,6 +48,7 @@
     "radix-ui": "^1.6.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-pdf": "^9.2.1",
     "react-resizable-panels": "4.12.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0"

@@ -117,7 +117,6 @@ export function buildHomeServices({
       controller: status.statusDetailController,
     },
     reader: {
-      dialogStore: status.readerDialogStore,
       openReader: library.recentJobsReaderPort.openReader,
     },
     textOf: views.textStore.textOf,

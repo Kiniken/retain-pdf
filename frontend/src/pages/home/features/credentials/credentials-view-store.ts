@@ -9,12 +9,13 @@
 // ocr-readiness-flow.js/persistence.js/dialog-values.js 等 kept 逻辑层的编排者)
 // 一行不改地复用。
 
-import { createStore, type Store } from "../../../../js/app-framework/store.js";
 import type { DialogStore } from "../../state/dialog-store.js";
 import type {
   CredentialsElementsRef,
   HandlersBag,
 } from "../../composition/types.js";
+import { createStore } from "../../composition/external.js";
+import type { Store } from "../../composition/external.js";
 
 export type CredentialsMessage = {
   message: string;

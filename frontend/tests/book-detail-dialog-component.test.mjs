@@ -169,10 +169,15 @@ test("已翻译卡打开书籍详情:有对照阅读,无翻译按钮", async () 
       || doneStep?.classList.contains("is-done"),
     "完成阶段高亮",
   );
-  const ringValue = statusCard.querySelector(".bd-job-status-value")?.textContent?.trim();
-  assert.ok(ringValue && ringValue !== "准备中", `完成态应有进度文案，实际: ${ringValue}`);
-  const pct = statusCard.querySelector(".bd-job-status-ring-text")?.textContent?.trim();
-  assert.equal(pct, "100%", "完成态进度环 100%");
+  const valueText = statusCard.querySelector(".bd-job-status-value")?.textContent?.trim();
+  assert.ok(valueText && valueText !== "准备中", `完成态应有进度文案，实际: ${valueText}`);
+  // 详情进度卡已从 ring 改为 bar 布局（StatusCardEmbedded：.bd-job-status-percent）
+  const pct = statusCard.querySelector(".bd-job-status-percent")?.textContent?.trim();
+  assert.equal(pct, "100%", "完成态进度条 100%");
+  assert.ok(
+    statusCard.querySelector(".bd-job-status-bar.is-done"),
+    "完成态进度条 is-done",
+  );
   // 仍然不得弹工作流
   assert.equal(
     services.stores.dialog.getSnapshot().open,

@@ -1,0 +1,16 @@
+/*
+ * 皮肤契约：每个 themes/<id>.css 必须为 [data-theme="<id>"] 定义下列变量。
+ * classic 同时写在 :root，保证未设置 data-theme 时也有默认值。
+ *
+ * 必选：
+ *   --bg --paper --surface --ink --muted --line
+ *   --accent --accent-weak --selection
+ *   --danger --danger-weak --ok --ok-weak --warn --warn-weak
+ *   --gold --gold-weak --chrome --reader-page
+ *
+ * 可选（未写则回退到上表语义）：
+ *   --shadow-soft / 由 tailwind-theme 用固定 rgba 亦可
+ *
+ * 新增皮肤：复制 classic.css → 改色 → 在 index.css @import → registry.ts 登记。
+ * 见 docs/theme-system/ADDING_A_THEME.md
+ */

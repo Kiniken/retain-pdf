@@ -1,9 +1,3 @@
-// 分类(合集)域的唯一装配面。这是一个纯 React 时代新建的域,没有旧世界
-// controller.js 可复用,所以不套其余域那套 mountXFeature()/viewPort 壳子——
-// 直接是一层绑好 apiPrefix 的薄函数集合,composition.js 建一次实例,
-// CategoriesView.jsx/CollectionManageDialog.jsx 经 services.collections.controller
-// 消费。
-
 import {
   addDocumentsToCollection,
   createCollection,
@@ -11,10 +5,16 @@ import {
   listCollections,
   patchCollection,
   removeDocumentFromCollection,
-} from "../../../../js/api/collections.js";
-import { fetchDocumentList } from "../../../../js/api/documents.js";
-import { fetchLibraryBookList } from "../../../../js/api/library-books.js";
-import { shapeDocumentsWithBooks } from "../../../../js/features/documents-library/shape-documents-with-books.js";
+  fetchDocumentList,
+  fetchLibraryBookList,
+  shapeDocumentsWithBooks,
+} from "../../composition/external.js";
+
+// 分类(合集)域的唯一装配面。这是一个纯 React 时代新建的域,没有旧世界
+// controller.js 可复用,所以不套其余域那套 mountXFeature()/viewPort 壳子——
+// 直接是一层绑好 apiPrefix 的薄函数集合,composition.js 建一次实例,
+// CategoriesView.jsx/CollectionManageDialog.jsx 经 services.collections.controller
+// 消费。
 
 export function createCollectionsController({ apiPrefix }) {
   return {

@@ -1,3 +1,14 @@
+import {
+  createSecondaryResourceStatePort,
+  createCurrentJobStatePort,
+  createJobRenderContextPort,
+} from "../../composition/external.js";
+import type {
+  JobLike,
+  JobPayload,
+  EventsPayload,
+} from "../../composition/external.js";
+
 // StatusDetailDialog 的 runtimePort(蓝图 §1 数据源铁律:读 job-runtime 保留
 // 引擎的 state,不是 statusCardStore)。
 //
@@ -8,12 +19,6 @@
 // 组合,零 DOM 逻辑,直接照抄零风险。composition.js 用同一个 jobRuntimeState
 // 对象构造,拿到与 job-runtime 引擎完全同一份 currentJobStore/
 // secondaryResourceStore 引用,不新建平行状态。
-
-import { createSecondaryResourceStatePort } from "../../../../js/features/job-runtime/secondary-resource-cache.js";
-import { createCurrentJobStatePort } from "../../../../js/features/job-runtime/current-job-state.js";
-import { createJobRenderContextPort } from "../../../../js/features/job-runtime/render-context.js";
-import type { JobLike, JobPayload } from "../../../../js/job/types.js";
-import type { EventsPayload } from "../../../../js/job-status/types.js";
 
 /** applyOverviewPayload 入参：概览刷新后写回 runtime 的一批载荷 */
 export interface StatusDetailOverviewPayloadOptions {

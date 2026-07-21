@@ -1,4 +1,4 @@
-// statusCard / statusDetail / reader / artifact-download busy。
+// statusCard / statusDetail / artifact-download busy。
 
 import {
   API_PREFIX,
@@ -21,7 +21,6 @@ import { createStatusDetailStore } from "../features/status-detail/status-detail
 import { createStatusDetailDialogStore } from "../features/status-detail/status-detail-dialog-store.js";
 import { createStatusDetailRuntimePort } from "../features/status-detail/status-detail-runtime-port.js";
 import { createStatusDetailController } from "../features/status-detail/status-detail-controller.js";
-import { createReaderDialogStore } from "../features/reader/reader-dialog-store.js";
 import type { HomeFeatures, StatusDetailHolder } from "./types.js";
 
 type CreateStatusDomainArgs = {
@@ -82,11 +81,11 @@ export function createStatusDomain({
     dialogStore: statusDetailDialogStore,
   });
 
-  const readerDialogStore = createReaderDialogStore();
-
+  // 阅读已改为跳转独立 reader.html，主页不再挂 iframe 对话框；
+  // isReaderOpen 恒为 false，job-runtime 的 sync/close 钩子成为 no-op。
   const jobRuntimeShellViewPort = {
     closeDialogs: () => statusDetailDialogStore.close(),
-    isReaderOpen: () => Boolean(readerDialogStore.getState().open),
+    isReaderOpen: () => false,
     resetEvents: () => bridge.resetEventsList(),
     setCancelDisabled: (disabled: boolean) => statusCardStore.actions.setCancelDisabled(disabled),
   };
@@ -118,7 +117,6 @@ export function createStatusDomain({
     statusDetailStore,
     statusDetailDialogStore,
     statusDetailController,
-    readerDialogStore,
     jobRuntimeShellViewPort,
     artifactDownloadBusyStore,
     artifactDownloadsViewPort,

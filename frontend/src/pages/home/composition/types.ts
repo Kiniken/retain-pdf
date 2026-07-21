@@ -1,11 +1,13 @@
 // composition 层公共类型。HomeServices / HomeFeatures 表面 API 不用 any；
 // 深层 payload 用 unknown；store/port 复用已有模块类型。
 
-import type { Store } from "../../../js/app-framework/store.js";
-import type { CredentialsStatePort } from "../../../js/features/credentials/state.js";
-import type { HomeStatePort } from "../../../js/features/home/state.js";
-import type { UploadStatePort } from "../../../js/features/upload/state.js";
-import type { TranslationWorkflowDialogStatePort } from "../../../js/features/translation-workflow-dialog/state.js";
+import type {
+  Store,
+  CredentialsStatePort,
+  HomeStatePort,
+  UploadStatePort,
+  TranslationWorkflowDialogStatePort,
+} from "./external.js";
 import type { DialogStore } from "../state/dialog-store.js";
 import type { ArtifactDownloadBusyStore } from "../state/artifact-download-busy-store.js";
 import type {
@@ -340,15 +342,8 @@ export type HomeStatusDetail = {
   controller: StatusDetailController;
 };
 
-export type ReaderDialogPayload = {
-  jobId?: string;
-  documentId?: string;
-  url?: string;
-  anchor?: { pageIdx?: number | null; blockId?: string } | null;
-};
-
+/** 主页阅读入口：跳转独立 reader.html（不再维护 dialogStore / iframe）。 */
 export type HomeReader = {
-  dialogStore: DialogStore<ReaderDialogPayload | null>;
   openReader: (jobId: string, anchor?: unknown) => unknown;
 };
 
@@ -478,7 +473,6 @@ export type HomeServicesDomains = {
     statusDetailStore: StatusDetailStore;
     statusDetailDialogStore: StatusDetailDialogStore;
     statusDetailController: StatusDetailController;
-    readerDialogStore: DialogStore<ReaderDialogPayload | null>;
     artifactDownloadBusyStore: ArtifactDownloadBusyStore;
   };
   library: {

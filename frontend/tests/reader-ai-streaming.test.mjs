@@ -22,7 +22,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = false;
 
 const { createRoot } = await import("react-dom/client");
 const React = await import("react");
-const { ReaderAiChat } = await import("../src/pages/reader/components/ReaderAiChat.jsx");
+const { ReaderAiChat } = await import("../src/pages/reader/legacy/components/ReaderAiChat.jsx");
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));

@@ -2,13 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 
-// 图书馆优先(参考 PDF_MD_lib 的 UploadModal):上传 = 入库,不是翻译。
-// PDF 在**上传完成那一刻**后端就建好 document 了(POST /uploads →
-// upsert_document_from_upload),所以上传成功即"入库并关对话框",不再让用户在
-// "开始翻译 / 只入库"里二选一。要翻译到书架卡片上点"翻译"(F5)。
-//
-// 独立文件 + 每个 test 一份全新 JSDOM(同一个 jsdom 里第二次 createRoot 会停摆,
-// 见 memory react-jsdom-test-pitfalls)。
+// 上传弹窗：完成后二选一——直接翻译 / 仅收藏（不自动关窗入库）。
 
 function makeDom(search = "") {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", {
@@ -73,7 +67,32 @@ async function bootHomeApp(dom) {
   return { services, root, host };
 }
 
-test("上传即入库:上传完成自动关对话框 + 刷新图书馆,不提交任何翻译 job", async () => {
+test("上传弹窗：标题提示 + 就绪后出现直接翻译/仅收藏", async () => {
+  const dom = makeDom("?mock=parallel");
+  const byId = (id) => dom.window.document.getElementById(id);
+  const { services, root, host } = await bootHomeApp(dom);
+
+  click(dom, byId("library-add-pdf-btn"));
+  await waitFor(() => byId("translation-workflow-dialog") !== null, "添加对话框打开");
+  assert.equal(byId("translation-workflow-title").textContent, "添加 PDF");
+  assert.match(byId("translation-workflow-desc").textContent, /直接翻译|收藏/);
+
+  // 模拟上传完成
+  services.uploadViewActions.patch({ ready: true, actionSlotVisible: true });
+  await waitFor(() => byId("store-only-btn") && !byId("store-only-btn").classList.contains("hidden"), "仅收藏可见");
+  await waitFor(() => byId("upload-ready-hint") && !byId("upload-ready-hint").classList.contains("hidden"), "就绪提示可见");
+  assert.ok(byId("submit-btn"), "直接翻译按钮存在");
+  assert.match(byId("submit-btn").textContent, /直接翻译|提交/);
+
+  // 对话框仍打开（不自动关）
+  assert.ok(byId("translation-workflow-dialog"), "就绪后不自动关闭");
+
+  root.unmount();
+  services.dispose();
+  host.remove();
+});
+
+test("仅收藏：关闭对话框且不提交翻译 job", async () => {
   const dom = makeDom("?mock=parallel");
   const byId = (id) => dom.window.document.getElementById(id);
   const { services, root, host } = await bootHomeApp(dom);
@@ -81,27 +100,17 @@ test("上传即入库:上传完成自动关对话框 + 刷新图书馆,不提交
 
   click(dom, byId("library-add-pdf-btn"));
   await waitFor(() => byId("translation-workflow-dialog") !== null, "添加对话框打开");
-  // 添加对话框不再是"翻译 PDF",而是"添加 PDF 到图书馆",也没有"只入库"这个二选一按钮。
-  assert.equal(byId("translation-workflow-title").textContent, "添加 PDF 到图书馆");
-  assert.equal(byId("store-only-btn"), null, "不再有独立的只入库按钮(上传即入库)");
 
   let jobSubmitted = false;
-  let libraryRefreshForced = false;
   dom.window.document.addEventListener(APP_EVENTS.libraryJobCreated, () => { jobSubmitted = true; });
-  dom.window.document.addEventListener(APP_EVENTS.libraryRefreshRequested, (event) => {
-    if (event?.detail?.force) {
-      libraryRefreshForced = true;
-    }
-  });
 
-  // 模拟"上传完成"(真实上传成功后 markUploadReady(true))——应触发自动入库 + 关闭。
-  // 关对话框会 scheduleRefresh soft（不再 force 连闪两次）。
   services.uploadViewActions.patch({ ready: true, actionSlotVisible: true });
+  await waitFor(() => byId("store-only-btn") && !byId("store-only-btn").classList.contains("hidden"), "仅收藏可见");
+  click(dom, byId("store-only-btn"));
 
-  await waitFor(() => byId("translation-workflow-dialog") === null, "上传完成后自动关闭添加对话框");
-  await wait(400); // close → scheduleRefresh(delay:300) soft 对齐书架
-  assert.equal(jobSubmitted, false, "上传入库不提交任何翻译 job");
-  assert.equal(libraryRefreshForced, false, "上传入库不 force 整页刷库");
+  await waitFor(() => byId("translation-workflow-dialog") === null, "仅收藏后关闭对话框");
+  await wait(50);
+  assert.equal(jobSubmitted, false, "仅收藏不提交翻译 job");
 
   root.unmount();
   services.dispose();

@@ -15,12 +15,6 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import {
-  isRecentJobActive,
-  recentJobProgressPercent,
-  recentJobTitle,
-} from "../../../../../js/features/recent-jobs/card-presenter.js";
-import { isLibraryOnlyItem } from "../../../../../js/features/documents-library/document-card-item.js";
 import { isLibraryCardProcessing, libraryCardBadge } from "../display/library-card-badge.js";
 import { BadgeIcon } from "../display/library-card-badge-icon.jsx";
 import { BookCardProcessingOverlay } from "../display/BookCardProcessingOverlay.jsx";
@@ -30,6 +24,12 @@ import {
   buildDefaultBookCardActions,
 } from "../actions/index.js";
 import type { BookCardAction, LibraryCardItem } from "../types.js";
+import {
+  isRecentJobActive,
+  recentJobProgressPercent,
+  recentJobTitle,
+  isLibraryOnlyItem,
+} from "../../../composition/external.js";
 
 function formatCardDate(value: string | null | undefined) {
   const raw = `${value || ""}`.trim();

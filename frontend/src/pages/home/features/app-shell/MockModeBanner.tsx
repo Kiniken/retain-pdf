@@ -1,7 +1,10 @@
+import {
+  isMockMode,
+  mockScenario,
+} from "../../composition/external.js";
+
 // Mock 演示模式提示条：URL 带 ?mock=demo / parallel 等时显示。
 // 引导用户打开馆藏书 → 翻译 Tab → 翻译整本，看 live 进度动画。
-
-import { isMockMode, mockScenario } from "../../../../js/config/runtime.js";
 
 export function MockModeBanner() {
   if (!isMockMode()) {

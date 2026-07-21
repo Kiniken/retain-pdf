@@ -11,9 +11,11 @@
 // 卡片快速复用时旧请求的图片覆盖新请求。
 
 import { useEffect, useRef, useState } from "react";
-import { loadFirstRecentJobImage } from "../../../../../js/features/recent-jobs/image-loader.js";
-import { recentJobRawImageUrls } from "../../../../../js/features/recent-jobs/card-presenter.js";
 import type { LibraryCardItem } from "../types.js";
+import {
+  loadFirstRecentJobImage,
+  recentJobRawImageUrls,
+} from "../../../composition/external.js";
 
 // 缓存版本只在"封面可能真的变了"时才变。封面由后端 /jobs/{id}/cover 渲染
 // (运行中 = 原始 PDF 首页,任务完成后才可能换成成品封面),运行过程中封面

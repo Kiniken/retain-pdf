@@ -25,14 +25,14 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = false;
 
 const { createRoot } = await import("react-dom/client");
 const React = await import("react");
-const { createReaderDrawerStore } = await import("../src/pages/reader/state/drawer-store.js");
-const { ReaderTopbarActions } = await import("../src/pages/reader/components/ReaderTopbarActions.jsx");
+const { createReaderDrawerStore } = await import("../src/pages/reader/legacy/state/drawer-store.js");
+const { ReaderTopbarActions } = await import("../src/pages/reader/legacy/components/ReaderTopbarActions.jsx");
 const {
   ReaderAiDrawer,
   ReaderAnnotationsDrawer,
   ReaderFavoritesDrawer,
   ReaderMarkdownDrawer,
-} = await import("../src/pages/reader/components/ReaderSideDrawers.jsx");
+} = await import("../src/pages/reader/legacy/components/ReaderSideDrawers.jsx");
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -52,7 +52,7 @@ async function waitFor(predicate, description) {
 const documentRef = dom.window.document;
 const byId = (id) => documentRef.getElementById(id);
 
-const { ReaderDownloadMenu } = await import("../src/pages/reader/components/ReaderDownloadMenu.jsx");
+const { ReaderDownloadMenu } = await import("../src/pages/reader/legacy/components/ReaderDownloadMenu.jsx");
 
 // 单次挂载,全文件共用(与真实页面一致:一个 store 管四抽屉 + 顶栏)。
 // 额外挂一份带 context 的下载菜单(等价于 boot 注入清单后的形态)——

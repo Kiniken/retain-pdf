@@ -87,7 +87,7 @@
 .reader-favorite-card {
   border: 1px solid rgba(29, 29, 31, 0.08);
   border-radius: 12px;
-  background: #fff;
+  background: var(--paper);
 }
 
 .reader-favorites-empty {
@@ -147,7 +147,7 @@
   justify-content: stretch;
   gap: 0;
   border-radius: 10px;
-  background: #fff;
+  background: var(--paper);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
 }
 
@@ -193,7 +193,7 @@
 .reader-favorite-locate:hover,
 .reader-favorite-remove:hover {
   background: var(--ink);
-  color: #fff;
+  color: var(--paper);
 }
 
 .reader-favorite-locate:focus-visible,
@@ -259,7 +259,7 @@
 
 .reader-favorite-tag[data-active="true"] {
   background: var(--ink);
-  color: #fff;
+  color: var(--paper);
 }
 
 .reader-favorite-tag:focus-visible {
@@ -311,7 +311,7 @@
 
 .reader-delete-popover-confirm {
   background: var(--danger);
-  color: #fff;
+  color: var(--paper);
 }
 
 .reader-favorite-card:hover {
@@ -391,7 +391,7 @@
   padding: 8px 10px;
   border: 1px solid rgba(29, 29, 31, 0.08);
   border-radius: 10px;
-  background: #fff;
+  background: var(--paper);
   cursor: pointer;
   user-select: none;
   transition: box-shadow 160ms ease;
@@ -453,7 +453,7 @@
 
 .reader-favorite-server-remove:hover {
   background: var(--ink);
-  color: #fff;
+  color: var(--paper);
 }
 
 .reader-favorite-server-remove:focus-visible {
@@ -535,7 +535,7 @@
     height: auto;
     min-height: 86px;
     border-radius: 10px;
-    background: #fff;
+    background: var(--paper);
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1);
   }
 

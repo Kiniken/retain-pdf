@@ -5,6 +5,8 @@
 // finalStatusOf/fallbackToOf/degradationReasonOf)保留直接 import;
 // renderField/renderTextBlock 换成 InfoRow/TextBlock 两个 JSX 组件。
 
+import { InfoRow, TextBlock } from "./TranslationInfoBlocks.jsx";
+import { STATUS_DETAIL_DIALOG_IDS } from "./status-detail-dom-ids.js";
 import {
   boolLabel,
   degradationReasonOf,
@@ -14,9 +16,7 @@ import {
   normalizeRoutePath,
   pageNumberOf,
   routePathOf,
-} from "../../../../js/features/status-detail/formatters.js";
-import { InfoRow, TextBlock } from "./TranslationInfoBlocks.jsx";
-import { STATUS_DETAIL_DIALOG_IDS } from "./status-detail-dom-ids.js";
+} from "../../composition/external.js";
 
 function ItemDetailBody({ payload }) {
   const item = payload.item || {};

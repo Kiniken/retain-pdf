@@ -84,10 +84,6 @@ type RecentJobsNavigationPort = {
   currentJobId: () => string;
 };
 
-type ReaderDialogStorePort = {
-  close: () => void;
-};
-
 type CreateRuntimeFeaturesArgs = {
   features: HomeFeatures;
   bridge: HomeBridge;
@@ -97,7 +93,6 @@ type CreateRuntimeFeaturesArgs = {
   libraryEventPort: LibraryEventPort;
   jobRuntimeShellViewPort: JobRuntimeShellViewPort;
   artifactDownloadsViewPort: ArtifactDownloadsViewPort;
-  readerDialogStore: ReaderDialogStorePort;
   recentJobsStatePort: RecentJobsStatePort;
   recentJobsViewPort: RecentJobsReactViewPort;
   recentJobsJobRuntimePort: RecentJobsRuntimePort;
@@ -116,7 +111,6 @@ export function createRuntimeFeatures({
   libraryEventPort,
   jobRuntimeShellViewPort,
   artifactDownloadsViewPort,
-  readerDialogStore,
   recentJobsStatePort,
   recentJobsViewPort,
   recentJobsJobRuntimePort,
@@ -149,8 +143,9 @@ export function createRuntimeFeatures({
     clearPageRanges: () => features.uploadFeature.clearPageRanges(),
     updateJobWarning: bridge.updateJobWarning,
     activateDetailTab: bridge.activateDetailTab,
+    // 主页不再嵌入阅读 iframe；sync/close 保留给 job-runtime 契约，实现为空。
     onReaderDialogSync: () => {},
-    onReaderDialogClose: () => readerDialogStore.close(),
+    onReaderDialogClose: () => {},
     uploadStatePort,
     libraryEventPort,
     shellViewPort: jobRuntimeShellViewPort,

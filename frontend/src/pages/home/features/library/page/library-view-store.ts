@@ -17,12 +17,12 @@
 // 会停留在陈旧值(例如首次成功加载后 mode 仍是 "loading")。本 store 只在
 // items 为空时才被信任为准确来源。
 
-import { createStore } from "../../../../../js/app-framework/store.js";
 import type {
   LibraryViewActions,
   LibraryViewState,
   LibraryViewStore,
 } from "../types.js";
+import { createStore } from "../../../composition/external.js";
 
 export function createLibraryViewStore(): LibraryViewStore {
   return createStore<LibraryViewState, LibraryViewActions>({

@@ -12,29 +12,6 @@
 //   modal-bindings.js / events.js 启动器 / downloads.js 的职责)。
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { normalizeJobPayload } from "../../js/job/normalize.js";
-import { getJobIdFromQuery } from "../../js/job-detail/routing.js";
-import { defaultJobDetailConfigPort } from "../../js/job-detail/config-port.js";
-import { defaultJobDetailDataPort } from "../../js/job-detail/data-port.js";
-import { defaultJobDetailResumePort } from "../../js/job-detail/resume-port.js";
-import { bindRerunButton } from "../../js/job-detail/resume.js";
-import { renderJobDetailOverview } from "../../js/job-detail/overview-renderer.js";
-import { loadAndRenderMarkdownFlow } from "../../js/job-detail/markdown-flow.js";
-import {
-  createJobDetailPageState,
-  revokeJobDetailMarkdownImageUrls,
-} from "../../js/job-detail/page-state.js";
-import {
-  fileNameFromDisposition,
-  prepareDownloadTarget,
-  saveResponseDownload,
-} from "../../js/utils/downloads.js";
-import {
-  completeDownloadToast,
-  failDownloadToast,
-  showDownloadPreparing,
-  updateDownloadProgress,
-} from "../../js/utils/download-feedback.js";
 import { DetailHeader } from "./components/DetailHeader.jsx";
 import { ErrorNoticeCard, JobSummaryCard, MetaRow } from "./components/JobSummaryCard.jsx";
 import { ErrorDiagnostics } from "./components/ErrorDiagnostics.jsx";
@@ -46,6 +23,25 @@ import {
   StageHistoryTriggerCard,
 } from "./components/EventsTimeline.jsx";
 import { DownloadToastHost } from "../../shared/react/DownloadToastHost.jsx";
+import {
+  normalizeJobPayload,
+  getJobIdFromQuery,
+  defaultJobDetailConfigPort,
+  defaultJobDetailDataPort,
+  defaultJobDetailResumePort,
+  bindRerunButton,
+  renderJobDetailOverview,
+  loadAndRenderMarkdownFlow,
+  createJobDetailPageState,
+  revokeJobDetailMarkdownImageUrls,
+  fileNameFromDisposition,
+  prepareDownloadTarget,
+  saveResponseDownload,
+  completeDownloadToast,
+  failDownloadToast,
+  showDownloadPreparing,
+  updateDownloadProgress,
+} from "./external.js";
 
 const JOB_EVENTS_PAGE_SIZE = 200;
 

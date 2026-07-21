@@ -7,9 +7,11 @@
 // model.js——旧文件本身不可 import,拷贝面很小)。
 
 import { useState } from "react";
-import { normalizedStageEventRecord } from "../../../../js/job-status/job-stage-event-record.js";
-import { formatEventTimestamp } from "../../../../js/status-detail/utils.js";
 import { STATUS_DETAIL_DIALOG_IDS } from "./status-detail-dom-ids.js";
+import {
+  normalizedStageEventRecord,
+  formatEventTimestamp,
+} from "../../composition/external.js";
 
 function eventBadgeTone(item) {
   if (item.level === "error" || item.event === "failure_classified" || item.event === "job_terminal") {

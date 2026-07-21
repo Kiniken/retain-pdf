@@ -14,8 +14,8 @@
 
 import { useHomeServices } from "../../home-services-context.js";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
-import { TRANSLATION_WORKFLOW_DIALOG } from "../../../../js/features/translation-workflow-dialog/contract.js";
 import { useLibrarySearchBinding } from "../library/page/RecentJobsLibrary.jsx";
+import { TRANSLATION_WORKFLOW_DIALOG } from "../../composition/external.js";
 
 export function AppBottomBar({ showSearch = true, hidden = false }) {
   const services = useHomeServices();

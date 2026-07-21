@@ -8,10 +8,10 @@
 // - 页码区间 input → uploadFeature.constrainPageRanges({source})
 // - #credential-gate-action → dispatch APP_EVENTS.openBrowserCredentials(3b credentials 消费)
 
-import { useCallback, useEffect, useRef } from "react";
-import { APP_EVENTS } from "../../../../js/contracts/app-contract.js";
+import { useCallback } from "react";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
 import { useHomeServices } from "../../home-services-context.js";
+import { APP_EVENTS } from "../../composition/external.js";
 
 function CredentialGate({ visible }) {
   function handleGateAction(event) {
@@ -120,18 +120,6 @@ export function HeroUpload() {
     services.uploadDomRefs.fileInput = node;
   }, [services]);
 
-  // 图书馆优先(参考 PDF_MD_lib 的 UploadModal):上传完成的那一刻后端已建好
-  // document——直接入库并关掉对话框,不再让用户在"开始翻译 / 只入库"里二选一。
-  // 要翻译到书架卡片上点"翻译"(F5)。upload.ready 只有真实文件上传成功后才为
-  // true(mock/render 复用流不置位),所以这条只在普通添加流触发。
-  const prevReadyRef = useRef(false);
-  useEffect(() => {
-    if (upload.ready && !prevReadyRef.current) {
-      services.library.actions.storeOnly?.();
-    }
-    prevReadyRef.current = upload.ready;
-  }, [upload.ready, services]);
-
   // 镜像 bindUploadTilePicker:空白处点击代理到文件选择
   function handleTileClick(event) {
     const target = event.target;
@@ -210,28 +198,46 @@ export function HeroUpload() {
         />
         <TranslationBudgetNote budget={workflow.budget} />
       </div>
+
+      {/* 上传完成后给出明确二选一：直接翻译（提交 job）/ 仅收藏（关对话框入库） */}
+      <div
+        id="upload-ready-hint"
+        className={`upload-ready-hint${upload.ready ? "" : " hidden"}`}
+        aria-live="polite"
+      >
+        文件已就绪：可<strong>直接翻译</strong>，或<strong>仅收藏</strong>到书架稍后再翻。
+      </div>
+
       <div id="upload-action-slot" className={`upload-action-slot${upload.actionSlotVisible ? "" : " hidden"}`}>
         <div className="upload-action-group">
           <button
             id="page-range-btn"
             type="button"
             className={`page-range-mini secondary${workflow.pageRangeButtonVisible ? "" : " hidden"}`}
-            aria-label="专业翻译"
-            title="专业翻译"
+            aria-label="专业翻译设置"
+            title="页码范围等专业选项"
             onClick={() => services.features.uploadFeature?.openPageRangeDialog()}
           >
-            专业翻译
+            选项
           </button>
-          {/* 普通添加流已改成"上传即入库 + 自动关闭"(见上方 effect),不再有
-              "开始翻译 / 只入库"二选一。#submit-btn 仅在 render/mock 等复用流里可见
-              (那些流程没有真实上传、不会触发自动入库),契约与旧世界保持不动。 */}
+          <button
+            id="store-only-btn"
+            type="button"
+            className={`secondary${upload.ready ? "" : " hidden"}`}
+            disabled={!upload.ready || workflow.submitBusy}
+            title="只加入书架，不开始翻译"
+            onClick={() => services.library.actions.storeOnly?.()}
+          >
+            仅收藏
+          </button>
           <button
             id="submit-btn"
             type="submit"
             disabled={workflow.submitDisabled || workflow.submitBusy}
             {...(workflow.submitBusy ? { "data-busy": "1" } : {})}
+            title="上传完成后立即发起翻译任务"
           >
-            {workflow.submitBusy ? "提交中…" : workflow.submitLabel}
+            {workflow.submitBusy ? "提交中…" : (workflow.submitLabel || "直接翻译")}
           </button>
         </div>
       </div>

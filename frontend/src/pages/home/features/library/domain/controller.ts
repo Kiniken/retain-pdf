@@ -12,9 +12,6 @@
 // - attachJobProgress（本 controller）→ 只 startPolling，不弹窗、不亮主状态区
 //   供书籍详情「翻译」Tab 内嵌 StatusCard 使用。
 
-import { translateDocument, deleteDocument, patchDocument } from "../../../../../js/api/documents.js";
-import { API_PREFIX } from "../../../../../js/config/api-constants.js";
-import { APP_EVENTS } from "../../../../../js/contracts/app-contract.js";
 import { createBookDetailDialogStore } from "../detail/book-detail-dialog-store.js";
 import type {
   DeleteCardTarget,
@@ -27,6 +24,13 @@ import type {
   TranslateDocumentPayload,
   UpdateDocumentPayload,
 } from "../types.js";
+import {
+  translateDocument,
+  deleteDocument,
+  patchDocument,
+  API_PREFIX,
+  APP_EVENTS,
+} from "../../../composition/external.js";
 
 type ErrorLike = {
   message?: string;

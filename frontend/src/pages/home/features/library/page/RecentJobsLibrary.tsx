@@ -14,17 +14,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useStoreSnapshot } from "../../../../../shared/react/use-store.js";
 import { useHomeServices } from "../../../home-services-context.js";
-import { buildRecentJobsSummaryViewModel } from "../../../../../js/features/recent-jobs/summary-view-model.js";
-import { HOME_LOADING_STATES } from "../../../../../js/features/home/state.js";
 import { BookCard, buildDefaultBookCardActions } from "../shell/BookCard.jsx";
 import { BookListRow } from "../shell/BookListRow.jsx";
 import { LibraryToolbar } from "./LibraryToolbar.jsx";
 import { LibraryFilterMenu, matchesLibraryFilter } from "./LibraryFilterMenu.jsx";
 import { LibraryBatchToolbar } from "./LibraryBatchToolbar.jsx";
 import { ContinueReadingShelf } from "../display/ContinueReadingShelf.jsx";
-import { isLibraryOnlyItem } from "../../../../../js/features/documents-library/document-card-item.js";
-import { isRecentJobActive } from "../../../../../js/features/recent-jobs/card-presenter.js";
 import { useLibraryAutoLoad } from "./useLibraryAutoLoad.js";
+import { useHomeReturnRestore } from "./useHomeReturnRestore.js";
+import {
+  buildRecentJobsSummaryViewModel,
+  HOME_LOADING_STATES,
+  isLibraryOnlyItem,
+  isRecentJobActive,
+} from "../../../composition/external.js";
 
 // 客户端排序(只排已加载的这几页;/documents 无 sort 参数,和参考项目一样在前端排)。
 function sortItems(items, sortMode) {
@@ -183,6 +186,9 @@ export function RecentJobsLibrary({ onBatchModeChange }: any = {}) {
     loadMoreLoading,
     viewPort,
   });
+
+  // 从阅读器返回：列表有高度后再恢复 #recent-jobs-scroll-body 滚动
+  useHomeReturnRestore(hasItems || mode === "empty" || mode === "error");
 
   function handleLoadMoreClick() {
     viewPort.handlersRef.current.onLoadMore?.();

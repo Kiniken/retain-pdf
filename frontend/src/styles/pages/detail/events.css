@@ -6,7 +6,7 @@
 .detail-page .detail-stage-item,
 .detail-page .detail-event-item {
   padding: 14px 16px;
-  border: 1px solid #ececf1;
+  border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--paper);
 }

@@ -1,12 +1,12 @@
 // 书架卡片右上角终态徽标。
 // 进行中（排队/OCR/翻译/渲染）不在角标写文案（易截断），改由封面中央加载动画表达。
 
+import type { LibraryCardBadge, LibraryCardItem } from "../types.js";
 import {
   isRecentJobActive,
   stageKeyForRecentJobLabel,
-} from "../../../../../js/features/recent-jobs/card-presenter.js";
-import { isLibraryOnlyItem } from "../../../../../js/features/documents-library/document-card-item.js";
-import type { LibraryCardBadge, LibraryCardItem } from "../types.js";
+  isLibraryOnlyItem,
+} from "../../../composition/external.js";
 
 /**
  * @returns 终态/馆藏徽标；进行中返回 null（用中央 loading 代替）

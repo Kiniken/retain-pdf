@@ -1,3 +1,6 @@
+import { createStore } from "../../composition/external.js";
+import type { Store } from "../../composition/external.js";
+
 // workflow 域视图 store + React viewPort。
 //
 // mountWorkflowFeature(纯逻辑控制器,原样复用)的 viewPort 契约在这里落到
@@ -8,8 +11,6 @@
 // 开发者设置对话框(developer-settings-dialog)是 3b 杂项范围:
 // setDeveloperDialog/readDeveloperDialog 先以 store 值往返(不接 DOM 表单),
 // 3b React 化该对话框时替换这两个方法的实现即可,控制器无感。
-
-import { createStore, type Store } from "../../../../js/app-framework/store.js";
 
 /** 开发者设置里可选术语表选项（归一化后） */
 export type WorkflowGlossaryOption = {
@@ -90,7 +91,7 @@ export function createWorkflowViewStore(): WorkflowViewStore {
   return createStore<WorkflowViewState, WorkflowViewActions>({
     name: "homeWorkflowView",
     initialState: {
-      submitLabel: "开始翻译",
+      submitLabel: "直接翻译",
       submitDisabled: true,
       submitBusy: false,
       pageRangeButtonVisible: true,

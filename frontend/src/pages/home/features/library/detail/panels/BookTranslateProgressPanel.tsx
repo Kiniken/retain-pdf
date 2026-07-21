@@ -6,10 +6,10 @@
 import { useEffect } from "react";
 import { useHomeServices } from "../../../../home-services-context.js";
 import { useStoreSnapshot } from "../../../../../../shared/react/use-store.js";
-import { isLibraryOnlyItem } from "../../../../../../js/features/documents-library/document-card-item.js";
 import { StatusCard } from "../../../status/StatusCard.jsx";
 import { StageFlow } from "../../../status/StageFlow.jsx";
 import type { LibraryCardItem } from "../../types.js";
+import { isLibraryOnlyItem } from "../../../../composition/external.js";
 
 function resolveJobId(item: LibraryCardItem = {}) {
   const raw = `${item.job_id || item.active_job_id || ""}`.trim();

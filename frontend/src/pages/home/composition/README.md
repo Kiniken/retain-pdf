@@ -2,12 +2,16 @@
 
 主页装配层。**只接线，不写业务。**
 
+双 features 对照（`js/features` vs `pages/home/features`）见 **`src/FEATURES.md`**。
+
 ## 规则（后期维护必读）
 
-1. **`external.ts` 是唯一的 `../../../js/*` 入口**  
-   领域工厂禁止再直接 import `src/js/**`。新增外部依赖只改 `external.ts`。  
-   源码已全量 TS（`src/**` 无 `.js/.jsx`）；import 路径仍可写 `.js`（esbuild / test loader 映射到 `.ts/.tsx`）。  
-   已去掉全库 `@ts-nocheck`；`tsc --noEmit` 应 0 错误。类型多为最小标注（`: any` / 公共 `HomeServices`），可继续按域收紧。
+1. **`external.ts` 是主页对 `src/js/*` 的唯一入口（features 层）**  
+   - `pages/home/features/**` **禁止**直接 import 任何 `src/js/**`；一律 `from "../composition/external.js"`（深度自调）。  
+   - 领域工厂（`create-*.ts`）也应经 `./external.js`，不要再开 `../../../js/…`。  
+   - `composition/types.ts` 的 port/store 类型也从 `./external.js` 拿。  
+   - 缺符号只改 `external.ts`；门禁见 `tests/architecture-boundaries.test.mjs`。  
+   源码已全量 TS；import 路径仍可写 `.js`（esbuild / test loader 映射到 `.ts/.tsx`）。
 
 2. **工厂返回 bag，不写可变 `ctx`**  
    `createXxx(...)` 返回自己的产物；`composition.js` 显式赋值到 `features` / `domains`。

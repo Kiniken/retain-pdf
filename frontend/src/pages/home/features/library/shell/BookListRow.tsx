@@ -3,13 +3,13 @@
 
 import { memo } from "react";
 import { cn } from "@/lib/utils";
-import { recentJobTitle } from "../../../../../js/features/recent-jobs/card-presenter.js";
 import { cardSignatureOf } from "./BookCard.jsx";
 import { isLibraryCardProcessing, libraryCardBadge } from "../display/library-card-badge.js";
 import { BadgeIcon } from "../display/library-card-badge-icon.jsx";
 import { BookCardProcessingOverlay } from "../display/BookCardProcessingOverlay.jsx";
 import { useRecentJobCover } from "../display/useRecentJobCover.js";
 import type { LibraryCardItem } from "../types.js";
+import { recentJobTitle } from "../../../composition/external.js";
 
 function formatDate(value: string | null | undefined) {
   const raw = `${value || ""}`.trim();

@@ -25,7 +25,7 @@
 @utility reader-annotations-export {
   min-height: 26px;
   padding: 0 10px;
-  border: 1px solid #ececf1;
+  border: 1px solid var(--line);
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
@@ -52,9 +52,9 @@
 @utility reader-annotations-loading {
   margin: 0;
   padding: 18px 14px;
-  border: 1px solid #ececf1;
+  border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--paper);
   color: var(--muted);
   font-size: 13px;
   text-align: center;
@@ -63,9 +63,9 @@
 @utility reader-annotations-empty {
   margin: 0;
   padding: 18px 14px;
-  border: 1px solid #ececf1;
+  border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--paper);
   color: var(--muted);
   font-size: 13px;
   text-align: center;
@@ -76,9 +76,9 @@
   justify-items: center;
   gap: 8px;
   padding: 16px 14px;
-  border: 1px solid #ececf1;
+  border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--paper);
 
   & p {
     margin: 0;
@@ -110,9 +110,9 @@
   display: grid;
   gap: 6px;
   padding: 10px 12px;
-  border: 1px solid #ececf1;
+  border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--paper);
 }
 
 @utility reader-annotations-item-top {
@@ -138,44 +138,44 @@
 
   &.is-sentence {
     background: rgba(29, 29, 31, 0.1);
-    color: #1d1d1f;
+    color: var(--ink);
   }
 
   &.is-data {
     background: rgba(52, 199, 89, 0.12);
-    color: #1d8a3e;
+    color: var(--ok);
   }
 
   &.is-figure {
     background: rgba(255, 159, 10, 0.14);
-    color: #b06a00;
+    color: var(--warn);
   }
 }
 
 @utility is-sentence {
   &.reader-annotations-kind {
     background: rgba(29, 29, 31, 0.1);
-    color: #1d1d1f;
+    color: var(--ink);
   }
 }
 
 @utility is-data {
   &.reader-annotations-kind {
     background: rgba(52, 199, 89, 0.12);
-    color: #1d8a3e;
+    color: var(--ok);
   }
 }
 
 @utility is-figure {
   &.reader-annotations-kind {
     background: rgba(255, 159, 10, 0.14);
-    color: #b06a00;
+    color: var(--warn);
   }
 }
 
 @utility reader-annotations-quote {
   margin: 0;
-  color: #4a4a52;
+  color: var(--muted);
   font-size: 12.5px;
   line-height: 1.55;
 }
@@ -332,7 +332,7 @@
 @utility reader-annotations-note-input {
   min-height: 56px;
   padding: 8px 9px;
-  border: 1px solid #ececf1;
+  border: 1px solid var(--line);
   border-radius: 10px;
   resize: none;
   font-size: 12px;

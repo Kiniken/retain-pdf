@@ -5,12 +5,6 @@ import { useEffect, useState } from "react";
 import { useHomeServices } from "../../../home-services-context.js";
 import { useDialogState } from "../../../state/use-dialog-state.js";
 import { useDialogReturnFocus } from "../../../../../shared/react/use-dialog-return-focus.js";
-import {
-  isRecentJobActive,
-  recentJobStageLabel,
-  recentJobStatusLabel,
-} from "../../../../../js/features/recent-jobs/card-presenter.js";
-import { isLibraryOnlyItem } from "../../../../../js/features/documents-library/document-card-item.js";
 import { useRecentJobCover } from "../display/useRecentJobCover.js";
 import { BookDetailShell } from "./shell/BookDetailShell.jsx";
 import { CoverActionsPanel } from "./panels/CoverActionsPanel.jsx";
@@ -25,6 +19,12 @@ import { useBookDetailDocument } from "./use-book-detail-document.js";
 import { useBookDetailTranslate } from "./use-book-detail-translate.js";
 import { isLibraryCardProcessing } from "../display/library-card-badge.js";
 import { useStoreSnapshot } from "../../../../../shared/react/use-store.js";
+import {
+  isRecentJobActive,
+  recentJobStageLabel,
+  recentJobStatusLabel,
+  isLibraryOnlyItem,
+} from "../../../composition/external.js";
 
 function statusOf(item) {
   if (isLibraryOnlyItem(item)) return { label: "未翻译", tone: "muted" };

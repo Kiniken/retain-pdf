@@ -19,7 +19,7 @@ import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
 import { useHomeServices } from "../../home-services-context.js";
 import { useDialogState } from "../../state/use-dialog-state.js";
 import { useAppEvent } from "../../../../shared/react/use-app-event.js";
-import { APP_EVENTS } from "../../../../js/contracts/app-contract.js";
+import { APP_EVENTS } from "../../composition/external.js";
 
 export function useGlossariesController() {
   const services = useHomeServices();

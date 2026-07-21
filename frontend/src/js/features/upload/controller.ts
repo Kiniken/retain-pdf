@@ -331,7 +331,7 @@ export function mountUploadFeature({
       });
       updateAppliedPageRange(currentPageRanges());
       viewPort.markUploadReady(!!snapshot.uploadId);
-      viewPort.showUploadStatus("上传完成，可以开始任务。");
+      viewPort.showUploadStatus("上传完成：可直接翻译，或仅收藏。");
       clearFileInputValue();
       renderPageRangeSummary();
       refreshSubmitControls();

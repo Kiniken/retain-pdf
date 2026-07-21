@@ -55,15 +55,15 @@
 
 import { useEffect } from "react";
 import { Dialog as DialogPrimitive } from "radix-ui";
-import {
-  TRANSLATION_WORKFLOW_DIALOG,
-  TRANSLATION_WORKFLOW_MODES,
-} from "../../../../js/features/translation-workflow-dialog/contract.js";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
 import { useHomeServices } from "../../home-services-context.js";
 import { useDialogReturnFocus } from "../../../../shared/react/use-dialog-return-focus.js";
 import { WorkflowPanel } from "./WorkflowPanel.jsx";
 import { StatusCard } from "../status/StatusCard.jsx";
+import {
+  TRANSLATION_WORKFLOW_DIALOG,
+  TRANSLATION_WORKFLOW_MODES,
+} from "../../composition/external.js";
 
 export function TranslationWorkflowDialog() {
   const services = useHomeServices();
@@ -112,13 +112,22 @@ export function TranslationWorkflowDialog() {
         >
           <div className="desktop-shell translation-workflow-shell">
             <div className="translation-workflow-head">
-              <DialogPrimitive.Title asChild>
-                <h2 id={TRANSLATION_WORKFLOW_DIALOG.ids.title}>
-                  {statusMode
-                    ? TRANSLATION_WORKFLOW_DIALOG.copy.statusTitle
-                    : TRANSLATION_WORKFLOW_DIALOG.copy.uploadTitle}
-                </h2>
-              </DialogPrimitive.Title>
+              <div className="translation-workflow-head-copy">
+                <DialogPrimitive.Title asChild>
+                  <h2 id={TRANSLATION_WORKFLOW_DIALOG.ids.title}>
+                    {statusMode
+                      ? TRANSLATION_WORKFLOW_DIALOG.copy.statusTitle
+                      : TRANSLATION_WORKFLOW_DIALOG.copy.uploadTitle}
+                  </h2>
+                </DialogPrimitive.Title>
+                {!statusMode ? (
+                  <DialogPrimitive.Description asChild>
+                    <p id="translation-workflow-desc" className="translation-workflow-desc">
+                      {TRANSLATION_WORKFLOW_DIALOG.copy.uploadDescription}
+                    </p>
+                  </DialogPrimitive.Description>
+                ) : null}
+              </div>
               <DialogPrimitive.Close asChild>
                 <button
                   id={TRANSLATION_WORKFLOW_DIALOG.ids.closeButton}

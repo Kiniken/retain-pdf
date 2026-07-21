@@ -144,7 +144,7 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   assert.equal(events.open, 1, "打开必须经 APP_EVENTS.openTranslationWorkflow(3b 刷新挂起依赖)");
   assert.equal(dialog.dataset.open, "1");
   assert.equal(dialog.classList.contains("is-upload-mode"), true);
-  assert.equal(byId("translation-workflow-title").textContent, "添加 PDF 到图书馆");
+  assert.equal(byId("translation-workflow-title").textContent, "添加 PDF");
   assert.equal(dom.window.document.documentElement.classList.contains("translation-workflow-open"), true);
   await waitFor(() => byId("library-add-pdf-btn").getAttribute("aria-expanded") === "true", "触发按钮 aria 同步");
   assert.equal(byId("library-add-pdf-btn").dataset.workflowOpen, "1");
@@ -186,9 +186,9 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
 
   // ---- idle 复位链:上传瓦片回到默认态,提交按钮置灰 ----
   assert.equal(byId("file-label").textContent, "点击选择文件或拖到这里");
-  assert.equal(byId("upload-help").textContent, "上传后直接加入图书馆，可随时在书架上翻译。");
+  assert.equal(byId("upload-help").textContent, "选择 PDF 后，可直接翻译或仅收藏到书架。");
   assert.equal(byId("submit-btn").disabled, true);
-  assert.equal(byId("submit-btn").textContent, "开始翻译");
+  assert.equal(byId("submit-btn").textContent, "直接翻译");
   assert.equal(byId("job-warning").classList.contains("hidden"), true);
   assert.equal(byId("status-section").classList.contains("hidden"), true);
 
@@ -253,7 +253,7 @@ test("HomeApp：契约 id、idle 链、工作流对话框事件契约与交互",
   host.remove();
 });
 
-test("HomeApp：顶部图书馆/分类分栏 + 分类管理对话框", async () => {
+test("HomeApp：顶部图书馆/合集/收藏分栏 + 分类管理对话框", async () => {
   const host = dom.window.document.createElement("div");
   host.id = "home-root-categories";
   dom.window.document.body.appendChild(host);
@@ -266,27 +266,27 @@ test("HomeApp：顶部图书馆/分类分栏 + 分类管理对话框", async () 
   await waitFor(() => byId("app-shell"), "HomeApp 首帧渲染");
   await wait(0);
 
-  // ---- 分栏契约:两个 tab 都在,默认落在图书馆 ----
+  // ---- 分栏契约:三个 tab 都在,默认落在图书馆 ----
   assert.ok(byId("library-top-tab-library"), "契约 id 缺失：#library-top-tab-library");
   assert.ok(byId("library-top-tab-categories"), "契约 id 缺失：#library-top-tab-categories");
+  assert.ok(byId("library-top-tab-favorites"), "契约 id 缺失：#library-top-tab-favorites");
   assert.ok(byId("library-view"), "默认应停在图书馆视图");
-  assert.equal(byId("categories-view"), null, "默认不挂载分类视图");
+  assert.equal(byId("categories-view"), null, "默认不挂载合集视图");
+  assert.equal(byId("favorites-view"), null, "默认不挂载收藏视图");
   assert.ok(byId("library-search-input"), "图书馆 tab 下搜索框应可见");
 
-  // ---- 切到分类:图书馆网格卸载,分类视图挂载,搜索框隐藏(语义不同,
-  //      本次不接) ----
+  // ---- 切到合集:图书馆网格卸载,合集视图挂载,搜索框隐藏 ----
   click(byId("library-top-tab-categories"));
-  await waitFor(() => byId("categories-view") !== null, "分类视图挂载");
-  assert.equal(byId("library-view"), null, "切到分类后图书馆视图应卸载");
-  assert.equal(byId("library-search-input"), null, "分类 tab 下搜索框应隐藏");
+  await waitFor(() => byId("categories-view") !== null, "合集视图挂载");
+  assert.equal(byId("library-view"), null, "切到合集后图书馆视图应卸载");
+  assert.equal(byId("favorites-view"), null, "合集 tab 下不挂载收藏视图");
+  assert.equal(byId("library-search-input"), null, "合集 tab 下搜索框应隐藏");
   assert.ok(byId("categories-create-btn"), "契约 id 缺失：#categories-create-btn");
 
-  // ---- 新建分类对话框:挂载/契约 id/关闭卸载(同其余 9 个对话框的既有测试
-  //      口径——jsdom 下没有真实网络,书目加载会落到 catch 分支,只验证挂载
-  //      结构本身,不断言书目内容) ----
+  // ---- 新建合集对话框:挂载/契约 id/关闭卸载 ----
   assert.equal(byId("collection-manage-dialog"), null, "初始未打开时不挂载");
   click(byId("categories-create-btn"));
-  await waitFor(() => byId("collection-manage-dialog") !== null, "分类管理对话框打开");
+  await waitFor(() => byId("collection-manage-dialog") !== null, "合集管理对话框打开");
   for (const id of ["collection-name-input", "collection-manage-close-btn", "collection-save-btn"]) {
     assert.ok(byId(id), `契约 id 缺失：#${id}`);
   }
@@ -294,10 +294,23 @@ test("HomeApp：顶部图书馆/分类分栏 + 分类管理对话框", async () 
   click(byId("collection-manage-close-btn"));
   await waitFor(() => byId("collection-manage-dialog") === null, "关闭按钮点击后对话框卸载");
 
-  // ---- 切回图书馆:分类视图卸载,图书馆网格与搜索框恢复 ----
+  // ---- 切到收藏:合集卸载,收藏视图挂载,搜索框仍隐藏 ----
+  click(byId("library-top-tab-favorites"));
+  await waitFor(() => byId("favorites-view") !== null, "收藏视图挂载");
+  assert.equal(byId("categories-view"), null, "切到收藏后合集视图应卸载");
+  assert.equal(byId("library-view"), null, "收藏 tab 下图书馆视图应卸载");
+  assert.equal(byId("library-search-input"), null, "收藏 tab 下搜索框应隐藏");
+  // 加载中 / 空态 / 列表 / 错误 四者之一
+  await waitFor(
+    () => byId("favorites-loading") || byId("favorites-empty") || byId("favorites-list") || byId("favorites-error"),
+    "收藏视图应进入 loading/空态/列表/错误之一",
+  );
+
+  // ---- 切回图书馆:收藏卸载,图书馆网格与搜索框恢复 ----
   click(byId("library-top-tab-library"));
   await waitFor(() => byId("library-view") !== null, "切回图书馆");
-  assert.equal(byId("categories-view"), null, "切回图书馆后分类视图应卸载");
+  assert.equal(byId("categories-view"), null, "切回图书馆后合集视图应卸载");
+  assert.equal(byId("favorites-view"), null, "切回图书馆后收藏视图应卸载");
   assert.ok(byId("library-search-input"), "切回图书馆后搜索框应恢复");
 
   root.unmount();

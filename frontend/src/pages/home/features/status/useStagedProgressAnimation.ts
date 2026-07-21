@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   buildProgressOptions,
   shouldAnimateRenderPageProgress,
-} from "../../../../js/job-status/status-card-progress-view-model.js";
+} from "../../composition/external.js";
 
 const TICK_DELAY_MS = 120;
 

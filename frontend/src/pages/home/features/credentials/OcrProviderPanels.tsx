@@ -7,13 +7,13 @@
 // token 输入是非受控 ref(见 credentials-view-store.js elementsRef),
 // dialog-values.js/dialog-sync.js(kept)直接读写 .value。
 
-import { OCR_PROVIDER_DEFINITIONS } from "../../../../js/config/providers.js";
 import {
   credentialTokenInputId,
   credentialValidateButtonId,
   credentialValidationId,
 } from "./credentials-dom-ids.js";
 import { useCredentialsController } from "./useCredentialsController.js";
+import { OCR_PROVIDER_DEFINITIONS } from "../../composition/external.js";
 
 function validationIcon(tone = "", content = "") {
   if (!content) {

@@ -1,9 +1,9 @@
 // DeepSeek(翻译模型)卡片(对照旧 components/dialogs/browser-credentials-dialog.js
 // 的 DeepSeek 区块 + validation-view.js 的校验徽标/充值链接语义)。
 
-import { TRANSLATION_PROVIDER_DEFINITION } from "../../../../js/config/providers.js";
 import { CREDENTIAL_DOM_IDS } from "./credentials-dom-ids.js";
 import { useCredentialsController } from "./useCredentialsController.js";
+import { TRANSLATION_PROVIDER_DEFINITION } from "../../composition/external.js";
 
 const { browser: BROWSER_IDS } = CREDENTIAL_DOM_IDS;
 
