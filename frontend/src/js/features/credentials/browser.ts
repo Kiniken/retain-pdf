@@ -374,9 +374,16 @@ export function mountBrowserCredentialsFeature({
 
   async function handleBrowserCredentialSave() {
     const definition = getOcrProviderDefinition(currentOcrProvider());
-    const values = readCredentialDialogValues({ elementsPort: dialogElementsPort });
+    const existing = readCurrentCredentials();
+    const raw = readCredentialDialogValues({ elementsPort: dialogElementsPort });
+    // 密码框未回填/被清空时：空串表示「沿用已保存值」，避免把 localStorage 冲掉
+    const values = {
+      ...raw,
+      paddleToken: `${raw.paddleToken || ""}`.trim() || `${existing.paddleToken || ""}`.trim(),
+      modelApiKey: `${raw.modelApiKey || ""}`.trim() || `${existing.modelApiKey || ""}`.trim(),
+    };
     const ocrToken = ocrTokenFromDialogValues(values);
-    const modelApiKey = values.modelApiKey;
+    const modelApiKey = `${values.modelApiKey || ""}`.trim();
     if (!ocrToken || !modelApiKey) {
       if (!ocrToken) {
         viewPort.setOcrValidationMessage(definition.validationMissingMessage, "error", definition.id);
@@ -384,22 +391,11 @@ export function mountBrowserCredentialsFeature({
       if (!modelApiKey) {
         viewPort.setDeepSeekValidationMessage(TRANSLATION_PROVIDER_DEFINITION.validationMissingMessage, "error");
       }
+      viewPort.setDialogStatus("请填写 OCR Token 与模型 API Key 后再保存", "error");
       return;
     }
-    const validation = await runOcrTokenValidation({
-      apiPrefix,
-      state,
-      providerId: definition.id,
-      token: ocrToken,
-      validateOcrToken,
-      setOcrValidationMessage: viewPort.setOcrValidationMessage,
-      showResult: true,
-      credentialsStatePort,
-      legacyRuntimePort,
-    });
-    if (!validation.ok) {
-      return;
-    }
+    // 保存只做落盘；联网校验留给「检测」按钮。
+    // 旧逻辑在每次保存时强制 OCR 联网，后端未就绪/离线时 Key 永远写不进去。
     try {
       if (runtimeEnv.isDesktopMode()) {
         await persistDesktopCredentials({
@@ -408,22 +404,37 @@ export function mountBrowserCredentialsFeature({
           defaultModelBaseUrl,
           saveTaskOptions,
           saveDesktopConfig,
-          checkApiConnectivity,
+          // 连通性检查失败不应阻止凭据落盘（首次配置仍可能无后端）
+          checkApiConnectivity: async () => {
+            try {
+              await checkApiConnectivity?.();
+            } catch {
+              /* ignore connectivity on save */
+            }
+          },
           values,
           setupModePort,
         });
+        credentialsStatePort.setCredentials?.({
+          ocrProvider: currentOcrProvider(),
+          paddleToken: ocrToken,
+          modelApiKey,
+        });
       } else {
-        persistBrowserCredentials({
+        const next = persistBrowserCredentials({
           applyCredentialInputs: applyHiddenCredentialInputs,
           currentOcrProvider,
           defaultModelApiKey,
           defaultModelBaseUrl,
-          readCredentialInputs: readCurrentCredentials,
           saveTaskOptions,
           saveBrowserStoredConfig,
           values,
         });
-        credentialsStatePort.setCredentials?.(readCurrentCredentials());
+        credentialsStatePort.setCredentials?.(next || {
+          ocrProvider: currentOcrProvider(),
+          paddleToken: ocrToken,
+          modelApiKey,
+        });
       }
     } catch (error) {
       const message = (error as { message?: string })?.message || String(error);
@@ -431,9 +442,14 @@ export function mountBrowserCredentialsFeature({
       viewPort.setDeepSeekValidationMessage(message, "error");
       return;
     }
+    // 写回可见输入，避免保存后输入框仍显示空
+    syncBrowserDialogFromCredentialState();
     onCredentialStateChange?.();
-    viewPort.setDialogStatus("", "");
-    viewPort.closeDialog();
+    viewPort.setDialogStatus("已保存", "valid");
+    // 首次配置弹窗保存后关闭；设置中心内嵌时保持打开以便继续改任务选项
+    if (setupModePort.currentSetupMode?.()) {
+      viewPort.closeDialog();
+    }
   }
 
   viewPort.bindEvents({

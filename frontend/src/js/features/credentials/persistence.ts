@@ -10,22 +10,25 @@ export function persistBrowserCredentialsFromDialog({
   currentOcrProvider,
   defaultModelApiKey,
   defaultModelBaseUrl,
-  readHiddenCredentialInputs,
-  readCredentialInputs = readHiddenCredentialInputs,
+  readHiddenCredentialInputs: _readHiddenCredentialInputs,
+  readCredentialInputs: _readCredentialInputs,
   saveTaskOptions,
   saveBrowserStoredConfig,
   values,
 }: any) {
-  applyCredentialInputs(buildBrowserCredentialConfig({
+  // 直接持久化表单结果，避免再从 state/DOM 回读时拿到旧值
+  const next = buildBrowserCredentialConfig({
     values,
     currentOcrProvider,
     defaultModelApiKey,
-  }));
+  });
+  applyCredentialInputs(next);
+  saveBrowserStoredConfig?.(next);
   saveTaskOptions?.(buildTaskOptionsFromDialogValues({
     values,
     defaultModelBaseUrl,
   }));
-  saveBrowserStoredConfig(readCredentialInputs());
+  return next;
 }
 
 export async function persistDesktopCredentialsFromDialog({

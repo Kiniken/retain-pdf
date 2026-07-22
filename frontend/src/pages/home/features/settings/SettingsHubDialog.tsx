@@ -107,11 +107,15 @@ export function SettingsHubDialog() {
   }, [open]);
 
   // API 区内嵌凭据工作台：进入 api tab 时从凭据状态回填表单（不开二层弹窗）。
-  // forceMount 保证面板已挂载，effect 在子树 mount 后运行，ref 已就位。
+  // forceMount 保证面板已挂载；rAF 再补一次，避免 ref 尚未挂上导致密码框空白、保存读到空串。
   useEffect(() => {
-    if (open && activeTab === "api") {
-      services.credentials?.feature?.prepareCredentialsPanels?.();
+    if (!open || activeTab !== "api") {
+      return;
     }
+    const prepare = () => services.credentials?.feature?.prepareCredentialsPanels?.();
+    prepare();
+    const raf = requestAnimationFrame(prepare);
+    return () => cancelAnimationFrame(raf);
   }, [open, activeTab, services]);
 
   function handleOpenChange(nextOpen) {
