@@ -10,9 +10,9 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 from foundation.shared.job_dirs import add_explicit_job_dir_args
 from foundation.shared.job_dirs import job_dirs_from_explicit_args
 from foundation.shared.stage_specs import NormalizeStageSpec
-from services.document_schema import DOCUMENT_SCHEMA_REPORT_FILE_NAME
-from services.document_schema import adapt_path_to_document_v1_with_report
-from services.document_schema import build_validation_report
+from services.document_schema.version import DOCUMENT_SCHEMA_REPORT_FILE_NAME
+from services.document_schema.adapters import adapt_path_to_document_v1_with_report
+from services.document_schema.validator import build_validation_report
 from services.document_schema.reporting import build_normalization_summary
 from services.ocr_provider.paddle_normalize import post_rescale_rebuild_paddle_text_geometry
 from services.ocr_provider.paddle_normalize import rescale_document_geometry_to_pdf

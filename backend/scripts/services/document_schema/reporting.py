@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
-
-from services.pipeline_shared.io import load_json
 
 
 def load_normalization_report(path: Path) -> dict:
     if not path.exists():
         return {}
-    return load_json(path)
+    # Stream-read; do NOT import services.pipeline_shared here —
+    # pipeline_shared.summary imports document_schema and would circular-import.
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
 
 
 def _sum_default_hits(payload: dict | None) -> int:

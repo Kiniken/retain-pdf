@@ -684,6 +684,26 @@ if (!frontendOnly) {
     recursive: true,
     force: true,
   });
+  // retainpdf-ai：桌面端由 main 进程拉起，Rust 反代 41100
+  const aiServiceSrc = path.join(backendRoot, "ai_service");
+  const aiServiceDst = path.join(outputBackendRoot, "ai_service");
+  if (!fs.existsSync(aiServiceSrc)) {
+    throw new Error(`missing backend/ai_service at ${aiServiceSrc}`);
+  }
+  fs.cpSync(aiServiceSrc, aiServiceDst, {
+    recursive: true,
+    force: true,
+    filter: (sourcePath) => {
+      const base = path.basename(sourcePath);
+      if (base === "__pycache__" || base === ".pytest_cache" || base === "tests") {
+        return false;
+      }
+      return true;
+    },
+  });
+  if (!fs.existsSync(path.join(aiServiceDst, "retainpdf_ai", "__main__.py"))) {
+    throw new Error(`bundled ai_service missing retainpdf_ai/__main__.py under ${aiServiceDst}`);
+  }
 }
 
 if (!frontendOnly && fs.existsSync(rustApiBinary.path)) {

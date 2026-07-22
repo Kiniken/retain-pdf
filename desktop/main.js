@@ -48,10 +48,12 @@ const {
   saveDesktopConfig,
 } = desktopConfigStore;
 let backendChild = null;
+let aiServiceChild = null;
 let backendStopping = false;
 let splashWindow = null;
 let usingExternalBackend = false;
 let isQuitting = false;
+const AI_SERVICE_PORT = 41100;
 
 function updateSplashProgress(progress, title, detail) {
   if (!splashWindow || splashWindow.isDestroyed()) {
@@ -144,6 +146,15 @@ async function startBundledBackend() {
   const typstPackageCachePath = path.join(dataRoot, "typst-package-cache");
   const apiPort = 41000;
   const simplePort = 42000;
+  const aiServicePort = AI_SERVICE_PORT;
+  // packaged: backend/ai_service；开发未 prepare 时可回退仓库 backend/ai_service
+  let aiServiceRoot = path.join(backendRoot, "ai_service");
+  if (!fs.existsSync(path.join(aiServiceRoot, "retainpdf_ai", "__main__.py"))) {
+    const repoAi = path.join(appRoot, "..", "backend", "ai_service");
+    if (fs.existsSync(path.join(repoAi, "retainpdf_ai", "__main__.py"))) {
+      aiServiceRoot = repoAi;
+    }
+  }
 
   logDesktop(
     [
@@ -155,6 +166,7 @@ async function startBundledBackend() {
       `python=${pythonRuntime.command || "<missing>"}`,
       `pythonHome=${pythonRuntime.bundledHome || "<system>"}`,
       `scriptsDir=${scriptsDir}`,
+      `aiServiceRoot=${aiServiceRoot}`,
       `typst=${typstBin || "<missing>"}`,
       `log=${getDesktopLogPath() || "<unavailable>"}`,
     ].join(" "),
@@ -205,6 +217,34 @@ async function startBundledBackend() {
       logDesktop(`[desktop] reusing existing backend on port ${apiPort}`);
       updateSplashProgress(52, "检测到已有本地服务", "桌面端将直接复用当前后端");
       await waitForPort("127.0.0.1", apiPort, 5000);
+      // 仍尝试拉起 AI（若 41100 空闲）；复用的 Rust 会反代到本机 AI
+      const reuseEnv = buildBackendEnv({
+        apiPort,
+        aiServicePort,
+        aiServiceRoot,
+        backendRoot,
+        bundledFontPath,
+        bundledPythonHome: resolveBundledPythonHome(pythonRuntime.bundledHome),
+        bundledPythonImportPaths: bundledPythonImportPaths(pythonRuntime.bundledHome),
+        bundledTitleBoldFontPath,
+        bundledTypstFontDir,
+        dataRoot,
+        desktopApiKey: DESKTOP_API_KEY,
+        inheritHostPythonPath: !app.isPackaged,
+        pythonRuntime,
+        rustApiRoot,
+        scriptsDir,
+        simplePort,
+        typstBin,
+        typstPackageCachePath,
+        typstPackagePath,
+      });
+      await startRetainpdfAiService({
+        aiServicePort,
+        aiServiceRoot,
+        env: reuseEnv,
+        pythonCommand: pythonRuntime.command,
+      });
       updateSplashProgress(92, "本地服务已就绪", "正在加载主界面");
       return;
     }
@@ -222,6 +262,8 @@ async function startBundledBackend() {
   const bundledPythonHome = resolveBundledPythonHome(pythonRuntime.bundledHome);
   const env = buildBackendEnv({
     apiPort,
+    aiServicePort,
+    aiServiceRoot,
     backendRoot,
     bundledFontPath,
     bundledPythonHome,
@@ -240,7 +282,7 @@ async function startBundledBackend() {
     typstPackagePath,
   });
 
-  updateSplashProgress(52, "正在启动本地服务", "Rust API 与 Python worker 正在启动");
+  updateSplashProgress(52, "正在启动本地服务", "Rust API 与 AI 服务正在启动");
   logDesktop(`[desktop] spawning backend: ${backendBin}`);
   backendStartupDiagnostics.reset(backendBin, backendRoot);
   backendChild = spawn(backendBin, [], {
@@ -274,6 +316,14 @@ async function startBundledBackend() {
     dialog.showErrorBox("Rust API worker crashed", detail);
   });
 
+  // retainpdf-ai：与 Rust 同生命周期；LLM key 由前端按请求传入
+  await startRetainpdfAiService({
+    aiServicePort,
+    aiServiceRoot,
+    env,
+    pythonCommand: pythonRuntime.command,
+  });
+
   let waitingProgress = 58;
   const waitingTimer = setInterval(() => {
     waitingProgress = Math.min(waitingProgress + 3, 88);
@@ -289,6 +339,63 @@ async function startBundledBackend() {
   clearInterval(waitingTimer);
   logDesktop(`[desktop] backend ready on port ${apiPort}`);
   updateSplashProgress(92, "本地服务已就绪", "正在加载主界面");
+}
+
+async function startRetainpdfAiService({
+  aiServicePort,
+  aiServiceRoot,
+  env,
+  pythonCommand,
+}) {
+  if (!fs.existsSync(path.join(aiServiceRoot, "retainpdf_ai", "__main__.py"))) {
+    logDesktopError(`[desktop] retainpdf-ai package missing under ${aiServiceRoot}; AI ask will return 502`);
+    return;
+  }
+
+  const aiBusy = await canConnectToPort("127.0.0.1", aiServicePort);
+  if (aiBusy) {
+    logDesktop(`[desktop] AI service port ${aiServicePort} already in use; reusing`);
+    return;
+  }
+
+  logDesktop(`[desktop] spawning retainpdf-ai: ${pythonCommand} -m retainpdf_ai (port ${aiServicePort})`);
+  aiServiceChild = spawn(pythonCommand, ["-m", "retainpdf_ai"], {
+    cwd: aiServiceRoot,
+    env,
+    windowsHide: process.platform === "win32",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  aiServiceChild.stdout.on("data", (chunk) => {
+    const message = `[retainpdf_ai] ${chunk}`;
+    process.stdout.write(message);
+    appendDesktopLog(message.trimEnd());
+  });
+  aiServiceChild.stderr.on("data", (chunk) => {
+    const message = `[retainpdf_ai] ${chunk}`;
+    process.stderr.write(message);
+    appendDesktopLog(message.trimEnd());
+  });
+  aiServiceChild.once("exit", (code, signal) => {
+    aiServiceChild = null;
+    if (backendStopping || isQuitting) {
+      return;
+    }
+    logDesktopError(
+      `[desktop] retainpdf-ai exited unexpectedly: code=${code ?? "null"} signal=${signal ?? "null"}`,
+    );
+  });
+
+  const aiReadyTimeoutMs = app.isPackaged ? 60000 : 20000;
+  try {
+    await waitForPort("127.0.0.1", aiServicePort, aiReadyTimeoutMs);
+    logDesktop(`[desktop] retainpdf-ai ready on port ${aiServicePort}`);
+  } catch (error) {
+    // 不阻断主程序：翻译流水线仍可用，仅 AI 问答会 502
+    logDesktopError(
+      `[desktop] retainpdf-ai failed to become ready: ${error && error.message ? error.message : error}`,
+    );
+  }
 }
 
 if (gotSingleInstanceLock) {
@@ -332,8 +439,16 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  backendStopping = true;
+  if (aiServiceChild && !aiServiceChild.killed) {
+    try {
+      aiServiceChild.kill();
+    } catch (_err) {
+      /* ignore */
+    }
+    aiServiceChild = null;
+  }
   if (!usingExternalBackend && backendChild && !backendChild.killed) {
-    backendStopping = true;
     backendChild.kill();
   }
 });
