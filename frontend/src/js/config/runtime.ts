@@ -96,8 +96,19 @@ export function isMockMode() {
   return !!mockScenario();
 }
 
+/** 模块快照为空时再读一次 window（runtime-config.local.js 晚注入等边缘情况）。 */
+function liveRuntimeString(key: string): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  const cfg = (window as any).__FRONT_RUNTIME_CONFIG__;
+  const value = cfg?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
 export function frontendApiKey() {
-  return typeof runtimeConfig.xApiKey === "string" ? runtimeConfig.xApiKey.trim() : "";
+  const fromModule = typeof runtimeConfig.xApiKey === "string" ? runtimeConfig.xApiKey.trim() : "";
+  return fromModule || liveRuntimeString("xApiKey");
 }
 
 export function buildApiHeaders(extraHeaders = {}) {
@@ -122,7 +133,10 @@ export function defaultOcrProvider() {
 }
 
 export function defaultModelApiKey() {
-  return typeof runtimeConfig.modelApiKey === "string" ? runtimeConfig.modelApiKey : "";
+  // 两把钥匙之一：下游 LLM（DeepSeek 等）的 Bearer key，随 ask 请求 body.llm_api_key 上传。
+  // 勿与 xApiKey（Rust/AI 服务 X-API-Key）混淆。
+  const fromModule = typeof runtimeConfig.modelApiKey === "string" ? runtimeConfig.modelApiKey.trim() : "";
+  return fromModule || liveRuntimeString("modelApiKey");
 }
 
 export function defaultModelName() {

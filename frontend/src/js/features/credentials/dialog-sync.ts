@@ -5,6 +5,7 @@ export function syncCredentialDialogFields({
   credentials,
   taskOptions = {},
   defaultModelBaseUrl,
+  defaultModelApiKey,
   elementsPort = createCredentialDialogElementsPort(),
 }: any) {
   const {
@@ -19,7 +20,9 @@ export function syncCredentialDialogFields({
     paddleInput.value = credentials.paddleToken || "";
   }
   if (apiKeyInput) {
-    apiKeyInput.value = credentials.modelApiKey || "";
+    // 只展示设置里已存的 Key，不从 runtime 回填（避免「设置空白却仍能问答」）
+    void defaultModelApiKey;
+    apiKeyInput.value = `${credentials.modelApiKey || ""}`.trim();
   }
   if (modelBaseUrlInput) {
     modelBaseUrlInput.value = taskOptions.baseUrl || defaultModelBaseUrl?.() || "";

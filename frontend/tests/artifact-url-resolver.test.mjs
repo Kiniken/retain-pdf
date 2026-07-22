@@ -213,6 +213,14 @@ test("markdown asset resolver keeps special URLs and resolves relative images", 
     artifacts.resolveMarkdownAssetUrl("http://retainpdf.local/images/", "/api/v1/jobs/1/markdown/images/p.png"),
     "http://retainpdf.local:41000/api/v1/jobs/1/markdown/images/p.png",
   );
+  // path 常带 images/ 前缀，base 已是 .../markdown/images/ —— 不得拼成双 images/
+  assert.equal(
+    artifacts.resolveMarkdownAssetUrl(
+      "http://127.0.0.1:41000/api/v1/jobs/j1/markdown/images/",
+      "images/page-1/imgs/chart.png",
+    ),
+    "http://127.0.0.1:41000/api/v1/jobs/j1/markdown/images/page-1/imgs/chart.png",
+  );
   assert.equal(artifacts.resolveMarkdownAssetUrl("", "data:image/png;base64,abc"), "data:image/png;base64,abc");
   assert.equal(artifacts.resolveMarkdownAssetUrl("", "blob:abc"), "blob:abc");
   assert.equal(artifacts.resolveMarkdownAssetUrl("", "#anchor"), "#anchor");

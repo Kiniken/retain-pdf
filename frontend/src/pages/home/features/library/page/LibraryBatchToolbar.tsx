@@ -53,10 +53,10 @@ export function LibraryBatchToolbar({
 
   return (
     <div className="library-search-dock" aria-label="批量操作工具栏">
-      <div className="flex min-h-[52px] flex-wrap items-center gap-2 rounded-full border border-[rgba(210,210,215,0.82)] bg-white/82 p-2 pl-4 shadow-[0_18px_46px_rgba(15,23,42,0.12)] backdrop-blur-[18px]">
+      <div className="flex min-h-[52px] flex-wrap items-center gap-2 rounded-full border border-[color-mix(in_srgb,color-mix(in_srgb,var(--line)_85%,var(--muted))_82%,transparent)] bg-paper/82 p-2 pl-4 shadow-[0_18px_46px_color-mix(in_srgb,var(--shadow-color)_12%,transparent)] backdrop-blur-[18px]">
         <button
           type="button"
-          className="shrink-0 rounded-full px-2 py-1 text-xs font-medium text-muted-foreground transition active:scale-95 hover:bg-muted/40 hover:text-foreground"
+          className="shrink-0 rounded-[var(--btn-radius)] px-2 py-1 text-xs font-medium text-muted-foreground transition active:scale-95 hover:bg-muted/40 hover:text-foreground"
           onClick={onCancel}
         >取消</button>
 
@@ -66,7 +66,7 @@ export function LibraryBatchToolbar({
 
         <button
           type="button"
-          className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs transition active:scale-95 hover:bg-muted/30 disabled:pointer-events-none disabled:opacity-50"
+          className="shrink-0 rounded-[var(--btn-radius)] border border-border px-3 py-1.5 text-xs transition active:scale-95 hover:bg-muted/30 disabled:pointer-events-none disabled:opacity-50"
           disabled={busy || !totalSelectable}
           onClick={onSelectAll}
         >{allSelected ? "取消全选" : `全选已加载${Number.isFinite(totalSelectable) ? `(${totalSelectable})` : ""}`}</button>
@@ -75,7 +75,7 @@ export function LibraryBatchToolbar({
           <div className="relative" ref={ref}>
             <button
               type="button"
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-white px-3 text-xs font-medium transition active:scale-95 hover:bg-muted/30 disabled:pointer-events-none disabled:opacity-50"
+              className="inline-flex h-8 items-center gap-1.5 rounded-[var(--btn-radius)] border border-border bg-paper px-3 text-xs font-medium transition active:scale-95 hover:bg-muted/30 disabled:pointer-events-none disabled:opacity-50"
               disabled={busy || !hasSelection || collections.length === 0}
               onClick={() => setCollectionsOpen((v) => !v)}
             >
@@ -83,7 +83,7 @@ export function LibraryBatchToolbar({
               加入合集
             </button>
             {collectionsOpen ? (
-              <div className="absolute bottom-full right-0 z-30 mb-2 max-h-64 w-48 origin-bottom-right overflow-y-auto rounded-2xl border border-border bg-white p-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.16)] transition-[opacity,transform] duration-150 ease-[var(--ease-out)] starting:scale-95 starting:opacity-0">
+              <div className="absolute bottom-full right-0 z-30 mb-2 max-h-64 w-48 origin-bottom-right overflow-y-auto rounded-2xl border border-border bg-paper p-1.5 shadow-[0_16px_40px_color-mix(in_srgb,var(--shadow-color)_16%,transparent)] transition-[opacity,transform] duration-150 ease-[var(--ease-out)] starting:scale-95 starting:opacity-0">
                 {collections.map((c) => (
                   <button
                     key={c.collection_id}
@@ -98,7 +98,7 @@ export function LibraryBatchToolbar({
 
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-destructive/30 bg-white px-3 text-xs font-medium text-destructive transition active:scale-95 hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-50"
+            className="inline-flex h-8 items-center gap-1.5 rounded-[var(--btn-radius)] border border-destructive/30 bg-paper px-3 text-xs font-medium text-destructive transition active:scale-95 hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-50"
             disabled={busy || !hasSelection}
             onClick={onDelete}
           >

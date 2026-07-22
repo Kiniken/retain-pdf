@@ -266,13 +266,15 @@ test("HomeApp：顶部图书馆/合集/收藏分栏 + 分类管理对话框", as
   await waitFor(() => byId("app-shell"), "HomeApp 首帧渲染");
   await wait(0);
 
-  // ---- 分栏契约:三个 tab 都在,默认落在图书馆 ----
+  // ---- 分栏契约:四个 tab 都在,默认落在图书馆 ----
   assert.ok(byId("library-top-tab-library"), "契约 id 缺失：#library-top-tab-library");
   assert.ok(byId("library-top-tab-categories"), "契约 id 缺失：#library-top-tab-categories");
   assert.ok(byId("library-top-tab-favorites"), "契约 id 缺失：#library-top-tab-favorites");
+  assert.ok(byId("library-top-tab-ask"), "契约 id 缺失：#library-top-tab-ask");
   assert.ok(byId("library-view"), "默认应停在图书馆视图");
   assert.equal(byId("categories-view"), null, "默认不挂载合集视图");
   assert.equal(byId("favorites-view"), null, "默认不挂载收藏视图");
+  assert.equal(byId("home-ask-view"), null, "默认不挂载 AI 问答视图");
   assert.ok(byId("library-search-input"), "图书馆 tab 下搜索框应可见");
 
   // ---- 切到合集:图书馆网格卸载,合集视图挂载,搜索框隐藏 ----
@@ -306,11 +308,19 @@ test("HomeApp：顶部图书馆/合集/收藏分栏 + 分类管理对话框", as
     "收藏视图应进入 loading/空态/列表/错误之一",
   );
 
-  // ---- 切回图书馆:收藏卸载,图书馆网格与搜索框恢复 ----
+  // ---- 切到 AI 问答:收藏卸载,AI 视图挂载 ----
+  click(byId("library-top-tab-ask"));
+  await waitFor(() => byId("home-ask-view") !== null, "AI 问答视图挂载");
+  assert.equal(byId("favorites-view"), null, "AI tab 下收藏视图应卸载");
+  assert.equal(byId("library-view"), null, "AI tab 下图书馆视图应卸载");
+  assert.equal(byId("library-search-input"), null, "AI tab 下搜索框应隐藏");
+
+  // ---- 切回图书馆:收藏/AI 卸载,图书馆网格与搜索框恢复 ----
   click(byId("library-top-tab-library"));
   await waitFor(() => byId("library-view") !== null, "切回图书馆");
   assert.equal(byId("categories-view"), null, "切回图书馆后合集视图应卸载");
   assert.equal(byId("favorites-view"), null, "切回图书馆后收藏视图应卸载");
+  assert.equal(byId("home-ask-view"), null, "切回图书馆后 AI 视图应卸载");
   assert.ok(byId("library-search-input"), "切回图书馆后搜索框应恢复");
 
   root.unmount();

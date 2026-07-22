@@ -118,10 +118,6 @@ export function BookDetailDialog() {
       left={(
         <CoverActionsPanel
           coverUrl={coverUrl}
-          pageCount={docState.pageCount}
-          bytes={docState.doc?.bytes}
-          addedAt={docState.doc?.added_at}
-          memberCollections={docState.memberCollections}
           readerAvailable={readerAvailable}
           documentId={documentId}
           busy={docState.busy}
@@ -143,6 +139,10 @@ export function BookDetailDialog() {
           defaultTab={defaultTab}
           overviewTab={(
             <BookDetailOverviewTab
+              pageCount={docState.pageCount}
+              bytes={docState.doc?.bytes}
+              addedAt={docState.doc?.added_at}
+              memberCollections={docState.memberCollections}
               editing={docState.editing}
               titleText={docState.titleText}
               tagsText={docState.tagsText}

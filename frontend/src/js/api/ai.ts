@@ -21,6 +21,10 @@ function normalizeDonePayload(payload: any = {}) {
     citations: Array.isArray(payload?.citations) ? payload.citations : [],
     toolTrace: Array.isArray(payload?.tool_trace) ? payload.tool_trace : [],
     rounds: Number(payload?.rounds) || 0,
+    conversationId: `${payload?.conversation_id || payload?.conversationId || ""}`.trim(),
+    // 审计 C2:后端历史回写失败时 done.persisted=false,上层提示"未存入历史"。
+    // 旧后端无此字段 → 视为已持久化(不误报)。
+    persisted: payload?.persisted !== false,
   };
 }
 
@@ -117,9 +121,36 @@ async function extractErrorMessage(resp) {
   const text = await resp.text().catch(() => "");
   try {
     const envelope = JSON.parse(text);
-    return `${envelope?.message || ""}`.trim();
-  } catch (_err) {
+    // Rust envelope: { code, message }
+    const message = `${envelope?.message || ""}`.trim();
+    if (message) {
+      return message;
+    }
+    // FastAPI / AI service: { detail: string | [{msg}] }
+    const detail = envelope?.detail;
+    if (typeof detail === "string" && detail.trim()) {
+      return detail.trim();
+    }
+    if (Array.isArray(detail)) {
+      const parts = detail
+        .map((item) => {
+          if (typeof item === "string") {
+            return item.trim();
+          }
+          if (item && typeof item === "object") {
+            return `${(item as { msg?: string }).msg || (item as { message?: string }).message || ""}`.trim();
+          }
+          return "";
+        })
+        .filter(Boolean);
+      if (parts.length) {
+        return parts.join("; ");
+      }
+    }
     return "";
+  } catch (_err) {
+    // 非 JSON 时截一段原文，避免整页 HTML 糊到聊天气泡
+    return `${text || ""}`.replace(/\s+/g, " ").trim().slice(0, 240);
   }
 }
 
@@ -153,6 +184,7 @@ function buildMockAskStream(question = "") {
       ],
       tool_trace: [{ round: 1, tool: "search_fulltext" }],
       rounds: 1,
+      conversation_id: "mock-conv-reader",
     },
   ];
   return new ReadableStream({
@@ -166,10 +198,20 @@ function buildMockAskStream(question = "") {
 }
 
 // 图书馆 agentic 问答。documentId 传入时限定单文档,不传全库检索。
-// 返回 { answer, citations, toolTrace, rounds };失败抛 AiAskError(带 HTTP status)。
+// jobId 一并上传:服务端可反查 document,历史 run 更稳。
+// conversationId 传入时走多轮;缺省服务端可 auto-create 并在 done.conversation_id 回传。
+// 返回 { answer, citations, toolTrace, rounds, conversationId };失败抛 AiAskError。
 export async function askLibraryAi({
   question = "",
   documentId = "",
+  jobId = "",
+  conversationId = "",
+  /** 新 user 的 parent / regenerate 时的 user 消息 id */
+  parentId = "",
+  /** 重新生成:只追加 assistant 兄弟分支 */
+  regenerate = false,
+  userMessageId = "",
+  assistantMessageId = "",
   onToolEvent = null,
   onAnswerDelta = null,
   signal = null,
@@ -190,12 +232,33 @@ export async function askLibraryAi({
   }
   const payload: Record<string, any> = { question: trimmed, stream: true };
   const normalizedDocumentId = `${documentId || ""}`.trim();
+  const normalizedJobId = `${jobId || ""}`.trim();
+  const normalizedConversationId = `${conversationId || ""}`.trim();
   if (normalizedDocumentId) {
     payload.document_id = normalizedDocumentId;
   }
-  // 按请求携带 LLM 凭据:留空则后端回退启动期 env 配置
-  if (`${llmApiKey || ""}`.trim()) {
-    payload.llm_api_key = `${llmApiKey}`.trim();
+  if (normalizedJobId) {
+    payload.job_id = normalizedJobId;
+  }
+  if (normalizedConversationId) {
+    payload.conversation_id = normalizedConversationId;
+  }
+  const normalizedParentId = `${parentId || ""}`.trim();
+  if (normalizedParentId) {
+    payload.parent_id = normalizedParentId;
+  }
+  if (regenerate) {
+    payload.regenerate = true;
+  }
+  const uid = `${userMessageId || ""}`.trim();
+  const aid = `${assistantMessageId || ""}`.trim();
+  if (uid) payload.user_message_id = uid;
+  if (aid) payload.assistant_message_id = aid;
+  // 按请求携带 LLM 凭据:必须非空,禁止带出空 Authorization: Bearer
+  const key = `${llmApiKey || ""}`.trim();
+  if (key) {
+    // 若用户误把 "Bearer xxx" 整段粘进设置,剥掉前缀
+    payload.llm_api_key = key.replace(/^Bearer\s+/i, "").trim();
   }
   if (`${llmBaseUrl || ""}`.trim()) {
     payload.llm_base_url = `${llmBaseUrl}`.trim();
@@ -214,6 +277,22 @@ export async function askLibraryAi({
       throw new AiAskError("AI 服务未运行(502),请先启动 retainpdf-ai 服务。", 502);
     }
     const message = await extractErrorMessage(resp);
+    // 401：多半是服务入口 X-API-Key（runtime xApiKey），不是模型 Key
+    if (resp.status === 401) {
+      const hint = /X-API-Key|api key|invalid api key|Unauthorized/i.test(message)
+        ? message
+        : "服务鉴权失败：X-API-Key 无效或未配置（检查 runtime-config 的 xApiKey / 后端 auth 配置）。";
+      throw new AiAskError(`${hint}(${resp.status})`, 401);
+    }
+    // 400 缺 LLM key：明确指向「设置 → 凭据」的模型 API Key
+    if (resp.status === 400 && /LLM|模型\s*API\s*Key|api key/i.test(message)) {
+      throw new AiAskError(
+        message.includes("凭据") || message.includes("设置")
+          ? `${message}(${resp.status})`
+          : `缺少模型 API Key：请到设置 → API 设置填写后再提问。(${resp.status})`,
+        400,
+      );
+    }
     throw new AiAskError(`${message || "AI 问答请求失败,请稍后重试。"}(${resp.status})`, resp.status);
   }
   const contentType = `${resp.headers?.get?.("content-type") || ""}`.toLowerCase();

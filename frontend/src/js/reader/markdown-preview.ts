@@ -1,5 +1,6 @@
 import { $ } from "../dom/query.js";
 import { resolveMarkedVendorUrl } from "../runtime/vendor-url.js";
+import { parseMarkdownWithMath } from "./markdown-math.js";
 
 let markedModulePromise = null;
 
@@ -76,6 +77,7 @@ export function createReaderMarkdownPreview({
         const fallback = img.ownerDocument.createElement("span");
         fallback.className = "reader-markdown-image-missing";
         fallback.textContent = `[图片暂不可用] ${img.getAttribute("alt") || src}`;
+        fallback.title = src;
         img.replaceWith(fallback);
       }
     }));
@@ -85,6 +87,7 @@ export function createReaderMarkdownPreview({
     setStatus("正在加载 Markdown…");
     const payload = await loadMarkdownPayload?.(jobId);
     const content = `${payload?.content_with_absolute_image_urls || payload?.content || ""}`;
+    const imagesBaseUrl = `${payload?.images_base_url || payload?.images_base_path || ""}`.trim();
     if (!content.trim()) {
       setStatus("该任务暂无 Markdown 产物");
       return false;
@@ -94,12 +97,19 @@ export function createReaderMarkdownPreview({
     if (!container) {
       return false;
     }
-    // 在惰性 <template> 里解析:图片不会立刻发起请求,清洗后再挂载
+    // 先保护 $公式$ 再 marked，再 MathJax→SVG；图片在 template 内挂载前去掉 src
+    const html = await parseMarkdownWithMath(content, (src) =>
+      String(marked.parse(src, { async: false })),
+    );
     const template = container.ownerDocument.createElement("template");
-    template.innerHTML = marked.parse(content, { async: false });
+    template.innerHTML = html;
     sanitizeRenderedMarkdown(template.content);
+    // 动态 import 避免 circular；resolveMarkdownAssetUrl 剥 images/ 双前缀
+    const { resolveMarkdownAssetUrl } = await import("../job/artifacts.js");
     template.content.querySelectorAll("img[src]").forEach((img) => {
-      img.setAttribute("data-reader-md-src", img.getAttribute("src") || "");
+      const raw = img.getAttribute("src") || "";
+      const resolved = resolveMarkdownAssetUrl(imagesBaseUrl, raw) || raw;
+      img.setAttribute("data-reader-md-src", resolved);
       img.removeAttribute("src");
     });
     container.replaceChildren(template.content);

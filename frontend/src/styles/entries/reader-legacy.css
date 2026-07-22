@@ -4,11 +4,7 @@
  * 默认 react-pdf 路径不加载本文件。
  *
  * 假定 dist/css/reader.css 已加载（tokens / base / layout / chrome / content）。
- * 本包只追加 legacy 抽屉 / 选区 / AI / Markdown / 旧批注 @utility。
- *
- * 使用独立 tailwind 扫描：只扫 legacy + 旧批注 island，避免把整包 preflight
- * 再打一遍进默认包；本文件仍 import tailwind 以便 @utility 编译，二次 preflight
- * 对已挂载的 reader 页影响可忽略。
+ * 本包只追加：三栏布局、legacy 顶栏动作、抽屉 / 选区 / 旧 AI / 旧批注。
  */
 @import "tailwindcss";
 @import "../core/tailwind-theme.css";
@@ -21,17 +17,20 @@
 
 @layer pages;
 
+/* 三栏 / pdf.js 宿主 / 底栏 HUD / 窄屏三栏退化 */
+@import "../reader/layout-legacy.css" layer(pages);
+/* 顶栏动作组 / 下载菜单 / chrome-muted */
+@import "../reader/chrome-legacy.css" layer(pages);
+
 /* 旧批注抽屉（@utility → 需 tailwind 扫描 island class） */
 @import "../reader/annotations.css";
 
 /* 右侧工具抽屉 chrome */
 @import "../reader/side-drawer.css" layer(pages);
-/* 摘录 / 框选 / AI / Markdown / 区域 popover */
+/* 摘录 / 框选 / 抽屉 AI / Markdown 抽屉 / 区域 popover */
 @import "../reader/favorites.css" layer(pages);
 @import "../reader/selection.css" layer(pages);
 @import "../reader/ai.css" layer(pages);
 @import "../reader/markdown.css" layer(pages);
+@import "../reader/markdown-legacy.css" layer(pages);
 @import "../reader/region-popover.css" layer(pages);
-
-/* 死规则保留路径兼容：若有测试仍断言 <reader-dialog> 选择器存在可打开 */
-/* @import "../reader.css" layer(pages); */

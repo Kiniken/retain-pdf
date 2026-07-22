@@ -15,12 +15,13 @@ use crate::error::AppError;
 use crate::models::api::{
     ApiResponse, AppendMessageInput, AssetRecord, ConversationDetailView, ConversationListView,
     ConversationMutationResult, ConversationRecord, CreateConversationInput,
-    ListConversationsQuery, MessageRecord,
+    ListConversationsQuery, MessageRecord, PatchConversationInput,
 };
 use crate::routes::common::{build_library_route_deps, ok_json};
 use crate::services::library_api::{
     append_message_view, create_conversation_view, delete_conversation_view,
-    get_conversation_view, list_conversations_view, load_asset_view, store_asset_view,
+    get_conversation_view, list_conversations_view, load_asset_view, patch_conversation_view,
+    store_asset_view,
 };
 use crate::AppState;
 
@@ -113,6 +114,19 @@ pub async fn delete_conversation_route(
     Ok(ok_json(delete_conversation_view(
         &deps.library,
         &conversation_id,
+    )?))
+}
+
+pub async fn patch_conversation_route(
+    State(state): State<AppState>,
+    AxumPath(conversation_id): AxumPath<String>,
+    Json(payload): Json<PatchConversationInput>,
+) -> Result<Json<ApiResponse<ConversationRecord>>, AppError> {
+    let deps = build_library_route_deps(&state);
+    Ok(ok_json(patch_conversation_view(
+        &deps.library,
+        &conversation_id,
+        &payload,
     )?))
 }
 

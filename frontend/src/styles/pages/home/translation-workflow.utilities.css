@@ -64,8 +64,10 @@
   position: fixed;
   inset: 0;
   z-index: 100;
-  background: rgba(245, 245, 247, 0.62);
+  /* 与全站统一背板同源（--dialog-scrim），不再各写各的 62% */
+  background: var(--dialog-scrim);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 
@@ -81,8 +83,8 @@
   border-radius: 22px;
   overflow: hidden;
   background: var(--paper);
-  border: 1px solid rgba(29, 29, 31, 0.08);
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.16);
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  box-shadow: 0 24px 64px color-mix(in srgb, var(--shadow-color) 16%, transparent);
 }
 
 

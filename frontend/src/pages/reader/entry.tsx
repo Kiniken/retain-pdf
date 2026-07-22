@@ -4,9 +4,16 @@
 
 import { createRoot } from "react-dom/client";
 import { bootTheme } from "../../shared/theme/theme.js";
+import {
+  clearReaderAiNavigationLock,
+  installReaderWindowOpenGuard,
+} from "./external.js";
 import { ReaderApp } from "./ReaderApp.jsx";
 
 bootTheme();
+// 仅 AI 会话切换锁定期拦截误触；并清掉可能残留的全屏指针遮罩
+clearReaderAiNavigationLock();
+installReaderWindowOpenGuard();
 
 // 渲染前同步 body class:CSS 的 :has()/body-class 驱动规则(reader-page.css)依赖它们。
 // 主页已改为跳转独立 reader.html，不再用 iframe 嵌入。

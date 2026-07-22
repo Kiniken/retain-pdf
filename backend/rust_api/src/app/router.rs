@@ -134,6 +134,7 @@ pub fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/ai/conversations/:conversation_id",
             get(library_extras::get_conversation_route)
+                .patch(library_extras::patch_conversation_route)
                 .delete(library_extras::delete_conversation_route),
         )
         .route(

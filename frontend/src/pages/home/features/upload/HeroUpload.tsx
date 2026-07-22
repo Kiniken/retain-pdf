@@ -6,7 +6,7 @@
 // - #file click → prepareFilePicker(清空 value,保证重选同名文件也触发 change)
 // - #file change → uploadFeature.handleFileSelected()
 // - 页码区间 input → uploadFeature.constrainPageRanges({source})
-// - #credential-gate-action → dispatch APP_EVENTS.openBrowserCredentials(3b credentials 消费)
+// - #credential-gate-action → openBrowserCredentials（非 setupMode → 设置 → API）
 
 import { useCallback } from "react";
 import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
@@ -29,10 +29,10 @@ function CredentialGate({ visible }) {
             <circle cx="12" cy="16" r="1.2" fill="currentColor" />
           </svg>
         </span>
-        <strong id="credential-gate-title">请先完成接口设置</strong>
-        <em id="credential-gate-help">填写 OCR Token 和 DeepSeek Key 后即可上传 PDF。</em>
+        <strong id="credential-gate-title">请先完成 API 设置</strong>
+        <em id="credential-gate-help">在设置 → API 设置中填写 OCR Token 和 DeepSeek Key 后即可上传 PDF。</em>
         <button id="credential-gate-action" type="button" className="credential-gate-action" onClick={handleGateAction}>
-          去设置接口
+          打开设置
         </button>
       </div>
     </div>

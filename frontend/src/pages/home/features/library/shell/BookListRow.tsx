@@ -116,7 +116,7 @@ function BookListRowImpl({
 
   return (
     <div
-      className="recent-job-item group flex w-full cursor-pointer items-start gap-4 rounded-2xl px-3 py-3.5 text-left shadow-[0_1px_0_rgba(0,0,0,0.04)] transition duration-150 ease-[var(--ease-out)] hover:bg-muted/45 active:scale-[0.99] sm:px-4"
+      className="recent-job-item group flex w-full cursor-pointer items-start gap-4 rounded-2xl px-3 py-3.5 text-left shadow-[0_1px_0_color-mix(in_srgb,var(--shadow-color)_4%,transparent)] transition duration-150 ease-[var(--ease-out)] hover:bg-muted/45 active:scale-[0.99] sm:px-4"
       role="button"
       tabIndex={0}
       data-job-id={item.job_id || ""}
@@ -129,15 +129,15 @@ function BookListRowImpl({
       {batchMode ? (
         <div className={cn(
           "mt-1 flex h-5 w-5 shrink-0 items-center justify-center self-start rounded-full border transition-colors",
-          selected ? "border-foreground bg-foreground text-background" : "border-border bg-white text-transparent",
+          selected ? "border-foreground bg-foreground text-background" : "border-border bg-paper text-transparent",
         )} aria-hidden>
           <IconCheck />
         </div>
       ) : null}
 
-      <div className={cn("relative aspect-[3/4] w-11 shrink-0 overflow-hidden rounded-xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.06)] sm:w-12", batchMode && selected && "ring-2 ring-foreground ring-offset-2")}>
+      <div className={cn("relative aspect-[3/4] w-11 shrink-0 overflow-hidden rounded-xl bg-paper shadow-[0_2px_10px_color-mix(in_srgb,var(--shadow-color)_6%,transparent)] sm:w-12", batchMode && selected && "ring-2 ring-foreground ring-offset-2")}>
         {coverUrl ? (
-          <img src={coverUrl} alt="" className="h-full w-full bg-white object-contain" />
+          <img src={coverUrl} alt="" className="h-full w-full bg-paper object-contain" />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-muted/60 to-background text-muted-foreground/45"><IconFile /></div>
         )}

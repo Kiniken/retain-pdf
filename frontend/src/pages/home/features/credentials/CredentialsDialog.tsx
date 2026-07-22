@@ -20,10 +20,10 @@
 // 测试/产品语义要求"关闭后保留未保存草稿",这是可接受的、更符合直觉的
 // Dialog UX(草稿在保存前不持久)。
 //
-// 打开入口统一走 APP_EVENTS.openBrowserCredentials(HeroUpload 的
-// #credential-gate-action、SettingsHubDialog 的 #credentials-btn 都 dispatch
-// 同一个事件);detail.setupMode 透传给 browser.js 的 openBrowserCredentialsDialog,
-// 驱动首次配置态(标题/保存按钮文案/隐藏 tabs)。
+// 打开入口：APP_EVENTS.openBrowserCredentials
+// - setupMode=true → 本弹窗（首次配置门，独立「接口设置」）
+// - 其余情况 → 设置中心 API 区（唯一常规填 Key 入口，避免双窗口）
+// HeroUpload 门禁、AI 缺 Key 横幅、提交流都走同一事件。
 //
 // Tabs 实现(阶段 B,shadcn 改造):同 SettingsHubDialog.jsx 的选择——直接用
 // radix-ui 的 Tabs 原语,不经 src/components/ui/tabs.jsx 默认皮肤(避免和
@@ -39,14 +39,13 @@
 // 值最终生效),语义与原来手写的 hidden 属性完全一致——这条只在对话框处于
 // 打开态时才有意义(对话框关闭时 Content 整体卸载,tab 常驻挂载无从谈起)。
 
-import { Dialog as DialogPrimitive, Tabs as TabsPrimitive } from "radix-ui";
+import { Dialog as DialogPrimitive } from "radix-ui";
 import { useAppEvent } from "../../../../shared/react/use-app-event.js";
 import { useDialogReturnFocus } from "../../../../shared/react/use-dialog-return-focus.js";
+import { useHomeServices } from "../../home-services-context.js";
 import { CREDENTIAL_DOM_IDS } from "./credentials-dom-ids.js";
 import { useCredentialsController } from "./useCredentialsController.js";
-import { OcrProviderPanels } from "./OcrProviderPanels.jsx";
-import { DeepSeekPanel } from "./DeepSeekPanel.jsx";
-import { TaskOptionsPanel } from "./TaskOptionsPanel.jsx";
+import { CredentialsWorkbench } from "./CredentialsWorkbench.jsx";
 import { Button as ButtonBase } from "../../../../components/Button.jsx";
 import { APP_EVENTS } from "../../composition/external.js";
 
@@ -55,17 +54,19 @@ const Button = ButtonBase as any;
 
 const { browser: BROWSER_IDS } = CREDENTIAL_DOM_IDS;
 
-const TABS = [
-  { id: "api", label: "API 设置" },
-  { id: "task", label: "任务选项" },
-];
-
 export function CredentialsDialog() {
-  const { open, view, feature, dialogStore, handlers } = useCredentialsController();
+  const { open, view, feature, dialogStore } = useCredentialsController();
+  const services = useHomeServices();
   const { onCloseAutoFocus } = useDialogReturnFocus(open);
 
   useAppEvent(APP_EVENTS.openBrowserCredentials, (event) => {
-    feature?.openBrowserCredentialsDialog(event?.detail || {});
+    const detail = event?.detail || {};
+    // 常规：只打开「设置 → API 设置」；仅首次配置走独立弹窗
+    if (detail.setupMode) {
+      feature?.openBrowserCredentialsDialog({ setupMode: true });
+      return;
+    }
+    services.settingsHub?.dialogStore?.open?.({ tab: "api" });
   });
 
   // Esc / 背板点击 / 关闭按钮都经这一个回调回写 store(dialogStore.close()
@@ -78,15 +79,6 @@ export function CredentialsDialog() {
   }
 
   const setupMode = Boolean(view.setupMode);
-  const activeTab = view.activeTab || "api";
-  const dialogStatus = view.dialogStatus || { message: "", tone: "" };
-  const statusContent = `${dialogStatus.message || ""}`.trim();
-  const statusClasses = [
-    "upload-status",
-    statusContent ? "" : "hidden",
-    dialogStatus.tone === "valid" ? "is-valid" : "",
-    dialogStatus.tone === "error" ? "is-error" : "",
-  ].filter(Boolean).join(" ");
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
@@ -110,71 +102,11 @@ export function CredentialsDialog() {
                 <Button id={BROWSER_IDS.closeButton} className="dialog-close-btn" aria-label="关闭">×</Button>
               </DialogPrimitive.Close>
             </div>
-            <TabsPrimitive.Root
-              className="contents"
-              value={activeTab}
-              onValueChange={(tab) => feature?.activateCredentialTab(tab)}
-            >
-              <div className="desktop-body credential-dialog-body">
-                <TabsPrimitive.List
-                  id={BROWSER_IDS.tabs}
-                  className={`developer-tabs credential-tabs${setupMode ? " hidden" : ""}`}
-                  aria-label="接口设置"
-                >
-                  {TABS.map((tab) => (
-                    <TabsPrimitive.Trigger
-                      key={tab.id}
-                      value={tab.id}
-                      id={tab.id === "api" ? BROWSER_IDS.tabApi : BROWSER_IDS.tabTask}
-                      className={`developer-tab credential-tab${activeTab === tab.id ? " is-active" : ""}`}
-                      data-credential-tab={tab.id}
-                    >
-                      {tab.label}
-                    </TabsPrimitive.Trigger>
-                  ))}
-                </TabsPrimitive.List>
-                <div className="credential-panels">
-                  <TabsPrimitive.Content
-                    value="api"
-                    forceMount
-                    hidden={activeTab !== "api"}
-                    className={`credential-panel${activeTab === "api" ? " is-active" : ""}`}
-                    data-credential-panel="api"
-                  >
-                    <div className="credential-card-grid credential-card-grid-compact credential-api-grid">
-                      <section className="credential-card">
-                        <div className="credential-card-head">
-                          <h3>OCR</h3>
-                        </div>
-                        <OcrProviderPanels />
-                      </section>
-                      <DeepSeekPanel />
-                    </div>
-                  </TabsPrimitive.Content>
-                  {/* TaskOptionsPanel 不套 TabsPrimitive.Content:它内部本来就是一个
-                      自带 role="tabpanel" 的独立 <section>(见 TaskOptionsPanel.jsx),
-                      再包一层 Content 会产生嵌套的 role=tabpanel(a11y 语义重复),
-                      收益还不如维持现状。常驻挂载(不随 tab 条件卸载)语义本来就不
-                      依赖 Radix——它只是普通 React 组件,从来没被 Radix 卸载过,
-                      这里继续沿用原有 hidden 属性写法即可:TaskOptionsPanel 持有的
-                      modelBaseUrl/modelName/mathMode 字段 ref 在保存时被
-                      dialog-values.js 统一读取,不论用户当前停在哪个 tab —— 卸载会
-                      让这些 ref 变 null,复现"切到 API 面板点保存,任务选项静默丢失"
-                      的问题。 */}
-                  <TaskOptionsPanel hidden={activeTab !== "task"} />
-                </div>
-                <div className="actions credential-dialog-actions">
-                  <span id={BROWSER_IDS.status} className={statusClasses}>{statusContent}</span>
-                  <Button
-                    id={BROWSER_IDS.saveButton}
-                    className="app-button"
-                    onClick={() => handlers?.save?.()}
-                  >
-                    {setupMode ? "保存并启动" : "保存"}
-                  </Button>
-                </div>
-              </div>
-            </TabsPrimitive.Root>
+            {/* 表单主体抽到 CredentialsWorkbench（与 SettingsHubDialog API 区
+                共用同一实现），本弹窗只剩首次配置门（setupMode）一个场景。 */}
+            <div className="desktop-body credential-dialog-body">
+              <CredentialsWorkbench />
+            </div>
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

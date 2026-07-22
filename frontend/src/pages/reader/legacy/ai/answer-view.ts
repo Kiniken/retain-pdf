@@ -10,11 +10,12 @@ import { renderAiMarkdownFragment } from "../../../../js/reader/markdown-render.
 import type { PageAnchor } from "../../../../js/reader/types.js";
 
 // agentic 工具事件的语义化文案(/api/v1/ai/ask 的 tool 事件)
+// 整本问答前端会过滤 list_documents；文案也避免「图书馆」感
 const TOOL_EVENT_LABELS: Record<string, string> = {
-  list_documents: "浏览图书馆",
-  read_blocks: "阅读原文",
+  list_documents: "确认文档信息",
+  read_blocks: "阅读相关段落",
   search_favorites: "查找收藏",
-  search_fulltext: "全文检索",
+  search_fulltext: "检索文档内容",
 };
 
 const PROGRESS_CLASS = "reader-ai-message-progress";
@@ -106,10 +107,15 @@ export function formatCitations(citations = []) {
 }
 
 export function describeToolEvent(event: AiToolEvent = {}) {
-  const label = TOOL_EVENT_LABELS[event?.tool] || `${event?.tool || ""}`.trim();
-  const round = Number(event?.round) || 0;
-  const action = label ? `正在${label}…` : "正在检索…";
-  return round > 0 ? `第 ${round} 轮 · ${action}` : action;
+  const tool = `${event?.tool || ""}`.trim();
+  // 整本问答不展示「浏览图书馆」类进度
+  if (tool === "list_documents") {
+    return "";
+  }
+  const label = TOOL_EVENT_LABELS[tool] || tool;
+  const action = label ? `正在${label}…` : "正在检索文档…";
+  // 不再强调「第 n 轮」，更像普通聊天进度
+  return action;
 }
 
 export function renderMessageText(view, text = "", citations = []) {

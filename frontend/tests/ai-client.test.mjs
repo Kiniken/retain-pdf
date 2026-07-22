@@ -81,12 +81,13 @@ test("readAiAskStream:末尾无换行的 done 行也能解析", async () => {
 
 // ===== askLibraryAi:请求构造与错误分级 =====
 
-test("askLibraryAi:携带 X-API-Key,body 含 question/document_id/stream", async () => {
+test("askLibraryAi:携带 X-API-Key,body 含 question/document_id/job_id/stream", async () => {
   setRuntimeConfig({ xApiKey: "test-key" });
   const calls = [];
   const result = await askLibraryAi({
     question: "这篇讲什么?",
     documentId: "doc-9",
+    jobId: "job-9",
     fetchImpl: async (url, options) => {
       calls.push([url, options]);
       return {
@@ -108,6 +109,7 @@ test("askLibraryAi:携带 X-API-Key,body 含 question/document_id/stream", async
   assert.deepEqual(JSON.parse(options.body), {
     question: "这篇讲什么?",
     document_id: "doc-9",
+    job_id: "job-9",
     stream: true,
   });
 });
@@ -119,6 +121,40 @@ test("askLibraryAi:502 抛出带 status 的 AI 服务未运行错误", async () 
       fetchImpl: async () => ({ ok: false, status: 502, text: async () => "" }),
     }),
     (error) => error instanceof AiAskError && error.status === 502 && /AI 服务未运行/.test(error.message),
+  );
+});
+
+test("askLibraryAi:401 解析 FastAPI detail 并提示 X-API-Key", async () => {
+  await assert.rejects(
+    askLibraryAi({
+      question: "hi",
+      fetchImpl: async () => ({
+        ok: false,
+        status: 401,
+        text: async () => JSON.stringify({ detail: "invalid api key" }),
+      }),
+    }),
+    (error) => error instanceof AiAskError
+      && error.status === 401
+      && /invalid api key/i.test(error.message),
+  );
+});
+
+test("askLibraryAi:400 缺 LLM key 时透传/归并可读文案", async () => {
+  await assert.rejects(
+    askLibraryAi({
+      question: "hi",
+      fetchImpl: async () => ({
+        ok: false,
+        status: 400,
+        text: async () => JSON.stringify({
+          detail: "缺少 LLM API Key:请在前端凭据设置中填写模型 API Key。",
+        }),
+      }),
+    }),
+    (error) => error instanceof AiAskError
+      && error.status === 400
+      && /LLM API Key|模型 API Key|凭据/.test(error.message),
   );
 });
 
@@ -236,7 +272,7 @@ test("chat:agentic 回答渲染 [n] 可点击引用与脚注,模型文本 XSS �
   );
 
   const assistant = documentRef.querySelector(".reader-ai-message-assistant");
-  assert.deepEqual(progressTexts, ["第 1 轮 · 正在全文检索…"], "tool 事件应渲染为过程提示行");
+  assert.deepEqual(progressTexts, ["正在检索文档内容…"], "tool 事件应渲染为过程提示行");
   assert.ok(!assistant.className.includes("reader-ai-message-progress"), "完成后应移除过程态样式");
   assert.ok(!assistant.innerHTML.includes("<img"), "模型文本必须按纯文本插入");
   assert.match(assistant.textContent, /<img src=x/);
@@ -256,6 +292,7 @@ test("ask answerer:按 job_id 直查 document_id 且只查一次", async () => {
   const askCalls = [];
   const answerer = createReaderAskAnswerer({
     jobId: "job-b",
+    llmConfig: () => ({ apiKey: "sk-test", baseUrl: "", model: "" }),
     documentByJobId: async (apiPrefix, jobId) => {
       listCalls.push([apiPrefix, jobId]);
       // 后端直查:历史 run 也能解析到所属文档
@@ -281,8 +318,50 @@ test("ask answerer:按 job_id 直查 document_id 且只查一次", async () => {
   assert.equal(listCalls.length, 1, "document_id 直查结果应被缓存");
   assert.deepEqual(listCalls[0][1], "job-b", "按 job_id 直查");
   assert.equal(askCalls[0].documentId, "doc-b");
+  assert.equal(askCalls[0].jobId, "job-b");
   assert.equal(askCalls[1].question, "（当前第 3 页）问题二");
   assert.equal(toolEvents.length, 1);
+});
+
+test("ask answerer:反查不到 document 时 fail closed，不静默全库", async () => {
+  const askCalls = [];
+  const answerer = createReaderAskAnswerer({
+    jobId: "job-orphan",
+    llmConfig: () => ({ apiKey: "sk-test", baseUrl: "", model: "" }),
+    documentByJobId: async () => null,
+    ask: async (payload) => {
+      askCalls.push(payload);
+      return { answer: "不应调用", citations: [], toolTrace: [], rounds: 0 };
+    },
+  });
+  await assert.rejects(
+    answerer.answer({ question: "这篇讲什么?", scope: "document" }),
+    /无法关联当前文档/,
+  );
+  assert.equal(askCalls.length, 0);
+});
+
+test("ask answerer:无模型 Key 时不查文档、不发 ask", async () => {
+  const listCalls = [];
+  const askCalls = [];
+  const answerer = createReaderAskAnswerer({
+    jobId: "job-x",
+    llmConfig: () => ({ apiKey: "", baseUrl: "", model: "" }),
+    documentByJobId: async () => {
+      listCalls.push(1);
+      return { document_id: "doc-x" };
+    },
+    ask: async (payload) => {
+      askCalls.push(payload);
+      return { answer: "不应调用", citations: [], toolTrace: [], rounds: 0 };
+    },
+  });
+  await assert.rejects(
+    answerer.answer({ question: "hi", scope: "document" }),
+    /缺少模型 API Key/,
+  );
+  assert.equal(listCalls.length, 0, "缺 Key 不得先查文档");
+  assert.equal(askCalls.length, 0, "缺 Key 不得发 ask");
 });
 
 test("askLibraryAi 携带 llm_api_key/base/model,仅非空字段进 payload", async () => {

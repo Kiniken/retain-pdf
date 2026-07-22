@@ -1,4 +1,6 @@
-/* 阅读器顶栏 chrome：tabs / 下载菜单 / boot loading */
+/* 阅读器顶栏 chrome（默认 react-pdf 共用）：tabs / boot / 关闭回主页
+ * 顶栏动作组 / 下载菜单 / chrome-muted 淡出 → chrome-legacy.css
+ */
 
 .reader-topbar {
   position: fixed;
@@ -11,10 +13,10 @@
   width: min(430px, calc(100vw - 48px));
   min-height: 36px;
   padding: 4px;
-  border: 1px solid rgba(29, 29, 31, 0.08);
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow-color) 10%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   transform: translateX(-50%);
@@ -27,203 +29,16 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
-}
-
-.reader-tabs {
   width: 100%;
-}
-
-.reader-body.reader-chrome-muted .reader-topbar:not(:focus-within) {
-  opacity: 0.24;
-  transform: translateX(-50%) translateY(-5px);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
-}
-
-.reader-topbar-actions {
-  position: fixed;
-  top: 12px;
-  right: clamp(12px, 2.2vw, 28px);
-  z-index: 35;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 36px;
-  padding: 4px;
-  border: 1px solid rgba(29, 29, 31, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  transition: opacity 180ms ease, transform 180ms ease, box-shadow 180ms ease;
-}
-
-/* 整页阅读器「关闭 → 主页」（替代旧 iframe 宿主右上角关闭） */
-.reader-close-home-btn {
-  position: fixed;
-  top: 12px;
-  right: clamp(12px, 2.2vw, 28px);
-  z-index: 36;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 36px;
-  min-width: 36px;
-  padding: 0 12px 0 10px;
-  border: 1px solid rgba(29, 29, 31, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  color: var(--ink, var(--ink));
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  appearance: none;
-  transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
-}
-
-.reader-close-home-btn:hover {
-  background: var(--paper);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
-}
-
-.reader-close-home-btn:active {
-  transform: scale(0.97);
-}
-
-.reader-close-home-icon {
-  display: block;
-  flex: 0 0 auto;
-}
-
-.reader-close-home-label {
-  line-height: 1;
-}
-
-.reader-body.reader-chrome-muted .reader-close-home-btn:not(:focus-within):not(:hover) {
-  opacity: 0.24;
-  transform: translateY(-5px);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
-}
-
-@media (max-width: 520px) {
-  .reader-close-home-btn {
-    padding: 0;
-    width: 36px;
-  }
-
-  .reader-close-home-label {
-    display: none;
-  }
-}
-
-.reader-body.reader-chrome-muted .reader-topbar-actions:not(:focus-within) {
-  opacity: 0.24;
-  transform: translateY(-5px);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
-}
-
-/* iframe 嵌入(reader-dialog)时右上角是宿主的关闭按钮,动作组靠左 */
-.reader-body.reader-embedded .reader-topbar-actions {
-  right: auto;
-  left: clamp(12px, 2.2vw, 28px);
-}
-
-.reader-download-menu {
-  position: relative;
-}
-
-.reader-download-trigger {
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-
-.reader-download-trigger::-webkit-details-marker {
-  display: none;
-}
-
-.reader-download-menu[open] .reader-download-trigger {
-  background: var(--ink);
-  color: var(--paper);
-}
-
-.reader-download-popover {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  z-index: 36;
-  display: grid;
-  gap: 2px;
-  min-width: 132px;
-  padding: 6px;
-  border: 1px solid rgba(29, 29, 31, 0.1);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.16);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-
-/* 嵌入模式动作组在左侧,弹层随之左对齐 */
-.reader-body.reader-embedded .reader-download-popover {
-  right: auto;
-  left: 0;
-}
-
-.reader-download-option {
-  min-height: 32px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--ink);
-  box-shadow: none;
-  font-size: 12px;
-  font-weight: 600;
-  text-align: left;
-}
-
-.reader-download-option:hover:not(:disabled) {
-  background: rgba(29, 29, 31, 0.06);
-}
-
-.reader-download-option:disabled {
-  color: var(--muted);
-}
-
-.reader-topbar-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  box-shadow: none;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.reader-topbar-action-btn:hover {
-  color: var(--ink);
-}
-
-.reader-topbar-action-btn[aria-expanded="true"] {
-  background: var(--ink);
-  color: var(--paper);
 }
 
 .reader-tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 1 1 0;
   min-height: 28px;
+  padding: 0 10px;
   border-radius: 999px;
   border: 1px solid transparent;
   background: transparent;
@@ -233,11 +48,6 @@
   font-weight: 650;
   letter-spacing: 0;
   white-space: nowrap;
-}
-
-.reader-tab {
-  flex: 1 1 0;
-  padding: 0 10px;
 }
 
 .reader-tab.is-active {
@@ -253,6 +63,62 @@
 .reader-tab.is-active:hover {
   background: var(--accent);
   color: var(--paper);
+}
+
+/* 整页阅读器「关闭 → 主页」（替代旧 iframe 宿主右上角关闭） */
+.reader-close-home-btn {
+  position: fixed;
+  top: 12px;
+  right: clamp(12px, 2.2vw, 28px);
+  z-index: 36;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 36px;
+  min-width: 36px;
+  padding: 0 12px 0 10px;
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--shadow-color) 10%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: var(--ink, var(--ink));
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  appearance: none;
+  transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.reader-close-home-btn:hover {
+  background: var(--paper);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--shadow-color) 14%, transparent);
+}
+
+.reader-close-home-btn:active {
+  transform: scale(0.97);
+}
+
+.reader-close-home-icon {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.reader-close-home-label {
+  line-height: 1;
+}
+
+@media (max-width: 520px) {
+  .reader-close-home-btn {
+    padding: 0;
+    width: 36px;
+  }
+
+  .reader-close-home-label {
+    display: none;
+  }
 }
 
 .reader-boot-loading {
@@ -286,7 +152,7 @@
   height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(29, 29, 31, 0.08);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
 }
 
 .reader-boot-loading-bar {
@@ -297,4 +163,3 @@
   background: linear-gradient(90deg, var(--ink) 0%, var(--ink) 100%);
   transition: width 0.24s ease;
 }
-

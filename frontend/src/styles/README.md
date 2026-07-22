@@ -35,8 +35,8 @@ src/styles/
 1. **页面专属样式只进对应 entry**  
    - 主页：书架、上传工作流、状态卡、凭据、合集…  
    - 详情：`pages.css` + `pages/detail/*`  
-   - 阅读默认：`reader/layout|chrome|content` + `reader.utilities`  
-   - 阅读 legacy：`reader/{side-drawer,favorites,selection,ai,markdown,region-popover,annotations}`  
+   - 阅读默认：`reader/layout|chrome|content|react-pdf|fab*|float-ai*|hud…`  
+   - 阅读 legacy：`layout-legacy|chrome-legacy|side-drawer|favorites|selection|ai|annotations…`  
 2. **跨页只放 `core/` + tokens/base/dialog-shell**（以及确有必要时的 components）  
 3. **禁止**再把全站 import 塞回 `src/input.css`  
 4. 新增样式：先判断属于哪一页 → 写进该域文件 → 确认已由对应 `entries/*.css` import  

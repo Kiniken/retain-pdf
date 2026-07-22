@@ -52,12 +52,15 @@
   --color-gold-weak: var(--gold-weak);
   --color-chrome: var(--chrome);
   --color-reader-page: var(--reader-page);
+  /* 遮罩基色走皮肤契约 --shadow-color（night 纯黑 / classic 冷 slate），供 bg-scrim/50 等用 */
+  --color-scrim: var(--shadow-color);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 
-  --shadow-soft: 0 10px 30px rgba(80, 66, 40, 0.08);
-  --shadow-panel: 0 18px 48px rgba(37, 31, 20, 0.22);
+  /* 阴影基色走皮肤契约 --shadow-color（night 换纯黑），不再写死暖棕 */
+  --shadow-soft: 0 10px 30px color-mix(in srgb, var(--shadow-color) 8%, transparent);
+  --shadow-panel: 0 18px 48px color-mix(in srgb, var(--shadow-color) 22%, transparent);
 
   /*
     shadcn/ui 组件消费的标准变量名(阶段 A,shadcn 工具链落地)。实际值的

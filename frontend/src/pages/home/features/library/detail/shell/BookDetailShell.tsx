@@ -39,7 +39,7 @@ export function BookDetailShell({
         <DialogPrimitive.Overlay className="desktop-dialog-overlay" />
         <DialogPrimitive.Content
           id="book-detail-dialog"
-          className={`book-detail-dialog-content fixed inset-0 z-[101] m-auto h-fit w-[min(940px,94vw)] max-h-[88vh] overflow-y-auto rounded-2xl border border-border bg-white p-6 shadow-[0_30px_60px_rgba(15,23,42,0.22)] sm:p-7 ${contentClassName}`.trim()}
+          className={`book-detail-dialog-content fixed inset-0 z-[101] m-auto h-fit w-[min(940px,94vw)] max-h-[88vh] overflow-y-auto rounded-2xl border border-border bg-paper p-6 shadow-[0_30px_60px_color-mix(in_srgb,var(--shadow-color)_22%,transparent)] sm:p-7 ${contentClassName}`.trim()}
           onCloseAutoFocus={onCloseAutoFocus}
         >
           <DialogPrimitive.Title asChild>

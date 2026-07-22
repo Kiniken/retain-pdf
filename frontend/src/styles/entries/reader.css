@@ -4,7 +4,7 @@
  * 边界：禁止 import library-* / status-* / book-detail / credential-* 等主页域。
  * 共享仅限 tokens / base / dialog-shell / download-toast。
  *
- * Legacy-only 抽屉/选区/AI/Markdown 见 entries/reader-legacy.css
+ * Legacy-only（三栏 / 抽屉 / 旧 AI / 框选）见 entries/reader-legacy.css
  * （?engine=legacy 时由 entry.tsx 动态注入）。
  */
 @import "tailwindcss";
@@ -33,26 +33,23 @@
 @import "../core/download-toast.css";
 @import "../dialog-shell.css";
 
-/* —— 默认 react-pdf 路径需要的阅读器域 —— */
-/* reader.utilities：@utility reader-body / reader-panel / reader-empty 等 */
+/* —— 默认 react-pdf 路径（无 legacy 残留） —— */
 @import "../reader.utilities.css";
-/* layout：body 滚动壳 / 面板 / 模式 class；含少量 legacy 三栏残留（体积小，共享） */
 @import "../reader/layout.css" layer(pages);
-/* chrome：顶栏 tabs / boot / ReaderCloseHome；含 legacy 下载菜单规则（体积小） */
 @import "../reader/chrome.css" layer(pages);
-/* content：react-pdf 网格 / FAB / notes / selection toolbar / HUD */
 @import "../reader/content.css" layer(pages);
-
-/*
- * 已移出默认包（仅 ?engine=legacy 需要）→ entries/reader-legacy.css：
- *   reader.css          — <reader-dialog> 死规则（主页也不再 embed）
- *   annotations.css     — 旧批注抽屉 @utility
- *   side-drawer.css     — 右侧工具抽屉 chrome
- *   favorites.css       — 摘录抽屉
- *   selection.css       — 框选/高亮层（legacy pdf.js）
- *   ai.css              — AI 问答抽屉
- *   markdown.css        — Markdown 预览抽屉
- *   region-popover.css  — 区域 Markdown popover
- *
- * 注意：reader-page.css 是空壳路径兼容文件，无规则，不 import。
- */
+@import "../reader/react-pdf.css" layer(pages);
+@import "../reader/fab.css" layer(pages);
+@import "../reader/fab-menu.css" layer(pages);
+@import "../reader/fab-downloads.css" layer(pages);
+@import "../reader/selection-pop.css" layer(pages);
+@import "../reader/notes-float.css" layer(pages);
+@import "../reader/float-markdown.css" layer(pages);
+@import "../reader/float-ai.css" layer(pages);
+@import "../reader/float-ai-aui.css" layer(pages);
+@import "../reader/float-ai-md.css" layer(pages);
+@import "../reader/float-ai-citations.css" layer(pages);
+@import "../reader/float-ai-composer.css" layer(pages);
+@import "../reader/hud.css" layer(pages);
+/* Markdown 悬浮预览（含 MathJax）；默认引擎与 legacy 共用类名 */
+@import "../reader/markdown.css" layer(pages);

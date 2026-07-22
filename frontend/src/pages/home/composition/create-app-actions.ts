@@ -34,6 +34,10 @@ type LibraryEventPort = {
   requestRefresh?: (opts?: unknown) => void;
 };
 
+type SettingsHubDialogStore = {
+  open: (payload?: { tab?: string } | null) => void;
+};
+
 type CreateAppActionsArgs = {
   features: HomeFeatures;
   bridge: Pick<HomeBridge, "resetUploadedFile">;
@@ -45,6 +49,8 @@ type CreateAppActionsArgs = {
   jobRuntimeState: Record<string, unknown>;
   statusCardPresenter: StatusCardPresenterPort;
   libraryEventPort: LibraryEventPort;
+  /** 常规凭据入口：打开设置 → API，避免与首次配置弹窗双轨 */
+  settingsHubDialogStore?: SettingsHubDialogStore | null;
 };
 
 export function createAppActions({
@@ -58,6 +64,7 @@ export function createAppActions({
   jobRuntimeState,
   statusCardPresenter,
   libraryEventPort,
+  settingsHubDialogStore = null,
 }: CreateAppActionsArgs): { appActionsFeature: AppActionsFeature } {
   const jobSnapshotPort = Object.freeze({
     syncCurrentJobSnapshot: (
@@ -111,7 +118,19 @@ export function createAppActions({
       validateBeforeSubmit: () => upload().validatePageRanges() ?? true,
       ensureOcrCredentialsReady: (options?: unknown) => creds().ensureOcrCredentialsReady(options),
       hasBrowserCredentials: () => Boolean(creds().hasBrowserCredentials()),
-      openBrowserCredentialsDialog: (options?: unknown) => creds().openBrowserCredentialsDialog(options),
+      openBrowserCredentialsDialog: (options?: unknown) => {
+        const opts = (options && typeof options === "object" ? options : {}) as { setupMode?: boolean };
+        if (opts.setupMode) {
+          creds().openBrowserCredentialsDialog({ setupMode: true });
+          return;
+        }
+        // 常规缺 Key：设置 → API（与 UI 事件路由一致）
+        if (settingsHubDialogStore?.open) {
+          settingsHubDialogStore.open({ tab: "api" });
+          return;
+        }
+        creds().openBrowserCredentialsDialog(opts);
+      },
       refreshDeepSeekBalance: (options?: unknown) => creds().refreshDeepSeekBalance(options),
       startJobPolling: (jobId: string) => jobRuntime().startPolling(jobId),
       libraryEventPort,

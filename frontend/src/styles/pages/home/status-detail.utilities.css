@@ -8,8 +8,8 @@
   border-color: var(--line);
   background: var(--paper);
   color: var(--warn);
-  background: rgba(255, 159, 10, 0.08);
-  border-color: rgba(255, 159, 10, 0.18);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 18%, transparent);
 }
 
 
@@ -67,14 +67,14 @@
   color: var(--ink);
 
   &.is-valid {
-    background: rgba(52, 199, 89, 0.08);
-    border-color: rgba(52, 199, 89, 0.18);
+    background: color-mix(in srgb, var(--ok) 8%, transparent);
+    border-color: color-mix(in srgb, var(--ok) 18%, transparent);
     color: var(--ok);
   }
 
   &.is-error {
-    background: rgba(255, 59, 48, 0.08);
-    border-color: rgba(255, 59, 48, 0.18);
+    background: color-mix(in srgb, var(--danger) 8%, transparent);
+    border-color: color-mix(in srgb, var(--danger) 18%, transparent);
     color: var(--danger);
   }
 }
@@ -83,8 +83,8 @@
 
 @utility is-valid {
   &.token-validation {
-    background: rgba(52, 199, 89, 0.08);
-    border-color: rgba(52, 199, 89, 0.18);
+    background: color-mix(in srgb, var(--ok) 8%, transparent);
+    border-color: color-mix(in srgb, var(--ok) 18%, transparent);
     color: var(--ok);
   }
 }
@@ -93,8 +93,8 @@
 
 @utility is-error {
   &.token-validation {
-    background: rgba(255, 59, 48, 0.08);
-    border-color: rgba(255, 59, 48, 0.18);
+    background: color-mix(in srgb, var(--danger) 8%, transparent);
+    border-color: color-mix(in srgb, var(--danger) 18%, transparent);
     color: var(--danger);
   }
 }
@@ -143,7 +143,7 @@
   background: var(--ink);
   border-color: var(--ink);
   color: var(--paper);
-  box-shadow: 0 6px 18px rgba(29, 29, 31, 0.14);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--ink) 14%, transparent);
 
   &:hover:not(.disabled) {
     background: var(--ink);
@@ -172,7 +172,7 @@
   @apply grid gap-1 rounded-[14px] px-4 py-3;
   background: linear-gradient(180deg, var(--paper) 0%, var(--paper) 100%);
   border: 1px solid var(--line);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow-color) 4%, transparent);
   align-content: start;
   min-height: 56px;
 
@@ -303,7 +303,7 @@
   @apply rounded-[20px] border px-4 py-4;
   border-color: var(--line);
   background: linear-gradient(180deg, var(--paper) 0%, var(--paper) 100%);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--shadow-color) 4%, transparent);
 }
 
 
@@ -321,12 +321,12 @@
   color: var(--ink);
 
   &.warn {
-    background: rgba(255, 159, 10, 0.12);
+    background: color-mix(in srgb, var(--warn) 12%, transparent);
     color: var(--warn);
   }
 
   &.error {
-    background: rgba(255, 59, 48, 0.12);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
     color: var(--danger);
   }
 }
@@ -335,7 +335,7 @@
 
 @utility warn {
   &.event-badge {
-    background: rgba(255, 159, 10, 0.12);
+    background: color-mix(in srgb, var(--warn) 12%, transparent);
     color: var(--warn);
   }
 }
@@ -344,7 +344,7 @@
 
 @utility error {
   &.event-badge {
-    background: rgba(255, 59, 48, 0.12);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
     color: var(--danger);
   }
 }
@@ -405,27 +405,27 @@
   @apply inline-flex min-w-24 items-center justify-center rounded-full px-4 py-2 text-sm font-semibold;
 
   &.idle {
-    background: rgba(255, 159, 10, 0.12);
+    background: color-mix(in srgb, var(--warn) 12%, transparent);
     color: var(--warn);
   }
 
   &.queued {
-    background: rgba(255, 159, 10, 0.12);
+    background: color-mix(in srgb, var(--warn) 12%, transparent);
     color: var(--warn);
   }
 
   &.running {
-    background: rgba(29, 29, 31, 0.1);
+    background: color-mix(in srgb, var(--ink) 10%, transparent);
     color: var(--accent);
   }
 
   &.succeeded {
-    background: rgba(52, 199, 89, 0.12);
+    background: color-mix(in srgb, var(--ok) 12%, transparent);
     color: var(--ok);
   }
 
   &.failed {
-    background: rgba(255, 59, 48, 0.12);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
     color: var(--danger);
   }
 }
@@ -434,7 +434,7 @@
 
 @utility idle {
   &.badge {
-    background: rgba(255, 159, 10, 0.12);
+    background: color-mix(in srgb, var(--warn) 12%, transparent);
     color: var(--warn);
   }
 }
@@ -443,7 +443,7 @@
 
 @utility queued {
   & .badge {
-    background: rgba(255, 159, 10, 0.12);
+    background: color-mix(in srgb, var(--warn) 12%, transparent);
     color: var(--warn);
   }
 }
@@ -452,7 +452,7 @@
 
 @utility running {
   &.badge {
-    background: rgba(29, 29, 31, 0.1);
+    background: color-mix(in srgb, var(--ink) 10%, transparent);
     color: var(--accent);
   }
 }
@@ -461,7 +461,7 @@
 
 @utility succeeded {
   &.badge {
-    background: rgba(52, 199, 89, 0.12);
+    background: color-mix(in srgb, var(--ok) 12%, transparent);
     color: var(--ok);
   }
 }
@@ -470,7 +470,7 @@
 
 @utility failed {
   &.badge {
-    background: rgba(255, 59, 48, 0.12);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
     color: var(--danger);
   }
 }
@@ -482,10 +482,10 @@
   margin-bottom: 12px;
   background: linear-gradient(
     180deg,
-    rgba(255, 59, 48, 0.06) 0%,
-    rgba(255, 59, 48, 0.02) 100%
+    color-mix(in srgb, var(--danger) 6%, transparent) 0%,
+    color-mix(in srgb, var(--danger) 2%, transparent) 100%
   );
-  border: 1px solid rgba(255, 59, 48, 0.12);
+  border: 1px solid color-mix(in srgb, var(--danger) 12%, transparent);
 
   & .label {
     font-size: 12px;

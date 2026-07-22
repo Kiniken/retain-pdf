@@ -25,8 +25,18 @@ class RustApiClient:
             raise RuntimeError(f"rust api error on {path}: {payload.get('message')}")
         return payload.get("data") or {}
 
-    def search_fulltext(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
-        data = self._get("/api/v1/search", {"q": query, "limit": limit})
+    def search_fulltext(
+        self,
+        query: str,
+        limit: int = 20,
+        *,
+        document_id: str = "",
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"q": query, "limit": limit}
+        doc = document_id.strip()
+        if doc:
+            params["document_id"] = doc
+        data = self._get("/api/v1/search", params)
         return list(data.get("hits") or [])
 
     def list_documents(
@@ -66,6 +76,14 @@ class RustApiClient:
             raise RuntimeError(f"rust api error on {path}: {body.get('message')}")
         return body.get("data") or {}
 
+    def _patch(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        response = self._client.patch(f"{self._base}{path}", json=payload)
+        response.raise_for_status()
+        body = response.json()
+        if body.get("code") != 0:
+            raise RuntimeError(f"rust api error on {path}: {body.get('message')}")
+        return body.get("data") or {}
+
     def get_conversation(self, conversation_id: str) -> dict[str, Any] | None:
         try:
             return self._get(f"/api/v1/ai/conversations/{conversation_id}")
@@ -73,6 +91,19 @@ class RustApiClient:
             if exc.response.status_code == 404:
                 return None
             raise
+
+    def create_conversation(
+        self,
+        *,
+        title: str = "",
+        document_id: str = "",
+    ) -> dict[str, Any]:
+        """创建会话;document_id 可空(全库会话)。返回含 conversation_id 的记录。"""
+        payload: dict[str, Any] = {"title": (title or "").strip()}
+        doc = (document_id or "").strip()
+        if doc:
+            payload["document_id"] = doc
+        return self._post("/api/v1/ai/conversations", payload)
 
     def append_conversation_message(
         self,
@@ -83,14 +114,42 @@ class RustApiClient:
         citations_json: str = "",
         tool_trace_json: str = "",
         model: str = "",
+        parent_id: str = "",
+        message_id: str = "",
+        set_head: bool = True,
     ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "role": role,
+            "content": content,
+            "citations_json": citations_json,
+            "tool_trace_json": tool_trace_json,
+            "model": model,
+            "set_head": set_head,
+        }
+        pid = (parent_id or "").strip()
+        if pid:
+            payload["parent_id"] = pid
+        mid = (message_id or "").strip()
+        if mid:
+            payload["message_id"] = mid
         return self._post(
             f"/api/v1/ai/conversations/{conversation_id}/messages",
-            {
-                "role": role,
-                "content": content,
-                "citations_json": citations_json,
-                "tool_trace_json": tool_trace_json,
-                "model": model,
-            },
+            payload,
+        )
+
+    def patch_conversation(
+        self,
+        conversation_id: str,
+        *,
+        head_id: str = "",
+        title: str = "",
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {}
+        if (head_id or "").strip():
+            payload["head_id"] = head_id.strip()
+        if (title or "").strip():
+            payload["title"] = title.strip()
+        return self._patch(
+            f"/api/v1/ai/conversations/{conversation_id}",
+            payload,
         )

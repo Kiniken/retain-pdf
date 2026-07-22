@@ -55,7 +55,7 @@ export function LibraryToolbar({
               title="批量操作" aria-label="批量操作" aria-pressed={batchMode}
               onClick={() => onToggleBatchMode(!batchMode)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs transition active:scale-95",
+                "inline-flex h-8 items-center gap-1.5 rounded-[var(--btn-radius)] px-3 text-xs transition active:scale-95",
                 batchMode ? "bg-secondary text-secondary-foreground" : "border border-border text-foreground hover:bg-muted/30",
               )}
             ><IconCheckSquare className="opacity-70" />批量</button>
@@ -63,7 +63,7 @@ export function LibraryToolbar({
 
           {filterSlot}
 
-          <label className="inline-flex h-8 shrink-0 items-center rounded-full px-2.5 text-xs transition-colors hover:bg-muted/30">
+          <label className="inline-flex h-8 shrink-0 items-center rounded-[var(--btn-radius)] px-2.5 text-xs transition-colors hover:bg-muted/30">
             <span className="sr-only">排序</span>
             <select
               value={sortMode}
@@ -77,17 +77,17 @@ export function LibraryToolbar({
 
           <div className="hidden h-5 w-px bg-border/15 sm:block" aria-hidden />
 
-          <div className="inline-flex h-8 shrink-0 items-center rounded-full bg-muted/20 p-0.5" role="group" aria-label="视图">
+          <div className="inline-flex h-8 shrink-0 items-center rounded-[var(--btn-radius)] bg-muted/20 p-0.5" role="group" aria-label="视图">
             <button
               type="button" title="网格" aria-label="网格视图" aria-pressed={viewMode === "grid"}
               onClick={() => setViewMode("grid")}
-              className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full transition active:scale-90",
+              className={cn("inline-flex h-7 w-7 items-center justify-center rounded-[var(--btn-radius)] transition active:scale-90",
                 viewMode === "grid" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground/45 hover:bg-background/60 hover:text-foreground")}
             ><IconGrid /></button>
             <button
               type="button" title="列表" aria-label="列表视图" aria-pressed={viewMode === "list"}
               onClick={() => setViewMode("list")}
-              className={cn("inline-flex h-7 w-7 items-center justify-center rounded-full transition active:scale-90",
+              className={cn("inline-flex h-7 w-7 items-center justify-center rounded-[var(--btn-radius)] transition active:scale-90",
                 viewMode === "list" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground/45 hover:bg-background/60 hover:text-foreground")}
             ><IconList /></button>
           </div>

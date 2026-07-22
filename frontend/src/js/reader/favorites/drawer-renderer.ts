@@ -19,8 +19,19 @@ export function renderFavorites(listEl, items = [], {
   listEl.replaceChildren();
   if (!items.length) {
     const empty = documentRef.createElement("div");
-    empty.className = "reader-favorites-empty";
-    empty.textContent = "暂无截图摘录";
+    empty.className = "reader-favorites-empty empty-state";
+    empty.innerHTML = [
+      '<div class="empty-state-icon" aria-hidden="true">',
+      '<span class="instrument-icon" style="width:36px;height:36px;background-color:currentColor;',
+      "-webkit-mask-image:url(src/assets/icons/instruments/instrument-flask.svg);",
+      "mask-image:url(src/assets/icons/instruments/instrument-flask.svg);",
+      "-webkit-mask-size:contain;mask-size:contain;",
+      "-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;",
+      "-webkit-mask-position:center;mask-position:center;",
+      'display:block"></span></div>',
+      '<p class="empty-state-title">暂无截图摘录</p>',
+      '<p class="empty-state-hint">选中段落或图表后点「收藏」，摘录会出现在这里。</p>',
+    ].join("");
     listEl.appendChild(empty);
     return;
   }

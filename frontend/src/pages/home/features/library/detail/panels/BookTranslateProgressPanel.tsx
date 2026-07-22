@@ -85,16 +85,18 @@ export function BookTranslateProgressPanel({
     return (
       <div
         id="book-detail-translate-progress"
-        className="book-translate-progress space-y-3 rounded-lg border border-border/60 bg-muted/10 px-3.5 py-3"
+        className="book-translate-progress space-y-3 rounded-xl border border-border/60 px-4 py-3.5"
         data-state="idle"
         data-library-only={libraryOnly ? "true" : "false"}
         data-item-status={itemStatus || ""}
         data-job-id=""
       >
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          翻译进度
+          翻译流程
         </p>
-        <div className="pointer-events-none opacity-55">
+        {/* 空态只保留"路线图预览"（测试契约锁定），不再渲染假进度条/0%——
+            禁用态的死机器堆在一起是灰上灰观感的主因 */}
+        <div className="pointer-events-none">
           <StageFlow
             id="book-detail-stage-flow"
             currentStageKey=""
@@ -102,14 +104,8 @@ export function BookTranslateProgressPanel({
             onSelectStage={() => {}}
           />
         </div>
-        <div className="bd-job-status-bar-row opacity-40">
-          <div className="bd-job-status-bar" aria-hidden="true">
-            <div className="bd-job-status-bar-fill" style={{ width: "0%" }} />
-          </div>
-          <span className="bd-job-status-percent">0%</span>
-        </div>
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
-          尚未开始翻译。选择下方整本或页码范围后发起任务，进度会出现在这里。
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          尚未开始翻译。选择下方整本或页码范围后发起，进度会实时出现在这里。
         </p>
       </div>
     );

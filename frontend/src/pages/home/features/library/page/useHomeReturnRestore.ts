@@ -14,7 +14,12 @@ import {
 export function readInitialLibraryTabFromReturn(): string {
   const state = peekHomeReturnState();
   const tab = `${state?.activeTab || ""}`;
-  if (tab === "categories" || tab === "favorites" || tab === "library") {
+  if (
+    tab === "categories"
+    || tab === "favorites"
+    || tab === "library"
+    || tab === "ask"
+  ) {
     return tab;
   }
   return "library";

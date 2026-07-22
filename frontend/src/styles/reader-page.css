@@ -1,6 +1,0 @@
-/* 阅读器页面样式已拆到:
- *   reader/layout.css  — 三栏 / 滚动 / HUD
- *   reader/chrome.css  — 顶栏 / 下载 / boot
- *   reader/content.css — markdown / pdf / react-pdf
- * 入口见 src/input.css（本文件保留路径兼容，勿再堆规则）。
- */

@@ -157,7 +157,7 @@ export function BookCardActionButton({
       type="button"
       data-book-card-action={action?.id || ""}
       className={cn(
-        "book-card-action-btn pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-foreground shadow-md transition hover:bg-white active:scale-90 disabled:opacity-50",
+        "book-card-action-btn pointer-events-auto flex h-10 w-10 items-center justify-center rounded-[var(--btn-radius)] bg-paper/95 text-foreground shadow-md transition hover:bg-paper active:scale-90 disabled:opacity-50",
         action?.className,
         className,
       )}
@@ -275,16 +275,16 @@ function BookCardImpl({
     >
       <div
         className={cn(
-          "relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-muted/40 shadow-[0_2px_16px_rgba(0,0,0,0.07)] transition-[transform,box-shadow] duration-200 ease-[var(--ease-out)]",
+          "relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-muted/40 shadow-[0_2px_16px_color-mix(in_srgb,var(--shadow-color)_7%,transparent)] transition-[transform,box-shadow] duration-200 ease-[var(--ease-out)]",
           !batchMode &&
-            "group-hover:-translate-y-0.5 group-hover:shadow-[0_8px_28px_rgba(0,0,0,0.12)]",
+            "group-hover:-translate-y-0.5 group-hover:shadow-[0_8px_28px_color-mix(in_srgb,var(--shadow-color)_12%,transparent)]",
           !batchMode &&
-            "group-focus-within:-translate-y-0.5 group-focus-within:shadow-[0_8px_28px_rgba(0,0,0,0.12)]",
+            "group-focus-within:-translate-y-0.5 group-focus-within:shadow-[0_8px_28px_color-mix(in_srgb,var(--shadow-color)_12%,transparent)]",
           batchMode && selected && "ring-2 ring-foreground ring-offset-2",
         )}
       >
         {coverUrl ? (
-          <img src={coverUrl} alt="" className="h-full w-full bg-white object-contain" />
+          <img src={coverUrl} alt="" className="h-full w-full bg-paper object-contain" />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-muted/60 to-background text-muted-foreground/50">
             <IconFile aria-hidden="true" />
@@ -313,7 +313,7 @@ function BookCardImpl({
         ) : null}
 
         {processing && Number.isFinite(percent) ? (
-          <div className="absolute inset-x-0 bottom-0 z-10 h-1 bg-black/15">
+          <div className="absolute inset-x-0 bottom-0 z-10 h-1 bg-scrim/15">
             <div
               className="h-full bg-primary transition-[width] duration-500"
               style={{ width: `${percent}%` }}
@@ -335,7 +335,7 @@ function BookCardImpl({
                 "absolute left-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full border transition-colors",
                 selected
                   ? "border-foreground bg-foreground text-background"
-                  : "border-white/80 bg-white/70 text-transparent",
+                  : "border-paper/80 bg-paper/70 text-transparent",
               )}
               aria-hidden
             >
@@ -343,7 +343,7 @@ function BookCardImpl({
             </div>
           </>
         ) : actions.length > 0 ? (
-          <div className="book-card-actions pointer-events-none absolute inset-0 z-[6] flex items-center justify-center gap-2 bg-black/35 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <div className="book-card-actions pointer-events-none absolute inset-0 z-[6] flex items-center justify-center gap-2 bg-scrim/35 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
             {actions.map((action) => (
               <BookCardActionButton
                 key={action.id || action.label}

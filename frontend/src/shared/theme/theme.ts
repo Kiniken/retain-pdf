@@ -15,15 +15,18 @@ export {
   DEFAULT_THEME_ID,
   THEME_STORAGE_KEY,
   THEME_REGISTRY,
+  THEME_SERIES,
   getThemeDefinition,
   isThemeId,
   listThemes,
   listThemesByGroup,
+  listThemesBySeries,
   themeGroupLabel,
   type ThemeDefinition,
   type ThemeGroup,
   type ThemeId,
   type ThemePreview,
+  type ThemeSeries,
 } from "./registry.js";
 
 /** 兼容旧 import 名 */

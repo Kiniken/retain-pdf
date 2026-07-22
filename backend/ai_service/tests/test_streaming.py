@@ -28,7 +28,9 @@ def test_assemble_streaming_pure_content_emits_each_delta():
     deltas: list[str] = []
     message = assemble_streaming_message(iter(lines), deltas.append)
 
-    assert deltas == ["选择", "性来自", "共轭 [1]"]
+    # 审计 A3 后的新契约:前 64 字符先缓冲定性(防工具轮前言泄漏),
+    # 短纯回答在流结束时合并补发——总文本不变,分片方式不再逐 piece 锁死
+    assert "".join(deltas) == "选择性来自共轭 [1]"
     assert message["content"] == "选择性来自共轭 [1]"
     assert "tool_calls" not in message
 

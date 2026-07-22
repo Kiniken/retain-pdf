@@ -63,8 +63,8 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
 
-  --shadow-soft: 0 10px 30px rgba(80, 66, 40, 0.08);
-  --shadow-panel: 0 18px 48px rgba(37, 31, 20, 0.22);
+  --shadow-soft: 0 10px 30px color-mix(in srgb, var(--shadow-color) 8%, transparent);
+  --shadow-panel: 0 18px 48px color-mix(in srgb, var(--shadow-color) 22%, transparent);
 
   /*
     shadcn/ui 组件消费的标准变量名(阶段 A,shadcn 工具链落地)。实际值的

@@ -67,6 +67,21 @@ const PAGE_BUNDLES = [
   },
 ];
 
+// mathjax-full/js/components/version.js 在未定义 PACKAGE_VERSION 时会
+// eval('require') 读 package.json —— 浏览器 ESM 里直接炸，导致全部公式回退。
+function resolveMathJaxPackageVersion() {
+  try {
+    const pkgPath = path.join(
+      frontendRoot,
+      "node_modules/mathjax-full/package.json",
+    );
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+    return typeof pkg.version === "string" ? pkg.version : "3.2.1";
+  } catch {
+    return "3.2.1";
+  }
+}
+
 function bundleOptions({ entry, outfile }) {
   return {
     entryPoints: [entry],
@@ -80,6 +95,9 @@ function bundleOptions({ entry, outfile }) {
       "@": path.join(frontendRoot, "src"),
     },
     plugins: [jsToTsResolvePlugin()],
+    define: {
+      PACKAGE_VERSION: JSON.stringify(resolveMathJaxPackageVersion()),
+    },
     loader: {
       ".html": "text",
       ".ts": "ts",

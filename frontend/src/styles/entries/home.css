@@ -35,6 +35,7 @@
 @import "../base.css" layer(base);
 /* 主页氛围：浅纹理 + 宽屏侧翼（装饰） */
 @import "../core/ambient-surface.css";
+@import "../core/decor-stage.css";
 
 /* —— shared（三页可共用）—— */
 @import "../components.css";
@@ -50,6 +51,7 @@
 @import "../pages/home/status-detail.utilities.css";
 @import "../pages/home/app-update.css";
 @import "../pages/home/ai-assistant.css";
+@import "../pages/home/home-ask.css";
 @import "../pages/home/app-settings.css";
 @import "../pages/home/library-shell.css";
 @import "../pages/home/library-search-island.css";

@@ -15,10 +15,6 @@ import { loadNotes, saveNotes } from "../annotations/storage.js";
 export type ReaderAnnotationsApi = {
   notes: ReaderNote[];
   groups: Array<{ page: number; items: ReaderNote[] }>;
-  panelOpen: boolean;
-  openPanel: () => void;
-  closePanel: () => void;
-  togglePanel: () => void;
   addFromQuote: (input: {
     page: number;
     pane: ReaderNotePane;
@@ -31,7 +27,10 @@ export type ReaderAnnotationsApi = {
   count: number;
 };
 
-export function useReaderAnnotations(doc: ReaderNotesDocKey): ReaderAnnotationsApi {
+export function useReaderAnnotations(
+  doc: ReaderNotesDocKey,
+  options: { onAfterAdd?: () => void } = {},
+): ReaderAnnotationsApi {
   const docKey = useMemo(
     () => ({
       jobId: `${doc.jobId || ""}`.trim(),
@@ -41,7 +40,7 @@ export function useReaderAnnotations(doc: ReaderNotesDocKey): ReaderAnnotationsA
   );
 
   const [notes, setNotes] = useState<ReaderNote[]>(() => loadNotes(docKey));
-  const [panelOpen, setPanelOpen] = useState(false);
+  const onAfterAdd = options.onAfterAdd;
 
   // 文档切换时重载
   useEffect(() => {
@@ -71,9 +70,9 @@ export function useReaderAnnotations(doc: ReaderNotesDocKey): ReaderAnnotationsA
       createdAt: new Date().toISOString(),
     };
     setNotes((prev) => sortNotes([item, ...prev]));
-    setPanelOpen(true);
+    onAfterAdd?.();
     return item;
-  }, []);
+  }, [onAfterAdd]);
 
   const updateNote = useCallback((id: string, note: string) => {
     const next = `${note || ""}`.trim();
@@ -102,10 +101,6 @@ export function useReaderAnnotations(doc: ReaderNotesDocKey): ReaderAnnotationsA
   return {
     notes,
     groups,
-    panelOpen,
-    openPanel: () => setPanelOpen(true),
-    closePanel: () => setPanelOpen(false),
-    togglePanel: () => setPanelOpen((v) => !v),
     addFromQuote,
     updateNote,
     remove,

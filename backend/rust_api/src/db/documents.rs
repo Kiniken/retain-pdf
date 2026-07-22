@@ -405,45 +405,89 @@ impl Db {
     }
 
     /// 全文检索。trigram 分词要求查询 ≥3 字符,更短的查询回退 LIKE 扫描。
-    pub fn search_blocks(&self, query: &str, limit: u32) -> Result<Vec<BlockSearchHit>> {
+    /// `document_id` 非空时只搜该文档（阅读器 / AI 整本问答）。
+    pub fn search_blocks(
+        &self,
+        query: &str,
+        limit: u32,
+        document_id: Option<&str>,
+    ) -> Result<Vec<BlockSearchHit>> {
         let query = query.trim();
         if query.is_empty() {
             return Ok(Vec::new());
         }
+        let doc_filter = document_id.map(str::trim).filter(|s| !s.is_empty());
         let conn = self.connect()?;
         let mut hits = Vec::new();
         if query.chars().count() >= 3 {
             let phrase = format!("\"{}\"", query.replace('"', " "));
-            let mut stmt = conn.prepare(
-                r#"
-                SELECT document_id, job_id, page_idx, block_id,
-                       snippet(blocks_fts, 4, '[', ']', '…', 16),
-                       snippet(blocks_fts, 5, '[', ']', '…', 16)
-                FROM blocks_fts
-                WHERE blocks_fts MATCH ?1
-                ORDER BY rank
-                LIMIT ?2
-                "#,
-            )?;
-            let rows = stmt.query_map(params![phrase, limit as i64], row_to_search_hit)?;
-            for row in rows {
-                hits.push(row?);
+            if let Some(doc_id) = doc_filter {
+                let mut stmt = conn.prepare(
+                    r#"
+                    SELECT document_id, job_id, page_idx, block_id,
+                           snippet(blocks_fts, 4, '[', ']', '…', 16),
+                           snippet(blocks_fts, 5, '[', ']', '…', 16)
+                    FROM blocks_fts
+                    WHERE blocks_fts MATCH ?1 AND document_id = ?2
+                    ORDER BY rank
+                    LIMIT ?3
+                    "#,
+                )?;
+                let rows =
+                    stmt.query_map(params![phrase, doc_id, limit as i64], row_to_search_hit)?;
+                for row in rows {
+                    hits.push(row?);
+                }
+            } else {
+                let mut stmt = conn.prepare(
+                    r#"
+                    SELECT document_id, job_id, page_idx, block_id,
+                           snippet(blocks_fts, 4, '[', ']', '…', 16),
+                           snippet(blocks_fts, 5, '[', ']', '…', 16)
+                    FROM blocks_fts
+                    WHERE blocks_fts MATCH ?1
+                    ORDER BY rank
+                    LIMIT ?2
+                    "#,
+                )?;
+                let rows = stmt.query_map(params![phrase, limit as i64], row_to_search_hit)?;
+                for row in rows {
+                    hits.push(row?);
+                }
             }
             return Ok(hits);
         }
         let pattern = format!("%{}%", query.replace('%', "").replace('_', ""));
-        let mut stmt = conn.prepare(
-            r#"
-            SELECT document_id, job_id, page_idx, block_id,
-                   substr(source_text, 1, 120), substr(translated_text, 1, 120)
-            FROM blocks_fts
-            WHERE source_text LIKE ?1 OR translated_text LIKE ?1
-            LIMIT ?2
-            "#,
-        )?;
-        let rows = stmt.query_map(params![pattern, limit as i64], row_to_search_hit)?;
-        for row in rows {
-            hits.push(row?);
+        if let Some(doc_id) = doc_filter {
+            let mut stmt = conn.prepare(
+                r#"
+                SELECT document_id, job_id, page_idx, block_id,
+                       substr(source_text, 1, 120), substr(translated_text, 1, 120)
+                FROM blocks_fts
+                WHERE (source_text LIKE ?1 OR translated_text LIKE ?1)
+                  AND document_id = ?2
+                LIMIT ?3
+                "#,
+            )?;
+            let rows =
+                stmt.query_map(params![pattern, doc_id, limit as i64], row_to_search_hit)?;
+            for row in rows {
+                hits.push(row?);
+            }
+        } else {
+            let mut stmt = conn.prepare(
+                r#"
+                SELECT document_id, job_id, page_idx, block_id,
+                       substr(source_text, 1, 120), substr(translated_text, 1, 120)
+                FROM blocks_fts
+                WHERE source_text LIKE ?1 OR translated_text LIKE ?1
+                LIMIT ?2
+                "#,
+            )?;
+            let rows = stmt.query_map(params![pattern, limit as i64], row_to_search_hit)?;
+            for row in rows {
+                hits.push(row?);
+            }
         }
         Ok(hits)
     }
@@ -1034,14 +1078,23 @@ mod tests {
             }],
         )
         .expect("fts insert");
-        let hits = db.search_blocks("光学光谱", 10).expect("search zh");
+        let hits = db.search_blocks("光学光谱", 10, None).expect("search zh");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].document_id, hash);
         assert_eq!(hits[0].page_idx, 2);
         assert_eq!(hits[0].block_id, "p003-b0001");
         // 2 字符查询走 LIKE 回退
-        let short_hits = db.search_blocks("光谱", 10).expect("search short");
+        let short_hits = db.search_blocks("光谱", 10, None).expect("search short");
         assert_eq!(short_hits.len(), 1);
+        // 单文档过滤：不存在的 document_id 应无命中
+        let scoped_miss = db
+            .search_blocks("光学光谱", 10, Some("no-such-doc"))
+            .expect("search scoped miss");
+        assert!(scoped_miss.is_empty());
+        let scoped_hit = db
+            .search_blocks("光学光谱", 10, Some(&hash))
+            .expect("search scoped hit");
+        assert_eq!(scoped_hit.len(), 1);
         // 重建幂等:再次替换后仍只有一行
         db.replace_document_fts(
             &hash,
@@ -1054,7 +1107,7 @@ mod tests {
             }],
         )
         .expect("fts rebuild");
-        let rebuilt = db.search_blocks("光学光谱", 10).expect("search rebuilt");
+        let rebuilt = db.search_blocks("光学光谱", 10, None).expect("search rebuilt");
         assert_eq!(rebuilt.len(), 1);
         assert_eq!(rebuilt[0].job_id, "job-2");
     }

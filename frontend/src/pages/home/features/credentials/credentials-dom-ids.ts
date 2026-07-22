@@ -66,6 +66,8 @@ export const APP_SETTINGS_DIALOG_IDS = {
   dialog: "app-settings-dialog",
   openButton: "app-settings-btn",
   closeButton: "app-settings-close-btn",
+  /** 已退役（设置 v2：API 区内嵌 CredentialsWorkbench，无二层弹窗入口）。
+   *  保留常量仅供历史对照，勿再新增消费点。 */
   credentialsButton: "credentials-btn",
   // 词表/更新两个 tab 本阶段只占位(蓝图 §0.4);id 先落地供后续 agent 对齐。
   glossaryButton: "glossary-btn",

@@ -1,47 +1,23 @@
-// SettingsHubDialog(React 版 <app-settings-dialog>,对照
-// components/dialogs/app-settings-dialog-template.js 逐 id 镜像,蓝图 §0.4)。
+// SettingsHubDialog v2：左导航 + 右内容区（原"门厅弹窗"横向 pill 布局退役）。
 //
-// 三 tab 壳:API 设置(CredentialsDialog agent 的真实内容,内部按钮打开
-// CredentialsDialog)/ 词表(内部按钮打开 GlossariesDialog——真实对话框是
-// 独立顶层 <dialog>,与 CredentialsDialog 同一模式,本处只保留触发按钮)/
-// 更新(AppUpdateBanner 真实内容——按钮 + 详情 dialog 合并挂在本 tab 面板下,
-// 蓝图 §5;AppShellHeader 旧 app-update-dialog 骨架已清理,不再有重复模板)。
+// 布局：左侧竖排导航（图标+名称，Radix Tabs orientation=vertical，方向键可用），
+// 右侧内容窗格（每区自带标题行 + 正文，独立滚动）。外观区升格为主题卡片网格
+// 的主舞台；API/词表因真实表单仍是独立顶层对话框（CredentialsDialog/
+// GlossariesDialog，各有 controller/store/测试契约），本面板作为"启动区"
+// 保留入口按钮——后续如要内嵌，动的是那两个 feature，不是这里。
 //
-// tab 切换是本对话框子树内部的纯 UI 瞬态(状态策略第 5 条),用 useState,
-// 不进 store;开合状态跨子树(#app-settings-btn 在 AppShellHeader/
-// LibraryBottomBar,对话框挂在这里),走 settings-hub-dialog-store.js。
+// 【测试契约，改版不许破】（credentials/glossaries/app-update component tests）：
+// - #app-settings-dialog / #app-settings-close-btn
+// - [data-settings-tab="api|glossary|appearance|update"] 可点击
+// - [data-settings-panel=…] forceMount + hidden 属性切换（测试断言 .hidden）
+// - #credentials-btn / #glossary-btn 打开对应子对话框
+// - 外观面板 #theme-appearance-panel 与 #theme-option-<id>
 //
-// Tabs 实现(阶段 B,shadcn 改造):直接用 radix-ui 的 Tabs 原语(不经
-// src/components/ui/tabs.jsx 那层默认皮肤——那层组件自带的 Tailwind 工具类
-// (bg-muted/rounded-lg 等)会和 app-settings-tabs/app-settings-panel 这套已经
-// 成熟的 bespoke CSS 正面冲突,阶段 C 换皮时再统一处理),换来的是真正的
-// role=tab/aria-selected(此前 SettingsHub 是这三个 tab 里唯一缺这两个属性的,
-// 探索 3/3 记录在案)+ 键盘方向键切换,视觉保持原样。
-//
-// Dialog 渲染层(阶段 C,shadcn 改造):从原生 <dialog>+showModal/close 换成
-// radix-ui 的 Dialog 原语,不经 src/components/ui/dialog.jsx 默认皮肤
-// (className 继续用现有的 desktop-dialog/desktop-shell/app-settings-* 这套
-// bespoke CSS)。open 受控于 settingsHub 域的 dialogStore,onOpenChange 在
-// next===false 时统一调用 dialogStore.close()——Escape、点击背板、点击关闭
-// 按钮三条路径都走这一个回调。
-//
-// 不 forceMount Content/Overlay(同 CredentialsDialog.jsx 头注释的结论):
-// Radix modal Content 内部 hideOthers(content) 的 effect 依赖真实
-// mount/unmount 生命周期,forceMount 会让它在对话框从未打开时就永久生效,
-// 制造新的无障碍缺陷。
-//
-// 已知行为变化(风险披露,非本次范围蔓延):AppUpdateBanner 挂在本对话框
-// "更新"tab 面板下,此前 SettingsHubDialog 是原生 <dialog>(React 树里永远
-// 挂载,只是原生显示态被 showModal/close 切换),AppUpdateBanner 因此从 App
-// 启动起就常驻挂载。换成 Radix 后 Content 只在对话框打开时才挂载/渲染——
-// AppUpdateBanner 的按钮/详情 dialog 在设置对话框从未被打开过之前不存在于
-// DOM。已确认这不影响"启动 1200ms 后台自检"这个真实产品功能:该自检定时器
-// 由 services.appUpdateFeature(composition.js 里 mountAppUpdateFeature 调用,
-// 纯逻辑控制器,应用启动时就跑起来,与 AppUpdateBanner.jsx 是否挂载无关)
-// 驱动,AppUpdateBanner 只是订阅其 store 快照的纯展示层——重新挂载时会立刻
-// 读到当前最新状态,不会丢失。受影响的只是"DOM 契约 id 在从未打开设置对话框
-// 时就能查到"这条测试假设,已在 home-app-component.test.mjs 里改为"先打开
-// 设置对话框,再断言这些 id"。
+// 开合状态跨子树走 settings-hub-dialog-store；tab 切换是子树内瞬态（useState）。
+// 不 forceMount Dialog 的 Content/Overlay（Radix hideOthers 依赖真实
+// mount/unmount，见 CredentialsDialog 头注释）。AppUpdateBanner 的挂载生命
+// 周期说明见旧版头注释结论：后台自检由 composition 的纯逻辑控制器驱动，
+// 与本组件是否挂载无关。
 
 import { useEffect, useState } from "react";
 import { Dialog as DialogPrimitive, Tabs as TabsPrimitive } from "radix-ui";
@@ -50,19 +26,71 @@ import { useDialogState } from "../../state/use-dialog-state.js";
 import { useDialogReturnFocus } from "../../../../shared/react/use-dialog-return-focus.js";
 import { APP_SETTINGS_DIALOG_IDS } from "../credentials/credentials-dom-ids.js";
 import { AppUpdateBanner } from "../app-update/AppUpdateBanner.jsx";
+import { CredentialsWorkbench } from "../credentials/CredentialsWorkbench.jsx";
 import { ThemeAppearancePanel } from "./ThemeAppearancePanel.jsx";
 import { Button as ButtonBase } from "../../../../components/Button.jsx";
-import { APP_EVENTS } from "../../composition/external.js";
 
 // Button.size 在未注解源文件里被推断为必填;unstyled 路径运行时不用 size。
 const Button = ButtonBase as any;
 
+function IconKey(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M14.5 9.5a4 4 0 1 1-1.2 2.86L5 20.65 3.35 19 11.6 10.7A4 4 0 0 1 14.5 9.5Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M18 6.5h.01" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+function IconBook(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M5.5 5.2A2.2 2.2 0 0 1 7.7 3H19v15.5H7.7a2.2 2.2 0 0 0-2.2 2.2V5.2Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <path d="M5.5 5.2A2.2 2.2 0 0 0 3.3 3H3v15.5h.3a2.2 2.2 0 0 1 2.2 2.2" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    </svg>
+  );
+}
+function IconPalette(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M12 3a9 9 0 1 0 9 9c0-.5-.04-1-.12-1.48a5 5 0 0 1-6.4-6.4A9 9 0 0 0 12 3Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+      <circle cx="8.5" cy="10" r="1.1" fill="currentColor" />
+      <circle cx="11.5" cy="7.2" r="1.1" fill="currentColor" />
+      <circle cx="15.2" cy="9" r="1.1" fill="currentColor" />
+    </svg>
+  );
+}
+function IconUpdate(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" {...props}>
+      <path d="M12 5v2.1M12 16.9V19M5 12h2.1M16.9 12H19M7.05 7.05l1.5 1.5M15.45 15.45l1.5 1.5M16.95 7.05l-1.5 1.5M8.55 15.45l-1.5 1.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  );
+}
+
 const TABS = [
-  { id: "api", label: "API 设置" },
-  { id: "glossary", label: "词表" },
-  { id: "appearance", label: "外观" },
-  { id: "update", label: "更新" },
+  { id: "api", label: "API 设置", Icon: IconKey },
+  { id: "glossary", label: "词表", Icon: IconBook },
+  { id: "appearance", label: "外观", Icon: IconPalette },
+  { id: "update", label: "更新", Icon: IconUpdate },
 ];
+
+const PANE_HEADS = {
+  api: { title: "API 设置", desc: "配置 OCR Token、DeepSeek Key、模型地址和任务选项，保存后立即生效。" },
+  glossary: { title: "术语表", desc: "维护固定译法、保留词和专业术语偏好。" },
+  appearance: { title: "外观", desc: "选择界面配色，立即生效并记住本机选择。" },
+  update: { title: "更新", desc: "查看当前版本，并从 GitHub Releases 重新检查更新。" },
+};
+
+function PaneHead({ tab }: { tab: keyof typeof PANE_HEADS }) {
+  const head = PANE_HEADS[tab];
+  return (
+    <header className="app-settings-pane-head">
+      <h3>{head.title}</h3>
+      <p>{head.desc}</p>
+    </header>
+  );
+}
 
 export function SettingsHubDialog() {
   const services = useHomeServices();
@@ -78,23 +106,27 @@ export function SettingsHubDialog() {
     }
   }, [open]);
 
+  // API 区内嵌凭据工作台：进入 api tab 时从凭据状态回填表单（不开二层弹窗）。
+  // forceMount 保证面板已挂载，effect 在子树 mount 后运行，ref 已就位。
+  useEffect(() => {
+    if (open && activeTab === "api") {
+      services.credentials?.feature?.prepareCredentialsPanels?.();
+    }
+  }, [open, activeTab, services]);
+
   function handleOpenChange(nextOpen) {
     if (!nextOpen) {
       dialogStore.close();
     }
   }
 
-  function openCredentials() {
-    // 与 HeroUpload 的 #credential-gate-action 走同一条契约(蓝图 §0.6):
-    // CredentialsDialog.jsx 用 useAppEvent 消费,两个入口不重复实现打开逻辑。
-    document.dispatchEvent(new CustomEvent(APP_EVENTS.openBrowserCredentials));
+  function openGlossaries() {
+    services.glossaries.dialogStore.open();
   }
 
-  function openGlossaries() {
-    // GlossariesDialog 是独立顶层 <dialog>(与 CredentialsDialog 同一模式,
-    // 蓝图 §3);打开这个 store 会触发 GlossariesDialog 内部的 open 状态迁移
-    // effect,接回 controller.js 的 open()(reload 列表 + showModal)。
-    services.glossaries.dialogStore.open();
+  function panelClass(tab: string) {
+    // 纯字面量拼接（含空格分隔），避开 v4 扫描器的 `x${y}` 模板坑
+    return activeTab === tab ? "app-settings-panel is-current" : "app-settings-panel";
   }
 
   return (
@@ -107,101 +139,82 @@ export function SettingsHubDialog() {
           onCloseAutoFocus={onCloseAutoFocus}
         >
           <div className="desktop-shell app-settings-shell">
-            <div className="app-settings-head">
-              <div>
+            <TabsPrimitive.Root
+              className="app-settings-layout"
+              orientation="vertical"
+              value={activeTab}
+              onValueChange={setActiveTab}
+            >
+              <aside className="app-settings-rail">
                 <DialogPrimitive.Title asChild>
                   <h2>设置</h2>
                 </DialogPrimitive.Title>
-                <p>接口、术语表、外观和版本更新</p>
-              </div>
-              <DialogPrimitive.Close asChild>
-                <Button
-                  id={APP_SETTINGS_DIALOG_IDS.closeButton}
-                  className="dialog-close-btn"
-                  aria-label="关闭"
-                >
-                  ×
-                </Button>
-              </DialogPrimitive.Close>
-            </div>
-            <TabsPrimitive.Root className="contents" value={activeTab} onValueChange={setActiveTab}>
-              <div className="app-settings-body">
-                <TabsPrimitive.List className="app-settings-tabs" aria-label="设置分类">
-                  {TABS.map((tab) => (
+                <TabsPrimitive.List className="app-settings-nav" aria-label="设置分类">
+                  {TABS.map(({ id, label, Icon }) => (
                     <TabsPrimitive.Trigger
-                      key={tab.id}
-                      value={tab.id}
-                      className={activeTab === tab.id ? "is-active" : ""}
-                      data-settings-tab={tab.id}
+                      key={id}
+                      value={id}
+                      className={activeTab === id ? "is-active" : ""}
+                      data-settings-tab={id}
                     >
-                      {tab.label}
+                      <Icon />
+                      {label}
                     </TabsPrimitive.Trigger>
                   ))}
                 </TabsPrimitive.List>
+              </aside>
+
+              <div className="app-settings-pane">
+                <DialogPrimitive.Close asChild>
+                  <Button
+                    id={APP_SETTINGS_DIALOG_IDS.closeButton}
+                    className="dialog-close-btn app-settings-close"
+                    aria-label="关闭"
+                  >
+                    ×
+                  </Button>
+                </DialogPrimitive.Close>
 
                 <TabsPrimitive.Content
                   value="api"
                   forceMount
                   hidden={activeTab !== "api"}
-                  className={`app-settings-panel${activeTab === "api" ? " is-active" : ""}`}
+                  className={panelClass("api")}
                   data-settings-panel="api"
                 >
-                  <div className="app-settings-panel-copy">
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M14.5 9.5a4 4 0 1 1-1.2 2.86L5 20.65 3.35 19 11.6 10.7A4 4 0 0 1 14.5 9.5Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M18 6.5h.01" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-                    </svg>
-                    <div>
-                      <strong>API 设置</strong>
-                      <span>配置 OCR Token、DeepSeek Key、模型地址和任务选项。</span>
-                    </div>
-                  </div>
-                  <Button id={APP_SETTINGS_DIALOG_IDS.credentialsButton} className="app-settings-action" onClick={openCredentials}>
-                    打开 API 设置
-                  </Button>
+                  <PaneHead tab="api" />
+                  {/* 凭据工作台直接内嵌（无二层弹窗）；与首次配置门共用
+                      CredentialsWorkbench，状态同源。 */}
+                  <CredentialsWorkbench />
                 </TabsPrimitive.Content>
 
                 <TabsPrimitive.Content
                   value="glossary"
                   forceMount
                   hidden={activeTab !== "glossary"}
-                  className={`app-settings-panel${activeTab === "glossary" ? " is-active" : ""}`}
+                  className={panelClass("glossary")}
                   data-settings-panel="glossary"
                 >
-                  <div className="app-settings-panel-copy">
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M5.5 5.2A2.2 2.2 0 0 1 7.7 3H19v15.5H7.7a2.2 2.2 0 0 0-2.2 2.2V5.2Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-                      <path d="M5.5 5.2A2.2 2.2 0 0 0 3.3 3H3v15.5h.3a2.2 2.2 0 0 1 2.2 2.2" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-                    </svg>
-                    <div>
-                      <strong>术语表</strong>
-                      <span>维护固定译法、保留词和专业术语偏好。</span>
-                    </div>
+                  <PaneHead tab="glossary" />
+                  <div className="app-settings-launcher">
+                    <p>
+                      词表决定翻译时的固定译法与保留词。可维护多张词表并
+                      按需启用，翻译任务发起时生效。
+                    </p>
+                    <Button id={APP_SETTINGS_DIALOG_IDS.glossaryButton} className="app-settings-action" onClick={openGlossaries}>
+                      打开词表
+                    </Button>
                   </div>
-                  <Button id={APP_SETTINGS_DIALOG_IDS.glossaryButton} className="app-settings-action" onClick={openGlossaries}>
-                    打开词表
-                  </Button>
                 </TabsPrimitive.Content>
 
                 <TabsPrimitive.Content
                   value="appearance"
                   forceMount
                   hidden={activeTab !== "appearance"}
-                  className={`app-settings-panel${activeTab === "appearance" ? " is-active" : ""}`}
+                  className={panelClass("appearance")}
                   data-settings-panel="appearance"
                 >
-                  <div className="app-settings-panel-copy">
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M12 3a9 9 0 1 0 9 9c0-.5-.04-1-.12-1.48a5 5 0 0 1-6.4-6.4A9 9 0 0 0 12 3Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-                      <circle cx="8.5" cy="10" r="1.1" fill="currentColor" />
-                      <circle cx="11.5" cy="7.2" r="1.1" fill="currentColor" />
-                      <circle cx="15.2" cy="9" r="1.1" fill="currentColor" />
-                    </svg>
-                    <div>
-                      <strong>外观</strong>
-                      <span>切换主题皮肤。江南院落：青砖、宣纸、铜绿与朱砂。</span>
-                    </div>
-                  </div>
+                  <PaneHead tab="appearance" />
                   <ThemeAppearancePanel />
                 </TabsPrimitive.Content>
 
@@ -209,28 +222,12 @@ export function SettingsHubDialog() {
                   value="update"
                   forceMount
                   hidden={activeTab !== "update"}
-                  className={`app-settings-panel${activeTab === "update" ? " is-active" : ""}`}
+                  className={panelClass("update")}
                   data-settings-panel="update"
                 >
-                  <div className="app-settings-panel-copy">
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M12 5v2.1M12 16.9V19M5 12h2.1M16.9 12H19M7.05 7.05l1.5 1.5M15.45 15.45l1.5 1.5M16.95 7.05l-1.5 1.5M8.55 15.45l-1.5 1.5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                      <circle cx="12" cy="12" r="3.2" stroke="currentColor" strokeWidth="1.7" />
-                    </svg>
-                    <div>
-                      <strong>更新</strong>
-                      <span>查看当前版本，并从 GitHub Releases 重新检查更新。</span>
-                    </div>
-                  </div>
-                  {/* AppUpdateBanner:按钮 + 详情 dialog 合并一体(蓝图 §5),
-                      forceMount + 显式 hidden 覆盖(不用条件渲染)——dialog 只
-                      在用户点击本组件自己的按钮时才打开,此时"更新" tab 必然是
-                      激活态,不存在祖先 hidden 时误开 dialog 的场景(见
-                      AppUpdateBanner.jsx 头注释)。本组件所在的
-                      SettingsHubDialog 自身现在只在打开态才挂载(见本文件头
-                      注释的行为变化说明),AppUpdateBanner 的挂载生命周期因此
-                      从"App 启动起常驻"变为"设置对话框打开起常驻"——不影响
-                      其订阅的后台自检状态(见头注释)。 */}
+                  <PaneHead tab="update" />
+                  {/* AppUpdateBanner:按钮 + 详情 dialog 合并一体(蓝图 §5)。
+                      挂载生命周期与后台自检解耦的结论见文件头注释。 */}
                   <AppUpdateBanner />
                 </TabsPrimitive.Content>
               </div>

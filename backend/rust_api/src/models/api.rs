@@ -10,8 +10,8 @@ pub use super::library::{
     ConversationListView, ConversationMutationResult, ConversationRecord, CreateCollectionInput,
     CreateConversationInput, CreateFavoriteInput, DocumentListView, DocumentRecord,
     FavoriteListView, FavoriteMutationResult, FavoriteRecord, FtsBlockRow, ListConversationsQuery,
-    ListDocumentsQuery, ListFavoritesQuery, MessageRecord, PatchCollectionInput, PatchDocumentInput,
-    PatchFavoriteInput, SearchQuery, SearchResultView,
+    ListDocumentsQuery, ListFavoritesQuery, MessageRecord, PatchCollectionInput,
+    PatchConversationInput, PatchDocumentInput, PatchFavoriteInput, SearchQuery, SearchResultView,
 };
 pub use super::public_contract::{public_request_payload, PublicResolvedJobSpec};
 pub use super::redaction::{

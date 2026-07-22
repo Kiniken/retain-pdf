@@ -5,6 +5,7 @@
 // glossaries-store.js 的 draft.entries,每格是受控 input/select,onChange 直接
 // 写 store(updateEntryField),不再手写行级 DOM 增删。
 
+import { EmptyState } from "../../../../shared/icons/EmptyState.jsx";
 import { GLOSSARY_DOM_IDS, ENTRY_LEVEL_OPTIONS, MATCH_MODE_OPTIONS } from "./glossaries-dom-ids.js";
 
 export function GlossaryEditor({ entries, onFieldChange, onRemoveRow }) {
@@ -89,7 +90,15 @@ export function GlossaryEditor({ entries, onFieldChange, onRemoveRow }) {
           ))}
         </tbody>
       </table>
-      <div id={GLOSSARY_DOM_IDS.entriesEmpty} className={`events-empty${hasEntries ? " hidden" : ""}`}>暂无词条</div>
+      <div id={GLOSSARY_DOM_IDS.entriesEmpty} className={hasEntries ? "hidden" : undefined}>
+        {!hasEntries ? (
+          <EmptyState
+            instrument="spectrum"
+            title="暂无词条"
+            hint="添加原词与译文，翻译时会优先用你的术语。"
+          />
+        ) : null}
+      </div>
     </div>
   );
 }

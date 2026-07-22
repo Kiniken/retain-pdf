@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useHomeServices } from "../../../home-services-context.js";
 import { useStoreSnapshot } from "../../../../../shared/react/use-store.js";
+import { EmptyState } from "../../../../../shared/icons/EmptyState.jsx";
 import { BookCard, buildDefaultBookCardActions } from "../shell/BookCard.jsx";
 import { useRecentJobCover } from "../display/useRecentJobCover.js";
 
@@ -216,7 +217,11 @@ export function CategoriesView() {
         ) : folderError ? (
           <div className="events-empty">{folderError}</div>
         ) : folderItems.length === 0 ? (
-          <div className="events-empty">这个合集还没有书</div>
+          <EmptyState
+            instrument="balance"
+            title="这个合集还没有书"
+            hint="点合集卡片上的「管理」，从书库勾选 PDF 放进来。"
+          />
         ) : (
           <div className="recent-jobs-list library-grid">
             {folderItems.map((item) => (
@@ -254,7 +259,20 @@ export function CategoriesView() {
       ) : listError ? (
         <div className="events-empty">{listError}</div>
       ) : collections.length === 0 ? (
-        <div className="events-empty">还没有合集，点击"新建合集"给 PDF 分组</div>
+        <EmptyState
+          id="categories-empty"
+          instrument="telescope"
+          title="还没有合集"
+          hint="把 PDF 按主题分组成书架，之后更好找。"
+        >
+          <button
+            type="button"
+            className="app-button empty-state-action"
+            onClick={() => dialogStore.open(null)}
+          >
+            新建合集
+          </button>
+        </EmptyState>
       ) : (
         <div id="categories-grid" className="categories-grid">
           {collections.map((collection) => (

@@ -42,7 +42,7 @@ export function useReaderAiChat(ports) {
   } = ports || {};
 
   const [messages, setMessages] = useState([]);
-  const [composer, setComposer] = useState({ phase: "idle", text: "正在准备…" });
+  const [composer, setComposer] = useState({ phase: "idle", text: "准备中…" });
   const [sessionBar, setSessionBar] = useState({ sessions: [], activeId: "" });
   const [input, setInput] = useState("");
 
@@ -80,7 +80,7 @@ export function useReaderAiChat(ports) {
     const entry = {
       id: `m-${messageSeq}`,
       role,
-      title: title || (role === "user" ? "你" : "RetainPDF AI"),
+      title: title || (role === "user" ? "你" : "助手"),
       view: createMessageView(),
     };
     flushSync(() => {
@@ -120,7 +120,7 @@ export function useReaderAiChat(ports) {
     }
     for (const turn of Array.isArray(stored.messages) ? stored.messages : []) {
       const role = turn?.role === "user" ? "user" : "assistant";
-      const entry = appendMessage({ role, title: role === "user" ? "你" : "RetainPDF AI" });
+      const entry = appendMessage({ role, title: role === "user" ? "你" : "助手" });
       const text = `${turn?.text || ""}`;
       turnsRef.current.push({ role, text, citations: turn?.citations || [] });
       if (role === "user") {
@@ -145,18 +145,18 @@ export function useReaderAiChat(ports) {
 
   const prepare = useCallback(async () => {
     try {
-      setComposerState("busy", remoteAnswerer ? "正在连接阅读问答..." : "正在加载 Markdown...");
+      setComposerState("busy", remoteAnswerer ? "正在连接…" : "正在加载文档…");
       await primaryAnswerer.ensureLoaded?.(jobId);
-      setComposerState("ready", remoteAnswerer ? "后端阅读问答已就绪" : "基于当前 Markdown 回答");
+      setComposerState("ready", remoteAnswerer ? "可以提问" : "可基于文档内容回答");
       return true;
     } catch (error) {
       if (!remoteAnswerer) {
-        setComposerState("disabled", error?.message || "Markdown 暂不可用");
+        setComposerState("disabled", error?.message || "文档内容暂不可用");
         return false;
       }
       try {
         await localAnswerer.ensureLoaded?.(jobId);
-        setComposerState("ready", "后端问答暂不可用，已切到 Markdown 本地检索");
+        setComposerState("ready", "在线问答暂不可用，已用本地检索");
         return true;
       } catch (fallbackError) {
         setComposerState("disabled", fallbackError?.message || error?.message || "问答暂不可用");
@@ -205,7 +205,7 @@ export function useReaderAiChat(ports) {
     remember("user", trimmed);
     setInput("");
     inputRef.current = "";
-    const assistantEntry = appendMessage({ role: "assistant", title: "RetainPDF AI" });
+    const assistantEntry = appendMessage({ role: "assistant", title: "助手" });
     const assistantView = assistantEntry.view;
     function showProgress(text) {
       setMessageProgress(assistantView, true);
@@ -215,8 +215,8 @@ export function useReaderAiChat(ports) {
     let streamed = false;
     const streamRenderer = createStreamingMarkdownRenderer(assistantView);
     try {
-      setComposerState("busy", remoteAnswerer ? "正在请求后端阅读问答..." : "正在从 Markdown 中查找...");
-      showProgress(remoteAnswerer ? "正在检索…" : "正在从 Markdown 中查找…");
+      setComposerState("busy", remoteAnswerer ? "思考中…" : "检索文档中…");
+      showProgress(remoteAnswerer ? "正在检索文档…" : "正在从文档中查找…");
       const { fallback, reason, result } = await answerWithFallback({
         context: aiContext?.context?.(),
         history: historyRef.current,
@@ -235,7 +235,7 @@ export function useReaderAiChat(ports) {
       setMessageProgress(assistantView, false);
       streamRenderer.stop();
       const answerText = fallback
-        ? `${result.answer}\n\n注：后端阅读问答暂不可用，已使用本地 Markdown 检索。${reason ? `原因：${reason}` : ""}`
+        ? `${result.answer}\n\n_在线服务暂不可用，以上来自本地文档检索。_${reason ? `（${reason}）` : ""}`
         : result.answer;
       // 未走流式(本地检索/非流式后端)且无引用时保留字符动画;否则直接 finalize
       if (!streamed && !hasAgenticCitations(result.citations) && !fallback) {
@@ -247,13 +247,13 @@ export function useReaderAiChat(ports) {
       remember("assistant", result.answer || answerText);
       turnsRef.current.push({ role: "assistant", text: answerText, citations: result.citations || [] });
       persist();
-      setComposerState("ready", fallback ? "已回退到 Markdown 本地检索" : "后端阅读问答已完成");
+      setComposerState("ready", fallback ? "已用本地检索回答" : "可以继续提问");
       return result;
     } catch (error) {
       streamRenderer.stop();
       setMessageProgress(assistantView, false);
-      renderMessageText(assistantView, error?.message || "生成回答失败。", []);
-      setComposerState("ready", "回答失败，可重试");
+      renderMessageText(assistantView, error?.message || "生成回答失败，请重试。", []);
+      setComposerState("ready", "失败，可修改问题后重试");
       // 失败的助手气泡不入 turns/持久化,用户问题已入 turns——补存以保留提问
       persist();
       return null;

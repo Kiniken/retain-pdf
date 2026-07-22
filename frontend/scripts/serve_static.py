@@ -34,18 +34,35 @@ def default_api_base() -> str:
     return f"http://{DEFAULT_HOST}:41000"
 
 
-def default_x_api_key() -> str:
-    configured = os.environ.get("RETAIN_PDF_FRONTEND_X_API_KEY", "").strip()
-    if configured:
-        return configured
-    auth_path = DEFAULT_ROOT.parent / "backend" / "rust_api" / "auth.local.json"
+def read_x_api_key_from_auth(auth_path: Path) -> str:
     try:
         payload = json.loads(auth_path.read_text(encoding="utf-8"))
     except Exception:
         return ""
     api_keys = payload.get("api_keys")
-    if isinstance(api_keys, list):
-        return str(api_keys[0]).strip() if api_keys else ""
+    if isinstance(api_keys, list) and api_keys:
+        return str(api_keys[0]).strip()
+    return ""
+
+
+def default_x_api_key(frontend_root: Path | None = None) -> str:
+    """Backend X-API-Key only (not model/OCR secrets). Prefer env, then auth.local.json."""
+    configured = os.environ.get("RETAIN_PDF_FRONTEND_X_API_KEY", "").strip()
+    if configured:
+        return configured
+    roots = []
+    if frontend_root is not None:
+        roots.append(Path(frontend_root).resolve())
+    roots.append(DEFAULT_ROOT)
+    seen: set[Path] = set()
+    for root in roots:
+        root = root.resolve()
+        if root in seen:
+            continue
+        seen.add(root)
+        key = read_x_api_key_from_auth(root.parent / "backend" / "rust_api" / "auth.local.json")
+        if key:
+            return key
     return ""
 
 
@@ -83,35 +100,56 @@ class FrontendRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(encoded)
             return
         if self.path == "/runtime-config.local.js":
-            # 磁盘上已有 runtime-config.local.js(本地开发的真实配置,含 key)时优先服务它,
-            # 只有缺省时才从环境变量生成——避免动态生成的空 key 覆盖本地可用配置。
-            disk_local = Path(self.directory) / "runtime-config.local.js"
-            if disk_local.is_file() and not os.environ.get("RETAIN_PDF_FRONTEND_X_API_KEY", "").strip():
-                super().do_GET()
-                return
-            payload = {
-                "apiBase": DEFAULT_API_BASE,
-                "xApiKey": DEFAULT_X_API_KEY,
-                "ocrProvider": DEFAULT_OCR_PROVIDER,
-                "paddleToken": DEFAULT_PADDLE_TOKEN,
-                "mineruToken": DEFAULT_MINERU_TOKEN,
-                "modelApiKey": DEFAULT_MODEL_API_KEY,
-                "model": DEFAULT_MODEL,
-                "baseUrl": DEFAULT_BASE_URL,
-            }
-            script = (
-                "window.__FRONT_RUNTIME_CONFIG__ = {\n"
-                "  ...(window.__FRONT_RUNTIME_CONFIG__ || {}),\n"
-                f"  apiBase: {json.dumps(payload['apiBase'])},\n"
-                f"  xApiKey: {json.dumps(payload['xApiKey'])},\n"
-                f"  ocrProvider: {json.dumps(payload['ocrProvider'])},\n"
-                f"  paddleToken: {json.dumps(payload['paddleToken'])},\n"
-                f"  mineruToken: {json.dumps(payload['mineruToken'])},\n"
-                f"  modelApiKey: {json.dumps(payload['modelApiKey'])},\n"
-                f"  model: {json.dumps(payload['model'])},\n"
-                f"  baseUrl: {json.dumps(payload['baseUrl'])},\n"
-                "};\n"
-            ).encode("utf-8")
+            # 策略：磁盘文件只放非密钥项；密钥不进仓库/本地配置文件。
+            # - model/OCR key：仅当显式设置了对应环境变量时才注入（默认空 → UI 门禁生效）
+            # - 后端 X-API-Key：可从 env 或 auth.local.json 注入，方便本地连 Rust API
+            root = Path(self.directory).resolve()
+            disk_local = root / "runtime-config.local.js"
+            chunks: list[str] = []
+            if disk_local.is_file():
+                chunks.append(disk_local.read_text(encoding="utf-8"))
+            else:
+                chunks.append(
+                    "window.__FRONT_RUNTIME_CONFIG__ = {\n"
+                    "  ...(window.__FRONT_RUNTIME_CONFIG__ || {}),\n"
+                    f"  apiBase: {json.dumps(DEFAULT_API_BASE)},\n"
+                    f"  ocrProvider: {json.dumps(DEFAULT_OCR_PROVIDER or 'paddle')},\n"
+                    f"  model: {json.dumps(DEFAULT_MODEL)},\n"
+                    f"  baseUrl: {json.dumps(DEFAULT_BASE_URL)},\n"
+                    "};\n"
+                )
+
+            x_key = default_x_api_key(root)
+            model_key = DEFAULT_MODEL_API_KEY  # only non-empty when env set
+            paddle = DEFAULT_PADDLE_TOKEN
+            mineru = DEFAULT_MINERU_TOKEN
+            if x_key or model_key or paddle or mineru:
+                patches: list[str] = []
+                if x_key:
+                    patches.append(
+                        f'if (!c.xApiKey) c.xApiKey = {json.dumps(x_key)};'
+                    )
+                if model_key:
+                    patches.append(
+                        f'if (!c.modelApiKey) c.modelApiKey = {json.dumps(model_key)};'
+                    )
+                if paddle:
+                    patches.append(
+                        f'if (!c.paddleToken) c.paddleToken = {json.dumps(paddle)};'
+                    )
+                if mineru:
+                    patches.append(
+                        f'if (!c.mineruToken) c.mineruToken = {json.dumps(mineru)};'
+                    )
+                chunks.append(
+                    "(function () {\n"
+                    "  var c = window.__FRONT_RUNTIME_CONFIG__ = "
+                    "window.__FRONT_RUNTIME_CONFIG__ || {};\n"
+                    "  " + "\n  ".join(patches) + "\n"
+                    "})();\n"
+                )
+
+            script = "".join(chunks).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/javascript; charset=utf-8")
             self.send_header("Content-Length", str(len(script)))

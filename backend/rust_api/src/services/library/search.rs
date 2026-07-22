@@ -9,9 +9,16 @@ pub fn search_blocks(
     deps: &LibraryDeps<'_>,
     query: &SearchQuery,
 ) -> Result<SearchResultView, AppError> {
-    let hits = deps
-        .db
-        .search_blocks(&query.q, query.limit.clamp(1, 100))?;
+    let document_id = query.document_id.trim();
+    let hits = deps.db.search_blocks(
+        &query.q,
+        query.limit.clamp(1, 100),
+        if document_id.is_empty() {
+            None
+        } else {
+            Some(document_id)
+        },
+    )?;
     Ok(SearchResultView {
         query: query.q.clone(),
         hits,

@@ -124,19 +124,30 @@ async function mountHome(services) {
   return { host, root };
 }
 
-test("CredentialsDialog：契约 id、openBrowserCredentials 事件打开、setupMode 首次配置态", async () => {
+test("CredentialsDialog：常规入口走设置 API；setupMode 仍开独立首次配置门", async () => {
   const services = createServices();
   const { host, root } = await mountHome(services);
 
   // 阶段 C(shadcn 改造):CredentialsDialog 换成 Radix Dialog 后不 forceMount
-  // Content——对话框关闭时整个内容(含下面这批契约 id)都不挂载,与此前原生
-  // <dialog>"常驻挂载、只是原生显示态切换"不同(CredentialsDialog.jsx 头注释
-  // 有完整说明:forceMount 会撞上 Radix modal Content 的 hideOthers 无障碍
-  // 缺陷)。这里改为断言"未打开时不挂载",契约 id 存在性挪到打开之后再查。
+  // Content——对话框关闭时整个内容(含下面这批契约 id)都不挂载。
   assert.equal(byId("browser-credentials-dialog"), null, "初始未打开时不挂载");
 
+  // 常规：openBrowserCredentials → 设置中心 API 区（唯一日常入口）
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
-  await waitFor(() => byId("browser-credentials-dialog") !== null, "普通打开");
+  await waitFor(() => byId("app-settings-dialog") !== null, "常规打开设置中心");
+  await waitFor(() => byId("browser-api-key") !== null, "API 区内嵌工作台");
+  assert.equal(byId("browser-credentials-dialog"), null, "常规不再弹独立接口设置窗");
+  assert.ok(byId("browser-credentials-save-btn"), "内嵌工作台有保存");
+
+  services.settingsHub.dialogStore.close();
+  await waitFor(() => byId("app-settings-dialog") === null, "关闭设置");
+
+  // ---- setupMode 首次配置态:独立弹窗，tabs 隐藏,标题/保存文案切换 ----
+  dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials, {
+    detail: { setupMode: true },
+  }));
+  await waitFor(() => byId("browser-credentials-dialog") !== null, "setupMode 打开独立弹窗");
+  await waitFor(() => byId("browser-credentials-title")?.textContent === "首次配置", "setupMode 标题切换");
 
   for (const id of [
     "browser-credentials-title", "browser-credentials-close-btn", "browser-credentials-status",
@@ -148,15 +159,6 @@ test("CredentialsDialog：契约 id、openBrowserCredentials 事件打开、setu
     assert.ok(byId(id), `契约 id 缺失：#${id}`);
   }
 
-  assert.equal(byId("browser-credentials-title").textContent, "接口设置");
-  assert.equal(byId("browser-credentials-save-btn").textContent, "保存");
-  assert.equal(byId("browser-credentials-tabs").classList.contains("hidden"), false);
-
-  // ---- setupMode 首次配置态:tabs 隐藏,标题/保存文案切换 ----
-  dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials, {
-    detail: { setupMode: true },
-  }));
-  await waitFor(() => byId("browser-credentials-title").textContent === "首次配置", "setupMode 标题切换");
   assert.equal(byId("browser-credentials-save-btn").textContent, "保存并启动");
   assert.equal(byId("browser-credentials-tabs").classList.contains("hidden"), true);
   assert.equal(byId("browser-credentials-dialog").dataset.setupMode, "1");
@@ -166,17 +168,21 @@ test("CredentialsDialog：契约 id、openBrowserCredentials 事件打开、setu
   host.remove();
 });
 
-test("CredentialsDialog：#credentials-btn(设置)与 #credential-gate-action(上传引导)都能打开对话框", async () => {
+test("凭据入口：设置 API 区内嵌工作台；#credential-gate-action 也打开设置 API", async () => {
   const services = createServices();
   const { host, root } = await mountHome(services);
 
+  // 设置 → API 区：CredentialsWorkbench 直接内嵌(v2 大改,门厅按钮
+  // #credentials-btn 退役),不再弹 browser-credentials-dialog。
   click(byId("app-settings-btn"));
   await waitFor(() => byId("app-settings-dialog") !== null, "设置对话框打开");
-  click(byId("credentials-btn"));
-  await waitFor(() => byId("browser-credentials-dialog") !== null, "credentials-btn 打开凭据对话框");
+  await waitFor(() => byId("browser-credentials-tabs") !== null, "API 区内嵌凭据工作台(tabs 挂载)");
+  assert.ok(byId("browser-credentials-save-btn"), "内嵌工作台带保存按钮");
+  assert.equal(byId("credentials-btn"), null, "门厅按钮已退役");
+  assert.equal(byId("browser-credentials-dialog"), null, "设置内不再弹二层凭据对话框");
 
-  services.credentials.dialogStore.close();
-  await waitFor(() => byId("browser-credentials-dialog") === null, "关闭凭据对话框");
+  services.settingsHub.dialogStore.close();
+  await waitFor(() => byId("app-settings-dialog") === null, "关闭设置对话框");
 
   // 阶段 C(shadcn 改造):credential-gate-action 挂在 TranslationWorkflowDialog
   // 内部(HeroUpload 的上传引导区),该对话框换成 Radix Dialog 后不 forceMount
@@ -184,7 +190,9 @@ test("CredentialsDialog：#credentials-btn(设置)与 #credential-gate-action(�
   services.workflowDialog.openUpload();
   await waitFor(() => byId("credential-gate-action"), "工作流对话框打开后 credential-gate-action 挂载");
   click(byId("credential-gate-action"));
-  await waitFor(() => byId("browser-credentials-dialog") !== null, "credential-gate-action 打开凭据对话框");
+  await waitFor(() => byId("app-settings-dialog") !== null, "credential-gate-action 打开设置中心");
+  await waitFor(() => byId("browser-api-key") !== null, "落到 API 设置工作台");
+  assert.equal(byId("browser-credentials-dialog"), null, "常规门禁不弹独立接口窗");
 
   root.unmount();
   services.dispose();
@@ -195,8 +203,10 @@ test("CredentialsDialog：OCR/DeepSeek 校验三态(缺失/错误/通过)", asyn
   const services = createServices();
   const { host, root } = await mountHome(services);
 
+  // 校验走设置内嵌工作台（与日常入口一致）
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
-  await waitFor(() => byId("browser-credentials-dialog") !== null, "打开对话框");
+  await waitFor(() => byId("app-settings-dialog") !== null, "打开设置");
+  await waitFor(() => byId("browser-paddle-validate-btn") !== null, "API 工作台就绪");
 
   // ---- OCR(paddle):缺失 → 错误 → 通过 ----
   click(byId("browser-paddle-validate-btn"));
@@ -221,7 +231,7 @@ test("CredentialsDialog：OCR/DeepSeek 校验三态(缺失/错误/通过)", asyn
   click(byId("browser-credentials-save-btn"));
   await waitFor(() => byId("browser-deepseek-validation").title === "请先填写 DeepSeek Key。", "DeepSeek 缺失态(经保存守卫触发)");
   assert.equal(byId("browser-deepseek-validation").classList.contains("is-error"), true);
-  assert.notEqual(byId("browser-credentials-dialog"), null, "缺字段时保存应被拦截,对话框不关闭");
+  assert.notEqual(byId("app-settings-dialog"), null, "缺字段时保存应被拦截,设置对话框不关闭");
 
   typeInput(byId("browser-api-key"), "bad-key");
   click(byId("browser-deepseek-validate-btn"));
@@ -240,7 +250,7 @@ test("CredentialsDialog：OCR/DeepSeek 校验三态(缺失/错误/通过)", asyn
   host.remove();
 });
 
-test("CredentialsDialog：保存(浏览器模式)——写隐藏 input、同步 credentialsStatePort、关闭对话框", async () => {
+test("CredentialsDialog：保存(浏览器模式)——写隐藏 input、同步 credentialsStatePort", async () => {
   const services = createServices();
   const { host, root } = await mountHome(services);
 
@@ -251,14 +261,19 @@ test("CredentialsDialog：保存(浏览器模式)——写隐藏 input、同步 
   services.workflowDialog.openUpload();
   await waitFor(() => byId("paddle_token"), "工作流对话框打开后隐藏 input 挂载");
 
+  // 常规保存入口：设置 → API
   dom.window.document.dispatchEvent(new dom.window.CustomEvent(APP_EVENTS.openBrowserCredentials));
-  await waitFor(() => byId("browser-credentials-dialog") !== null, "打开对话框");
+  await waitFor(() => byId("app-settings-dialog") !== null, "打开设置");
+  await waitFor(() => byId("browser-api-key") !== null, "API 工作台就绪");
 
   typeInput(byId("browser-paddle-token"), "paddle-secret");
   typeInput(byId("browser-api-key"), "deepseek-secret");
 
   click(byId("browser-credentials-save-btn"));
-  await waitFor(() => byId("browser-credentials-dialog") === null, "保存成功后对话框关闭");
+  await waitFor(
+    () => defaultCredentialsStatePort.getCredentials().modelApiKey === "deepseek-secret",
+    "保存后 credentialsStatePort 更新",
+  );
 
   assert.equal(byId("paddle_token").value, "paddle-secret", "隐藏 input 桥接:paddle_token");
   assert.equal(byId("api_key").value, "deepseek-secret", "隐藏 input 桥接:api_key");

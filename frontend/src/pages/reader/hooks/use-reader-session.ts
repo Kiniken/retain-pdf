@@ -15,7 +15,6 @@ import {
   READER_DIALOG_MESSAGES,
   defaultReaderDataPort,
   defaultReaderPageConfigPort,
-  resolveReaderAnchor,
   resolveReaderDocumentId,
   resolveReaderJobId,
   resolveReaderArtifactUrl,
@@ -244,7 +243,7 @@ export function useReaderSession(): ReaderSessionState {
             failed: false,
           });
           postProgress({ percent: 100, text: READER_PROGRESS_COPY.ready, stage: "ready" });
-          void resolveReaderAnchor();
+          // URL 锚点跳页见 useUrlAnchorJump（react-pdf 控制器）
           return;
         }
 
@@ -336,7 +335,7 @@ export function useReaderSession(): ReaderSessionState {
           failed: false,
         });
         postProgress({ percent: 100, text: READER_PROGRESS_COPY.ready, stage: "ready" });
-        void resolveReaderAnchor();
+        // URL 锚点跳页见 useUrlAnchorJump（react-pdf 控制器）
       } catch (err) {
         if (cancelled) return;
         const text = err instanceof Error ? err.message : READER_PROGRESS_COPY.failed;

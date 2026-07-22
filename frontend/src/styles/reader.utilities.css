@@ -2,7 +2,7 @@
 
 @utility reader-body {
   margin: 0;
-  background: #eef1f5;
+  background: var(--bg);
   color: var(--ink);
 }
 
@@ -24,7 +24,7 @@
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--paper);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-color) 6%, transparent);
 
   @media (max-width: 720px) {
     flex-direction: column;
@@ -79,10 +79,10 @@
   }
 
   & .is-active {
-    background: #1b3a57;
-    border-color: #1b3a57;
+    background: var(--accent);
+    border-color: var(--accent);
     color: var(--paper);
-    box-shadow: 0 10px 22px rgba(27, 58, 87, 0.22);
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 22%, transparent);
   }
 
   @media (max-width: 720px) {
@@ -100,7 +100,7 @@
 
   &.is-error {
     background: var(--danger-weak);
-    border-color: rgba(213, 70, 43, 0.18);
+    border-color: color-mix(in srgb, var(--danger) 18%, transparent);
     color: var(--danger);
   }
 }
@@ -108,7 +108,7 @@
 @utility is-error {
   &.reader-status {
     background: var(--danger-weak);
-    border-color: rgba(213, 70, 43, 0.18);
+    border-color: color-mix(in srgb, var(--danger) 18%, transparent);
     color: var(--danger);
   }
 }
@@ -131,7 +131,7 @@
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--paper);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-color) 5%, transparent);
   overflow: hidden;
 }
 
@@ -141,7 +141,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 14px 16px;
-  border-bottom: 1px solid #eef1f4;
+  border-bottom: 1px solid var(--line);
   background: var(--paper);
 
   & h2 {
@@ -159,7 +159,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #7b8490;
+  color: var(--muted);
 }
 
 @utility reader-panel-chip {
@@ -168,8 +168,8 @@
   min-height: 24px;
   padding: 0 10px;
   border-radius: 999px;
-  background: #eef3f7;
-  color: #52606f;
+  background: var(--bg);
+  color: color-mix(in srgb, var(--ink) 35%, var(--muted));
   font-size: 10px;
   font-weight: 700;
 }
@@ -179,7 +179,7 @@
   padding: 16px 18px;
   font-size: 13px;
   color: var(--muted);
-  border: 1px dashed #d8d9de;
+  border: 1px dashed var(--line);
   border-radius: 14px;
   background: var(--bg);
 }
@@ -190,7 +190,7 @@
 }
 
 @utility reader-panel-body-pdf {
-  background: #f1f4f7;
+  background: var(--bg);
 }
 
 @utility reader-panel-body-markdown {
@@ -204,8 +204,8 @@
   border-radius: 14px;
   background: var(--paper);
   box-shadow:
-    inset 0 0 0 1px rgba(15, 23, 42, 0.06),
-    0 10px 24px rgba(15, 23, 42, 0.06);
+    inset 0 0 0 1px color-mix(in srgb, var(--shadow-color) 6%, transparent),
+    0 10px 24px color-mix(in srgb, var(--shadow-color) 6%, transparent);
 
   @media (max-width: 720px) {
     max-height: none;
@@ -218,7 +218,7 @@
   overflow: auto;
   max-height: 78vh;
   border-radius: 14px;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shadow-color) 6%, transparent);
   padding: 28px 30px 36px;
   background: var(--reader-page, var(--paper));
   color: var(--ink);
@@ -314,7 +314,7 @@
   & code {
     padding: 0.15em 0.38em;
     border-radius: 8px;
-    background: #f1f3f7;
+    background: var(--bg);
     font-size: 0.92em;
   }
 
@@ -329,7 +329,7 @@
   overflow: auto;
   max-height: 78vh;
   border-radius: 14px;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--shadow-color) 6%, transparent);
   font-family: 'SFMono-Regular', 'JetBrains Mono', 'Consolas', monospace;
   background: var(--ink);
   color: var(--paper);

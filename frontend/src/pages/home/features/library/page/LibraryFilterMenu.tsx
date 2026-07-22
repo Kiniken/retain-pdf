@@ -40,7 +40,7 @@ export function LibraryFilterMenu({
         onClick={onClick}
         className={cn(
           "inline-flex items-center rounded-full border px-3 py-1 text-xs transition active:scale-95",
-          active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white text-muted-foreground hover:bg-accent",
+          active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-paper text-muted-foreground hover:bg-accent",
         )}
       >{children}</button>
     );
@@ -64,7 +64,7 @@ export function LibraryFilterMenu({
         // 非 Radix 的轻量 popover(满载测试下比重型 modal 稳),没有 Presence 卸载延迟,
         // 关闭只能瞬间收起——但至少进场要有生命感:从触发按钮所在的右上角
         // 展开(origin-top-right),不从 scale(0) 凭空出现(emil-design-eng skill)。
-        <div className="absolute right-0 z-30 mt-2 w-64 origin-top-right rounded-2xl border border-border bg-white p-4 shadow-[0_16px_40px_rgba(15,23,42,0.16)] transition-[opacity,transform] duration-150 ease-[var(--ease-out)] starting:scale-95 starting:opacity-0">
+        <div className="absolute right-0 z-30 mt-2 w-64 origin-top-right rounded-2xl border border-border bg-paper p-4 shadow-[0_16px_40px_color-mix(in_srgb,var(--shadow-color)_16%,transparent)] transition-[opacity,transform] duration-150 ease-[var(--ease-out)] starting:scale-95 starting:opacity-0">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">翻译状态</p>
           <div className="flex flex-wrap gap-2">
             {STATUS_FILTERS.map((s) => (

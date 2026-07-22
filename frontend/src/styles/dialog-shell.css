@@ -26,7 +26,7 @@
   @apply fixed inset-0 z-[101] m-auto overflow-visible border-0 bg-transparent p-0;
   width: min(720px, calc(100vw - 24px));
   max-height: calc(100vh - 24px);
-  border-radius: 24px;
+  border-radius: var(--panel-radius);
 
   /* 模态居中显示,transform-origin 用默认 center(不像 popover 要跟随触发点)。
      scale 起点/终点 0.96 而非 0——emil-design-eng skill:现实世界没有东西从
@@ -48,20 +48,25 @@
 }
 
 @utility desktop-dialog-overlay {
+  /* 全站统一背板：浅色纸感模糊（--dialog-scrim 真值在 themes/_component-defaults.css）。
+     此前三种背板并存（深色 36% / 浅色模糊 / 深色 z110）是弹窗观感割裂的最大来源。 */
   @apply fixed inset-0 z-[100];
-  background: color-mix(in srgb, var(--chrome, var(--ink)) 36%, transparent);
+  background: var(--dialog-scrim);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 
   &[data-state='open'] { animation: dialog-overlay-in 200ms var(--ease-out); }
   &[data-state='closed'] { animation: dialog-overlay-out 200ms var(--ease-out) forwards; }
 }
 
 @utility status-detail-dialog-overlay {
-  /* StatusDetailDialog 专属背板(阶段 C)——见 status-detail-dialog 工具类
-     (job-dialogs.utilities.css)的头注释:z-index 垫高到 110(高于
+  /* StatusDetailDialog 专属背板(阶段 C)——z-index 垫高到 110(高于
      desktop-dialog-overlay 的 100),确保嵌套在已打开的 TranslationWorkflowDialog
-     之上时能正确盖住它,视觉色值和 desktop-dialog-overlay 保持一致。 */
+     之上时能正确盖住它,视觉与 desktop-dialog-overlay 同源(--dialog-scrim)。 */
   @apply fixed inset-0 z-[110];
-  background: color-mix(in srgb, var(--chrome, var(--ink)) 36%, transparent);
+  background: var(--dialog-scrim);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 
   &[data-state='open'] { animation: dialog-overlay-in 200ms var(--ease-out); }
   &[data-state='closed'] { animation: dialog-overlay-out 200ms var(--ease-out) forwards; }
@@ -81,19 +86,39 @@
 }
 
 @utility dialog-close-btn {
-  @apply inline-flex h-[34px] min-h-[34px] w-[34px] min-w-[34px] items-center justify-center rounded-full border p-0 text-[22px] leading-none shadow-none;
-  border-color: var(--line);
-  background: var(--paper);
-  color: var(--ink);
+  /* 幽灵钮：静默不抢注意力，hover 才浮出底色（原描边圆圈在每个弹窗角落都过重） */
+  @apply inline-flex h-[34px] min-h-[34px] w-[34px] min-w-[34px] items-center justify-center rounded-full border-0 p-0 text-[22px] leading-none shadow-none;
+  background: transparent;
+  color: var(--muted);
+  transition:
+    background-color 150ms var(--ease-out),
+    color 150ms var(--ease-out),
+    transform 160ms var(--ease-out);
 
   &:hover {
-    border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
-    color: var(--accent);
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    color: var(--ink);
   }
+
+  &:active {
+    transform: scale(0.94);
+  }
+}
+
+@keyframes dialog-body-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @utility desktop-body {
   @apply grid gap-4 p-6;
+  /* 内容比壳晚 40ms 微升进场：分层节奏，避免所有元素一次性砸出。
+     both = 延迟期间停在首帧(透明)，不闪现。 */
+  animation: dialog-body-in 220ms var(--ease-out) 40ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-body { animation-duration: 1ms; animation-delay: 0ms; }
 }
 
 /* BookDetailDialog 用的是自己那套原始 Tailwind 类(照搬 PDF_MD_lib 视觉),

@@ -110,7 +110,16 @@ export function createCredentials({
     validateOcrToken: validateOcrTokenOverride || validateCredentialOcrToken,
     validateDeepSeekToken: validateDeepSeekTokenOverride,
     queryDeepSeekBalance: queryDeepSeekBalanceOverride,
-    onCredentialStateChange: () => features.workflowFeature.applyWorkflowMode(),
+    onCredentialStateChange: () => {
+      features.workflowFeature.applyWorkflowMode();
+      // 通知 AI 输入门禁等：仅认设置里的 modelApiKey
+      try {
+        // dynamic import path avoided — event is fire-and-forget string
+        document.dispatchEvent(new CustomEvent("retainpdf:credentials-changed"));
+      } catch {
+        /* ignore */
+      }
+    },
     runtimeEnvPort: createCredentialRuntimeEnvPort(legacyState),
     uploadStatePort,
     viewPort: credentialsView.viewPort,

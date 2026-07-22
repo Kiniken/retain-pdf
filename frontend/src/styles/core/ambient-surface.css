@@ -56,7 +56,6 @@ body {
 #home-root,
 #detail-root,
 #reader-root,
-.app-shell.page,
 main.app-shell {
   background: transparent;
 }
@@ -67,69 +66,17 @@ main.app-shell {
   z-index: 1;
   flex: 1 1 auto;
   min-height: 0;
-  width: min(1120px, 100%);
+  width: var(--stage-width);
   margin-inline: auto;
   display: flex;
   flex-direction: column;
   border-radius: 6px 6px 0 0;
-  padding: 10px 14px 0;
-  /* 台基干净：接近实纸，阴影极轻，避免发黄发脏 */
-  background: color-mix(in srgb, var(--paper) 88%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--paper) 90%, var(--line)),
-    0 12px 32px color-mix(in srgb, var(--ink) 2.5%, transparent);
-}
-
-html[data-theme="jiangnan"] .home-paper-stage,
-html[data-theme="seacliff"] .home-paper-stage {
-  width: min(1080px, 100%);
-  padding: 14px 18px 0;
-  background: color-mix(in srgb, var(--paper) 92%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--paper) 92%, var(--line)),
-    0 14px 36px color-mix(in srgb, var(--ink) 3%, transparent);
-}
-
-html[data-theme="jiangnan"] .app-shell,
-html[data-theme="seacliff"] .app-shell {
-  padding-inline: clamp(28px, 6vw, 72px);
-}
-
-html[data-theme="jiangnan"] .app-shell-header,
-html[data-theme="seacliff"] .app-shell-header {
-  width: min(1080px, 100%);
-  margin-bottom: 14px;
-}
-
-/* 素纸 / 雾青：纤维更弱，避免「脏灰」 */
-html[data-theme="jiangnan"] {
-  --mat-fiber: color-mix(in srgb, var(--ink) 2.8%, transparent);
-  --mat-fiber-2: color-mix(in srgb, var(--ink) 1.8%, transparent);
-  --mat-edge: color-mix(in srgb, var(--ink) 2.5%, var(--bg));
-  --mat-center: color-mix(in srgb, var(--paper) 20%, var(--bg));
-}
-
-html[data-theme="seacliff"] {
-  --mat-fiber: color-mix(in srgb, var(--ink) 2.6%, transparent);
-  --mat-fiber-2: color-mix(in srgb, var(--accent) 2%, transparent);
-  --mat-edge: color-mix(in srgb, var(--ink) 2.5%, var(--bg));
-  --mat-center: color-mix(in srgb, var(--paper) 18%, var(--bg));
-}
-
-html[data-theme="night"] {
-  --mat-fiber: color-mix(in srgb, var(--ink) 4%, transparent);
-  --mat-fiber-2: color-mix(in srgb, var(--ink) 2.5%, transparent);
-  --mat-edge: color-mix(in srgb, var(--chrome, #000) 25%, var(--bg));
-  --mat-center: color-mix(in srgb, var(--paper) 40%, var(--bg));
-}
-
-html[data-theme="night"] .home-paper-stage {
-  width: min(1080px, 100%);
-  padding: 14px 18px 0;
-  background: color-mix(in srgb, var(--paper) 62%, transparent);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--line) 45%, transparent),
-    0 20px 44px color-mix(in srgb, #000 28%, transparent);
+  padding: var(--stage-pad);
+  /* 台基干净：接近实纸，阴影极轻。宽度/内边距/纱厚/阴影全走 L3 token
+   * （themes/_component-defaults.css 默认值，皮肤按需覆盖）——本文件
+   * 不再点名任何主题，加新皮肤零改动。 */
+  background: color-mix(in srgb, var(--paper) var(--stage-veil), transparent);
+  box-shadow: var(--stage-shadow);
 }
 
 /* 窄屏：弱化廊道，纸心仍保留 */
@@ -148,11 +95,6 @@ html[data-theme="night"] .home-paper-stage {
       );
     background-size: auto, 100% 100%;
     background-repeat: repeat, no-repeat;
-  }
-
-  html[data-theme="jiangnan"] .app-shell,
-  html[data-theme="seacliff"] .app-shell {
-    padding-inline: clamp(12px, 3vw, 20px);
   }
 
   .home-paper-stage {

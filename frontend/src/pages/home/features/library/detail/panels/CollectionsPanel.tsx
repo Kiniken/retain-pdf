@@ -25,7 +25,7 @@ export function CollectionsPanel({ collections, collectionsBusy, onToggle }) {
               "rounded-full border px-3 py-1 text-xs transition-colors disabled:opacity-55",
               c.member
                 ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-white text-muted-foreground hover:bg-accent",
+                : "border-border bg-paper text-muted-foreground hover:bg-accent",
             )}
           >
             {c.member ? "✓ " : "+ "}

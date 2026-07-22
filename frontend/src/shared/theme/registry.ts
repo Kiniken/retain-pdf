@@ -16,6 +16,25 @@ export type ThemePreview = {
 
 export type ThemeGroup = "light" | "dark" | "accent";
 
+/**
+ * 主题系列（产品线维度，与明暗 group 正交）：
+ * 诸子百家 / 王朝 / 二次元……皮肤挂 series 字段归队，
+ * 新系列 = 此表加一行，外观面板自动出现新分区。
+ */
+export type ThemeSeries = {
+  id: string;
+  label: string;
+  /** 分区排序，越小越靠前 */
+  order: number;
+};
+
+export const THEME_SERIES: readonly ThemeSeries[] = [
+  { id: "base", label: "基础", order: 10 },
+  { id: "baijia", label: "诸子百家", order: 20 },
+  // 规划中：{ id: "wangchao", label: "王朝", order: 30 },
+  //         { id: "niji", label: "二次元", order: 40 },
+] as const;
+
 export type ThemeDefinition = {
   /** 与 html[data-theme] / 文件名 themes/<id>.css 一致 */
   id: string;
@@ -26,6 +45,14 @@ export type ThemeDefinition = {
   /** 列表排序，越小越靠前 */
   order: number;
   preview: ThemePreview;
+  /**
+   * 装饰包名（public 静态目录 decor/<包名>/manifest.json）。
+   * 缺省 = 纯配色皮肤，零装饰零额外下载。
+   * 契约：src/shared/decor/contract.ts · docs/theme-system/DECOR_PACKS.md
+   */
+  decorPack?: string;
+  /** 所属系列 id（THEME_SERIES），缺省归入 "base" 基础系列 */
+  series?: string;
 };
 
 /**
@@ -53,12 +80,29 @@ export const THEME_REGISTRY: readonly ThemeDefinition[] = [
     description: "冷石灰底 · 冷青绿强调（去土黄）",
     group: "accent",
     order: 20,
+    decorPack: "jiangnan",
     preview: {
       bg: "#f1f0ed",
       paper: "#fbfaf8",
       accent: "#2a5f57",
       ink: "#1b1b1d",
       danger: "#c23b32",
+    },
+  },
+  {
+    id: "mojia",
+    label: "墨家",
+    description: "素绢暖底 · 青铜机关",
+    group: "accent",
+    order: 25,
+    decorPack: "mojia",
+    series: "baijia",
+    preview: {
+      bg: "#f2efe8",
+      paper: "#faf8f1",
+      accent: "#4c6658",
+      ink: "#26221b",
+      danger: "#b23b32",
     },
   },
   {
@@ -122,6 +166,24 @@ export function listThemesByGroup(): { group: ThemeGroup; label: string; themes:
       label: themeGroupLabel(group),
       themes: map.get(group) || [],
     }));
+}
+
+/**
+ * 按系列分组（外观面板消费）：系列按 THEME_SERIES.order 排，
+ * 未登记 series 的皮肤归入 "base"；空系列不出现。
+ */
+export function listThemesBySeries(): { series: string; label: string; themes: ThemeDefinition[] }[] {
+  const map = new Map<string, ThemeDefinition[]>();
+  for (const t of listThemes()) {
+    const key = t.series && THEME_SERIES.some((s) => s.id === t.series) ? t.series : "base";
+    const list = map.get(key) || [];
+    list.push(t);
+    map.set(key, list);
+  }
+  return [...THEME_SERIES]
+    .sort((a, b) => a.order - b.order)
+    .filter((s) => (map.get(s.id) || []).length > 0)
+    .map((s) => ({ series: s.id, label: s.label, themes: map.get(s.id) || [] }));
 }
 
 export function getThemeDefinition(id: string): ThemeDefinition | undefined {

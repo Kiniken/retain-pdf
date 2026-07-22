@@ -3,7 +3,7 @@
 // 目录:
 //   shell/      通用壳（BookCard、BookListRow）
 //   actions/    卡片操作工厂（read / translate）
-//   display/    展示辅助（封面、徽标、继续阅读条）
+//   display/    展示辅助（封面、徽标）
 //   page/       书架页编排（网格、工具条、viewPort）
 //   categories/ 合集 tab
 //   favorites/  收藏 tab（摘录/笔记）

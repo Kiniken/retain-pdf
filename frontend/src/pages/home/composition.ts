@@ -184,6 +184,7 @@ export function createHomeComposition({
     jobRuntimeState: status.jobRuntimeState,
     statusCardPresenter: status.statusCardPresenter,
     libraryEventPort: library.libraryEventPort,
+    settingsHubDialogStore: credentials.settingsHubDialogStore,
   });
   features.appActionsFeature = appActionsFeature;
 

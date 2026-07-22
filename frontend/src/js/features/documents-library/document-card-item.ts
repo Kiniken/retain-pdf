@@ -75,9 +75,10 @@ export function shapeDocumentCardItem(document: any = {}, book = null) {
       job_id: jobId,
       active_job_id: activeJobId,
       library_only: false,
-      // 封面/页数：文档级兜底；标题：禁止 book 用 job_id.pdf 盖掉真书名
-      cover_url: firstUrl(document.cover_url, flattened.cover_url, book.cover_url),
-      thumbnail_url: firstUrl(document.thumbnail_url, flattened.thumbnail_url, book.thumbnail_url),
+      // 封面/页数：book 活态优先、文档级兜底（与现网格视觉一致）；
+      // 标题：禁止 book 用 job_id.pdf 盖掉真书名
+      cover_url: firstUrl(flattened.cover_url, book.cover_url, document.cover_url),
+      thumbnail_url: firstUrl(flattened.thumbnail_url, book.thumbnail_url, document.thumbnail_url),
       page_count: document.page_count || flattened.page_count || 0,
       updated_at: flattened.updated_at || document.updated_at || "",
       title: pickCardTitle(flattened.title || book.title, document, jobId),

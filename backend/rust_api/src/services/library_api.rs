@@ -7,6 +7,7 @@ use crate::models::api::{
     AddCollectionDocumentsInput, AppendMessageInput, AssetRecord, CollectionListView,
     CollectionMutationResult, CollectionRecord, ConversationDetailView, ConversationListView,
     ConversationMutationResult, ConversationRecord, CreateCollectionInput, CreateConversationInput,
+    PatchConversationInput,
     CreateFavoriteInput, DocumentDeleteResultView, DocumentListView, DocumentRecord,
     FavoriteListView, FavoriteMutationResult, FavoriteRecord, JobSubmissionView,
     LibraryBatchDeleteInput,
@@ -22,11 +23,11 @@ use super::library::{
     add_collection_documents, append_message, create_collection, create_conversation,
     create_favorite, delete_collection, delete_conversation, delete_document, delete_favorite,
     delete_library_book, delete_library_books, document_cover, document_source_pdf,
-    document_thumbnail, get_conversation,
-    get_document, get_library_book, list_collections, list_conversations, list_documents,
-    list_favorites, list_library_books, load_asset, patch_collection, patch_document,
-    patch_favorite, remove_collection_document, search_blocks, store_asset, translate_document,
-    AssetDownload, DocumentFileDownload, LibraryDeps,
+    document_thumbnail, get_conversation, get_document, get_library_book, list_collections,
+    list_conversations, list_documents, list_favorites, list_library_books, load_asset,
+    patch_collection, patch_conversation, patch_document, patch_favorite,
+    remove_collection_document, search_blocks, store_asset, translate_document, AssetDownload,
+    DocumentFileDownload, LibraryDeps,
 };
 
 // --- books ---
@@ -225,6 +226,14 @@ pub fn append_message_view(
     payload: AppendMessageInput,
 ) -> Result<MessageRecord, AppError> {
     append_message(deps, conversation_id, payload)
+}
+
+pub fn patch_conversation_view(
+    deps: &LibraryDeps<'_>,
+    conversation_id: &str,
+    payload: &PatchConversationInput,
+) -> Result<ConversationRecord, AppError> {
+    patch_conversation(deps, conversation_id, payload)
 }
 
 // --- collections ---

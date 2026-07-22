@@ -5,14 +5,11 @@
 
 /* ========== 书籍详情右栏 Tabs + 内嵌完整 StatusCard ========== */
 
+/* 裸 tab 组：去掉灰壳容器（原 border+bg 让头部像个输入框），激活态才有实底药丸 */
 .book-detail-right-tabs-list {
   display: inline-flex;
   max-width: calc(100% - 4px);
-  gap: 2px;
-  padding: 2px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--bg);
+  gap: 4px;
 }
 
 .book-detail-right-tab {
@@ -20,20 +17,27 @@
   flex: 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
-  min-height: 26px;
-  padding: 3px 8px;
+  min-height: 30px;
+  padding: 4px 12px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 999px;
   white-space: nowrap;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1.2;
   color: var(--muted) !important;
   background: transparent !important;
-  transition: background-color 0.12s, color 0.12s;
+  transition:
+    background-color 150ms var(--ease-out),
+    color 150ms var(--ease-out),
+    transform 160ms var(--ease-out);
+}
+
+.book-detail-right-tab:active {
+  transform: scale(0.96);
 }
 
 .book-detail-right-tab-icon {
@@ -47,6 +51,7 @@
 
 .book-detail-right-tab:hover {
   color: var(--ink) !important;
+  background: color-mix(in srgb, var(--ink) 6%, transparent) !important;
 }
 
 .book-detail-right-tab[data-state="active"],
@@ -58,6 +63,15 @@
 /* 翻译 Tab 宿主 */
 .book-detail-translate-workspace {
   min-width: 0;
+}
+
+/* 空态 StageFlow = 路线图预览：描边药丸代替禁用灰底（避免灰上灰的 disabled 感） */
+.book-translate-progress[data-state="idle"] .status-stage-step {
+  background: transparent;
+  border: 1px dashed color-mix(in srgb, var(--muted) 45%, var(--line));
+  color: var(--muted);
+  box-shadow: none;
+  opacity: 1;
 }
 
 .book-detail-status-card-host {
@@ -80,7 +94,7 @@
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: 16px;
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--shadow-color) 6%, transparent);
   overflow: hidden;
 }
 
@@ -213,7 +227,7 @@
   cursor: pointer;
   white-space: nowrap;
   line-height: 26px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 5%, transparent);
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 

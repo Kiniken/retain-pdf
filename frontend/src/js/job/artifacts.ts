@@ -265,7 +265,7 @@ export function resolveMarkdownAssetUrl(imagesBaseUrl: unknown, relativePath: un
   if (!target) {
     return "";
   }
-  if (/^(?:data:|blob:|https?:\/\/|#)/i.test(target)) {
+  if (/^(?:data:|blob:|https?:\/\/|#|mock:\/\/)/i.test(target)) {
     return target;
   }
   if (target.startsWith("/")) {
@@ -275,7 +275,17 @@ export function resolveMarkdownAssetUrl(imagesBaseUrl: unknown, relativePath: un
   if (!base) {
     return target;
   }
-  return new URL(target, base).toString();
+  // images_base 已是 .../markdown/images/，path 常为 images/page-1/...
+  // 若直接 new URL 会变成 .../images/images/...（双前缀 404）
+  let rel = target.replace(/\\/g, "/").replace(/^\.\//, "");
+  while (rel.startsWith("images/")) {
+    rel = rel.slice("images/".length);
+  }
+  try {
+    return new URL(rel, base).toString();
+  } catch {
+    return `${base}${rel}`;
+  }
 }
 
 function normalizeMarkdownImageTarget(rawTarget: unknown): string {

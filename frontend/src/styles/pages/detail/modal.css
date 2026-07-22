@@ -23,7 +23,7 @@
 */
 @utility detail-timeline-overlay {
   @apply fixed inset-0 z-[100];
-  background: rgba(15, 23, 42, 0.32);
+  background: color-mix(in srgb, var(--shadow-color) 32%, transparent);
   backdrop-filter: blur(8px);
 }
 
@@ -35,7 +35,7 @@
   & .desktop-shell {
     border: 1px solid var(--line);
     border-radius: 28px;
-    box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+    box-shadow: 0 24px 64px color-mix(in srgb, var(--shadow-color) 18%, transparent);
   }
 
   & .desktop-head {
@@ -65,7 +65,7 @@
 .detail-body .detail-modal-close {
   width: 34px;
   height: 34px;
-  border: 1px solid #d5d7dd;
+  border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--paper);
   color: var(--ink);
@@ -80,6 +80,6 @@
 }
 
 .detail-inline-note {
-  color: #52606d;
+  color: color-mix(in srgb, var(--ink) 35%, var(--muted));
   font-size: 0.9rem;
 }

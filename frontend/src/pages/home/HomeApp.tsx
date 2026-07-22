@@ -22,6 +22,7 @@ import {
   FavoritesView,
   BookDetailDialog,
 } from "./features/library/index.js";
+import { HomeAskView } from "./features/home-ask/HomeAskView.js";
 import { CredentialsDialog } from "./features/credentials/CredentialsDialog.jsx";
 import { GlossariesDialog } from "./features/glossaries/GlossariesDialog.jsx";
 import { SettingsHubDialog } from "./features/settings/SettingsHubDialog.jsx";
@@ -46,17 +47,18 @@ function HomeShell() {
   const isLibraryTab = activeLibraryTab === "library";
   const isCategoriesTab = activeLibraryTab === "categories";
   const isFavoritesTab = activeLibraryTab === "favorites";
+  const isAskTab = activeLibraryTab === "ask";
   // #31 批量选择工具栏和底部栏都固定在底部居中,批量模式期间底部栏用 CSS
   // 隐藏(不卸载——搜索 input 卸载会让 library-search-island 的引用失效)让位
   // 给批量工具栏,两者不同时可见。
   const [batchModeActive, setBatchModeActive] = useState(false);
 
-  // 合集/收藏 tab：视图挂载即可尝试恢复 panel 滚动（图书馆由 RecentJobsLibrary 在有列表后恢复）
-  useHomeReturnRestore(isCategoriesTab || isFavoritesTab);
+  // 合集/收藏/AI tab：视图挂载即可尝试恢复 panel 滚动（图书馆由 RecentJobsLibrary 在有列表后恢复）
+  useHomeReturnRestore(isCategoriesTab || isFavoritesTab || isAskTab);
 
   return (
     <>
-      <main id="app-shell" className="page app-shell">
+      <main id="app-shell" className="page app-shell" data-home-spa="">
         <AppTopBar activeTab={activeLibraryTab} onTabChange={setActiveLibraryTab} />
         <MockModeBanner />
         {/* 纸心舞台：材质/比例层级（非传统符号拼贴）；侧栏筛选暂不做 */}
@@ -77,6 +79,9 @@ function HomeShell() {
               <FavoritesView />
               <AppBottomBar showSearch={false} />
             </>
+          ) : isAskTab ? (
+            // AI 对话不挂底部「上传 / 设置」浮栏，避免压住输入区
+            <HomeAskView />
           ) : null}
         </div>
         <button id="open-query-btn" type="button" className="secondary hidden" aria-hidden="true">最近任务</button>

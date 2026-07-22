@@ -27,7 +27,7 @@
   textarea:focus,
   select:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 4px rgba(29, 29, 31, 0.12);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink) 12%, transparent);
     background: var(--paper);
   }
 

@@ -6,7 +6,7 @@
 |------|--------|----------|
 | **shell/** | 通用壳：`BookCard`、`BookListRow` | 业务 onClick、列表数据 |
 | **actions/** | 卡片按钮工厂：`read` / `translate` | UI 布局 |
-| **display/** | 封面 hook、徽标、继续阅读条 | 页面编排 |
+| **display/** | 封面 hook、徽标 | 页面编排 |
 | **page/** | 书架页：网格、工具条、filter、viewPort | 详情/合集弹窗 |
 | **categories/** | 合集 tab | 书架网格 |
 | **detail/** | 详情容器 + store + hooks | 卡片壳 |

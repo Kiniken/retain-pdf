@@ -41,6 +41,9 @@ python3 -m retainpdf_ai
 | `RETAIN_AI_LLM_MODEL` | `deepseek-v4-flash` | 模型 |
 | `RETAIN_AI_PORT` | `41100` | 监听端口 |
 | `RETAIN_AI_MAX_TOOL_ROUNDS` | `6` | agent 工具轮数上限 |
+| `RETAIN_AI_MEMORY_WINDOW_TURNS` | `6` | 近期保留对话轮数 |
+| `RETAIN_AI_MEMORY_COMPRESS_AFTER_TURNS` | `12` | 超过则抽取式压缩早期轮次 |
+| `RETAIN_AI_MEMORY_MAX_CHARS` | `24000` | 喂给模型的 history 字符上限 |
 | `RETAIN_AI_DATA_ROOT` | `<repo>/data` | 任务产物根目录 |
 
 ## 调用示例

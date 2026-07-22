@@ -14,8 +14,6 @@ const GROUPS = [
   {
     name: "reader 页/阅读器组件",
     files: [
-      join(STYLES_ROOT, "reader-page.css"),
-      join(STYLES_ROOT, "reader.css"),
       ...readdirSync(join(STYLES_ROOT, "reader"))
         .filter((f) => f.endsWith(".css"))
         .map((f) => join(STYLES_ROOT, "reader", f)),

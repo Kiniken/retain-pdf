@@ -1,14 +1,19 @@
 use anyhow::{Context, Result};
 use rusqlite::{params, OptionalExtension};
 
-use crate::models::domain::now_iso;
 use crate::models::api::{ConversationRecord, MessageRecord};
+use crate::models::domain::now_iso;
 
 use super::Db;
 
 const CONVERSATION_COLUMNS: &str =
     "c.conversation_id, c.title, c.document_id, c.created_at, c.updated_at,
-     (SELECT COUNT(*) FROM ai_messages m WHERE m.conversation_id = c.conversation_id)";
+     (SELECT COUNT(*) FROM ai_messages m WHERE m.conversation_id = c.conversation_id),
+     COALESCE(c.head_id, '')";
+
+const MESSAGE_COLUMNS: &str = "message_id, conversation_id, seq, role, content,
+                   citations_json, tool_trace_json, model, created_at,
+                   COALESCE(parent_id, '')";
 
 impl Db {
     pub fn create_conversation(
@@ -21,8 +26,8 @@ impl Db {
         let now = now_iso();
         conn.execute(
             r#"
-            INSERT INTO ai_conversations (conversation_id, title, document_id, created_at, updated_at)
-            VALUES (?1, ?2, ?3, ?4, ?4)
+            INSERT INTO ai_conversations (conversation_id, title, document_id, created_at, updated_at, head_id)
+            VALUES (?1, ?2, ?3, ?4, ?4, '')
             "#,
             params![conversation_id, title, document_id, now],
         )?;
@@ -57,6 +62,29 @@ impl Db {
         Ok(conversations)
     }
 
+    pub fn list_conversations_for_document(
+        &self,
+        document_id: &str,
+        limit: u32,
+        offset: u32,
+    ) -> Result<Vec<ConversationRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {CONVERSATION_COLUMNS} FROM ai_conversations c
+             WHERE c.document_id = ?1
+             ORDER BY c.updated_at DESC LIMIT ?2 OFFSET ?3"
+        ))?;
+        let rows = stmt.query_map(
+            params![document_id, limit as i64, offset as i64],
+            row_to_conversation,
+        )?;
+        let mut conversations = Vec::new();
+        for row in rows {
+            conversations.push(row?);
+        }
+        Ok(conversations)
+    }
+
     pub fn delete_conversation(&self, conversation_id: &str) -> Result<bool> {
         let conn = self.connect()?;
         let changed = conn.execute(
@@ -66,20 +94,53 @@ impl Db {
         Ok(changed > 0)
     }
 
+    pub fn set_conversation_head(
+        &self,
+        conversation_id: &str,
+        head_id: &str,
+    ) -> Result<Option<ConversationRecord>> {
+        let conn = self.connect()?;
+        let now = now_iso();
+        let changed = conn.execute(
+            "UPDATE ai_conversations SET head_id = ?1, updated_at = ?2 WHERE conversation_id = ?3",
+            params![head_id, now, conversation_id],
+        )?;
+        if changed == 0 {
+            return Ok(None);
+        }
+        self.get_conversation(conversation_id)
+    }
+
+    pub fn patch_conversation_title(
+        &self,
+        conversation_id: &str,
+        title: &str,
+    ) -> Result<Option<ConversationRecord>> {
+        let conn = self.connect()?;
+        let now = now_iso();
+        let changed = conn.execute(
+            "UPDATE ai_conversations SET title = ?1, updated_at = ?2 WHERE conversation_id = ?3",
+            params![title, now, conversation_id],
+        )?;
+        if changed == 0 {
+            return Ok(None);
+        }
+        self.get_conversation(conversation_id)
+    }
+
+    /// 返回会话内全部消息(按 seq 升序),供前端重建分支树。
     pub fn list_messages(&self, conversation_id: &str, limit: u32) -> Result<Vec<MessageRecord>> {
         let conn = self.connect()?;
-        // 取最近 limit 条,但按时间正序返回(直接作为 LLM 上下文的顺序)
-        let mut stmt = conn.prepare(
+        // 分支树需要全量(或大窗口);仍按 seq 正序,便于 fromBranchableArray 父先于子。
+        let mut stmt = conn.prepare(&format!(
             r#"
-            SELECT message_id, conversation_id, seq, role, content,
-                   citations_json, tool_trace_json, model, created_at
-            FROM (
-                SELECT * FROM ai_messages
-                WHERE conversation_id = ?1
-                ORDER BY seq DESC LIMIT ?2
-            ) ORDER BY seq ASC
-            "#,
-        )?;
+            SELECT {MESSAGE_COLUMNS}
+            FROM ai_messages
+            WHERE conversation_id = ?1
+            ORDER BY seq ASC
+            LIMIT ?2
+            "#
+        ))?;
         let rows = stmt.query_map(params![conversation_id, limit as i64], row_to_message)?;
         let mut messages = Vec::new();
         for row in rows {
@@ -88,7 +149,26 @@ impl Db {
         Ok(messages)
     }
 
-    /// 追加消息:seq 自增、刷新会话时间;会话标题为空时取首条 user 消息前缀。
+    pub fn get_message(
+        &self,
+        conversation_id: &str,
+        message_id: &str,
+    ) -> Result<Option<MessageRecord>> {
+        let conn = self.connect()?;
+        let record = conn
+            .query_row(
+                &format!(
+                    "SELECT {MESSAGE_COLUMNS} FROM ai_messages
+                     WHERE conversation_id = ?1 AND message_id = ?2"
+                ),
+                params![conversation_id, message_id],
+                row_to_message,
+            )
+            .optional()?;
+        Ok(record)
+    }
+
+    /// 追加消息:seq 自增、刷新会话时间与 head;会话标题为空时取首条 user 消息前缀。
     pub fn append_message(
         &self,
         conversation_id: &str,
@@ -98,6 +178,8 @@ impl Db {
         citations_json: &str,
         tool_trace_json: &str,
         model: &str,
+        parent_id: &str,
+        set_head: bool,
     ) -> Result<MessageRecord> {
         let mut conn = self.connect()?;
         let now = now_iso();
@@ -107,12 +189,13 @@ impl Db {
             params![conversation_id],
             |row| row.get(0),
         )?;
+        let parent = parent_id.trim();
         tx.execute(
             r#"
             INSERT INTO ai_messages (
                 message_id, conversation_id, seq, role, content,
-                citations_json, tool_trace_json, model, created_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                citations_json, tool_trace_json, model, created_at, parent_id
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
             "#,
             params![
                 message_id,
@@ -124,12 +207,20 @@ impl Db {
                 tool_trace_json,
                 model,
                 now,
+                parent,
             ],
         )?;
-        tx.execute(
-            "UPDATE ai_conversations SET updated_at = ?1 WHERE conversation_id = ?2",
-            params![now, conversation_id],
-        )?;
+        if set_head {
+            tx.execute(
+                "UPDATE ai_conversations SET updated_at = ?1, head_id = ?2 WHERE conversation_id = ?3",
+                params![now, message_id, conversation_id],
+            )?;
+        } else {
+            tx.execute(
+                "UPDATE ai_conversations SET updated_at = ?1 WHERE conversation_id = ?2",
+                params![now, conversation_id],
+            )?;
+        }
         if role == "user" {
             let title: String = content.chars().take(40).collect();
             tx.execute(
@@ -148,6 +239,7 @@ impl Db {
             tool_trace_json: tool_trace_json.to_string(),
             model: model.to_string(),
             created_at: now,
+            parent_id: parent.to_string(),
         })
     }
 }
@@ -160,6 +252,7 @@ fn row_to_conversation(row: &rusqlite::Row<'_>) -> rusqlite::Result<Conversation
         created_at: row.get(3)?,
         updated_at: row.get(4)?,
         message_count: row.get(5)?,
+        head_id: row.get(6).unwrap_or_default(),
     })
 }
 
@@ -174,5 +267,6 @@ fn row_to_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageRecord> {
         tool_trace_json: row.get(6)?,
         model: row.get(7)?,
         created_at: row.get(8)?,
+        parent_id: row.get(9).unwrap_or_default(),
     })
 }

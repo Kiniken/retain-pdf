@@ -19,7 +19,7 @@ function paneStyle(pane: ReaderPdfPane): CSSProperties {
     overflowX: "clip",
     // 旧布局里译文面板的分栏细线(.reader-panel + .reader-panel 规则的等价复刻)
     ...(pane === "translated"
-      ? { borderLeft: "1px solid rgba(15, 23, 42, 0.04)" }
+      ? { borderLeft: "1px solid color-mix(in srgb, var(--shadow-color) 4%, transparent)" }
       : null),
   };
 }

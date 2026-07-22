@@ -19,9 +19,9 @@ import { BookListRow } from "../shell/BookListRow.jsx";
 import { LibraryToolbar } from "./LibraryToolbar.jsx";
 import { LibraryFilterMenu, matchesLibraryFilter } from "./LibraryFilterMenu.jsx";
 import { LibraryBatchToolbar } from "./LibraryBatchToolbar.jsx";
-import { ContinueReadingShelf } from "../display/ContinueReadingShelf.jsx";
 import { useLibraryAutoLoad } from "./useLibraryAutoLoad.js";
 import { useHomeReturnRestore } from "./useHomeReturnRestore.js";
+import { EmptyState } from "../../../../../shared/icons/EmptyState.jsx";
 import {
   buildRecentJobsSummaryViewModel,
   HOME_LOADING_STATES,
@@ -194,26 +194,31 @@ export function RecentJobsLibrary({ onBatchModeChange }: any = {}) {
     viewPort.handlersRef.current.onLoadMore?.();
   }
 
-  // 继续阅读:已翻译 → 对照阅读;否则 → 读原文。
-  function handleContinueRead(item) {
-    if (`${item.status || ""}`.trim() === "succeeded") {
-      actions.openJobReader(`${item.job_id || ""}`.trim());
-      return;
-    }
-    const documentId = `${item.document_id || ""}`.trim();
-    if (documentId) {
-      actions.openSourceReader(documentId);
-    }
-  }
-
   return (
     <section id="library-view" className="library-view" aria-label="图书馆">
       <div id="recent-jobs-scroll-body" className="library-scroll-body" ref={scrollBodyRef}>
         <div id="recent-jobs-summary" className="status-panel-note library-summary">{summary.text}</div>
-        <div id="recent-jobs-empty" className={`events-empty${mode === "list" ? " hidden" : ""}`}>
-          {mode === "loading" ? "正在加载最近任务…" : (mode === "error" ? errorMessage : emptyMessage)}
+        <div id="recent-jobs-empty" className={mode === "list" ? "hidden" : undefined}>
+          {mode === "loading" ? (
+            <div className="events-empty">正在加载最近任务…</div>
+          ) : mode === "error" ? (
+            <div className="events-empty">{errorMessage}</div>
+          ) : (
+            <EmptyState
+              instrument="microscope"
+              title={emptyMessage || "暂无最近任务"}
+              hint="上传 PDF 后会出现在这里，处理完成即可阅读。"
+            >
+              <button
+                type="button"
+                className="app-button empty-state-action"
+                onClick={() => services.workflowDialog.requestOpenUpload()}
+              >
+                上传 PDF
+              </button>
+            </EmptyState>
+          )}
         </div>
-        {mode === "list" ? <ContinueReadingShelf items={items} onOpen={handleContinueRead} /> : null}
         {mode === "list" ? (
           <LibraryToolbar
             count={visibleItems.length}

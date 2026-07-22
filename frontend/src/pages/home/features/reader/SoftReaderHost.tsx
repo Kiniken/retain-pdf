@@ -11,24 +11,33 @@ import {
 } from "../../../../shared/navigation/soft-reader.js";
 
 export function SoftReaderHost() {
-  const [url, setUrl] = useState<string | null>(null);
+  const [frame, setFrame] = useState<{ url: string; nonce: number } | null>(null);
 
   useEffect(() => {
+    function openUrl(nextUrl: string, nonce = Date.now()) {
+      const next = `${nextUrl || ""}`.trim();
+      if (!next) return;
+      // 强制换 key 重挂 iframe，避免同 URL 二次打开仍空白
+      setFrame({ url: next, nonce });
+    }
+
     function onOpen(event: Event) {
-      const next = `${(event as CustomEvent)?.detail?.url || ""}`.trim();
-      if (next) setUrl(next);
+      const detail = (event as CustomEvent)?.detail || {};
+      const next = `${detail.url || ""}`.trim();
+      const nonce = Number(detail.nonce) || Date.now();
+      openUrl(next, nonce);
     }
 
     function onForceClose() {
-      setUrl(null);
+      setFrame(null);
     }
 
     function onPopState() {
       if (isSoftReaderHistoryState(window.history.state) && window.history.state.readerUrl) {
-        setUrl(window.history.state.readerUrl);
+        openUrl(window.history.state.readerUrl);
         return;
       }
-      setUrl(null);
+      setFrame(null);
     }
 
     function onMessage(event: MessageEvent) {
@@ -54,13 +63,13 @@ export function SoftReaderHost() {
   }, []);
 
   useEffect(() => {
-    document.body.classList.toggle("is-soft-reader-open", Boolean(url));
+    document.body.classList.toggle("is-soft-reader-open", Boolean(frame));
     return () => {
       document.body.classList.remove("is-soft-reader-open");
     };
-  }, [url]);
+  }, [frame]);
 
-  if (!url) return null;
+  if (!frame) return null;
 
   return (
     <div
@@ -69,13 +78,15 @@ export function SoftReaderHost() {
       role="dialog"
       aria-modal="true"
       aria-label="阅读器"
+      data-soft-reader-url={frame.url}
     >
       <iframe
         id="soft-reader-frame"
-        key={url}
+        key={`${frame.nonce}:${frame.url}`}
         className="soft-reader-frame"
         title="阅读器"
-        src={url}
+        src={frame.url}
+        // 允许同源脚本；阅读器在 iframe 内跑自己的 bundle
       />
     </div>
   );

@@ -40,7 +40,9 @@ export async function persistDesktopCredentialsFromDialog({
 }: any) {
   const provider = currentOcrProvider();
   const paddleToken = values.paddleToken;
-  const modelApiKey = values.modelApiKey || defaultModelApiKey?.() || "";
+  // 与浏览器一致：只存用户在设置里填的 Key，不从 runtime 静默回填
+  void defaultModelApiKey;
+  const modelApiKey = `${values.modelApiKey || ""}`.trim();
   await saveDesktopConfig?.(
     {
       ocrProvider: provider,

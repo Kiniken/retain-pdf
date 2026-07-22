@@ -140,12 +140,12 @@
 
   &[data-status='succeeded'] .status-core {
     background: var(--ink);
-    box-shadow: 0 0 0 10px rgba(52, 199, 89, 0.12);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--ok) 12%, transparent);
   }
 
   &[data-status='failed'] .status-core {
     background: var(--ink);
-    box-shadow: 0 0 0 10px rgba(255, 59, 48, 0.12);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--danger) 12%, transparent);
   }
 
   & .progress-track {
@@ -169,7 +169,7 @@
 
 
 @utility advanced-panel {
-  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--shadow-color) 5%, transparent);
 }
 
 
@@ -184,7 +184,7 @@
   color: var(--ink);
 
   &.is-nudged {
-    box-shadow: 0 0 0 6px rgba(29, 29, 31, 0.05);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--ink) 5%, transparent);
   }
 
   & svg {
@@ -196,7 +196,7 @@
 
 @utility is-nudged {
   &.icon-button {
-    box-shadow: 0 0 0 6px rgba(29, 29, 31, 0.05);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--ink) 5%, transparent);
   }
 }
 
@@ -272,12 +272,13 @@
 
 
 @utility app-button {
-  @apply inline-flex min-h-12 items-center justify-center rounded-full px-5 text-[15px] font-semibold no-underline transition;
+  @apply inline-flex min-h-12 items-center justify-center px-5 text-[15px] font-semibold no-underline transition;
+  /* 形态/主色走 L3 token（themes/_component-defaults.css），皮肤可换按钮气质 */
+  border-radius: var(--btn-radius);
   border: 1px solid transparent;
-  /* 主按钮走 accent，换肤后铜绿/海青/夜色高亮都能跟上 */
-  background: var(--accent);
-  color: var(--paper);
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 22%, transparent);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--btn-primary-bg) 22%, transparent);
   cursor: pointer;
 
   &:hover {
@@ -405,7 +406,7 @@
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  border: 1px solid rgba(29, 29, 31, 0.12);
+  border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
   transform: scale(0.72);
   opacity: 0;
 
@@ -425,7 +426,7 @@
   border-radius: 999px;
   inset: 19px;
   background: var(--ink);
-  box-shadow: 0 0 0 10px rgba(29, 29, 31, 0.06);
+  box-shadow: 0 0 0 10px color-mix(in srgb, var(--ink) 6%, transparent);
 
   .status-card[data-status='queued'] & {
     animation: coreBreath 1.8s ease-in-out infinite;
@@ -437,12 +438,12 @@
 
   .status-card[data-status='succeeded'] & {
     background: var(--ink);
-    box-shadow: 0 0 0 10px rgba(52, 199, 89, 0.12);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--ok) 12%, transparent);
   }
 
   .status-card[data-status='failed'] & {
     background: var(--ink);
-    box-shadow: 0 0 0 10px rgba(255, 59, 48, 0.12);
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--danger) 12%, transparent);
   }
 }
 

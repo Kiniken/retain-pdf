@@ -159,10 +159,45 @@ function createDesktopWindows(app, options = {}) {
     });
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-      shell.openExternal(url);
+      const target = `${url || ""}`.trim();
+      if (!target || target === "about:blank") {
+        return { action: "deny" };
+      }
+      // 应用内页面：在主窗口打开，禁止 shell.openExternal（否则像「乱跳浏览器」）。
+      // 也不要 silent deny，否则对照阅读入口会「点了没反应」。
+      try {
+        const next = new URL(target);
+        let current = null;
+        try {
+          current = new URL(mainWindow.webContents.getURL() || "http://127.0.0.1/");
+        } catch {
+          current = null;
+        }
+        const sameOrigin = current && next.origin === current.origin;
+        const isAppHtml = /\/(reader|index|detail)\.html(?:[?#]|$)/i.test(next.pathname);
+        const isLocalDev = /^(localhost|127\.0\.0\.1)$/i.test(next.hostname || "");
+        if (next.protocol === "file:" || sameOrigin || (isLocalDev && isAppHtml)) {
+          logDesktop(`[desktop] in-app navigate (no openExternal): ${target}`);
+          // 主窗口内导航，保证「对照阅读」等入口可用
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.loadURL(target).catch((err) => {
+              logDesktopError(`[desktop] loadURL failed: ${err?.message || err}`);
+            });
+          }
+          return { action: "deny" };
+        }
+        if (next.protocol === "http:" || next.protocol === "https:") {
+          shell.openExternal(target);
+        }
+      } catch (err) {
+        logDesktopError(`[desktop] windowOpenHandler parse failed: ${err?.message || err}`);
+      }
       return { action: "deny" };
     });
   }
+
+
+
 
   function showExistingDesktopWindow(splashWindow) {
     if (mainWindow && !mainWindow.isDestroyed()) {

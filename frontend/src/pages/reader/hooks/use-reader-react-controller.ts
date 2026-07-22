@@ -1,6 +1,6 @@
-// Composes full react-pdf reader logic (session → shell → panes → notes → HUD).
+// Composes full react-pdf reader logic (session → shell → panes → tools → HUD).
 
-import { useCallback, useEffect, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, type RefObject } from "react";
 import { useReaderSession } from "./use-reader-session.js";
 import { useReaderKeyboard } from "./use-reader-keyboard.js";
 import { useReaderShell } from "./use-reader-shell.js";
@@ -9,9 +9,11 @@ import { useReaderZoom } from "./use-reader-zoom.js";
 import { useReaderModeNavigation } from "./use-reader-mode-navigation.js";
 import { useReaderAnnotations } from "./use-reader-annotations.js";
 import { useReaderTextSelection } from "./use-reader-text-selection.js";
+import { useReaderTools, type ReaderToolsApi } from "./use-reader-tools.js";
 import { useCurrentPage } from "../pdf/useCurrentPage.js";
 import { usePageRowSync } from "../pdf/usePageRowSync.js";
 import { useReadingAnchor } from "../pdf/useReadingAnchor.js";
+import { useUrlAnchorJump } from "./use-url-anchor-jump.js";
 import type { PageRowHeights } from "../pdf/usePageRowSync.js";
 import type { ReaderMode, ReaderSessionState } from "./use-reader-session.js";
 import type { ProtectedPdfFile } from "../pdf/useProtectedPdfFile.js";
@@ -46,6 +48,7 @@ export type ReaderReactController = {
   goToPage: (page: number) => void;
   setModeKeepingPage: (next: ReaderMode) => void;
   showHud: boolean;
+  tools: ReaderToolsApi;
   notes: ReaderAnnotationsApi;
   selection: ReaderTextSelection | null;
   clearSelection: () => void;
@@ -58,6 +61,7 @@ export type ReaderReactController = {
 
 export function useReaderReactController(): ReaderReactController {
   const session = useReaderSession();
+  const tools = useReaderTools();
   const { shellRef, shellEl, shellWidth, compareColWidth, bindShell } = useReaderShell();
   const { userZoom, onZoomChange } = useReaderZoom(session.mode, shellRef);
 
@@ -104,8 +108,22 @@ export function useReaderReactController(): ReaderReactController {
   );
 
   const goToPage = useCallback((page: number) => {
-    goToPageWithTotal(page, panes.hudNumPages || 1);
-  }, [goToPageWithTotal, panes.hudNumPages]);
+    // 取已加载栏的最大页数；未知时传 0，由 clampPageNumber 放行目标页
+    const total = Math.max(
+      Number(panes.hudNumPages) || 0,
+      Number(panes.primaryNumPages) || 0,
+      Number(panes.numPagesByPane?.source) || 0,
+      Number(panes.numPagesByPane?.translated) || 0,
+    );
+    goToPageWithTotal(page, total);
+  }, [goToPageWithTotal, panes.hudNumPages, panes.primaryNumPages, panes.numPagesByPane]);
+
+  // 收藏 / 搜索回跳：URL ?page_idx= → 页码（0 基 → 1 基）
+  useUrlAnchorJump({
+    enabled: !session.boot.loading && !session.boot.failed && session.assetsReady,
+    numPages: panes.hudNumPages || 0,
+    goToPage,
+  });
 
   const { setModeKeepingPage } = useReaderModeNavigation({
     mode: session.mode,
@@ -113,10 +131,17 @@ export function useReaderReactController(): ReaderReactController {
     beginModeSwitch,
   });
 
-  const notes = useReaderAnnotations({
-    jobId: session.jobId,
-    documentId: session.documentId,
-  });
+  const openNotes = useCallback(() => {
+    tools.open("notes");
+  }, [tools]);
+
+  const notes = useReaderAnnotations(
+    {
+      jobId: session.jobId,
+      documentId: session.documentId,
+    },
+    { onAfterAdd: openNotes },
+  );
 
   const { selection, clearSelection } = useReaderTextSelection(
     shellRef,
@@ -158,6 +183,9 @@ export function useReaderReactController(): ReaderReactController {
     enabled: showHud,
   });
 
+  // tools 对象引用稳定到 active 变化时
+  const toolsApi = useMemo(() => tools, [tools.active, tools.open, tools.close, tools.toggle, tools.isOpen]);
+
   return {
     session,
     boot: session.boot,
@@ -179,6 +207,7 @@ export function useReaderReactController(): ReaderReactController {
     setModeKeepingPage,
     download: session.download,
     showHud,
+    tools: toolsApi,
     notes,
     selection,
     clearSelection,

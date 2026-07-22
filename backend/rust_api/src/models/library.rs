@@ -69,6 +69,7 @@ pub struct AssetRecord {
 }
 
 /// AI 问答会话。document_id 为空 = 全库问答。
+/// head_id: 当前可见分支的叶消息 id(空 = 用 max(seq) 推断)。
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ConversationRecord {
     pub conversation_id: String,
@@ -78,9 +79,13 @@ pub struct ConversationRecord {
     pub updated_at: String,
     #[serde(default)]
     pub message_count: i64,
+    /// 当前可见叶;空字符串表示未显式设置。
+    #[serde(default)]
+    pub head_id: String,
 }
 
 /// 会话消息。citations_json 是软锚点快照:job 删除后跳转失效但内容不丢。
+/// parent_id: 树边;空 = 根。同 parent 的多条为分支兄弟(重试/编辑)。
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MessageRecord {
     pub message_id: String,
@@ -92,6 +97,9 @@ pub struct MessageRecord {
     pub tool_trace_json: String,
     pub model: String,
     pub created_at: String,
+    /// 父消息 id;空字符串 = 根节点。
+    #[serde(default)]
+    pub parent_id: String,
 }
 
 /// 分类文件夹(合集)。v1 只用扁平结构展示,parent_id 为未来嵌套子分类预留
@@ -215,6 +223,9 @@ pub struct SearchQuery {
     pub q: String,
     #[serde(default = "default_search_limit")]
     pub limit: u32,
+    /// 限定单文档（阅读器 / AI 整本问答）；空 = 全库
+    #[serde(default)]
+    pub document_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -243,6 +254,9 @@ pub struct ListConversationsQuery {
     pub limit: u32,
     #[serde(default)]
     pub offset: u32,
+    /// 按文档过滤;空 = 全部。
+    #[serde(default)]
+    pub document_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -267,6 +281,28 @@ pub struct AppendMessageInput {
     pub tool_trace_json: String,
     #[serde(default)]
     pub model: String,
+    /// 父消息 id;省略/空 = 挂到当前 head(线性续写)。
+    #[serde(default)]
+    pub parent_id: String,
+    /// 客户端稳定 id(与 assistant-ui store id 对齐);空则服务端生成。
+    #[serde(default)]
+    pub message_id: String,
+    /// 追加后是否把 head 指到本条;默认 true。
+    #[serde(default = "default_true")]
+    pub set_head: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PatchConversationInput {
+    /// 切换可见分支叶节点。
+    #[serde(default)]
+    pub head_id: String,
+    #[serde(default)]
+    pub title: String,
 }
 
 #[derive(Debug, Serialize)]

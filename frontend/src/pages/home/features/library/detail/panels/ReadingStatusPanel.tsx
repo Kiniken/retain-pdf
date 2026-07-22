@@ -29,7 +29,7 @@ export function ReadingStatusPanel({ value, busy, onChange }) {
               "book-detail-reading-btn border-r border-border px-4 py-1.5 text-xs last:border-r-0 disabled:opacity-60",
               value === s.value
                 ? "is-active bg-primary text-primary-foreground"
-                : "bg-white text-muted-foreground hover:bg-accent",
+                : "bg-paper text-muted-foreground hover:bg-accent",
             )}
           >
             {s.label}

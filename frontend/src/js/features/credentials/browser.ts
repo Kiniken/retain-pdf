@@ -228,6 +228,7 @@ export function mountBrowserCredentialsFeature({
       credentials: readCurrentCredentials(),
       taskOptions: getTaskOptions?.() || {},
       defaultModelBaseUrl,
+      defaultModelApiKey,
       elementsPort: dialogElementsPort,
     });
     viewPort.setOcrValidationMessage("", "", "paddle");
@@ -252,6 +253,17 @@ export function mountBrowserCredentialsFeature({
     setCredentialDialogMode(!!options.setupMode);
     activateCredentialTab("api");
     viewPort.openDialog();
+  }
+
+  /**
+   * 设置面板内嵌模式（SettingsHubDialog API 区）：只做"从凭据状态回填表单 +
+   * 复位到 api tab"，不经 viewPort.openDialog()——表单宿主是设置面板本身，
+   * 没有独立弹窗可开。首次配置门（setupMode）仍走 openBrowserCredentialsDialog。
+   */
+  function prepareCredentialsPanels() {
+    syncBrowserDialogFromCredentialState();
+    setCredentialDialogMode(false);
+    activateCredentialTab("api");
   }
 
   async function ensureOcrCredentialsReady({
@@ -454,6 +466,7 @@ export function mountBrowserCredentialsFeature({
     ensureOcrCredentialsReady,
     hasBrowserCredentials,
     openBrowserCredentialsDialog,
+    prepareCredentialsPanels,
     refreshDeepSeekBalance,
     setDialogStatus: viewPort.setDialogStatus,
     updateCredentialGate,

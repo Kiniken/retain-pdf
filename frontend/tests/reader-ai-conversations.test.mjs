@@ -154,10 +154,10 @@ test("会话切换栏:提交后下拉出现带标题的选项", async () => {
   );
 });
 
-test("提交状态流转:完成后状态为「后端阅读问答已完成」,输入框清空", async () => {
+test("提交状态流转:完成后状态为「可以继续提问」,输入框清空", async () => {
   const { controller } = await makeChat();
   await controller().submit("状态流转问题");
-  await waitFor(() => statusText() === "后端阅读问答已完成", "终态状态落定");
+  await waitFor(() => statusText() === "可以继续提问", "终态状态落定");
   assert.equal(documentRef.getElementById("reader-ai-input").value, "");
   const texts = bubbleTexts();
   assert.equal(texts.length, 2);
@@ -183,7 +183,7 @@ test("后端 502 时回退本地检索:状态与气泡注记", async () => {
   });
   await controller().submit("Explain fallback");
 
-  await waitFor(() => statusText() === "已回退到 Markdown 本地检索", "回退状态落定");
+  await waitFor(() => statusText() === "已用本地检索回答", "回退状态落定");
   const assistantText = bubbleTexts().at(-1);
   assert.match(assistantText, /Local fallback/);
   assert.match(assistantText, /引用/);

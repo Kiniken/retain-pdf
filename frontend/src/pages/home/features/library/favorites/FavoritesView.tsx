@@ -4,11 +4,14 @@
 // 首版：拉全量 favorites → 空态 / 列表；点一项带锚点打开阅读器。
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   API_PREFIX,
   APP_EVENTS,
   fetchFavorites,
 } from "../../../composition/external.js";
+import { useHomeServices } from "../../../home-services-context.js";
+import { EmptyState } from "../../../../../shared/icons/EmptyState.jsx";
 
 type FavoriteItem = {
   favorite_id?: string;
@@ -37,10 +40,12 @@ function formatPage(pageIdx: unknown) {
   return `第 ${n + 1} 页`;
 }
 
-function openFavoriteInReader(item: FavoriteItem) {
+function openFavoriteInReader(item: FavoriteItem): boolean {
   const jobId = `${item.job_id || ""}`.trim();
   const documentId = `${item.document_id || ""}`.trim();
-  if (!jobId && !documentId) return;
+  if (!jobId && !documentId) {
+    return false;
+  }
 
   const pageIdx = Number(item.page_idx);
   const detail = {
@@ -52,10 +57,13 @@ function openFavoriteInReader(item: FavoriteItem) {
 
   if (typeof document?.dispatchEvent === "function" && typeof CustomEvent === "function") {
     document.dispatchEvent(new CustomEvent(APP_EVENTS.openReaderRequested, { detail }));
+    return true;
   }
+  return false;
 }
 
 export function FavoritesView() {
+  const services = useHomeServices();
   const [items, setItems] = useState<FavoriteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -96,17 +104,21 @@ export function FavoritesView() {
           </button>
         </div>
       ) : items.length === 0 ? (
-        <div className="events-empty favorites-empty" id="favorites-empty">
-          <div className="favorites-empty-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-          <p className="favorites-empty-title">还没有收藏</p>
-          <p className="favorites-empty-hint">
-            打开一本书，选中段落或图表后点「收藏」，之后就能在这里快速跳回原文。
-          </p>
-        </div>
+        <EmptyState
+          id="favorites-empty"
+          className="favorites-empty"
+          instrument="flask"
+          title="还没有收藏"
+          hint="打开一本书，选中段落或图表后点「收藏」，之后就能在这里快速跳回原文。"
+        >
+          <button
+            type="button"
+            className="app-button empty-state-action"
+            onClick={() => services.workflowDialog.requestOpenUpload()}
+          >
+            上传 PDF
+          </button>
+        </EmptyState>
       ) : (
         <ul id="favorites-list" className="favorites-list">
           {items.map((item) => {
@@ -121,7 +133,11 @@ export function FavoritesView() {
                   type="button"
                   className="favorites-card"
                   data-favorite-id={id}
-                  onClick={() => openFavoriteInReader(item)}
+                  onClick={() => {
+                    if (!openFavoriteInReader(item)) {
+                      toast.error("无法打开：缺少关联书籍信息");
+                    }
+                  }}
                 >
                   <div className="favorites-card-meta">
                     <span className="favorites-card-kind">{kind}</span>

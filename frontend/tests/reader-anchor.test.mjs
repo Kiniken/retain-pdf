@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { resolveReaderAnchor } from "../src/js/reader/page-config.js";
 import { buildReaderPageUrl } from "../src/js/job/action-model.js";
+import { pageNumberFromUrlAnchor } from "../src/pages/reader/hooks/use-url-anchor-jump.ts";
 
 test("resolveReaderAnchor 解析 page_idx/block_id,两者皆缺返回 null", () => {
   assert.deepEqual(resolveReaderAnchor({ search: "?job_id=j&page_idx=3&block_id=b-9" }), {
@@ -22,4 +23,12 @@ test("buildReaderPageUrl 透传锚点参数,page_idx=0 不丢失", () => {
   const plain = new URL(buildReaderPageUrl("job-1"));
   assert.equal(plain.searchParams.get("page_idx"), null);
   assert.equal(plain.searchParams.get("block_id"), null);
+});
+
+test("pageNumberFromUrlAnchor: 0 基 page_idx → 1 基页码", () => {
+  assert.equal(pageNumberFromUrlAnchor({ pageIdx: 0, blockId: "" }), 1);
+  assert.equal(pageNumberFromUrlAnchor({ pageIdx: 3, blockId: "b-9" }), 4);
+  assert.equal(pageNumberFromUrlAnchor({ pageIdx: null, blockId: "b-1" }), null);
+  assert.equal(pageNumberFromUrlAnchor(null), null);
+  assert.equal(pageNumberFromUrlAnchor({ pageIdx: -1, blockId: "" }), null);
 });

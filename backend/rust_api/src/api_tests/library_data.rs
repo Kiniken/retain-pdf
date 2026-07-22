@@ -573,6 +573,63 @@ async fn conversation_lifecycle_and_message_appending() {
         .as_str()
         .unwrap()
         .contains("ref"));
+    // head 落在最后一条;assistant 的 parent 为 user
+    assert_eq!(
+        payload["data"]["head_id"].as_str().unwrap(),
+        payload["data"]["messages"][1]["message_id"].as_str().unwrap()
+    );
+    let user_id = payload["data"]["messages"][0]["message_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        payload["data"]["messages"][1]["parent_id"].as_str().unwrap(),
+        user_id
+    );
+
+    // 分支:同 parent 再挂一条 assistant,并 PATCH head 切回第一条
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/ai/conversations/{conversation_id}/messages"))
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "role": "assistant",
+                        "content": "分支回答 B",
+                        "parent_id": user_id,
+                        "message_id": "msg-branch-b",
+                    })
+                    .to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("branch message");
+    assert_eq!(response.status(), StatusCode::OK);
+    let branch_payload = json_response(response).await;
+    assert_eq!(branch_payload["data"]["message_id"], "msg-branch-b");
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!("/api/v1/ai/conversations/{conversation_id}"))
+                .header("X-API-Key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "head_id": user_id }).to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("patch head");
+    // head 不能指向 user 若我们允许任何消息——我们允许任意 message_id 在会话内
+    assert_eq!(response.status(), StatusCode::OK);
 
     // 非法 role 被拒
     let response = app

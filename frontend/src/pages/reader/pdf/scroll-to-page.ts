@@ -243,13 +243,15 @@ export function alignShellToPage(
 }
 
 export function clampPageNumber(page: number, numPages: number): number {
-  if (!Number.isFinite(numPages) || numPages <= 0) {
-    return 1;
-  }
   if (!Number.isFinite(page)) {
     return 1;
   }
-  return Math.min(numPages, Math.max(1, Math.floor(page)));
+  const target = Math.max(1, Math.floor(page));
+  // 总页未知时不要钳到 1（AI 引用跳转会因此全落第 1 页）
+  if (!Number.isFinite(numPages) || numPages <= 0) {
+    return target;
+  }
+  return Math.min(numPages, target);
 }
 
 export function cloneProgress(p: PageScrollProgress): PageScrollProgress {

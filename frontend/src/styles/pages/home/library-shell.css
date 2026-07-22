@@ -13,7 +13,13 @@
   justify-content: flex-start;
   max-width: none;
   gap: 0;
-  padding: 0 clamp(18px, 4vw, 56px);
+  /* 廊道密度走 L3 token（themes/_component-defaults.css），皮肤可覆盖；
+   * 窄屏值默认跟随常规值，皮肤想收窄只覆盖 --shell-pad-inline-narrow */
+  padding: 0 var(--shell-pad-inline);
+
+  @media (max-width: 900px) {
+    padding: 0 var(--shell-pad-inline-narrow);
+  }
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -30,13 +36,18 @@
   position: fixed;
   inset: 0;
   z-index: 10050;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   background: var(--bg);
+  display: block;
 }
 
 .soft-reader-frame {
   display: block;
   width: 100%;
   height: 100%;
+  min-height: 100%;
   border: 0;
   background: var(--bg);
 }
@@ -53,14 +64,14 @@ body.is-soft-reader-open {
     min-height: 32px;
     padding-inline: 10px;
     font-size: 12px;
-    border-radius: 999px;
+    border-radius: var(--btn-radius);
   }
 
   & .hero-actions .button-link {
     min-height: 32px;
     padding-inline: 10px;
     font-size: 12px;
-    border-radius: 999px;
+    border-radius: var(--btn-radius);
   }
 
   @media (max-width: 767px) {
@@ -72,11 +83,11 @@ body.is-soft-reader-open {
    浮在灰底页面上,不再是一条独立的白色圆角栏。添加/搜索/设置 三样已下沉到
    底部一条浮动栏(AppBottomBar.jsx / library-bottom-bar)。 */
 @utility app-shell-header {
-  width: min(1120px, 100%);
+  width: var(--header-width);
   flex: 0 0 auto;
   order: 0;
   margin-top: 6px;
-  margin-bottom: 16px;
+  margin-bottom: var(--header-gap-bottom);
 }
 
 @utility library-view {
@@ -121,7 +132,7 @@ body.is-soft-reader-open {
   border-radius: 999px;
   background: var(--paper);
   border: 1px solid var(--line);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--shadow-color) 6%, transparent);
 }
 
 /* 选中态用和"添加"按钮同一套实底深色(--ink)强对比。图标化:icon + 短文字
@@ -133,10 +144,16 @@ body.is-soft-reader-open {
   appearance: none;
   border: 0;
   background: transparent;
-  border-radius: 999px;
-  /* 三 tab（图书馆/合集/收藏）略收紧水平 padding，窄屏不易挤换行 */
-  padding: 7px 12px;
+  border-radius: var(--btn-radius);
+  /* 四 tab（图书馆/合集/收藏/AI）略收紧水平 padding，窄屏不易挤换行 */
+  padding: 7px 10px;
   font-size: 13px;
+
+  @media (max-width: 720px) {
+    gap: 4px;
+    padding: 6px 8px;
+    font-size: 12px;
+  }
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
@@ -149,8 +166,8 @@ body.is-soft-reader-open {
   }
 
   &.is-active {
-    background: var(--accent);
-    color: var(--paper);
+    background: var(--btn-primary-bg);
+    color: var(--btn-primary-fg);
   }
 
   &:hover:not(.is-active) {
@@ -233,12 +250,12 @@ body.is-soft-reader-open {
   background: var(--paper);
   padding: 14px 16px;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow-color) 4%, transparent);
   transition: transform 0.12s var(--ease-out), box-shadow 0.15s ease, border-color 0.15s ease;
 
   &:hover {
     border-color: color-mix(in srgb, var(--ink) 18%, var(--line));
-    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.07);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--shadow-color) 7%, transparent);
   }
 
   &:active {
@@ -288,6 +305,48 @@ body.is-soft-reader-open {
   color: var(--muted);
 }
 
+/* 统一空状态：科学仪器图标 + 标题 + 说明（EmptyState 组件） */
+@utility empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 36px 20px !important;
+}
+
+@utility empty-state-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--bg) 72%, var(--paper));
+  border: 1px solid var(--line);
+  margin-bottom: 6px;
+  opacity: 0.92;
+}
+
+@utility empty-state-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+@utility empty-state-hint {
+  margin: 0;
+  max-width: 28em;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+@utility empty-state-action {
+  margin-top: 12px;
+}
+
+/* 兼容旧 class 名（FavoritesView 仍挂 favorites-empty） */
 @utility favorites-empty {
   display: flex;
   flex-direction: column;
@@ -632,10 +691,10 @@ body.is-soft-reader-open {
   display: flex;
   min-height: 52px;
   padding: 8px;
-  border: 1px solid rgba(210, 210, 215, 0.82);
+  border: 1px solid color-mix(in srgb, color-mix(in srgb, var(--line) 85%, var(--muted)) 82%, transparent);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.12);
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  box-shadow: 0 18px 46px color-mix(in srgb, var(--shadow-color) 12%, transparent);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 
@@ -646,12 +705,12 @@ body.is-soft-reader-open {
     padding: 0 16px;
     border: 0;
     border-radius: 999px;
-    background: rgba(245, 245, 247, 0.86);
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
     color: var(--ink);
     font-size: 13px;
     font-weight: 500;
     outline: none;
-    box-shadow: inset 0 0 0 1px rgba(210, 210, 215, 0.56);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, color-mix(in srgb, var(--line) 85%, var(--muted)) 56%, transparent);
   }
 
   & input::placeholder {
@@ -757,7 +816,7 @@ body.is-soft-reader-open {
   justify-content: center;
   width: 40px;
   height: 40px;
-  border-radius: 999px;
+  border-radius: var(--btn-radius);
   border: 1px solid var(--line);
   background: var(--paper);
   color: var(--ink);
@@ -785,13 +844,13 @@ body.is-soft-reader-open {
   }
 
   &.primary {
-    border-color: var(--accent);
-    background: var(--accent);
-    color: var(--paper);
+    border-color: var(--btn-primary-bg);
+    background: var(--btn-primary-bg);
+    color: var(--btn-primary-fg);
   }
 
   &.primary:hover {
-    background: var(--accent);
+    background: var(--btn-primary-bg);
     filter: brightness(1.06);
   }
 
@@ -819,9 +878,9 @@ body.is-soft-reader-open {
   gap: 6px;
   padding: 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.82);
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
   border: 1px solid var(--line);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-color) 10%, transparent);
   backdrop-filter: blur(8px);
 
   @media (max-width: 767px) {
@@ -837,9 +896,9 @@ body.is-soft-reader-open {
   min-width: 48px;
   min-height: 36px;
   padding: 0 13px;
-  border: 1px solid rgba(210, 210, 215, 0.84);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid color-mix(in srgb, color-mix(in srgb, var(--line) 85%, var(--muted)) 84%, transparent);
+  border-radius: var(--btn-radius);
+  background: color-mix(in srgb, var(--paper) 74%, transparent);
   color: var(--ink);
   font-size: 13px;
   font-weight: 700;

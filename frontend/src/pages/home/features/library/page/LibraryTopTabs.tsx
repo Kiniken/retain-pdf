@@ -1,4 +1,4 @@
-// 主页顶部"图书馆 / 合集 / 收藏"分栏(裸 Tabs 原语,不经 src/components/ui/tabs.jsx
+// 主页顶部"图书馆 / 合集 / 收藏 / AI 问答"分栏(裸 Tabs 原语,不经 src/components/ui/tabs.jsx
 // 默认皮肤——同 StatusDetailDialog/SettingsHubDialog 的既有选择,用项目自有
 // class,不接 shadcn 默认视觉)。
 //
@@ -36,13 +36,23 @@ function IconBookmark() {
     </svg>
   );
 }
+// AI 问答:星芒
+function IconSparkles() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z" />
+      <path d="M19 15l.6 2.2L22 18l-2.4.6L19 21l-.6-2.4L16 18l2.4-.8L19 15z" />
+    </svg>
+  );
+}
 
 // key 保持 "categories"(契约 id library-top-tab-categories / 测试引用不变)。
-// "favorites" 为新增:收藏列表入口。
+// "favorites" / "ask" 为后续入口。
 const TABS = [
   { key: "library", label: "图书馆", Icon: IconLibrary },
   { key: "categories", label: "合集", Icon: IconLayers },
   { key: "favorites", label: "收藏", Icon: IconBookmark },
+  { key: "ask", label: "AI 问答", Icon: IconSparkles },
 ];
 
 export function LibraryTopTabs({ active, onChange }) {
@@ -62,6 +72,8 @@ export function LibraryTopTabs({ active, onChange }) {
           >
             <tab.Icon />
             <span>{tab.label}</span>
+            {/* 装饰钩子：默认无样式零渲染，皮肤可在 CSS 里给 tab 贴图换装 */}
+            <span className="library-top-tab-ornament" aria-hidden="true" />
           </TabsPrimitive.Trigger>
         ))}
       </TabsPrimitive.List>

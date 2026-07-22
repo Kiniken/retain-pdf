@@ -16,7 +16,7 @@ export function BookCardProcessingOverlay({
     <div
       className={cn(
         "book-card-processing-overlay pointer-events-none absolute inset-0 z-[5] flex items-center justify-center",
-        "bg-black/25 backdrop-blur-[1px]",
+        "bg-scrim/25 backdrop-blur-[1px]",
         className,
       )}
       data-processing="true"
@@ -24,7 +24,7 @@ export function BookCardProcessingOverlay({
     >
       <div
         className={cn(
-          "flex items-center justify-center rounded-full bg-white/90 shadow-md",
+          "flex items-center justify-center rounded-full bg-paper/90 shadow-md",
           compact ? "h-7 w-7" : "h-11 w-11",
         )}
       >

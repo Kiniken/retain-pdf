@@ -1241,6 +1241,29 @@ test("reader ai config prefers persisted browser credentials", () => {
   });
 });
 
+test("reader ai model key comes only from settings (no runtime secret fallback)", async () => {
+  const { setRuntimeConfig } = await import("../src/js/config/runtime.js");
+  setRuntimeConfig({
+    modelApiKey: "sk-from-runtime",
+    baseUrl: "https://api.deepseek.com/v1",
+    model: "deepseek-v4-flash",
+  });
+  // 模型 Key 只认设置；runtime 里的 modelApiKey 不得解锁
+  const config = readerAiConfig.resolveReaderAiConfig({
+    browserConfig: { modelApiKey: "   " },
+    developerConfig: { baseUrl: "", model: "" },
+  });
+  assert.equal(config.apiKey, "");
+  assert.equal(config.baseUrl, "https://api.deepseek.com/v1");
+  assert.equal(config.model, "deepseek-v4-flash");
+  assert.equal(config.provider, "deepseek");
+  // hasModelApiKey / readSettingsModelApiKey 只认设置里的 modelApiKey
+  assert.equal(readerAiConfig.readSettingsModelApiKey({ modelApiKey: "" }), "");
+  assert.equal(readerAiConfig.readSettingsModelApiKey({ modelApiKey: "   " }), "");
+  assert.equal(readerAiConfig.readSettingsModelApiKey({ modelApiKey: " sk-user " }), "sk-user");
+  setRuntimeConfig({ modelApiKey: "", baseUrl: "", model: "" });
+});
+
 // 502 回退本地 Markdown 检索的语义迁移至 React 组件测试:
 // 见 tests/reader-ai-conversations.test.mjs「后端 502 时回退本地检索」。
 

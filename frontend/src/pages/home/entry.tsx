@@ -11,6 +11,7 @@
 
 import { createRoot } from "react-dom/client";
 import { bootTheme } from "../../shared/theme/theme.js";
+import { DecorStage } from "../../shared/decor/DecorStage.jsx";
 import { createHomeComposition } from "./composition.js";
 import { HomeApp } from "./HomeApp.jsx";
 
@@ -34,4 +35,10 @@ function resolveHomeRoot(body = document.body) {
   return host;
 }
 
-createRoot(resolveHomeRoot()).render(<HomeApp services={services} />);
+createRoot(resolveHomeRoot()).render(
+  <>
+    {/* 装饰舞台：无 decorPack 的主题渲染 null，零开销（docs/theme-system/DECOR_PACKS.md） */}
+    <DecorStage />
+    <HomeApp services={services} />
+  </>,
+);

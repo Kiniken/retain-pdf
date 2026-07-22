@@ -11,14 +11,19 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
+  Bookmark,
   Columns2,
   Download,
+  FileCode2,
   FileText,
   Languages,
+  Sparkles,
   StickyNote,
   X,
 } from "lucide-react";
 import type { ReaderDownloadContext } from "../../hooks/use-reader-session.js";
+import type { ReaderToolId } from "../../tools/registry.js";
+import { READER_TOOLS } from "../../tools/registry.js";
 import {
   READER_DOWNLOAD_ACTIONS,
   downloadProtectedResource,
@@ -28,6 +33,13 @@ import {
   resolveReaderDownloadUrls,
   trimReaderDownloadString,
 } from "../../external.js";
+
+const TOOL_ICONS: Record<ReaderToolId, typeof StickyNote> = {
+  notes: StickyNote,
+  favorites: Bookmark,
+  markdown: FileCode2,
+  ai: Sparkles,
+};
 
 const STORAGE_KEY = "retainpdf.reader.fab.pos.v1";
 const FAB_SIZE = 52;
@@ -52,9 +64,11 @@ const DOWNLOAD_SHORT: Record<DownloadAction, string> = {
 type FabPos = { x: number; y: number };
 
 export type ReaderFabProps = {
-  notesOpen: boolean;
+  /** 当前打开的工具 id；null 表示都关 */
+  activeTool: ReaderToolId | null;
   notesCount: number;
-  onToggleNotes: () => void;
+  sourceOnly: boolean;
+  onToggleTool: (id: ReaderToolId) => void;
   download: ReaderDownloadContext;
 };
 
@@ -117,9 +131,10 @@ function resolveDownloadUrls(ctx: ReaderDownloadContext) {
 }
 
 export function ReaderFab({
-  notesOpen,
+  activeTool,
   notesCount,
-  onToggleNotes,
+  sourceOnly,
+  onToggleTool,
   download,
 }: ReaderFabProps) {
   const [pos, setPos] = useState<FabPos>(() => loadPos());
@@ -167,10 +182,10 @@ export function ReaderFab({
     };
   }, [open]);
 
-  const handleNotes = useCallback(() => {
-    onToggleNotes();
+  const handleTool = useCallback((id: ReaderToolId) => {
+    onToggleTool(id);
     setOpen(false);
-  }, [onToggleNotes]);
+  }, [onToggleTool]);
 
   const handleDownload = useCallback(
     async (action: DownloadAction) => {
@@ -283,25 +298,41 @@ export function ReaderFab({
             </button>
           </header>
 
-          <button
-            type="button"
-            role="menuitem"
-            className={`reader-fab-row${notesOpen ? " is-active" : ""}`}
-            aria-pressed={notesOpen}
-            onClick={handleNotes}
-            style={{ ["--fab-i" as string]: 0 }}
-          >
-            <span className="reader-fab-row-icon" aria-hidden="true">
-              <StickyNote size={18} strokeWidth={2} />
-            </span>
-            <span className="reader-fab-row-copy">
-              <span className="reader-fab-row-title">批注</span>
-              <span className="reader-fab-row-sub">
-                {notesOpen ? "关闭侧栏" : notesCount > 0 ? `${notesCount} 条批注` : "选中文字后添加"}
-              </span>
-            </span>
-            {badge ? <span className="reader-fab-row-badge">{badge}</span> : null}
-          </button>
+          {READER_TOOLS.map((tool, index) => {
+            const Icon = TOOL_ICONS[tool.id];
+            const isActive = activeTool === tool.id;
+            const disabled = tool.needsJob && sourceOnly;
+            let sub = isActive ? tool.subOpen : tool.subIdle;
+            if (tool.id === "notes" && !isActive && notesCount > 0) {
+              sub = `${notesCount} 条批注`;
+            }
+            if (disabled) {
+              sub = "需打开任务阅读";
+            }
+            return (
+              <button
+                key={tool.id}
+                type="button"
+                role="menuitem"
+                className={`reader-fab-row${isActive ? " is-active" : ""}${disabled ? " is-disabled" : ""}`}
+                aria-pressed={isActive}
+                disabled={disabled}
+                onClick={() => handleTool(tool.id)}
+                style={{ ["--fab-i" as string]: index }}
+              >
+                <span className="reader-fab-row-icon" aria-hidden="true">
+                  <Icon size={18} strokeWidth={2} />
+                </span>
+                <span className="reader-fab-row-copy">
+                  <span className="reader-fab-row-title">{tool.label}</span>
+                  <span className="reader-fab-row-sub">{sub}</span>
+                </span>
+                {tool.id === "notes" && badge ? (
+                  <span className="reader-fab-row-badge">{badge}</span>
+                ) : null}
+              </button>
+            );
+          })}
 
           <div className="reader-fab-section" role="group" aria-label="下载">
             <div className="reader-fab-section-head">
@@ -326,7 +357,7 @@ export function ReaderFab({
                     disabled={!enabled}
                     title={enabled ? `下载${meta.label}` : reason}
                     onClick={() => void handleDownload(action)}
-                    style={{ ["--fab-i" as string]: index + 1 }}
+                    style={{ ["--fab-i" as string]: index }}
                   >
                     <span className="reader-fab-chip-icon" aria-hidden="true">
                       <Icon size={16} strokeWidth={2} />
@@ -348,7 +379,7 @@ export function ReaderFab({
 
       <button
         type="button"
-        className={`reader-fab-trigger${open ? " is-open" : ""}${notesOpen ? " has-notes" : ""}`}
+        className={`reader-fab-trigger${open ? " is-open" : ""}${activeTool ? " has-notes" : ""}`}
         aria-label={open ? "收起工具菜单" : "打开工具菜单"}
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}

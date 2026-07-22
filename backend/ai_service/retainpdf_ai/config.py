@@ -28,6 +28,10 @@ class Settings:
     llm_timeout_s: float = 60.0
     # agent 循环护栏
     max_tool_rounds: int = 6
+    # B2 memory：近期窗口 / 超过则压缩 / MemoryView 字符上限
+    memory_window_turns: int = 6
+    memory_compress_after_turns: int = 12
+    memory_max_chars: int = 24000
     # 任务产物根目录(data/jobs/<job_id>/...)
     data_root: Path = field(default_factory=lambda: _repo_root() / "data")
 
@@ -50,5 +54,8 @@ def load_settings() -> Settings:
         llm_api_key=os.environ.get("RETAIN_AI_LLM_API_KEY", "").strip(),
         llm_timeout_s=float(os.environ.get("RETAIN_AI_LLM_TIMEOUT_S", "60")),
         max_tool_rounds=int(os.environ.get("RETAIN_AI_MAX_TOOL_ROUNDS", "6")),
+        memory_window_turns=int(os.environ.get("RETAIN_AI_MEMORY_WINDOW_TURNS", "6")),
+        memory_compress_after_turns=int(os.environ.get("RETAIN_AI_MEMORY_COMPRESS_AFTER_TURNS", "12")),
+        memory_max_chars=int(os.environ.get("RETAIN_AI_MEMORY_MAX_CHARS", "24000")),
         data_root=Path(data_root) if data_root else _repo_root() / "data",
     )
