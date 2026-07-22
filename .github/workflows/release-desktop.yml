@@ -40,7 +40,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "20"
           cache: "npm"
           cache-dependency-path: |
             desktop/package-lock.json
@@ -156,7 +156,16 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         shell: pwsh
-        run: npm ci
+        run: |
+          npm ci
+          # @tailwindcss/oxide needs native binding; npm optionalDeps can drop it (npm/cli#4828)
+          node -e "require('@tailwindcss/oxide')"
+          if ($LASTEXITCODE -ne 0) {
+            $ver = node -p "require('./node_modules/@tailwindcss/oxide/package.json').version"
+            npm install --no-save --no-package-lock "@tailwindcss/oxide@$ver"
+            node -e "require('@tailwindcss/oxide')"
+            if ($LASTEXITCODE -ne 0) { throw "tailwindcss oxide native binding missing after reinstall" }
+          }
 
       - name: Build Windows installer package
         working-directory: desktop
@@ -217,7 +226,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "20"
           cache: "npm"
           cache-dependency-path: |
             desktop/package-lock.json
@@ -342,7 +351,12 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         shell: bash
-        run: npm ci
+        run: |
+          npm ci
+          # @tailwindcss/oxide 需本机原生绑定；npm optionalDeps 偶发漏装时补齐
+          node -e "require('@tailwindcss/oxide')" \
+            || npm install --no-save --no-package-lock "@tailwindcss/oxide@$(node -p "require('./node_modules/@tailwindcss/oxide/package.json').version")"
+          node -e "require('@tailwindcss/oxide')"
 
       - name: Build Linux package
         working-directory: desktop
@@ -444,7 +458,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "20"
           cache: "npm"
           cache-dependency-path: |
             desktop/package-lock.json
@@ -838,7 +852,12 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         shell: bash
-        run: npm ci
+        run: |
+          npm ci
+          # @tailwindcss/oxide 需本机原生绑定；npm optionalDeps 偶发漏装时补齐
+          node -e "require('@tailwindcss/oxide')" \
+            || npm install --no-save --no-package-lock "@tailwindcss/oxide@$(node -p "require('./node_modules/@tailwindcss/oxide/package.json').version")"
+          node -e "require('@tailwindcss/oxide')"
 
       - name: Generate macOS icon
         shell: bash

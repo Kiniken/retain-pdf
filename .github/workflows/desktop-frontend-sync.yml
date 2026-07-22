@@ -34,7 +34,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "18"
+          node-version: "20"
           cache: "npm"
           cache-dependency-path: |
             desktop/package-lock.json
@@ -46,7 +46,11 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: |
+          npm ci
+          # @tailwindcss/oxide 需本机原生绑定；npm optionalDeps 偶发漏装时补齐
+          node -e "require('@tailwindcss/oxide')" \
+            || npm install --no-save --no-package-lock "@tailwindcss/oxide@$(node -p "require('./node_modules/@tailwindcss/oxide/package.json').version")"
 
       - name: Verify desktop frontend generation
         env:
