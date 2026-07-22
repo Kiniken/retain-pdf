@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { BrowserWindow, Menu, Tray, dialog, shell } = require("electron");
+const { BrowserWindow, Menu, Tray, dialog, nativeImage, shell } = require("electron");
 
 function createDesktopWindows(app, options = {}) {
   const appRoot = options.appRoot || process.cwd();
@@ -17,6 +17,38 @@ function createDesktopWindows(app, options = {}) {
 
   function resolveWindowIcon() {
     return path.join(appRoot, "assets", "RetainPDF-logo.png");
+  }
+
+  /**
+   * Menu bar / system tray icon.
+   * Issue #76: using the 1024² window logo made the macOS menu-bar glyph huge.
+   * Prefer dedicated trayTemplate assets (16 + @2x 32); fall back to a resized logo.
+   * On macOS, template images follow light/dark menu bar automatically.
+   */
+  function resolveTrayIcon() {
+    const trayDir = path.join(appRoot, "assets", "tray");
+    const templatePath = path.join(trayDir, "trayTemplate.png");
+    if (process.platform === "darwin" && fs.existsSync(templatePath)) {
+      // Path must end with "Template.png" so Electron also picks @2x for retina.
+      return templatePath;
+    }
+
+    const logoPath = resolveWindowIcon();
+    let image = nativeImage.createFromPath(logoPath);
+    if (image.isEmpty() && fs.existsSync(templatePath)) {
+      image = nativeImage.createFromPath(templatePath);
+    }
+    if (image.isEmpty()) {
+      return logoPath;
+    }
+
+    // Logical size ~16–18 pt in menu bar / notification area.
+    const size = process.platform === "darwin" ? 18 : 16;
+    const resized = image.resize({ width: size, height: size, quality: "best" });
+    if (process.platform === "darwin") {
+      resized.setTemplateImage(true);
+    }
+    return resized;
   }
 
   function showMainWindow() {
@@ -69,7 +101,16 @@ function createDesktopWindows(app, options = {}) {
     if (tray) {
       return tray;
     }
-    tray = new Tray(resolveWindowIcon());
+    const trayIcon = resolveTrayIcon();
+    tray = new Tray(trayIcon);
+    // Ensure template mode even if path-based load did not auto-mark it.
+    if (process.platform === "darwin" && trayIcon && typeof trayIcon !== "string") {
+      try {
+        tray.setImage(trayIcon);
+      } catch (_err) {
+        /* ignore */
+      }
+    }
     tray.setToolTip("RetainPDF");
     tray.setContextMenu(
       Menu.buildFromTemplate([

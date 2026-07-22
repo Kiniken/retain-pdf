@@ -13,11 +13,35 @@ import {
   writeDeveloperStoredConfig,
 } from "./storage.js";
 
+function preferNonEmpty(primary = "", fallback = "") {
+  const a = `${primary ?? ""}`.trim();
+  if (a) {
+    return a;
+  }
+  return `${fallback ?? ""}`.trim();
+}
+
+/**
+ * 读取用户凭据：
+ * - 浏览器：localStorage
+ * - 桌面：desktop snapshot 与 localStorage shadow 合并（非空优先）
+ *   避免「刚保存进 shadow / state，但 snapshot 仍是空 Key」导致 AI 门禁误锁。
+ */
 export function loadBrowserStoredConfig() {
+  const fromStorage = normalizeBrowserStoredConfig(readBrowserStoredConfig());
+  if (!isDesktopMode()) {
+    return fromStorage;
+  }
   const snapshot = persistedDesktopSnapshot();
-  return isDesktopMode() && snapshot
-    ? snapshot.browserConfig
-    : normalizeBrowserStoredConfig(readBrowserStoredConfig());
+  if (!snapshot?.browserConfig) {
+    return fromStorage;
+  }
+  const fromSnap = normalizeBrowserStoredConfig(snapshot.browserConfig);
+  return normalizeBrowserStoredConfig({
+    ocrProvider: fromSnap.ocrProvider || fromStorage.ocrProvider,
+    paddleToken: preferNonEmpty(fromSnap.paddleToken, fromStorage.paddleToken),
+    modelApiKey: preferNonEmpty(fromSnap.modelApiKey, fromStorage.modelApiKey),
+  });
 }
 
 export function saveBrowserStoredConfig(payload = {}) {

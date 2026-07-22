@@ -64,6 +64,7 @@ def strip_bbox_text_rects_from_pdf_copy(
             strip_no_effect_page_indices=frozenset(pre_strip_no_effect_page_indices),
         )
 
+    output_pdf_path = Path(output_pdf_path)
     output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
     output_pdf_path.unlink(missing_ok=True)
 
@@ -123,12 +124,7 @@ def strip_bbox_text_rects_from_pdf_copy(
             )
 
         save_started = time.perf_counter()
-        pdf.save(
-            output_pdf_path,
-            object_stream_mode=pikepdf.ObjectStreamMode.generate,
-            compress_streams=True,
-            recompress_flate=False,
-        )
+        _save_pdf_atomic(pdf, output_pdf_path)
         save_elapsed = time.perf_counter() - save_started
     finally:
         close_started = time.perf_counter()
@@ -179,6 +175,38 @@ def _deadline_from_budget(max_elapsed_seconds: float | None) -> float | None:
     if max_elapsed_seconds is None or max_elapsed_seconds <= 0:
         return None
     return time.perf_counter() + float(max_elapsed_seconds)
+
+
+def _save_pdf_atomic(pdf: pikepdf.Pdf, output_pdf_path: Path) -> None:
+    """Save via a short-lived sibling temp file, then replace.
+
+    Helps on Windows when:
+    - parent must exist (mkdir already done by caller)
+    - qpdf/pikepdf write-temp next to destination fails with opaque FileNotFoundError
+    """
+    output_pdf_path = Path(output_pdf_path)
+    output_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    # Short temp name in the same directory (avoid compounding long titles).
+    tmp_path = output_pdf_path.parent / f".{os.getpid()}-{output_pdf_path.stem[:12]}.tmp.pdf"
+    # If even that is long, fall back to a fixed short name.
+    if len(str(tmp_path)) > 240 and os.name == "nt":
+        tmp_path = output_pdf_path.parent / f".rpsave-{os.getpid()}.tmp.pdf"
+    try:
+        pdf.save(
+            tmp_path,
+            object_stream_mode=pikepdf.ObjectStreamMode.generate,
+            compress_streams=True,
+            recompress_flate=False,
+        )
+        tmp_path.replace(output_pdf_path)
+    except FileNotFoundError as exc:
+        tmp_path.unlink(missing_ok=True)
+        raise FileNotFoundError(
+            f"Failed to save cleaned PDF (path may be too long or missing): {output_pdf_path}"
+        ) from exc
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def _apply_page_results(

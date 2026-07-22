@@ -23,6 +23,8 @@ import {
 } from "./persistence.js";
 import { createCredentialRuntimeEnvPort } from "./runtime-env-port.js";
 import { createCredentialUploadReadinessPort } from "./upload-readiness-port.js";
+import { savePersistedBrowserStoredConfig } from "../../config/persisted-config.js";
+import { notifyCredentialsChanged } from "../../reader/ai/config.js";
 import type {
   CredentialsFields,
   CredentialsStatePort,
@@ -394,17 +396,27 @@ export function mountBrowserCredentialsFeature({
       viewPort.setDialogStatus("请填写 OCR Token 与模型 API Key 后再保存", "error");
       return;
     }
+
+    const nextCredentials = {
+      ocrProvider: currentOcrProvider(),
+      paddleToken: ocrToken,
+      modelApiKey,
+    };
+
     // 保存只做落盘；联网校验留给「检测」按钮。
-    // 旧逻辑在每次保存时强制 OCR 联网，后端未就绪/离线时 Key 永远写不进去。
+    // 必须 await 完整持久化（含桌面 snapshot），再通知 AI 门禁刷新。
     try {
-      if (runtimeEnv.isDesktopMode()) {
+      credentialsStatePort.setCredentials?.(nextCredentials);
+      // 统一走 savePersisted*：localStorage + 桌面 snapshot/IPC 一次写齐
+      await savePersistedBrowserStoredConfig(nextCredentials);
+      // 兼容旧注入（桌面 markConfigured / 任务选项）
+      if (runtimeEnv.isDesktopMode() && saveDesktopConfig) {
         await persistDesktopCredentials({
           currentOcrProvider,
           defaultModelApiKey,
           defaultModelBaseUrl,
           saveTaskOptions,
           saveDesktopConfig,
-          // 连通性检查失败不应阻止凭据落盘（首次配置仍可能无后端）
           checkApiConnectivity: async () => {
             try {
               await checkApiConnectivity?.();
@@ -412,30 +424,22 @@ export function mountBrowserCredentialsFeature({
               /* ignore connectivity on save */
             }
           },
-          values,
+          values: { ...values, paddleToken: ocrToken, modelApiKey },
           setupModePort,
         });
-        credentialsStatePort.setCredentials?.({
-          ocrProvider: currentOcrProvider(),
-          paddleToken: ocrToken,
-          modelApiKey,
-        });
       } else {
-        const next = persistBrowserCredentials({
+        persistBrowserCredentials({
           applyCredentialInputs: applyHiddenCredentialInputs,
           currentOcrProvider,
           defaultModelApiKey,
           defaultModelBaseUrl,
           saveTaskOptions,
           saveBrowserStoredConfig,
-          values,
-        });
-        credentialsStatePort.setCredentials?.(next || {
-          ocrProvider: currentOcrProvider(),
-          paddleToken: ocrToken,
-          modelApiKey,
+          values: { ...values, paddleToken: ocrToken, modelApiKey },
         });
       }
+      // 再次保证内存态与刚写入的 next 一致
+      credentialsStatePort.setCredentials?.(nextCredentials);
     } catch (error) {
       const message = (error as { message?: string })?.message || String(error);
       viewPort.setDialogStatus(message, "error");
@@ -445,6 +449,7 @@ export function mountBrowserCredentialsFeature({
     // 写回可见输入，避免保存后输入框仍显示空
     syncBrowserDialogFromCredentialState();
     onCredentialStateChange?.();
+    notifyCredentialsChanged();
     viewPort.setDialogStatus("已保存", "valid");
     // 首次配置弹窗保存后关闭；设置中心内嵌时保持打开以便继续改任务选项
     if (setupModePort.currentSetupMode?.()) {

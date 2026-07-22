@@ -6,6 +6,8 @@ import {
   CREDENTIALS_CHANGED_EVENT,
   hasModelApiKey,
 } from "../../../../js/reader/ai/config.js";
+import { useStoreSnapshot } from "../../../../shared/react/use-store.js";
+import { useHomeServices } from "../../home-services-context.js";
 import { HomeAskComposer } from "./HomeAskComposer.js";
 import { HomeAskSidebar } from "./HomeAskSidebar.js";
 import { HomeAskThread, HOME_ASK_SUGGESTIONS } from "./HomeAskThread.js";
@@ -31,6 +33,7 @@ function saveSidebarCollapsed(collapsed: boolean) {
 }
 
 export function HomeAskView() {
+  const services = useHomeServices();
   const {
     messages,
     isRunning,
@@ -47,8 +50,9 @@ export function HomeAskView() {
   } = useHomeAskRuntime();
   const [scopes, setScopes] = useState<HomeAskScope[]>([]);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(loadSidebarCollapsed);
-  // 凭据对话框保存后需刷新门禁（只认设置 → 凭据里的 modelApiKey）
+  // 凭据保存后立刻重算门禁：订阅 credentials store + 自定义事件
   const [credTick, setCredTick] = useState(0);
+  const credentialsSnap = useStoreSnapshot(services.ports.credentialsStatePort.store);
   const empty = messages.length === 0;
 
   useEffect(() => {
@@ -69,6 +73,7 @@ export function HomeAskView() {
     };
   }, []);
   void credTick;
+  void credentialsSnap;
   const missingLlmKey = !hasModelApiKey();
 
   return (

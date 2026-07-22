@@ -6,6 +6,7 @@ import {
   loadBrowserStoredConfig,
   loadDeveloperStoredConfig,
 } from "../../config/persisted-config.js";
+import { defaultCredentialsStatePort } from "../../features/credentials/default-state-port.js";
 
 /** 取第一个 trim 后非空的字符串；空白 / 空串不算有效凭据。 */
 function firstNonEmpty(...candidates: unknown[]): string {
@@ -19,12 +20,22 @@ function firstNonEmpty(...candidates: unknown[]): string {
 }
 
 /**
- * 读取「设置 → 凭据」里保存的模型 API Key（browser localStorage / 桌面 shadow）。
- * 不读 runtime-config：密钥只能由用户在设置里配置。
+ * 读取「设置 → API 设置」里的模型 API Key。
+ * 优先级：内存 credentials 状态 → 持久化配置（桌面 snapshot / localStorage）。
+ * 不读 runtime-config 密钥。
  */
 export function readSettingsModelApiKey(
   browserConfig = loadBrowserStoredConfig(),
 ): string {
+  try {
+    const live = defaultCredentialsStatePort.getCredentials?.()?.modelApiKey;
+    const fromLive = `${live ?? ""}`.trim();
+    if (fromLive) {
+      return fromLive;
+    }
+  } catch {
+    /* ignore */
+  }
   return `${browserConfig?.modelApiKey ?? ""}`.trim();
 }
 
