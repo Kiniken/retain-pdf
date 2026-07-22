@@ -130,22 +130,22 @@ ensureElement("browser-credentials-dialog").dataset.setupMode = "1";
 ensureElement("error-box").textContent = "old error";
 
 const [{ saveDesktopConfig }, { state }] = await Promise.all([
-  import("../src/js/desktop/index.js"),
-  import("../src/js/state/store.js"),
+  import("../src/js/desktop/index.ts"),
+  import("../src/js/state/store.ts"),
 ]);
 
 let caughtMessage = "";
 try {
+  // 当前签名: saveDesktopConfig(browserConfig, afterSave)
   await saveDesktopConfig(
-    "",
-    "deepseek-key",
-    async () => {
-      throw new Error("health 503");
-    },
     {
       ocrProvider: "paddle",
       paddleToken: "paddle-token",
+      modelApiKey: "deepseek-key",
       markConfigured: true,
+    },
+    async () => {
+      throw new Error("health 503");
     },
   );
 } catch (error) {
