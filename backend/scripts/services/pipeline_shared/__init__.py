@@ -18,6 +18,7 @@ from .events import emit_stage_transition
 from .events import get_active_pipeline_event_writer
 from .events import PipelineEventWriter
 from .events import pipeline_event_writer_scope
+from .io import load_json
 from .io import save_json
 from .source_json import resolve_preferred_source_json_path
 from .source_json import resolve_translation_source_json_path
@@ -30,6 +31,7 @@ __all__ = [
     "emit_stage_progress",
     "emit_stage_transition",
     "get_active_pipeline_event_writer",
+    "load_json",
     "PIPELINE_SUMMARY_FILE_NAME",
     "PIPELINE_EVENTS_FILE_NAME",
     "PipelineEventWriter",

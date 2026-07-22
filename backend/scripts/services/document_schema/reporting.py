@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
+
+from services.pipeline_shared.io import load_json
 
 
 def load_normalization_report(path: Path) -> dict:
     if not path.exists():
         return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+    return load_json(path)
 
 
 def _sum_default_hits(payload: dict | None) -> int:

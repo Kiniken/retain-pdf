@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,15 +16,7 @@ from services.document_schema import build_validation_report
 from services.document_schema.reporting import build_normalization_summary
 from services.ocr_provider.paddle_normalize import post_rescale_rebuild_paddle_text_geometry
 from services.ocr_provider.paddle_normalize import rescale_document_geometry_to_pdf
-
-
-def _save_json(path: Path, payload: dict, *, compact: bool = False) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    separators = (",", ":") if compact else None
-    path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=None if compact else 2, separators=separators),
-        encoding="utf-8",
-    )
+from services.pipeline_shared.io import save_json
 
 
 def parse_args() -> argparse.Namespace:
@@ -103,8 +94,8 @@ def main() -> None:
     normalized_document = rescale_document_geometry_to_pdf(normalized_document, source_pdf_path)
     normalized_document = post_rescale_rebuild_paddle_text_geometry(normalized_document)
     normalization_report = _refresh_report_for_final_document(normalization_report, normalized_document)
-    _save_json(normalized_json_path, normalized_document, compact=True)
-    _save_json(normalized_report_json_path, normalization_report)
+    save_json(normalized_json_path, normalized_document, compact=True)
+    save_json(normalized_report_json_path, normalization_report)
 
     # _refresh_report_for_final_document already validated the final document;
     # reuse its report instead of re-reading and re-validating the saved file.

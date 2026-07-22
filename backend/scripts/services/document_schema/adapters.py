@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Callable
 
@@ -11,13 +10,14 @@ from services.document_schema.providers import PROVIDER_MINERU
 from services.document_schema.providers import PROVIDER_MINERU_CONTENT_LIST_V2
 from services.document_schema.providers import PROVIDER_PADDLE
 from services.document_schema.validator import build_validation_report
+from services.pipeline_shared.io import load_json
 
 AdapterBuilder = Callable[[dict, str, Path, str], dict]
 Detector = Callable[[dict], bool]
 
 
 def _load_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return load_json(path)
 
 
 def _build_mineru_document(payload: dict, document_id: str, source_json_path: Path, provider_version: str) -> dict:

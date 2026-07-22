@@ -324,7 +324,10 @@ def validate_document_payload(data: dict) -> None:
 
 
 def validate_document_path(path: Path) -> dict:
-    data = json.loads(path.read_text(encoding="utf-8"))
+    # Stream-read to avoid path.read_text + json.loads peak-memory spike
+    # on large document.v1.json (see issue #80 MemoryError).
+    with path.open("r", encoding="utf-8") as handle:
+        data = json.load(handle)
     validate_document_payload(data)
     return data
 
